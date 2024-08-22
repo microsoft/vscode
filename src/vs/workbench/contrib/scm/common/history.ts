@@ -12,9 +12,6 @@ import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
 	getHistoryTitleMenu(): IMenu;
-	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
-	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
-
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
 }

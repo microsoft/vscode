@@ -14,7 +14,7 @@ import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/c
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISCMHistoryProviderMenus, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProviderMenus, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 
 function actionEquals(a: IAction, b: IAction): boolean {
@@ -281,18 +281,6 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		return this.getOrCreateHistoryItemMenu2(historyItem);
 	}
 
-	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
-		return historyItemGroup.direction === 'incoming' ?
-			this.menuService.createMenu(MenuId.SCMIncomingChanges, this.contextKeyService) :
-			this.getOutgoingHistoryItemGroupMenu(MenuId.SCMOutgoingChanges, historyItemGroup);
-	}
-
-	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
-		return historyItemGroup.direction === 'incoming' ?
-			this.menuService.createMenu(MenuId.SCMIncomingChangesContext, this.contextKeyService) :
-			this.getOutgoingHistoryItemGroupMenu(MenuId.SCMOutgoingChangesContext, historyItemGroup);
-	}
-
 	private getOrCreateHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
 		let result = this.historyItemMenus.get(historyItem);
 
@@ -328,14 +316,6 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		}
 
 		return result;
-	}
-
-	private getOutgoingHistoryItemGroupMenu(menuId: MenuId, historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmHistoryItemGroupHasRemote', !!historyItemGroup.repository.provider.historyProvider.get()?.currentHistoryItemGroup.get()?.remote],
-		]);
-
-		return this.menuService.createMenu(menuId, contextKeyService);
 	}
 
 	dispose(): void {

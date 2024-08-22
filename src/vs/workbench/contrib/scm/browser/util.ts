@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -51,10 +51,6 @@ export function isSCMResource(element: any): element is ISCMResource {
 
 export function isSCMResourceNode(element: any): element is IResourceNode<ISCMResource, ISCMResourceGroup> {
 	return ResourceTree.isResourceNode(element) && isSCMResourceGroup(element.context);
-}
-
-export function isSCMHistoryItemGroupTreeElement(element: any): element is SCMHistoryItemGroupTreeElement {
-	return (element as SCMHistoryItemGroupTreeElement).type === 'historyItemGroup';
 }
 
 export function isSCMHistoryItemTreeElement(element: any): element is SCMHistoryItemTreeElement {
