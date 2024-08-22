@@ -46,7 +46,7 @@ export = new class implements eslint.Rule.RuleModule {
 			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization',
 			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json',
 			badAbsolute: 'Imports have to be relative to support ESM',
-			badExtension: 'Imports have to end with `.js` to support ESM',
+			badExtension: 'Imports have to end with `.js` or `.css` to support ESM',
 		},
 		docs: {
 			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
@@ -217,8 +217,8 @@ export = new class implements eslint.Rule.RuleModule {
 		const targetIsVS = /^src\/vs\//.test(getRelativeFilename(context));
 		if (targetIsVS) {
 
-			// ESM: check for import ending with ".js"
-			if (importPath[0] === '.' && !importPath.endsWith('.js')) {
+			// ESM: check for import ending with ".js" or ".css"
+			if (importPath[0] === '.' && !importPath.endsWith('.js') && !importPath.endsWith('.css')) {
 				context.report({
 					loc: node.loc,
 					messageId: 'badExtension',
@@ -226,7 +226,7 @@ export = new class implements eslint.Rule.RuleModule {
 			}
 
 			// check for import being relative
-			if (importPath.startsWith('vs/') && !importPath.startsWith('vs/css!')) {
+			if (importPath.startsWith('vs/')) {
 				context.report({
 					loc: node.loc,
 					messageId: 'badAbsolute',
