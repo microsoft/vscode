@@ -71,62 +71,6 @@ registerAction2(class extends Action2 {
 });
 
 
-registerAction2(class CollapseAllAction extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.diffEditor.2.collapseAll',
-			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
-			icon: Codicon.collapseAll,
-			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.not(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
-			menu: {
-				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.not(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: 100
-			},
-			f1: true,
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const activeEditor = accessor.get(IEditorService).activeEditorPane;
-		if (!activeEditor) {
-			return;
-		}
-		if (activeEditor instanceof NotebookMultiTextDiffEditor) {
-			activeEditor.collapseAll();
-		}
-	}
-});
-
-registerAction2(class ExpandAllAction extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.diffEditor.2.expandAll',
-			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
-			icon: Codicon.expandAll,
-			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
-			menu: {
-				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: 100
-			},
-			f1: true,
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const activeEditor = accessor.get(IEditorService).activeEditorPane;
-		if (!activeEditor) {
-			return;
-		}
-		if (activeEditor instanceof NotebookMultiTextDiffEditor) {
-			activeEditor.expandAll();
-		}
-	}
-});
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
