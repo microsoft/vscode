@@ -299,7 +299,7 @@ function writeDestFile(srcFilePath, fileContents) {
 					continue;
 				}
 				didChange = true;
-				lines[i] = '// ' + line;
+				lines[i] = line.replace(/^\s*/, (match) => match + '// ');
 				continue;
 			}
 
