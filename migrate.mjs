@@ -83,8 +83,6 @@ function migrateOne(filePath, fileContents) {
 
 	if (fileExtension === '.ts') {
 		migrateTS(filePath, fileContents.toString());
-	} else if (fileExtension === '.js' || fileExtension === '.cjs' || fileExtension === '.mjs' || fileExtension === '.css' || binaryFileExtensions.has(fileExtension)) {
-		writeDestFile(filePath, fileContents);
 	} else if (filePath.endsWith('tsconfig.base.json')) {
 		const opts = JSON.parse(fileContents.toString());
 		if (amdToEsm) {
@@ -95,6 +93,8 @@ function migrateOne(filePath, fileContents) {
 			delete opts.compilerOptions.allowSyntheticDefaultImports;
 		}
 		writeDestFile(filePath, JSON.stringify(opts, null, '\t'));
+	} else if (fileExtension === '.js' || fileExtension === '.cjs' || fileExtension === '.mjs' || fileExtension === '.css' || binaryFileExtensions.has(fileExtension)) {
+		writeDestFile(filePath, fileContents);
 	} else {
 		console.log(`ignoring ${filePath}`);
 	}
