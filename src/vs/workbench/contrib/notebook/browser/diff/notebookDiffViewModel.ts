@@ -499,8 +499,7 @@ export abstract class NotebookMultiDiffEditorItem extends MultiDiffEditorItem {
 		public kind: 'Cell' | 'Metadata' | 'Output',
 		contextKeys?: Record<string, ContextKeyValue>,
 	) {
-		super(originalUri, modifiedUri, goToFileUri);
-		// super(originalUri, modifiedUri, goToFileUri, contextKeys);
+		super(originalUri, modifiedUri, goToFileUri, contextKeys);
 	}
 }
 
