@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isMacintosh } from 'vs/base/common/platform';
+
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -822,6 +824,21 @@ export const enum KeyMod {
 	Shift = (1 << 10) >>> 0,
 	Alt = (1 << 9) >>> 0,
 	WinCtrl = (1 << 8) >>> 0,
+}
+
+export namespace KeyModUtils {
+	export function keyModToString(keyMod: number): string {
+		if ((keyMod & KeyMod.CtrlCmd)) {
+			if (isMacintosh) {
+				return 'CMD';
+			}
+			return 'Ctrl';
+		}
+		if (keyMod & KeyMod.Shift) {return 'Shift';}
+		if (keyMod & KeyMod.Alt) {return 'Alt';}
+		if (keyMod & KeyMod.WinCtrl) {return 'Win';}
+		return '';
+	}
 }
 
 export function KeyChord(firstPart: number, secondPart: number): number {

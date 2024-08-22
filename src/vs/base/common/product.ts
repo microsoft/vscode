@@ -147,6 +147,15 @@ export interface IProductConfiguration {
 	readonly licenseUrl?: string;
 	readonly serverLicenseUrl?: string;
 	readonly privacyStatementUrl?: string;
+	readonly pearAIHomepageURL?: string;
+	readonly pearAILinks?: {
+		homepage: string;
+		dashboard: string;
+		faq: string;
+		docs: string;
+		github: string;
+		changelog: string;
+	};
 	readonly showTelemetryOptOut?: boolean;
 
 	readonly serverGreeting?: string[];

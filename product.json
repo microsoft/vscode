@@ -1663,6 +1663,15 @@
 	"cesSurveyUrl": "https://aka.ms/new-to-vscode-feedback",
 	"checksumFailMoreInfoUrl": "https://go.microsoft.com/fwlink/?LinkId=828886",
 	"settingsSearchUrl": "https://bingsettingssearch.trafficmanager.net/api/Search",
+	"pearAIHomepageURL": "https://trypear.ai",
+	"pearAILinks": {
+		"homepage": "https://trypear.ai",
+		"dashboard": "https://trypear.ai/dashboard",
+		"faq": "https://trypear.ai/faq",
+		"docs": "https://trypear.ai/docs",
+		"github": "https://github.com/orgs/trypear/repositories",
+		"changelog": "https://trypear.ai/changelog"
+	},
 	"extensionsEnabledWithApiProposalVersion": [
 		"GitHub.copilot-chat"
 	],
@@ -2132,6 +2141,7 @@
 		}
 	},
 	"linkProtectionTrustedDomains": [
+		"https://trypear.ai",
 		"https://*.visualstudio.com",
 		"https://*.microsoft.com",
 		"https://aka.ms",
