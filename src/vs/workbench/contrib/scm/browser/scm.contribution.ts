@@ -117,7 +117,7 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: HISTORY_VIEW_PANE_ID,
-	name: localize2('source control history', "Source Control History"),
+	name: localize2('source control history', "Source Control Graph"),
 	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
