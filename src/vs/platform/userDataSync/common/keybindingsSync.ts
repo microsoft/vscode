@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { isUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM } from 'vs/platform/userDataSync/common/userDataSync';
+import { isNonEmptyArray } from '../../../base/common/arrays';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Event } from '../../../base/common/event';
+import { parse } from '../../../base/common/json';
+import { OperatingSystem, OS } from '../../../base/common/platform';
+import { isUndefined } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files';
+import { ILogService } from '../../log/common/log';
+import { IStorageService } from '../../storage/common/storage';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
+import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from './abstractSynchronizer';
+import { merge } from './keybindingsMerge';
+import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM } from './userDataSync';
 
 interface ISyncContent {
 	mac?: string;

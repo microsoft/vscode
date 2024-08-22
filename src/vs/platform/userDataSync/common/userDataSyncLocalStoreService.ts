@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { toLocalISOString } from 'vs/base/common/date';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from 'vs/platform/files/common/files';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncLocalStoreService, IUserDataSyncLogService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { Promises } from '../../../base/common/async';
+import { VSBuffer } from '../../../base/common/buffer';
+import { toLocalISOString } from '../../../base/common/date';
+import { Disposable } from '../../../base/common/lifecycle';
+import { joinPath } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../files/common/files';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
+import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncLocalStoreService, IUserDataSyncLogService, SyncResource } from './userDataSync';
 
 export class UserDataSyncLocalStoreService extends Disposable implements IUserDataSyncLocalStoreService {
 

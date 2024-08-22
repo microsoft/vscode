@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableStore, dispose } from '../../../base/common/lifecycle';
+import { equals } from '../../../base/common/objects';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration';
+import { EditorActivation } from '../../../platform/editor/common/editor';
+import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from '../../contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorService } from '../../contrib/notebook/browser/services/notebookEditorService';
+import { ICellRange } from '../../contrib/notebook/common/notebookRange';
+import { columnToEditorGroup, editorGroupToColumn } from '../../services/editor/common/editorGroupColumn';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService';
+import { IEditorService } from '../../services/editor/common/editorService';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostNotebookEditorsShape, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 
 class MainThreadNotebook {

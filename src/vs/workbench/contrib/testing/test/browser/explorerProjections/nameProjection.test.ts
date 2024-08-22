@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ListProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/listProjection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
-import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
-import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
+import { Emitter } from '../../../../../../base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils';
+import { ListProjection } from '../../../browser/explorerProjections/listProjection';
+import { TestId } from '../../../common/testId';
+import { TestResultItemChange } from '../../../common/testResult';
+import { TestDiffOpType, TestItemExpandState } from '../../../common/testTypes';
+import { TestTreeTestHarness } from '../testObjectTree';
+import { TestTestItem } from '../../common/testStubs';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	let harness: TestTreeTestHarness<ListProjection>;

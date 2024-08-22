@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ILogService } from 'vs/platform/log/common/log';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Emitter } from '../../../base/common/event';
+import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle';
+import { StopWatch } from '../../../base/common/stopwatch';
+import { assertType } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { CommandsRegistry } from '../../../platform/commands/common/commands';
+import { ILogService } from '../../../platform/log/common/log';
+import { NotebookDto } from './mainThreadNotebookDto';
+import { INotebookCellStatusBarService } from '../../contrib/notebook/common/notebookCellStatusBarService';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, TransientOptions } from '../../contrib/notebook/common/notebookCommon';
+import { INotebookService, SimpleNotebookProviderInfo } from '../../contrib/notebook/common/notebookService';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { revive } from 'vs/base/common/marshalling';
-import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
-import { coalesce } from 'vs/base/common/arrays';
+import { IRelativePattern } from '../../../base/common/glob';
+import { revive } from '../../../base/common/marshalling';
+import { INotebookFileMatchNoModel } from '../../contrib/search/common/searchNotebookHelpers';
+import { NotebookPriorityInfo } from '../../contrib/search/common/search';
+import { coalesce } from '../../../base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {

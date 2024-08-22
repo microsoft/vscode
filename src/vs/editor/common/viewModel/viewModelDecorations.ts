@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { Position } from '../core/position';
+import { Range } from '../core/range';
+import { IEditorConfiguration } from '../config/editorConfiguration';
+import { IModelDecoration, ITextModel, PositionAffinity } from '../model';
+import { IViewModelLines } from './viewModelLines';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel';
+import { filterValidationDecorations } from '../config/editorOptions';
+import { StandardTokenType } from '../encodedTokenAttributes';
 
 export interface IDecorationsViewportData {
 	/**

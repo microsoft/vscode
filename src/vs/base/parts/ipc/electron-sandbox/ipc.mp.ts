@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import { Event } from 'vs/base/common/event';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ipcMessagePort, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { mainWindow } from '../../../browser/window';
+import { Event } from '../../../common/event';
+import { generateUuid } from '../../../common/uuid';
+import { ipcMessagePort, ipcRenderer } from '../../sandbox/electron-sandbox/globals';
 
 interface IMessageChannelResult {
 	nonce: string;

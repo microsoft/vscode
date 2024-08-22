@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls';
 
-import * as types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import * as types from '../../../../base/common/types';
+import * as resources from '../../../../base/common/resources';
+import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry';
+import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME } from './workbenchThemeService';
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Event, Emitter } from '../../../../base/common/event';
+import { URI } from '../../../../base/common/uri';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle';
+import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from '../../extensionManagement/common/extensionFeatures';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
 
 export function registerColorThemeExtensionPoint() {
 	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({

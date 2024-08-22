@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { constObservable } from 'vs/base/common/observable';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
-import { InlineEditHintsContentWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
-import * as nls from 'vs/nls';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { constObservable } from '../../../../base/common/observable';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Range } from '../../../common/core/range';
+import { IModelDecoration } from '../../../common/model';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../hover/browser/hoverTypes';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { InlineEditController } from './inlineEditController';
+import { InlineEditHintsContentWidget } from './inlineEditHintsWidget';
+import * as nls from '../../../../nls';
 
 export class InlineEditHover implements IHoverPart {
 	constructor(

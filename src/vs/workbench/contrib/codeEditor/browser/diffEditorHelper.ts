@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { localize } from 'vs/nls';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { DiffEditorAccessibilityHelp } from 'vs/workbench/contrib/codeEditor/browser/diffEditorAccessibilityHelp';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { autorunWithStore, observableFromEvent } from '../../../../base/common/observable';
+import { IDiffEditor } from '../../../../editor/browser/editorBrowser';
+import { registerDiffEditorContribution } from '../../../../editor/browser/editorExtensions';
+import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
+import { IDiffEditorContribution } from '../../../../editor/common/editorCommon';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { localize } from '../../../../nls';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { FloatingEditorClickWidget } from '../../../browser/codeeditor';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration';
+import { DiffEditorAccessibilityHelp } from './diffEditorAccessibilityHelp';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 	public static readonly ID = 'editor.contrib.diffEditorHelper';

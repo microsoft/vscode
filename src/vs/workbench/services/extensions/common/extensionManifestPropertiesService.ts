@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionUntrustedWorkspaceSupport } from 'vs/base/common/product';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { isBoolean } from 'vs/base/common/types';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isWeb } from 'vs/base/common/platform';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifierMap } from '../../../../platform/extensions/common/extensions';
+import { ExtensionKind } from '../../../../platform/environment/common/environment';
+import { ExtensionsRegistry } from './extensionsRegistry';
+import { getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { isNonEmptyArray } from '../../../../base/common/arrays';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ExtensionUntrustedWorkspaceSupport } from '../../../../base/common/product';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../workspaces/common/workspaceTrust';
+import { isBoolean } from '../../../../base/common/types';
+import { IWorkspaceTrustEnablementService } from '../../../../platform/workspace/common/workspaceTrust';
+import { ILogService } from '../../../../platform/log/common/log';
+import { isWeb } from '../../../../base/common/platform';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ColorDecorationInjectedTextMarker } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
-import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { ColorDecorationInjectedTextMarker } from './colorDetector';
+import { ColorHoverParticipant } from './colorHoverParticipant';
+import { ContentHoverController } from '../../hover/browser/contentHoverController2';
+import { HoverStartMode, HoverStartSource } from '../../hover/browser/hoverOperation';
+import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes';
 
 export class ColorContribution extends Disposable implements IEditorContribution {
 

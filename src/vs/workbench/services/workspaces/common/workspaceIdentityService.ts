@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceStateFolder } from 'vs/platform/userDataSync/common/userDataSync';
-import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IWorkspaceStateFolder } from '../../../../platform/userDataSync/common/userDataSync';
+import { EditSessionIdentityMatch, IEditSessionIdentityService } from '../../../../platform/workspace/common/editSessions';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace';
 
 export const IWorkspaceIdentityService = createDecorator<IWorkspaceIdentityService>('IWorkspaceIdentityService');
 export interface IWorkspaceIdentityService {

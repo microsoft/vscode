@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IActiveLanguagePackService, ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { ILanguagePackItem, ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IViewPaneContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { localize } from 'vs/nls';
-import { toAction } from 'vs/base/common/actions';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { parse } from 'vs/base/common/jsonc';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Language, LANGUAGE_DEFAULT } from '../../../../base/common/platform';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { IJSONEditingService } from '../../configuration/common/jsonEditing';
+import { IActiveLanguagePackService, ILocaleService } from '../common/locale';
+import { ILanguagePackItem, ILanguagePackService } from '../../../../platform/languagePacks/common/languagePacks';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite';
+import { IViewPaneContainer, ViewContainerLocation } from '../../../common/views';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress';
+import { localize } from '../../../../nls';
+import { toAction } from '../../../../base/common/actions';
+import { ITextFileService } from '../../textfile/common/textfiles';
+import { parse } from '../../../../base/common/jsonc';
+import { IEditorService } from '../../editor/common/editorService';
+import { IHostService } from '../../host/browser/host';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
 
 // duplicate of IExtensionsViewPaneContainer in contrib
 interface IExtensionsViewPaneContainer extends IViewPaneContainer {

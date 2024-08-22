@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Event } from 'vs/base/common/event';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls';
+import { ISnippetsService } from './snippets';
+import { Snippet, SnippetSource } from './snippetsFile';
+import { IQuickPickItem, IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput';
+import { Codicon } from '../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { Event } from '../../../../base/common/event';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { DisposableStore } from '../../../../base/common/lifecycle';
 
 export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippets: string | Snippet[]): Promise<Snippet | undefined> {
 

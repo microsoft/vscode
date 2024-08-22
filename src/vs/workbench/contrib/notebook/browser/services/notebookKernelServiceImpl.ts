@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INotebookKernelSourceAction, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent, INotebookKernelDetectionTask, IKernelSourceActionProvider } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { LRUCache, ResourceMap } from 'vs/base/common/map';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { URI } from 'vs/base/common/uri';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction } from 'vs/base/common/actions';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { Schemas } from 'vs/base/common/network';
-import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { Event, Emitter } from '../../../../../base/common/event';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle';
+import { INotebookKernelSourceAction, INotebookTextModel } from '../../common/notebookCommon';
+import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike, ISourceAction, INotebookSourceActionChangeEvent, INotebookKernelDetectionTask, IKernelSourceActionProvider } from '../../common/notebookKernelService';
+import { LRUCache, ResourceMap } from '../../../../../base/common/map';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage';
+import { URI } from '../../../../../base/common/uri';
+import { INotebookService } from '../../common/notebookService';
+import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { IAction } from '../../../../../base/common/actions';
+import { MarshalledId } from '../../../../../base/common/marshallingIds';
+import { Schemas } from '../../../../../base/common/network';
+import { getActiveWindow, runWhenWindowIdle } from '../../../../../base/browser/dom';
 
 class KernelInfo {
 

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import { FileAccess } from 'vs/base/common/network';
-import { getCaseInsensitive } from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
-import { format } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import * as pfs from 'vs/base/node/pfs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
-import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { FileAccess } from '../../../base/common/network';
+import { getCaseInsensitive } from '../../../base/common/objects';
+import * as path from '../../../base/common/path';
+import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform';
+import * as process from '../../../base/common/process';
+import { format } from '../../../base/common/strings';
+import { isString } from '../../../base/common/types';
+import * as pfs from '../../../base/node/pfs';
+import { ILogService } from '../../log/common/log';
+import { IProductService } from '../../product/common/productService';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from '../common/terminal';
+import { EnvironmentVariableMutatorType } from '../common/environmentVariable';
+import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared';
+import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from 'vs/editor/common/model';
-import { ClassName } from 'vs/editor/common/model/intervalTree';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/base/common/themables';
-import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from 'vs/editor/common/core/editorColorRegistry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Range } from 'vs/editor/common/core/range';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { Schemas } from 'vs/base/common/network';
-import { Emitter, Event } from 'vs/base/common/event';
-import { minimapInfo, minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
-import { BidirectionalMap, ResourceMap } from 'vs/base/common/map';
-import { diffSets } from 'vs/base/common/collections';
+import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from '../model';
+import { ClassName } from '../model/intervalTree';
+import { themeColorFromId } from '../../../platform/theme/common/themeService';
+import { ThemeColor } from '../../../base/common/themables';
+import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from '../core/editorColorRegistry';
+import { IModelService } from './model';
+import { Range } from '../core/range';
+import { IMarkerDecorationsService } from './markerDecorations';
+import { Schemas } from '../../../base/common/network';
+import { Emitter, Event } from '../../../base/common/event';
+import { minimapInfo, minimapWarning, minimapError } from '../../../platform/theme/common/colorRegistry';
+import { BidirectionalMap, ResourceMap } from '../../../base/common/map';
+import { diffSets } from '../../../base/common/collections';
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from 'vs/base/common/observable';
-import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Emitter, Event } from '../../common/event';
+import { DisposableStore } from '../../common/lifecycle';
+import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from '../../common/observable';
+import { BaseObservable, IObservable, IObserver } from '../../common/observableInternal/base';
+import { derivedDisposable } from '../../common/observableInternal/derived';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();

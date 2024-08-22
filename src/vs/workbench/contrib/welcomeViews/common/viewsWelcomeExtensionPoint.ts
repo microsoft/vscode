@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import * as nls from '../../../../nls';
+import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry';
 
 export enum ViewsWelcomeExtensionPointFields {
 	view = 'view',

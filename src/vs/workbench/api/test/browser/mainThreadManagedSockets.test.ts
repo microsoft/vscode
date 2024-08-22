@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SocketCloseEvent } from 'vs/base/parts/ipc/common/ipc.net';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { RemoteSocketHalf } from 'vs/platform/remote/common/managedSocket';
-import { MainThreadManagedSocket } from 'vs/workbench/api/browser/mainThreadManagedSockets';
-import { ExtHostManagedSocketsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { disposableTimeout, timeout } from '../../../../base/common/async';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { Emitter } from '../../../../base/common/event';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { SocketCloseEvent } from '../../../../base/parts/ipc/common/ipc.net';
+import { mock } from '../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { RemoteSocketHalf } from '../../../../platform/remote/common/managedSocket';
+import { MainThreadManagedSocket } from '../../browser/mainThreadManagedSockets';
+import { ExtHostManagedSocketsShape } from '../../common/extHost.protocol';
 
 suite('MainThreadManagedSockets', () => {
 

@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { isFirefox } from 'vs/base/browser/browser';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as types from 'vs/base/common/types';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/cursor/cursorColumnSelection';
-import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CursorMove as CursorMove_, CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
-import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { VerticalRevealType } from 'vs/editor/common/viewEvents';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IViewModel } from 'vs/editor/common/viewModel';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { getActiveElement } from 'vs/base/browser/dom';
-import { EnterOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
+import * as nls from '../../nls';
+import { isFirefox } from '../../base/browser/browser';
+import { KeyCode, KeyMod } from '../../base/common/keyCodes';
+import * as types from '../../base/common/types';
+import { status } from '../../base/browser/ui/aria/aria';
+import { ICodeEditor } from './editorBrowser';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from './editorExtensions';
+import { ICodeEditorService } from './services/codeEditorService';
+import { ColumnSelection, IColumnSelectResult } from '../common/cursor/cursorColumnSelection';
+import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../common/cursorCommon';
+import { DeleteOperations } from '../common/cursor/cursorDeleteOperations';
+import { CursorChangeReason } from '../common/cursorEvents';
+import { CursorMove as CursorMove_, CursorMoveCommands } from '../common/cursor/cursorMoveCommands';
+import { TypeOperations } from '../common/cursor/cursorTypeOperations';
+import { IPosition, Position } from '../common/core/position';
+import { Range } from '../common/core/range';
+import { Handler, ScrollType } from '../common/editorCommon';
+import { EditorContextKeys } from '../common/editorContextKeys';
+import { VerticalRevealType } from '../common/viewEvents';
+import { ICommandMetadata } from '../../platform/commands/common/commands';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation';
+import { KeybindingWeight, KeybindingsRegistry } from '../../platform/keybinding/common/keybindingsRegistry';
+import { EditorOption } from '../common/config/editorOptions';
+import { IViewModel } from '../common/viewModel';
+import { ISelection } from '../common/core/selection';
+import { getActiveElement } from '../../base/browser/dom';
+import { EnterOperation } from '../common/cursor/cursorTypeEditOperations';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 

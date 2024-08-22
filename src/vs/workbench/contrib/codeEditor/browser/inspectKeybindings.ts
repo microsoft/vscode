@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize2 } from '../../../../nls';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions';
 
 class InspectKeyMap extends Action2 {
 

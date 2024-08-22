@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+import { localize } from '../../../../nls';
+import { ExtensionToggleData } from '../common/preferences';
 
 export interface ITOCEntry<T> {
 	id: string;

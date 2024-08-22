@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { Component } from 'vs/workbench/common/component';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConstructorSignature, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { trackFocus, Dimension, IDomPosition } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IAction, IActionRunner, ActionRunner } from '../../base/common/actions';
+import { Component } from '../common/component';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry';
+import { IComposite, ICompositeControl } from '../common/composite';
+import { Event, Emitter } from '../../base/common/event';
+import { IThemeService } from '../../platform/theme/common/themeService';
+import { IConstructorSignature, IInstantiationService } from '../../platform/instantiation/common/instantiation';
+import { trackFocus, Dimension, IDomPosition } from '../../base/browser/dom';
+import { IStorageService } from '../../platform/storage/common/storage';
+import { Disposable } from '../../base/common/lifecycle';
+import { assertIsDefined } from '../../base/common/types';
+import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar';
+import { MenuId } from '../../platform/actions/common/actions';
+import { IBoundarySashes } from '../../base/browser/ui/sash/sash';
+import { IBaseActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite

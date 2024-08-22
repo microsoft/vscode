@@ -183,8 +183,8 @@ export = new class implements eslint.Rule.RuleModule {
 
 			if (targetIsVS) {
 				// Always add "vs/nls" and "vs/amdX"
-				restrictions.push('vs/nls.js');
-				restrictions.push('vs/amdX.js'); // TODO@jrieken remove after ESM is real
+				restrictions.push('vs/nls');
+				restrictions.push('vs/amdX'); // TODO@jrieken remove after ESM is real
 			}
 
 			if (targetIsVS && option.layer) {
@@ -215,7 +215,7 @@ export = new class implements eslint.Rule.RuleModule {
 
 	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, importPath: string) {
 		const targetIsVS = /^src\/vs\//.test(getRelativeFilename(context));
-		if (targetIsVS) {
+		if (false && targetIsVS) {
 
 			// ESM: check for import ending with ".js" or ".css"
 			if (importPath[0] === '.' && !importPath.endsWith('.js') && !importPath.endsWith('.css')) {

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { isMacintosh } from '../../../../base/common/platform';
 import 'vs/css!./dnd';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DragAndDropCommand } from 'vs/editor/contrib/dnd/browser/dragAndDropCommand';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions';
+import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { CursorChangeReason } from '../../../common/cursorEvents';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { DragAndDropCommand } from './dragAndDropCommand';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {

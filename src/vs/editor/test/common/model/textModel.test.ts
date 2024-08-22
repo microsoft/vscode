@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { UTF8_BOM_CHARACTER } from '../../../../base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry';
+import { EndOfLinePreference } from '../../../common/model';
+import { TextModel, createTextBuffer } from '../../../common/model/textModel';
+import { createModelServices, createTextModel } from '../testTextModel';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	const m = createTextModel(

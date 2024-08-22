@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
-import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { EditorOption } from '../../../../editor/common/config/editorOptions';
+import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { AccessibilityHelpAction } from './accessibleViewActions';
+import { CONTEXT_CHAT_ENABLED } from '../../chat/common/chatContextKeys';
+import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility';
+import { CommentContextKeys } from '../../comments/common/commentContextKeys';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants';
+import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from './accessibilityConfiguration';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';

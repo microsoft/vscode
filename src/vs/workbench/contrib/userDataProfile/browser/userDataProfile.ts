@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TITLE, isProfileURL } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { URI } from 'vs/base/common/uri';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditor';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserDataProfilesEditor } from 'vs/workbench/contrib/userDataProfile/common/userDataProfile';
-import { IURLService } from 'vs/platform/url/common/url';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { isWeb } from '../../../../base/common/platform';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions';
+import { localize, localize2 } from '../../../../nls';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TITLE, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { URI } from '../../../../base/common/uri';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { IWorkspaceTagsService } from '../../tags/common/workspaceTags';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor';
+import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from './userDataProfilesEditor';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IHostService } from '../../../services/host/browser/host';
+import { IUserDataProfilesEditor } from '../common/userDataProfile';
+import { IURLService } from '../../../../platform/url/common/url';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 

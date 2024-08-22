@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./iPadShowKeyboard';
-import * as dom from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isIOS } from 'vs/base/common/platform';
+import * as dom from '../../../../base/browser/dom';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { isIOS } from '../../../../base/common/platform';
 
 export class IPadShowKeyboard extends Disposable implements IEditorContribution {
 

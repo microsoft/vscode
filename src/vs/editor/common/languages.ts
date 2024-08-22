@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { IReadonlyVSDataTransfer } from 'vs/base/common/dataTransfer';
-import { Event } from 'vs/base/common/event';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import * as model from 'vs/editor/common/model';
-import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { VSBuffer } from '../../base/common/buffer';
+import { CancellationToken } from '../../base/common/cancellation';
+import { Codicon } from '../../base/common/codicons';
+import { Color } from '../../base/common/color';
+import { IReadonlyVSDataTransfer } from '../../base/common/dataTransfer';
+import { Event } from '../../base/common/event';
+import { HierarchicalKind } from '../../base/common/hierarchicalKind';
+import { IMarkdownString } from '../../base/common/htmlContent';
+import { IDisposable } from '../../base/common/lifecycle';
+import { ThemeIcon } from '../../base/common/themables';
+import { URI, UriComponents } from '../../base/common/uri';
+import { EditOperation, ISingleEditOperation } from './core/editOperation';
+import { IPosition, Position } from './core/position';
+import { IRange, Range } from './core/range';
+import { Selection } from './core/selection';
+import { LanguageId } from './encodedTokenAttributes';
+import { LanguageSelector } from './languageSelector';
+import * as model from './model';
+import { TokenizationRegistry as TokenizationRegistryImpl } from './tokenizationRegistry';
+import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens';
+import { localize } from '../../nls';
+import { ExtensionIdentifier } from '../../platform/extensions/common/extensions';
+import { IMarkerData } from '../../platform/markers/common/markers';
 
 /**
  * @internal

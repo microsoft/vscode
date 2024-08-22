@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { toErrorMessage } from '../../common/errorMessage';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Errors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

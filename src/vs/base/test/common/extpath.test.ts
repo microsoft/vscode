@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as extpath from 'vs/base/common/extpath';
-import { isWindows } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CharCode } from '../../common/charCode';
+import * as extpath from '../../common/extpath';
+import { isWindows } from '../../common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Paths', () => {
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IAsyncDataSource } from '../../../../../../base/browser/ui/tree/tree';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation';
+import { localize } from '../../../../../../nls';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel';
+import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from '../../../common/notebookKernelService';
 
 export interface INotebookScope {
 	kind: 'root';

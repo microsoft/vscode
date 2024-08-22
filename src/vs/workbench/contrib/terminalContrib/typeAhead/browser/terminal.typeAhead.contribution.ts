@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
-import { ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager';
+import { TypeAheadAddon } from './terminalTypeAheadAddon';
+import { ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { TerminalTypeAheadSettingId, type ITerminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration';
+import { TerminalTypeAheadSettingId, type ITerminalTypeAheadConfiguration } from '../common/terminalTypeAheadConfiguration';
 
 class TerminalTypeAheadContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.typeAhead';

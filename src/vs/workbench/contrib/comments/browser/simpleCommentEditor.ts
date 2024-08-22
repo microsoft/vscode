@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorAction, EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { EditorAction, EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from '../../../../editor/browser/editorExtensions';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget';
+import { IContextKeyService, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ICommandService } from '../../../../platform/commands/common/commands';
 
 // Allowed Editor Contributions:
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { EditorDictation } from 'vs/workbench/contrib/codeEditor/browser/dictation/editorDictation';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { clamp } from 'vs/base/common/numbers';
-import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
-import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
-import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
+import { MenuPreventer } from '../../codeEditor/browser/menuPreventer';
+import { EditorDictation } from '../../codeEditor/browser/dictation/editorDictation';
+import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2';
+import { TabCompletionController } from '../../snippets/browser/tabCompletion';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility';
+import { ICommentThreadWidget } from '../common/commentThreadWidget';
+import { CommentContextKeys } from '../common/commentContextKeys';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { clamp } from '../../../../base/common/numbers';
+import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController';
+import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController';
+import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
+import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { LinkDetector } from '../../../../editor/contrib/links/browser/links';
+import { MessageController } from '../../../../editor/contrib/message/browser/messageController';
+import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2';
+import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;

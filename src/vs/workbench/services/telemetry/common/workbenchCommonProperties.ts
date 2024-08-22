@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { INodeProcess } from 'vs/base/common/platform';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
+import { resolveCommonProperties } from '../../../../platform/telemetry/common/commonProperties';
+import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey } from '../../../../platform/telemetry/common/telemetry';
+import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils';
+import { INodeProcess } from '../../../../base/common/platform';
 
 export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,

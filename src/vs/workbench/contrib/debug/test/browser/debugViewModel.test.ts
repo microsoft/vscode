@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Expression, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
-import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { Expression, StackFrame, Thread } from '../../common/debugModel';
+import { Source } from '../../common/debugSource';
+import { ViewModel } from '../../common/debugViewModel';
+import { mockUriIdentityService } from './mockDebugModel';
+import { MockSession } from '../common/mockDebug';
 
 suite('Debug - View Model', () => {
 	let model: ViewModel;

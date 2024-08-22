@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Constants } from 'vs/base/common/uint';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import * as nls from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import * as arrays from '../../../base/common/arrays';
+import { IMarkdownString } from '../../../base/common/htmlContent';
+import { IJSONSchema } from '../../../base/common/jsonSchema';
+import * as objects from '../../../base/common/objects';
+import * as platform from '../../../base/common/platform';
+import { ScrollbarVisibility } from '../../../base/common/scrollable';
+import { Constants } from '../../../base/common/uint';
+import { FontInfo } from './fontInfo';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults';
+import { USUAL_WORD_SEPARATORS } from '../core/wordHelper';
+import * as nls from '../../../nls';
+import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility';
+import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry';
 
 //#region typed options
 

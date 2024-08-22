@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { autorun } from 'vs/base/common/observable';
+import { timeout } from '../../../../../base/common/async';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands';
+import { Position } from '../../../../common/core/position';
+import { ITextModel } from '../../../../common/model';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from '../../../../common/languages';
+import { ITestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { InlineCompletionsModel } from '../../browser/inlineCompletionsModel';
+import { autorun } from '../../../../../base/common/observable';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];

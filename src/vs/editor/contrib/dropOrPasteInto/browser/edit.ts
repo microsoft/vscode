@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { DocumentDropEdit, DocumentPasteEdit, DropYieldTo, WorkspaceEdit } from 'vs/editor/common/languages';
-import { Range } from 'vs/editor/common/core/range';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { URI } from '../../../../base/common/uri';
+import { ResourceTextEdit } from '../../../browser/services/bulkEditService';
+import { DocumentDropEdit, DocumentPasteEdit, DropYieldTo, WorkspaceEdit } from '../../../common/languages';
+import { Range } from '../../../common/core/range';
+import { SnippetParser } from '../../snippet/browser/snippetParser';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind';
 
 /**
  * Given a {@link DropOrPasteEdit} and set of ranges, creates a {@link WorkspaceEdit} that applies the insert text from

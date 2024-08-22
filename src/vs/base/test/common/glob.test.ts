@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as glob from 'vs/base/common/glob';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as glob from '../../common/glob';
+import { sep } from '../../common/path';
+import { isLinux, isMacintosh, isWindows } from '../../common/platform';
+import { URI } from '../../common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Glob', () => {
 

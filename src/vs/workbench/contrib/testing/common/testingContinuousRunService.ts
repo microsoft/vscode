@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import * as arrays from 'vs/base/common/arrays';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { StoredValue } from './storedValue';
+import { TestingContextKeys } from './testingContextKeys';
+import { ITestService } from './testService';
+import { TestService } from './testServiceImpl';
+import { ITestRunProfile, TestRunProfileBitset } from './testTypes';
+import { Emitter, Event } from '../../../../base/common/event';
+import { TestId } from './testId';
+import { WellDefinedPrefixTree } from '../../../../base/common/prefixTree';
+import { ITestProfileService } from './testProfileService';
+import * as arrays from '../../../../base/common/arrays';
 
 export const ITestingContinuousRunService = createDecorator<ITestingContinuousRunService>('testingContinuousRunService');
 

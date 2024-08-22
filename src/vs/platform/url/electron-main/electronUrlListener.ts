@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, Event as ElectronEvent } from 'electron';
-import { disposableTimeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { disposableTimeout } from '../../../base/common/async';
+import { Event } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { isWindows } from '../../../base/common/platform';
+import { URI } from '../../../base/common/uri';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService';
+import { ILogService } from '../../log/common/log';
+import { IProductService } from '../../product/common/productService';
+import { IURLService } from '../common/url';
+import { IProtocolUrl } from './url';
+import { IWindowsMainService } from '../../windows/electron-main/windows';
 
 /**
  * A listener for URLs that are opened from the OS and handled by VSCode.

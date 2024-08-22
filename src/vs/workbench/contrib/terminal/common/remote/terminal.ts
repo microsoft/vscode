@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { IShellLaunchConfigDto, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { UriComponents } from '../../../../../base/common/uri';
+import { IShellLaunchConfigDto, ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal';
+import { ICompleteTerminalConfiguration } from '../terminal';
+import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Event } from 'vs/base/common/event';
-import { ExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import Severity from 'vs/base/common/severity';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Color } from 'vs/base/common/color';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { Event } from '../../../../base/common/event';
+import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import Severity from '../../../../base/common/severity';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { Color } from '../../../../base/common/color';
 
 export namespace Extensions {
 	export const ExtensionFeaturesRegistry = 'workbench.registry.extensionFeatures';

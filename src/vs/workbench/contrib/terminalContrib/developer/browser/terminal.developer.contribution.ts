@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { Delayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { Delayer } from '../../../../../base/common/async';
+import { VSBuffer } from '../../../../../base/common/buffer';
+import { Event } from '../../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
 import 'vs/css!./media/developer';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalDeveloperCommandId } from 'vs/workbench/contrib/terminalContrib/developer/common/terminal.developer';
-import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { localize, localize2 } from '../../../../../nls';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput';
+import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities';
+import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
+import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal';
+import { registerTerminalAction } from '../../../terminal/browser/terminalActions';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey';
+import { TerminalDeveloperCommandId } from '../common/terminal.developer';
+import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from '../../../../services/statusbar/browser/statusbar';
 
 registerTerminalAction({
 	id: TerminalDeveloperCommandId.ShowTextureAtlas,

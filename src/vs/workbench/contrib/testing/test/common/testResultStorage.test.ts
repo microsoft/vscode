@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { range } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { range } from '../../../../../base/common/arrays';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity';
+import { ITestResult, LiveTestResult } from '../../common/testResult';
+import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from '../../common/testResultStorage';
+import { TestRunProfileBitset } from '../../common/testTypes';
+import { testStubs } from './testStubs';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices';
 
 suite('Workbench - Test Result Storage', () => {
 	let storage: InMemoryResultStorage;

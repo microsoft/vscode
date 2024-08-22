@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent';
+import { CancelablePromise, createCancelablePromise } from '../../../../../base/common/async';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../../../base/common/errors';
+import { MarkdownString } from '../../../../../base/common/htmlContent';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
 import 'vs/css!./goToDefinitionAtPosition';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { LocationLink } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
-import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
-import * as nls from 'vs/nls';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CodeEditorStateFlag, EditorState } from '../../../editorState/browser/editorState';
+import { ICodeEditor, MouseTargetType } from '../../../../browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../browser/editorExtensions';
+import { EditorOption } from '../../../../common/config/editorOptions';
+import { Position } from '../../../../common/core/position';
+import { IRange, Range } from '../../../../common/core/range';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../../common/editorCommon';
+import { IModelDeltaDecoration, ITextModel } from '../../../../common/model';
+import { LocationLink } from '../../../../common/languages';
+import { ILanguageService } from '../../../../common/languages/language';
+import { ITextModelService } from '../../../../common/services/resolverService';
+import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from './clickLinkGesture';
+import { PeekContext } from '../../../peekView/browser/peekView';
+import * as nls from '../../../../../nls';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
 import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
+import { IWordAtPosition } from '../../../../common/core/wordHelper';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures';
+import { ModelDecorationInjectedTextOptions } from '../../../../common/model/textModel';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 

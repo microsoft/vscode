@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfileManagementService, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { localize2 } from '../../../../nls';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileManagementService, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT } from '../../../services/userDataProfile/common/userDataProfile';
 
 class CreateTransientProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createTemporaryProfile';

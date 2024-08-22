@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { toLocalISOString } from 'vs/base/common/date';
-import { joinPath } from 'vs/base/common/resources';
-import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IFileService } from '../../../../platform/files/common/files';
+import { toLocalISOString } from '../../../../base/common/date';
+import { joinPath } from '../../../../base/common/resources';
+import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel } from './outputChannelModel';
+import { URI } from '../../../../base/common/uri';
+import { ILanguageSelection } from '../../../../editor/common/languages/language';
 
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
 

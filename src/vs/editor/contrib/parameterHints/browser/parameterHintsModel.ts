@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
+import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { CharacterSet } from '../../../common/core/characterClassifier';
+import { ICursorSelectionChangedEvent } from '../../../common/cursorEvents';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import * as languages from '../../../common/languages';
+import { provideSignatureHelp } from './provideSignatureHelp';
 
 export interface TriggerContext {
 	readonly triggerKind: languages.SignatureHelpTriggerKind;

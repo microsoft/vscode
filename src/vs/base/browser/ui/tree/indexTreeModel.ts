@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { splice, tail2 } from 'vs/base/common/arrays';
-import { Delayer } from 'vs/base/common/async';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import { LcsDiff } from 'vs/base/common/diff/diff';
-import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { ISpliceable } from 'vs/base/common/sequence';
+import { IIdentityProvider } from '../list/list';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from './tree';
+import { splice, tail2 } from '../../../common/arrays';
+import { Delayer } from '../../../common/async';
+import { MicrotaskDelay } from '../../../common/symbols';
+import { LcsDiff } from '../../../common/diff/diff';
+import { Emitter, Event, EventBufferer } from '../../../common/event';
+import { Iterable } from '../../../common/iterator';
+import { ISpliceable } from '../../../common/sequence';
 
 // Exported for tests
 export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFilterData> {

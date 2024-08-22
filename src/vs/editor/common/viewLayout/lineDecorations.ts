@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
+import * as strings from '../../../base/common/strings';
+import { Constants } from '../../../base/common/uint';
+import { LinePartMetadata } from './linePart';
+import { InlineDecoration, InlineDecorationType } from '../viewModel';
 
 export class LineDecoration {
 	_lineDecorationBrand: void = undefined;

@@ -5,11 +5,11 @@
 
 import { createHash } from 'crypto';
 import { Stats } from 'fs';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from '../../../base/common/network';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform';
+import { originalFSPath } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace';
 
 /**
  * Length of workspace identifiers that are not empty. Those are

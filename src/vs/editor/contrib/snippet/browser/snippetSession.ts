@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { dispose } from 'vs/base/common/lifecycle';
-import { getLeadingWhitespace } from 'vs/base/common/strings';
+import { groupBy } from '../../../../base/common/arrays';
+import { CharCode } from '../../../../base/common/charCode';
+import { dispose } from '../../../../base/common/lifecycle';
+import { getLeadingWhitespace } from '../../../../base/common/strings';
 import 'vs/css!./snippetSession';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IActiveCodeEditor } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation';
+import { IPosition } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { TextChange } from '../../../common/core/textChange';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from '../../../common/model';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
 import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
 import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
 

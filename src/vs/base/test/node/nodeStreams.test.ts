@@ -6,8 +6,8 @@
 
 import { Writable } from 'stream';
 import assert from 'assert';
-import { StreamSplitter } from 'vs/base/node/nodeStreams';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { StreamSplitter } from '../../node/nodeStreams';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils';
 
 suite('StreamSplitter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

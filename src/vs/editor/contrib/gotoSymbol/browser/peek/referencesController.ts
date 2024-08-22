@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Location } from 'vs/editor/common/languages';
-import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementCanExpand } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { CancelablePromise, createCancelablePromise } from '../../../../../base/common/async';
+import { onUnexpectedError } from '../../../../../base/common/errors';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../../browser/editorBrowser';
+import { ICodeEditorService } from '../../../../browser/services/codeEditorService';
+import { EditorOption } from '../../../../common/config/editorOptions';
+import { Position } from '../../../../common/core/position';
+import { Range } from '../../../../common/core/range';
+import { IEditorContribution } from '../../../../common/editorCommon';
+import { Location } from '../../../../common/languages';
+import { getOuterEditor, PeekContext } from '../../../peekView/browser/peekView';
+import * as nls from '../../../../../nls';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey';
+import { TextEditorSelectionSource } from '../../../../../platform/editor/common/editor';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry';
+import { IListService, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementCanExpand } from '../../../../../platform/list/browser/listService';
+import { INotificationService } from '../../../../../platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage';
 import { OneReference, ReferencesModel } from '../referencesModel';
 import { LayoutData, ReferenceWidget } from './referencesWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
+import { EditorContextKeys } from '../../../../common/editorContextKeys';
+import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
 

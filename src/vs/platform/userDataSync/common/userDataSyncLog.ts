@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { joinPath } from 'vs/base/common/resources';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractLogger, ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { IUserDataSyncLogService, USER_DATA_SYNC_LOG_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { joinPath } from '../../../base/common/resources';
+import { localize } from '../../../nls';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { AbstractLogger, ILogger, ILoggerService } from '../../log/common/log';
+import { IUserDataSyncLogService, USER_DATA_SYNC_LOG_ID } from './userDataSync';
 
 export class UserDataSyncLogService extends AbstractLogger implements IUserDataSyncLogService {
 

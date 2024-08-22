@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount } from 'vs/workbench/services/authentication/common/authentication';
+import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import * as nls from '../../../../nls';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { Severity } from '../../../../platform/notification/common/notification';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IActivityService, NumberBadge } from '../../activity/common/activity';
+import { IAuthenticationAccessService } from './authenticationAccessService';
+import { IAuthenticationUsageService } from './authenticationUsageService';
+import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount } from '../common/authentication';
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';

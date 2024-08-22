@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
-import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IStateService } from 'vs/platform/state/node/state';
+import { Event } from '../../../base/common/event';
+import { INativeEnvironmentService } from '../../environment/common/environment';
+import { IFileService } from '../../files/common/files';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation';
+import { ILogService } from '../../log/common/log';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService, WillCreateProfileEvent, WillRemoveProfileEvent, IUserDataProfile } from '../common/userDataProfile';
+import { UserDataProfilesService } from '../node/userDataProfile';
+import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from '../../workspace/common/workspace';
+import { IStateService } from '../../state/node/state';
 
 export const IUserDataProfilesMainService = refineServiceDecorator<IUserDataProfilesService, IUserDataProfilesMainService>(IUserDataProfilesService);
 export interface IUserDataProfilesMainService extends IUserDataProfilesService {

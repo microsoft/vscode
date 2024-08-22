@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import * as nls from '../../../../nls';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { IExtensionPoint, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry';
 import { ViewsWelcomeExtensionPoint, ViewWelcome, ViewIdentifierMap } from './viewsWelcomeExtensionPoint';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from '../../../common/views';
+import { isProposedApiEnabled } from '../../../services/extensions/common/extensions';
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 

@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { IOutputChannelRegistry, IOutputService, Extensions } from 'vs/workbench/services/output/common/output';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { CONTEXT_LOG_LEVEL, ILogService, ILoggerResource, ILoggerService, LogLevel, LogLevelToString, isLogLevel } from 'vs/platform/log/common/log';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { windowLogId, showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
-import { createCancelablePromise, timeout } from 'vs/base/common/async';
-import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CounterSet } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Schemas } from 'vs/base/common/network';
+import * as nls from '../../../../nls';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions';
+import { SetLogLevelAction } from './logsActions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions';
+import { IFileService, whenProviderRegistered } from '../../../../platform/files/common/files';
+import { IOutputChannelRegistry, IOutputService, Extensions } from '../../../services/output/common/output';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle';
+import { CONTEXT_LOG_LEVEL, ILogService, ILoggerResource, ILoggerService, LogLevel, LogLevelToString, isLogLevel } from '../../../../platform/log/common/log';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri';
+import { Event } from '../../../../base/common/event';
+import { windowLogId, showWindowLogActionId } from '../../../services/log/common/logConstants';
+import { createCancelablePromise, timeout } from '../../../../base/common/async';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IDefaultLogLevelsService } from './defaultLogLevels';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { CounterSet } from '../../../../base/common/map';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { Schemas } from '../../../../base/common/network';
 
 registerAction2(class extends Action2 {
 	constructor() {

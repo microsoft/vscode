@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { mainWindow } from 'vs/base/browser/window';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, ExtensionIdentifierSet, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueMainService, OldIssueReporterData, OldIssueReporterExtensionData, OldIssueReporterStyles } from 'vs/platform/issue/common/issue';
-import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { getZoomLevel } from '../../../../base/browser/browser';
+import { mainWindow } from '../../../../base/browser/window';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifier, ExtensionIdentifierSet, ExtensionType } from '../../../../platform/extensions/common/extensions';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IIssueMainService, OldIssueReporterData, OldIssueReporterExtensionData, OldIssueReporterStyles } from '../../../../platform/issue/common/issue';
+import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust';
+import { SIDE_BAR_BACKGROUND } from '../../../common/theme';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from '../common/issue';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement';
+import { IIntegrityService } from '../../../services/integrity/common/integrity';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;

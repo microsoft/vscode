@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IConfigurationValue, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { IModelService } from '../../../common/services/model';
+import { ILanguageService } from '../../../common/languages/language';
+import { IConfigurationValue, IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration';
+import { TextResourceConfigurationService } from '../../../common/services/textResourceConfigurationService';
+import { URI } from '../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 
 suite('TextResourceConfigurationService - Update', () => {

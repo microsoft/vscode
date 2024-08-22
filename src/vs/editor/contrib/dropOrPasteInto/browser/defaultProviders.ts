@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IReadonlyVSDataTransfer, UriList } from 'vs/base/common/dataTransfer';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { relativePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { DocumentDropEditProvider, DocumentDropEditsSession, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { localize } from 'vs/nls';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { coalesce } from '../../../../base/common/arrays';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IReadonlyVSDataTransfer, UriList } from '../../../../base/common/dataTransfer';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { Mimes } from '../../../../base/common/mime';
+import { Schemas } from '../../../../base/common/network';
+import { relativePath } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { IPosition } from '../../../common/core/position';
+import { IRange } from '../../../common/core/range';
+import { DocumentDropEditProvider, DocumentDropEditsSession, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind } from '../../../common/languages';
+import { ITextModel } from '../../../common/model';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { localize } from '../../../../nls';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
 
 
 abstract class SimplePasteAndDropProvider implements DocumentDropEditProvider, DocumentPasteEditProvider {

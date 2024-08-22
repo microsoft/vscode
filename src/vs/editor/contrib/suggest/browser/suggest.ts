@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { CancellationError, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors';
+import { FuzzyScore } from '../../../../base/common/filters';
+import { DisposableStore, IDisposable, isDisposable } from '../../../../base/common/lifecycle';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { assertType } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { IPosition, Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
+import * as languages from '../../../common/languages';
+import { ITextModelService } from '../../../common/services/resolverService';
+import { SnippetParser } from '../../snippet/browser/snippetParser';
+import { localize } from '../../../../nls';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { historyNavigationVisible } from '../../../../platform/history/browser/contextScopedHistoryWidget';
+import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from '../../../common/config/editorOptions';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes';
 
 export const Context = {
 	Visible: historyNavigationVisible,

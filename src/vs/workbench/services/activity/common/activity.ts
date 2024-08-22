@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Event } from 'vs/base/common/event';
-import { ViewContainer } from 'vs/workbench/common/views';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { Event } from '../../../../base/common/event';
+import { ViewContainer } from '../../../common/views';
 
 export interface IActivity {
 	readonly badge: IBadge;

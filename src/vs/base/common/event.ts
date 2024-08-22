@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { IObservable, IObserver } from 'vs/base/common/observable';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
+import { CancellationToken } from './cancellation';
+import { onUnexpectedError } from './errors';
+import { createSingleCallFunction } from './functional';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle';
+import { LinkedList } from './linkedList';
+import { IObservable, IObserver } from './observable';
+import { StopWatch } from './stopwatch';
+import { MicrotaskDelay } from './symbols';
 
 
 // -----------------------------------------------------------------------------------------------------------------------

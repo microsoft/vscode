@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { assertSnapshot } from 'vs/base/test/common/snapshot';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
-import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { INotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { NotebookStickyLine, computeContent } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { Event } from '../../../../../base/common/event';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { mock } from '../../../../../base/test/common/mock';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from '../../../../../editor/common/services/languageFeaturesService';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { IEditorPaneSelectionChangeEvent } from '../../../../common/editor';
+import { NotebookCellOutline } from '../../browser/contrib/outline/notebookOutline';
+import { INotebookEditor, INotebookEditorPane } from '../../browser/notebookBrowser';
+import { INotebookCellList } from '../../browser/view/notebookRenderingCommon';
+import { OutlineEntry } from '../../browser/viewModel/OutlineEntry';
+import { NotebookStickyLine, computeContent } from '../../browser/viewParts/notebookEditorStickyScroll';
+import { CellKind } from '../../common/notebookCommon';
+import { createNotebookCellList, setupInstantiationService, withTestNotebook } from './testNotebookEditor';
+import { OutlineTarget } from '../../../../services/outline/browser/outline';
 
 suite('NotebookEditorStickyScroll', () => {
 	let disposables: DisposableStore;

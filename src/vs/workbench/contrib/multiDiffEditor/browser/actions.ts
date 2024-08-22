@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
-import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
-import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from '../../../../base/common/codicons';
+import { URI } from '../../../../base/common/uri';
+import { Selection } from '../../../../editor/common/core/selection';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys';
+import { localize2 } from '../../../../nls';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IListService } from '../../../../platform/list/browser/listService';
+import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext';
+import { MultiDiffEditor } from './multiDiffEditor';
+import { MultiDiffEditorInput } from './multiDiffEditorInput';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 export class GoToFileAction extends Action2 {
 	constructor() {

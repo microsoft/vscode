@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { URI, UriDto } from 'vs/base/common/uri';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from 'vs/base/common/uriIpc';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc';
+import { URI, UriDto } from '../../../base/common/uri';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from './userDataProfile';
+import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace';
+import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from '../../../base/common/uriIpc';
 
 export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 

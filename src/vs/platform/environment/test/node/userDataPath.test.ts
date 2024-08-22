@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import product from 'vs/platform/product/common/product';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { OPTIONS, parseArgs } from '../../node/argv';
+import { getUserDataPath } from '../../node/userDataPath';
+import product from '../../../product/common/product';
 
 suite('User data path', () => {
 

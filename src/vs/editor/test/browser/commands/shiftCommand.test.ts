@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { withEditorModel } from 'vs/editor/test/common/testTextModel';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { ShiftCommand } from '../../../common/commands/shiftCommand';
+import { EditorAutoIndentStrategy } from '../../../common/config/editorOptions';
+import { ISingleEditOperation } from '../../../common/core/editOperation';
+import { Range } from '../../../common/core/range';
+import { Selection } from '../../../common/core/selection';
+import { ILanguageService } from '../../../common/languages/language';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { getEditOperation, testCommand } from '../testCommand';
+import { javascriptOnEnterRules } from '../../common/modes/supports/onEnterRules';
+import { TestLanguageConfigurationService } from '../../common/modes/testLanguageConfigurationService';
+import { withEditorModel } from '../../common/testTextModel';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
 
 /**
  * Create single edit operation

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { isEqual } from 'vs/base/common/resources';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { Emitter } from '../../../base/common/event';
+import { URI } from '../../../base/common/uri';
+import { firstOrDefault } from '../../../base/common/arrays';
+import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from '../editor';
+import { isEqual } from '../../../base/common/resources';
+import { ConfirmResult } from '../../../platform/dialogs/common/dialogs';
+import { IMarkdownString } from '../../../base/common/htmlContent';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { ThemeIcon } from '../../../base/common/themables';
 
 export interface IEditorCloseHandler {
 

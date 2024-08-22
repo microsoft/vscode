@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationRegistry, TokenizationResult } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { Range } from '../../../common/core/range';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationRegistry, TokenizationResult } from '../../../common/languages';
+import { ITextModel } from '../../../common/model';
+import { computeIndentLevel } from '../../../common/model/utils';
+import { ContiguousMultilineTokensBuilder } from '../../../common/tokens/contiguousMultilineTokensBuilder';
+import { LineTokens } from '../../../common/tokens/lineTokens';
+import { TestLineToken, TestLineTokenFactory } from '../core/testLineToken';
+import { createTextModel } from '../testTextModel';
 
 interface ILineEdit {
 	startColumn: number;

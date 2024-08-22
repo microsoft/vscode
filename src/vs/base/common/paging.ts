@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { range } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
+import { range } from './arrays';
+import { CancellationToken, CancellationTokenSource } from './cancellation';
+import { CancellationError } from './errors';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.

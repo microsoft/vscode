@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestMessageType } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TEST_DATA_SCHEME, TestUriType, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings';
+import { URI } from '../../../../base/common/uri';
+import { ILanguageSelection, ILanguageService } from '../../../../editor/common/languages/language';
+import { ITextModel } from '../../../../editor/common/model';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService';
+import { localize } from '../../../../nls';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ITestResultService } from './testResultService';
+import { TestMessageType } from './testTypes';
+import { TEST_DATA_SCHEME, TestUriType, parseTestUri } from './testingUri';
 
 /**
  * A content provider that returns various outputs for tests. This is used

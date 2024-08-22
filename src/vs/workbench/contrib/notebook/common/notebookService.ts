@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { Event } from 'vs/base/common/event';
-import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData, NotebookExtensionDescription, INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { ITextQuery } from 'vs/workbench/services/search/common/search';
-import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
-import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri';
+import { NotebookProviderInfo } from './notebookProvider';
+import { Event } from '../../../../base/common/event';
+import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData, NotebookExtensionDescription, INotebookStaticPreloadInfo } from './notebookCommon';
+import { NotebookTextModel } from './model/notebookTextModel';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { NotebookCellTextModel } from './model/notebookCellTextModel';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { VSBuffer, VSBufferReadableStream } from '../../../../base/common/buffer';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration';
+import { IFileStatWithMetadata, IWriteFileOptions } from '../../../../platform/files/common/files';
+import { ITextQuery } from '../../../services/search/common/search';
+import { NotebookPriorityInfo } from '../../search/common/search';
+import { INotebookFileMatchNoModel } from '../../search/common/searchNotebookHelpers';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');

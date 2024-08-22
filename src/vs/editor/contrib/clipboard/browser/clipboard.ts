@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
-import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/textAreaInput';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorAction, MultiCommand, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as browser from '../../../../base/browser/browser';
+import { getActiveDocument } from '../../../../base/browser/dom';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import * as platform from '../../../../base/common/platform';
+import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/textAreaInput';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Handler } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { CopyPasteController } from '../../dropOrPasteInto/browser/copyPasteController';
+import * as nls from '../../../../nls';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 

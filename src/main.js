@@ -40,7 +40,7 @@ const { app, protocol, crashReporter, Menu, contentTracing } = require('electron
 // import * as perf from './vs/base/common/performance.js';
 // import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 // import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
-//
+// 
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 

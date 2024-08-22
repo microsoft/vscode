@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { ResourcesDropHandler } from 'vs/workbench/browser/dnd';
-import { listDropOverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isWeb } from 'vs/base/common/platform';
-import { DragAndDropObserver, getWindow } from 'vs/base/browser/dom';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import * as nls from '../../../../../nls';
+import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IThemeService } from '../../../../../platform/theme/common/themeService';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ViewPane } from '../../../../browser/parts/views/viewPane';
+import { ResourcesDropHandler } from '../../../../browser/dnd';
+import { listDropOverBackground } from '../../../../../platform/theme/common/colorRegistry';
+import { ILabelService } from '../../../../../platform/label/common/label';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { IViewDescriptorService } from '../../../../common/views';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import { isWeb } from '../../../../../base/common/platform';
+import { DragAndDropObserver, getWindow } from '../../../../../base/browser/dom';
+import { ILocalizedString } from '../../../../../platform/action/common/action';
+import { IHoverService } from '../../../../../platform/hover/browser/hover';
 
 export class EmptyView extends ViewPane {
 

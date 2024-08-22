@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONScanner, createScanner as createJSONScanner, SyntaxKind as JSONSyntaxKind } from 'vs/base/common/json';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { JSONScanner, createScanner as createJSONScanner, SyntaxKind as JSONSyntaxKind } from '../../../../base/common/json';
+import { Position } from '../../../../editor/common/core/position';
+import { Range } from '../../../../editor/common/core/range';
+import { ITextModel } from '../../../../editor/common/model';
 
 export interface InsertSnippetResult {
 	position: Position;

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, RawContentChangedType } from 'vs/editor/common/textModelEvents';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { EditOperation } from '../../../common/core/editOperation';
+import { Range } from '../../../common/core/range';
+import { InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, RawContentChangedType } from '../../../common/textModelEvents';
+import { createTextModel } from '../testTextModel';
 
 suite('Editor Model - Injected Text Events', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

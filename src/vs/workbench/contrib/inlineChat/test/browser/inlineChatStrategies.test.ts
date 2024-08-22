@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IntervalTimer } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation';
+import { IntervalTimer } from '../../../../../base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 import { asProgressiveEdit } from '../../browser/utils';
 import assert from 'assert';
 

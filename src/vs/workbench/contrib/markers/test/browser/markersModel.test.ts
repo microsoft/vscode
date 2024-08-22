@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { groupBy } from 'vs/base/common/collections';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri';
+import { IMarker, MarkerSeverity, IRelatedInformation } from '../../../../../platform/markers/common/markers';
+import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from '../../browser/markersModel';
+import { groupBy } from '../../../../../base/common/collections';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 class TestMarkersModel extends MarkersModel {
 

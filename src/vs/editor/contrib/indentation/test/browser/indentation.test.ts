@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules } from 'vs/editor/test/common/modes/supports/indentationRules';
-import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
-import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
-import { javascriptAutoClosingPairsRules, latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { createTextModel } from '../../../../test/common/testTextModel';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { Range } from '../../../../common/core/range';
+import { Selection } from '../../../../common/core/selection';
+import { MetadataConsts, StandardTokenType } from '../../../../common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages';
+import { ILanguageService } from '../../../../common/languages/language';
+import { NullState } from '../../../../common/languages/nullTokenize';
+import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from '../../browser/indentation';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { testCommand } from '../../../../test/browser/testCommand';
+import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, latexIndentationRules, luaIndentationRules, phpIndentationRules, rubyIndentationRules } from '../../../../test/common/modes/supports/indentationRules';
+import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from '../../../../test/common/modes/supports/onEnterRules';
+import { TypeOperations } from '../../../../common/cursor/cursorTypeOperations';
+import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from '../../../../test/common/modes/supports/bracketRules';
+import { javascriptAutoClosingPairsRules, latexAutoClosingPairsRules } from '../../../../test/common/modes/supports/autoClosingPairsRules';
+import { LanguageService } from '../../../../common/services/languageService';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService';
 
 export enum Language {
 	TypeScript = 'ts-test',

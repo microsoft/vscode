@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { autorun } from 'vs/base/common/observable';
-import { append, $ } from 'vs/base/browser/dom';
-import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { IDisposable, DisposableStore, combinedDisposable } from '../../../../base/common/lifecycle';
+import { autorun } from '../../../../base/common/observable';
+import { append, $ } from '../../../../base/browser/dom';
+import { ISCMProvider, ISCMRepository, ISCMViewService } from '../common/scm';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { ActionRunner, IAction } from '../../../../base/common/actions';
 import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { ITreeNode } from '../../../../base/browser/ui/tree/tree';
+import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree';
+import { FuzzyScore } from '../../../../base/common/filters';
+import { IListRenderer } from '../../../../base/browser/ui/list/list';
+import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IManagedHover } from '../../../../base/browser/ui/hover/hover';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {

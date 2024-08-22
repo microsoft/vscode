@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Codicon } from 'vs/base/common/codicons';
-import * as nls from 'vs/nls';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { Toggle } from '../toggle/toggle';
+import { Codicon } from '../../../common/codicons';
+import * as nls from '../../../../nls';
 
 export interface IFindInputToggleOpts {
 	readonly appendTitle: string;

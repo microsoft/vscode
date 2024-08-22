@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isObject, isString } from 'vs/base/common/types';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { ILogger } from 'vs/platform/log/common/log';
+import { isObject, isString } from '../../../base/common/types';
+import { ILocalizedString } from '../../action/common/action';
+import { IExtensionManifest } from '../../extensions/common/extensions';
+import { localize } from '../../../nls';
+import { ILogger } from '../../log/common/log';
 
 export interface ITranslations {
 	[key: string]: string | { message: string; comment: string[] } | undefined;

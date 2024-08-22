@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
-import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { QuickInputController } from '../../../../platform/quickinput/browser/quickInputController';
+import { QuickInputService as BaseQuickInputService } from '../../../../platform/quickinput/browser/quickInputService';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput';
+import { InQuickPickContextKey } from '../../../browser/quickaccess';
 
 export class QuickInputService extends BaseQuickInputService {
 

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { randomPath } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer';
+import { randomPath } from '../../../../base/common/extpath';
+import { Schemas } from '../../../../base/common/network';
+import { URI } from '../../../../base/common/uri';
+import { IFileService, IFileStatWithMetadata, IWriteFileOptions } from '../../../../platform/files/common/files';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService';
+import { IElevatedFileService } from '../common/elevatedFileService';
 
 export class NativeElevatedFileService implements IElevatedFileService {
 

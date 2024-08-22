@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ILoggerOptions, ILoggerResource, ILoggerService, ILogService, isLogLevel, log, LogLevel, LogLevelToString, parseLogLevel } from 'vs/platform/log/common/log';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadLoggerShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { UriComponents, URI, UriDto } from 'vs/base/common/uri';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { ILoggerOptions, ILoggerResource, ILoggerService, ILogService, isLogLevel, log, LogLevel, LogLevelToString, parseLogLevel } from '../../../platform/log/common/log';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { ExtHostContext, MainThreadLoggerShape, MainContext } from '../common/extHost.protocol';
+import { UriComponents, URI, UriDto } from '../../../base/common/uri';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation';
+import { CommandsRegistry } from '../../../platform/commands/common/commands';
+import { IEnvironmentService } from '../../../platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadLogger)
 export class MainThreadLoggerService implements MainThreadLoggerShape {

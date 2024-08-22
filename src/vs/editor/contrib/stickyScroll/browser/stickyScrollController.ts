@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle';
+import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
 import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider';
-import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
-import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import * as dom from 'vs/base/browser/dom';
-import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { IModelTokensChangedEvent } from '../../../common/textModelEvents';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { ClickLinkGesture, ClickLinkMouseEvent } from '../../gotoSymbol/browser/link/clickLinkGesture';
+import { IRange, Range } from '../../../common/core/range';
+import { getDefinitionsAtPosition } from '../../gotoSymbol/browser/goToSymbol';
+import { goToDefinitionWithLocation } from '../../inlayHints/browser/inlayHintsLocations';
+import { IPosition, Position } from '../../../common/core/position';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce';
+import * as dom from '../../../../base/browser/dom';
+import { StickyRange } from './stickyScrollElement';
+import { IMouseEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent';
+import { FoldingController } from '../../folding/browser/folding';
+import { FoldingModel, toggleCollapseState } from '../../folding/browser/foldingModel';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;

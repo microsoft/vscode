@@ -5,30 +5,30 @@
 
 import 'vs/css!./media/notificationsCenter';
 import 'vs/css!./media/notificationsActions';
-import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Emitter } from 'vs/base/common/event';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INotificationsCenterController, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, isAncestorOfActiveElement } from 'vs/base/browser/dom';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { localize } from 'vs/nls';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
-import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { mainWindow } from 'vs/base/browser/window';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from '../../../common/theme';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from '../../../common/notifications';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService';
+import { Emitter } from '../../../../base/common/event';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { INotificationsCenterController, NotificationActionRunner } from './notificationsCommands';
+import { NotificationsList } from './notificationsList';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom';
+import { widgetShadow } from '../../../../platform/theme/common/colorRegistry';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { localize } from '../../../../nls';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar';
+import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from './notificationsActions';
+import { IAction, Separator, toAction } from '../../../../base/common/actions';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { assertAllDefined, assertIsDefined } from '../../../../base/common/types';
+import { NotificationsCenterVisibleContext } from '../../../common/contextkeys';
+import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification';
+import { mainWindow } from '../../../../base/browser/window';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 

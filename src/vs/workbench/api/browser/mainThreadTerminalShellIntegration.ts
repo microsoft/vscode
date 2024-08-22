@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, toDisposable, type IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { TerminalCapability, type ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { extHostNamedCustomer, type IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { TerminalShellExecutionCommandLineConfidence } from 'vs/workbench/api/common/extHostTypes';
+import { Event } from '../../../base/common/event';
+import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { TerminalCapability, type ITerminalCommand } from '../../../platform/terminal/common/capabilities/capabilities';
+import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from '../common/extHost.protocol';
+import { ITerminalService } from '../../contrib/terminal/browser/terminal';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService';
+import { extHostNamedCustomer, type IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { TerminalShellExecutionCommandLineConfidence } from '../common/extHostTypes';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
 export class MainThreadTerminalShellIntegration extends Disposable implements MainThreadTerminalShellIntegrationShape {

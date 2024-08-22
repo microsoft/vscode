@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ProgressBar } from '../../../../../../base/browser/ui/progressbar/progressbar';
+import { defaultProgressBarStyles } from '../../../../../../platform/theme/browser/defaultStyles';
+import { ICellViewModel } from '../../notebookBrowser';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents';
+import { CellContentPart } from '../cellPart';
+import { NotebookCellExecutionState } from '../../../common/notebookCommon';
+import { ICellExecutionStateChangedEvent, INotebookExecutionStateService } from '../../../common/notebookExecutionStateService';
 
 export class CellProgressBar extends CellContentPart {
 	private readonly _progressBar: ProgressBar;

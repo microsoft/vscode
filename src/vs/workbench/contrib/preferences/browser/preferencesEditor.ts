@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/contrib/preferences/browser/preferencesRenderers';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from './preferencesRenderers';
+import { IPreferencesService } from '../../../services/preferences/common/preferences';
+import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels';
 
 export class SettingsEditorContribution extends Disposable {
 	static readonly ID: string = 'editor.contrib.settings';

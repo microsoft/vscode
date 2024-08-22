@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/bannerpart';
-import { localize2 } from 'vs/nls';
-import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType, isHTMLElement } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Part } from 'vs/workbench/browser/part';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Action } from 'vs/base/common/actions';
-import { Link } from 'vs/platform/opener/browser/link';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Emitter } from 'vs/base/common/event';
-import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { BannerFocused } from 'vs/workbench/common/contextkeys';
+import { localize2 } from '../../../../nls';
+import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { Part } from '../../part';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService';
+import { Action } from '../../../../base/common/actions';
+import { Link } from '../../../../platform/opener/browser/link';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { Emitter } from '../../../../base/common/event';
+import { IBannerItem, IBannerService } from '../../../services/banner/browser/bannerService';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { URI } from '../../../../base/common/uri';
+import { widgetClose } from '../../../../platform/theme/common/iconRegistry';
+import { BannerFocused } from '../../../common/contextkeys';
 
 // Banner Part
 

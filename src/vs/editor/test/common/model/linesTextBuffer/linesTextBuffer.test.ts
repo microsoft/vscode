@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { IValidatedEditOperation, PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Range } from '../../../../common/core/range';
+import { DefaultEndOfLine } from '../../../../common/model';
+import { IValidatedEditOperation, PieceTreeTextBuffer } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { createTextBufferFactory } from '../../../../common/model/textModel';
 
 suite('PieceTreeTextBuffer._getInverseEdits', () => {
 

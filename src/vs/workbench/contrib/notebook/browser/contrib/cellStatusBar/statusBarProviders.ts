@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ILanguageDetectionService, LanguageDetectionHintConfig } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { CancellationToken } from '../../../../../../base/common/cancellation';
+import { Disposable } from '../../../../../../base/common/lifecycle';
+import { ResourceMap } from '../../../../../../base/common/map';
+import { URI } from '../../../../../../base/common/uri';
+import { ILanguageService } from '../../../../../../editor/common/languages/language';
+import { localize } from '../../../../../../nls';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding';
+import { Registry } from '../../../../../../platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../../../common/contributions';
+import { CHANGE_CELL_LANGUAGE, DETECT_CELL_LANGUAGE } from '../../notebookBrowser';
+import { INotebookCellStatusBarService } from '../../../common/notebookCellStatusBarService';
+import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from '../../../common/notebookCommon';
+import { INotebookKernelService } from '../../../common/notebookKernelService';
+import { INotebookService } from '../../../common/notebookService';
+import { ILanguageDetectionService, LanguageDetectionHintConfig } from '../../../../../services/languageDetection/common/languageDetectionWorkerService';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle';
 
 class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemProvider {
 

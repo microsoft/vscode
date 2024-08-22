@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITimeout, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
+import { ITimeout, SequenceDiff } from './algorithms/diffAlgorithm';
 import { DetailedLineRangeMapping, LineRangeMapping } from '../rangeMapping';
-import { pushMany, compareBy, numberComparator, reverseOrder } from 'vs/base/common/arrays';
-import { MonotonousArray, findLastMonotonous } from 'vs/base/common/arraysFind';
-import { SetMap } from 'vs/base/common/map';
-import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
-import { LineRangeFragment, isSpace } from 'vs/editor/common/diff/defaultLinesDiffComputer/utils';
-import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
-import { Range } from 'vs/editor/common/core/range';
+import { pushMany, compareBy, numberComparator, reverseOrder } from '../../../../base/common/arrays';
+import { MonotonousArray, findLastMonotonous } from '../../../../base/common/arraysFind';
+import { SetMap } from '../../../../base/common/map';
+import { LineRange, LineRangeSet } from '../../core/lineRange';
+import { LinesSliceCharSequence } from './linesSliceCharSequence';
+import { LineRangeFragment, isSpace } from './utils';
+import { MyersDiffAlgorithm } from './algorithms/myersDiffAlgorithm';
+import { Range } from '../../core/range';
 
 export function computeMovedLines(
 	changes: DetailedLineRangeMapping[],

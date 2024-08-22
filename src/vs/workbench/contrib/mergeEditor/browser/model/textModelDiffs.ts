@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { DetailedLineRangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { LineRangeEdit } from 'vs/workbench/contrib/mergeEditor/browser/model/editing';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
+import { compareBy, numberComparator } from '../../../../../base/common/arrays';
+import { BugIndicatingError } from '../../../../../base/common/errors';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle';
+import { ITextModel } from '../../../../../editor/common/model';
+import { DetailedLineRangeMapping } from './mapping';
+import { LineRangeEdit } from './editing';
+import { LineRange } from './lineRange';
 import { ReentrancyBarrier } from '../../../../../base/common/controlFlow';
 import { IMergeDiffComputer } from './diffComputer';
-import { autorun, IObservable, IReader, ITransaction, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
-import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { autorun, IObservable, IReader, ITransaction, observableSignal, observableValue, transaction } from '../../../../../base/common/observable';
+import { UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo';
 
 export class TextModelDiffs extends Disposable {
 	private _recomputeCount = 0;

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { WelcomeWidget } from 'vs/workbench/contrib/welcomeDialog/browser/welcomeWidget';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls';
-import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { WelcomeWidget } from './welcomeWidget';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry';
+import { localize } from '../../../../nls';
+import { applicationConfigurationNodeBase } from '../../../common/configuration';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 const configurationKey = 'workbench.welcome.experimental.dialog';
 

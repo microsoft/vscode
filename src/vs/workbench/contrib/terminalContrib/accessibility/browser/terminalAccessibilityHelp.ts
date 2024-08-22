@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { localize } from '../../../../../nls';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from '../../../../../platform/terminal/common/terminal';
+import { AccessibilityCommandId } from '../../../accessibility/common/accessibilityCommands';
+import { ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal';
+import { TerminalCommandId } from '../../../terminal/common/terminal';
 import type { Terminal } from '@xterm/xterm';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalAccessibilitySettingId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration';
-import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
-import { TerminalLinksCommandId } from 'vs/workbench/contrib/terminalContrib/links/common/terminal.links';
-import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TerminalAccessibilitySettingId } from '../common/terminalAccessibilityConfiguration';
+import { TerminalAccessibilityCommandId } from '../common/terminal.accessibility';
+import { TerminalLinksCommandId } from '../../links/common/terminal.links';
+import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView';
+import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration';
 
 export const enum ClassName {
 	Active = 'active',

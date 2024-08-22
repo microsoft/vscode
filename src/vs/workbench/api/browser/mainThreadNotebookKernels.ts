@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { isNonEmptyArray } from '../../../base/common/arrays';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../base/common/errors';
+import { Emitter, Event } from '../../../base/common/event';
+import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { ILanguageService } from '../../../editor/common/languages/language';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions';
+import { NotebookDto } from './mainThreadNotebookDto';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { INotebookEditor } from '../../contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorService } from '../../contrib/notebook/browser/services/notebookEditorService';
+import { INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../contrib/notebook/common/notebookExecutionStateService';
+import { IKernelSourceActionProvider, INotebookKernel, INotebookKernelChangeEvent, INotebookKernelDetectionTask, INotebookKernelService, VariablesResult } from '../../contrib/notebook/common/notebookKernelService';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICellExecutionCompleteDto, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
+import { INotebookService } from '../../contrib/notebook/common/notebookService';
+import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async';
 
 abstract class MainThreadKernel implements INotebookKernel {
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();

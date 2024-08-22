@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IPath } from 'vs/platform/window/common/window';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { isVirtualResource } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isTemporaryWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isEqualAuthority } from 'vs/base/common/resources';
-import { isWeb } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
-import { promiseWithResolvers } from 'vs/base/common/async';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { LinkedList } from '../../../../base/common/linkedList';
+import { Schemas } from '../../../../base/common/network';
+import { URI } from '../../../../base/common/uri';
+import { IPath } from '../../../../platform/window/common/window';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IRemoteAuthorityResolverService, ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver';
+import { getRemoteAuthority } from '../../../../platform/remote/common/remoteHosts';
+import { isVirtualResource } from '../../../../platform/workspace/common/virtualWorkspace';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isTemporaryWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService } from '../../../../platform/workspace/common/workspaceTrust';
+import { Memento, MementoObject } from '../../../common/memento';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { isEqualAuthority } from '../../../../base/common/resources';
+import { isWeb } from '../../../../base/common/platform';
+import { IFileService } from '../../../../platform/files/common/files';
+import { promiseWithResolvers } from '../../../../base/common/async';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';

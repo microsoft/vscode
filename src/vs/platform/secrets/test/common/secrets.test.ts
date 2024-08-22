@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEncryptionService, KnownStorageProvider } from 'vs/platform/encryption/common/encryptionService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { BaseSecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IEncryptionService, KnownStorageProvider } from '../../../encryption/common/encryptionService';
+import { NullLogService } from '../../../log/common/log';
+import { BaseSecretStorageService } from '../../common/secrets';
+import { InMemoryStorageService } from '../../../storage/common/storage';
 
 class TestEncryptionService implements IEncryptionService {
 	_serviceBrand: undefined;

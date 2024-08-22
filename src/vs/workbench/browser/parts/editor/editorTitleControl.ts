@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editortitlecontrol';
-import { Dimension, clearNode } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { BreadcrumbsControl, BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
-import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
-import { IEditorPartOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MultiRowEditorControl } from 'vs/workbench/browser/parts/editor/multiRowEditorTabsControl';
-import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { NoEditorTabsControl } from 'vs/workbench/browser/parts/editor/noEditorTabsControl';
+import { Dimension, clearNode } from '../../../../base/browser/dom';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService';
+import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl';
+import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor';
+import { IEditorTabsControl } from './editorTabsControl';
+import { MultiEditorTabsControl } from './multiEditorTabsControl';
+import { SingleEditorTabsControl } from './singleEditorTabsControl';
+import { IEditorPartOptions } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { MultiRowEditorControl } from './multiRowEditorTabsControl';
+import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel';
+import { NoEditorTabsControl } from './noEditorTabsControl';
 
 export interface IEditorTitleControlDimensions {
 

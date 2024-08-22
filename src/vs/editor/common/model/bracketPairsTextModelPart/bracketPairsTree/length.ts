@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { splitLines } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
+import { splitLines } from '../../../../../base/common/strings';
+import { Position } from '../../../core/position';
+import { Range } from '../../../core/range';
+import { TextLength } from '../../../core/textLength';
 
 /**
  * The end must be greater than or equal to the start.

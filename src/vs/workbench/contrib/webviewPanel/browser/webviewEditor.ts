@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as nls from 'vs/nls';
-import { IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import * as DOM from '../../../../base/browser/dom';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Emitter, Event } from '../../../../base/common/event';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { isWeb } from '../../../../base/common/platform';
+import { generateUuid } from '../../../../base/common/uuid';
+import * as nls from '../../../../nls';
+import { IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { IEditorOptions } from '../../../../platform/editor/common/editor';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { EditorPane } from '../../../browser/parts/editor/editorPane';
+import { IEditorOpenContext } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { IOverlayWebview } from '../../webview/browser/webview';
+import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor';
+import { WebviewInput } from './webviewEditorInput';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IHostService } from '../../../services/host/browser/host';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService';
 
 /**
  * Tracks the id of the actively focused webview.

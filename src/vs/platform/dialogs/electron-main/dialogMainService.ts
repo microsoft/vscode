@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { Queue } from 'vs/base/common/async';
-import { hash } from 'vs/base/common/hash';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { INativeOpenDialogOptions, massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
+import { Queue } from '../../../base/common/async';
+import { hash } from '../../../base/common/hash';
+import { mnemonicButtonLabel } from '../../../base/common/labels';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { normalizeNFC } from '../../../base/common/normalization';
+import { isMacintosh } from '../../../base/common/platform';
+import { Promises } from '../../../base/node/pfs';
+import { localize } from '../../../nls';
+import { INativeOpenDialogOptions, massageMessageBoxOptions } from '../common/dialogs';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ILogService } from '../../log/common/log';
+import { IProductService } from '../../product/common/productService';
+import { WORKSPACE_FILTER } from '../../workspace/common/workspace';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 

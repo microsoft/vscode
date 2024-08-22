@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { CharCode } from '../../../../base/common/charCode';
+import { LineRange } from '../../core/lineRange';
+import { DetailedLineRangeMapping } from '../rangeMapping';
 
 export class Array2D<T> {
 	private readonly array: T[] = [];

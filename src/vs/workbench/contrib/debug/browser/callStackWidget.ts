@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { assertNever } from 'vs/base/common/assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, observableValue } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Constants } from 'vs/base/common/uint';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+import * as dom from '../../../../base/browser/dom';
+import { Button } from '../../../../base/browser/ui/button/button';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget';
+import { assertNever } from '../../../../base/common/assert';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { Codicon } from '../../../../base/common/codicons';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { Constants } from '../../../../base/common/uint';
+import { URI } from '../../../../base/common/uri';
+import { generateUuid } from '../../../../base/common/uuid';
 import 'vs/css!./media/callStackWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { Location } from 'vs/editor/common/languages';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize, localize2 } from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { makeStackFrameColumnDecoration, TOP_STACK_FRAME_DECORATION } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget';
+import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { Range } from '../../../../editor/common/core/range';
+import { Location } from '../../../../editor/common/languages';
+import { ITextModelService } from '../../../../editor/common/services/resolverService';
+import { localize, localize2 } from '../../../../nls';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { WorkbenchList } from '../../../../platform/list/browser/listService';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { ResourceLabel } from '../../../browser/labels';
+import { makeStackFrameColumnDecoration, TOP_STACK_FRAME_DECORATION } from './callStackEditorContribution';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 
 export class CallStackFrame {

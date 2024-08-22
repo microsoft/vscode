@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IFileService } from '../../../../platform/files/common/files';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { URI } from '../../../../base/common/uri';
+import { IProductService } from '../../../../platform/product/common/productService';
 
 interface IExportedConfigurationNode {
 	name: string;

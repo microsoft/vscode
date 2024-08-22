@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { IJSONEditingService } from '../../configuration/common/jsonEditing';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces';
+import { WorkspaceService } from '../../configuration/browser/configurationService';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IFileService } from '../../../../platform/files/common/files';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { IFileDialogService, IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { ITextFileService } from '../../textfile/common/textfiles';
+import { IHostService } from '../../host/browser/host';
+import { AbstractWorkspaceEditingService } from './abstractWorkspaceEditingService';
+import { IWorkspaceEditingService } from '../common/workspaceEditing';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { URI } from '../../../../base/common/uri';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust';
+import { IWorkbenchConfigurationService } from '../../configuration/common/configuration';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile';
 
 export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
 

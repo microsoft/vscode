@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isHTMLElement } from 'vs/base/browser/dom';
-import type { IHoverWidget, IManagedHoverContent, IManagedHoverOptions } from 'vs/base/browser/ui/hover/hover';
-import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isMarkdownString, type IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isFunction, isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
+import { isHTMLElement } from '../../../../base/browser/dom';
+import type { IHoverWidget, IManagedHoverContent, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover';
+import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { isMarkdownString, type IMarkdownString } from '../../../../base/common/htmlContent';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { isFunction, isString } from '../../../../base/common/types';
+import { localize } from '../../../../nls';
 
 type IManagedHoverResolvedContent = IMarkdownString | string | HTMLElement | undefined;
 

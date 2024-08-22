@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, EventType, h } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls';
+import { IContextMenuProvider } from '../../contextmenu';
+import { $, addDisposableListener, append, EventType, h } from '../../dom';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { IActionViewItemProvider } from '../actionbar/actionbar';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../actionbar/actionViewItems';
+import { AnchorAlignment } from '../contextview/contextview';
+import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from './dropdown';
+import { Action, IAction, IActionRunner } from '../../../common/actions';
+import { Codicon } from '../../../common/codicons';
+import { ThemeIcon } from '../../../common/themables';
+import { Emitter } from '../../../common/event';
+import { KeyCode } from '../../../common/keyCodes';
+import { ResolvedKeybinding } from '../../../common/keybindings';
+import { IDisposable } from '../../../common/lifecycle';
 import 'vs/css!./dropdown';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;

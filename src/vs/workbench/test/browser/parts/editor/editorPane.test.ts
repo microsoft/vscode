@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { URI } from 'vs/base/common/uri';
-import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { TestStorageService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
-import { extUri } from 'vs/base/common/resources';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { EditorPane, EditorMemento } from '../../../../browser/parts/editor/editorPane';
+import { WorkspaceTrustRequiredPlaceholderEditor } from '../../../../browser/parts/editor/editorPlaceholder';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from '../../../../common/editor';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { Registry } from '../../../../../platform/registry/common/platform';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart, TestTextResourceConfigurationService } from '../../workbenchTestServices';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService';
+import { URI } from '../../../../../base/common/uri';
+import { EditorPaneDescriptor, EditorPaneRegistry } from '../../../../browser/editor';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle';
+import { TestStorageService, TestWorkspaceTrustManagementService } from '../../../common/workbenchTestServices';
+import { extUri } from '../../../../../base/common/resources';
+import { EditorService } from '../../../../services/editor/browser/editorService';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust';
+import { EditorInput } from '../../../../common/editor/editorInput';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 const NullThemeService = new TestThemeService();
 

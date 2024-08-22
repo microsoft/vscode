@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
-import { equals, tail2 as tail } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IBoundarySashes, Orientation } from '../sash/sash';
+import { equals, tail2 as tail } from '../../../common/arrays';
+import { Event } from '../../../common/event';
+import { Disposable } from '../../../common/lifecycle';
 import 'vs/css!./gridview';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview';
-import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
+import type { SplitView, AutoSizing as SplitViewAutoSizing } from '../splitview/splitview';
 
 export type { IViewSize };
 export { LayoutPriority, Orientation, orthogonal } from './gridview';

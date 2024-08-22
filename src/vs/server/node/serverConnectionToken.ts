@@ -7,11 +7,11 @@ import * as cookie from 'cookie';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as url from 'url';
-import * as path from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
-import { connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
-import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { Promises } from 'vs/base/node/pfs';
+import * as path from '../../base/common/path';
+import { generateUuid } from '../../base/common/uuid';
+import { connectionTokenCookieName, connectionTokenQueryName } from '../../base/common/network';
+import { ServerParsedArgs } from './serverEnvironmentService';
+import { Promises } from '../../base/node/pfs';
 
 const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 

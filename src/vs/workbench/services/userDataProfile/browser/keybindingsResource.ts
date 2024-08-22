@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { platform, Platform } from 'vs/base/common/platform';
-import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from '../common/userDataProfile';
+import { platform, Platform } from '../../../../base/common/platform';
+import { ITreeItemCheckboxState, TreeItemCollapsibleState } from '../../../common/views';
+import { IUserDataProfile, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { localize } from '../../../../nls';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
 
 interface IKeybindingsResourceContent {
 	platform: Platform;

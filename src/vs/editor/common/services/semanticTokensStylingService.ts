@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { DocumentTokensProvider } from 'vs/editor/common/services/model';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { ISemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStyling';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Disposable } from '../../../base/common/lifecycle';
+import { ILanguageService } from '../languages/language';
+import { DocumentTokensProvider } from './model';
+import { IThemeService } from '../../../platform/theme/common/themeService';
+import { ILogService } from '../../../platform/log/common/log';
+import { SemanticTokensProviderStyling } from './semanticTokensProviderStyling';
+import { ISemanticTokensStylingService } from './semanticTokensStyling';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions';
 
 export class SemanticTokensStylingService extends Disposable implements ISemanticTokensStylingService {
 

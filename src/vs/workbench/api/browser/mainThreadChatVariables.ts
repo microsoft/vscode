@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { ExtHostChatVariablesShape, ExtHostContext, IChatVariableResolverProgressDto, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableMap } from '../../../base/common/lifecycle';
+import { revive } from '../../../base/common/marshalling';
+import { ExtHostChatVariablesShape, ExtHostContext, IChatVariableResolverProgressDto, MainContext, MainThreadChatVariablesShape } from '../common/extHost.protocol';
+import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress, IChatVariablesService } from '../../contrib/chat/common/chatVariables';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChatVariables)
 export class MainThreadChatVariables implements MainThreadChatVariablesShape {

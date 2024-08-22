@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { Constants } from 'vs/base/common/uint';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { Constants } from '../../../../base/common/uint';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { Range } from '../../../common/core/range';
+import { DiffComputer, ICharChange, ILineChange } from '../../../common/diff/legacyLinesDiffComputer';
+import { IIdentifiedSingleEditOperation, ITextModel } from '../../../common/model';
+import { createTextModel } from '../testTextModel';
 
 function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: ILineChange[], shouldComputeCharChanges: boolean = true, shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
 	const diffComputer = new DiffComputer(originalLines, modifiedLines, {

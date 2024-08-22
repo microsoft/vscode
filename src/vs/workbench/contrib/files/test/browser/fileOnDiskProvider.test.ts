@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri';
+import { workbenchInstantiationService, TestServiceAccessor } from '../../../../test/browser/workbenchTestServices';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { TextFileContentProvider } from '../../common/files';
+import { snapshotToString } from '../../../../services/textfile/common/textfiles';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('Files - FileOnDiskContentProvider', () => {
 

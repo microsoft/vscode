@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { mainWindow } from 'vs/base/browser/window';
-import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ResourceMap } from 'vs/base/common/map';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { extractSelection } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { DataTransfers } from '../../../base/browser/dnd';
+import { mainWindow } from '../../../base/browser/window';
+import { DragMouseEvent } from '../../../base/browser/mouseEvent';
+import { coalesce } from '../../../base/common/arrays';
+import { DeferredPromise } from '../../../base/common/async';
+import { VSBuffer } from '../../../base/common/buffer';
+import { ResourceMap } from '../../../base/common/map';
+import { parse } from '../../../base/common/marshalling';
+import { Schemas } from '../../../base/common/network';
+import { isWeb } from '../../../base/common/platform';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { IDialogService } from '../../dialogs/common/dialogs';
+import { IBaseTextResourceEditorInput } from '../../editor/common/editor';
+import { HTMLFileSystemProvider } from '../../files/browser/htmlFileSystemProvider';
+import { WebFileSystemAccess } from '../../files/browser/webFileSystemAccess';
+import { ByteSize, IFileService } from '../../files/common/files';
+import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation';
+import { extractSelection } from '../../opener/common/opener';
+import { Registry } from '../../registry/common/platform';
 
 export interface FileAdditionalNativeProperties {
 	/**

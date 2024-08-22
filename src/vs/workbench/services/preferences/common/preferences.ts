@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { Event } from '../../../../base/common/event';
+import { IMatch } from '../../../../base/common/filters';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { URI } from '../../../../base/common/uri';
+import { IRange } from '../../../../editor/common/core/range';
+import { IEditorContribution } from '../../../../editor/common/editorCommon';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration';
+import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, IExtensionInfo } from '../../../../platform/configuration/common/configurationRegistry';
+import { IEditorOptions } from '../../../../platform/editor/common/editor';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { Settings2EditorModel } from './preferencesModels';
 
 export enum SettingValueType {
 	Null = 'null',

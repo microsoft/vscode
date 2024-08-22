@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { Command, Location, TextEdit } from 'vs/editor/common/languages';
-import { FileType } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { DeferredPromise } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { URI } from '../../../../base/common/uri';
+import { IRange, Range } from '../../../../editor/common/core/range';
+import { ISelection } from '../../../../editor/common/core/selection';
+import { Command, Location, TextEdit } from '../../../../editor/common/languages';
+import { FileType } from '../../../../platform/files/common/files';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel';
+import { IParsedChatRequest } from './chatParserTypes';
+import { IChatParserContext } from './chatRequestParser';
+import { IChatRequestVariableValue } from './chatVariables';
 
 export interface IChatRequest {
 	message: string;

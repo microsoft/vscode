@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceProviderService, ISyncUserDataProfile, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { parseSnippets } from 'vs/platform/userDataSync/common/snippetsSync';
-import { parseSettingsSyncContent } from 'vs/platform/userDataSync/common/settingsSync';
-import { getKeybindingsContentFromSyncContent } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getTasksContentFromSyncContent } from 'vs/platform/userDataSync/common/tasksSync';
-import { LocalExtensionsProvider, parseExtensions, stringify as stringifyExtensions } from 'vs/platform/userDataSync/common/extensionsSync';
-import { LocalGlobalStateProvider, stringify as stringifyGlobalState } from 'vs/platform/userDataSync/common/globalStateSync';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { parseUserDataProfilesManifest, stringifyLocalProfiles } from 'vs/platform/userDataSync/common/userDataProfilesManifestSync';
-import { toFormattedString } from 'vs/base/common/jsonFormatter';
-import { trim } from 'vs/base/common/strings';
-import { IMachinesData, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IExtUri } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { IFileService } from '../../files/common/files';
+import { getServiceMachineId } from '../../externalServices/common/serviceMachineId';
+import { IStorageService } from '../../storage/common/storage';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity';
+import { ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceProviderService, ISyncUserDataProfile, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM, IUserDataSyncResource } from './userDataSync';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
+import { isSyncData } from './abstractSynchronizer';
+import { parseSnippets } from './snippetsSync';
+import { parseSettingsSyncContent } from './settingsSync';
+import { getKeybindingsContentFromSyncContent } from './keybindingsSync';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { getTasksContentFromSyncContent } from './tasksSync';
+import { LocalExtensionsProvider, parseExtensions, stringify as stringifyExtensions } from './extensionsSync';
+import { LocalGlobalStateProvider, stringify as stringifyGlobalState } from './globalStateSync';
+import { IInstantiationService } from '../../instantiation/common/instantiation';
+import { parseUserDataProfilesManifest, stringifyLocalProfiles } from './userDataProfilesManifestSync';
+import { toFormattedString } from '../../../base/common/jsonFormatter';
+import { trim } from '../../../base/common/strings';
+import { IMachinesData, IUserDataSyncMachine } from './userDataSyncMachines';
 
 interface ISyncResourceUriInfo {
 	readonly remote: boolean;

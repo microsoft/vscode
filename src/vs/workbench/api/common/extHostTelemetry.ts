@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ICommonProperties, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ILogger, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { cleanData, cleanRemoteAuthority, extensionTelemetryLogChannelId } from 'vs/platform/telemetry/common/telemetryUtils';
-import { mixin } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { Event, Emitter } from '../../../base/common/event';
+import { ExtHostTelemetryShape } from './extHost.protocol';
+import { ICommonProperties, TelemetryLevel } from '../../../platform/telemetry/common/telemetry';
+import { ILogger, ILoggerService, LogLevel, isLogLevel } from '../../../platform/log/common/log';
+import { IExtHostInitDataService } from './extHostInitDataService';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { UIKind } from '../../services/extensions/common/extensionHostProtocol';
+import { getRemoteName } from '../../../platform/remote/common/remoteHosts';
+import { cleanData, cleanRemoteAuthority, extensionTelemetryLogChannelId } from '../../../platform/telemetry/common/telemetryUtils';
+import { mixin } from '../../../base/common/objects';
+import { URI } from '../../../base/common/uri';
+import { Disposable } from '../../../base/common/lifecycle';
+import { localize } from '../../../nls';
 
 export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShape {
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
-import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle';
+import { FileAccess, Schemas } from '../../../base/common/network';
+import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp';
+import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment';
+import { parsePtyHostDebugPort } from '../../environment/node/environmentService';
+import { IReconnectConstants } from '../common/terminal';
+import { IPtyHostConnection, IPtyHostStarter } from './ptyHost';
 
 export class NodePtyHostStarter extends Disposable implements IPtyHostStarter {
 	constructor(

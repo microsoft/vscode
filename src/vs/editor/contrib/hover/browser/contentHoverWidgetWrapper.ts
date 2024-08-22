@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { HoverOperation, HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
-import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
-import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
-import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
-import { Emitter } from 'vs/base/common/event';
-import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
-import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
+import * as dom from '../../../../base/browser/dom';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Range } from '../../../common/core/range';
+import { TokenizationRegistry } from '../../../common/languages';
+import { HoverOperation, HoverStartMode, HoverStartSource } from './hoverOperation';
+import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from './hoverTypes';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { HoverVerbosityAction } from '../../../common/standalone/standaloneEnums';
+import { ContentHoverWidget } from './contentHoverWidget';
+import { ContentHoverComputer } from './contentHoverComputer';
+import { HoverResult } from './contentHoverTypes';
+import { Emitter } from '../../../../base/common/event';
+import { RenderedContentHover } from './contentHoverRendered';
+import { isMousePositionWithinElement } from './hoverUtils';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 

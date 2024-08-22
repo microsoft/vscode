@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { shuffle } from 'vs/base/common/arrays';
-import { randomPath } from 'vs/base/common/extpath';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ConfigKeysIterator, PathIterator, StringIterator, TernarySearchTree, UriIterator } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { shuffle } from '../../common/arrays';
+import { randomPath } from '../../common/extpath';
+import { StopWatch } from '../../common/stopwatch';
+import { ConfigKeysIterator, PathIterator, StringIterator, TernarySearchTree, UriIterator } from '../../common/ternarySearchTree';
+import { URI } from '../../common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Ternary Search Tree', () => {
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { INativeHostService } from 'vs/platform/native/common/native';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc';
+import { IMainProcessService } from '../../ipc/common/mainProcessService';
+import { INativeHostService } from './native';
 
 // @ts-ignore: interface is implemented via proxy
 export class NativeHostService implements INativeHostService {

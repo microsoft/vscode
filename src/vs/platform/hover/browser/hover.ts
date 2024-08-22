@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { addStandardDisposableListener, isHTMLElement } from 'vs/base/browser/dom';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import type { IHoverDelegate2, IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle';
+import { IHoverDelegate, IHoverDelegateOptions } from '../../../base/browser/ui/hover/hoverDelegate';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { addStandardDisposableListener, isHTMLElement } from '../../../base/browser/dom';
+import { KeyCode } from '../../../base/common/keyCodes';
+import type { IHoverDelegate2, IHoverOptions, IHoverWidget } from '../../../base/browser/ui/hover/hover';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { importAMDNodeModule } from '../../../amdX';
+import { getErrorMessage } from '../../../base/common/errors';
+import { IGalleryExtension } from '../common/extensionManagement';
+import { TargetPlatform } from '../../extensions/common/extensions';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ILogService, LogLevel } from '../../log/common/log';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
 
 export const IExtensionSignatureVerificationService = createDecorator<IExtensionSignatureVerificationService>('IExtensionSignatureVerificationService');
 

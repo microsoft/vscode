@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
+import * as arrays from '../../../base/common/arrays';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from './extHost.protocol';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
+import { ExtHostTextEditor, TextEditorDecorationType } from './extHostTextEditor';
+import * as TypeConverters from './extHostTypeConverters';
+import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {

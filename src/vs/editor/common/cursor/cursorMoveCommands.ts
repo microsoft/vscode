@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as types from 'vs/base/common/types';
-import { CursorState, ICursorSimpleModel, PartialCursorState, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import * as types from '../../../base/common/types';
+import { CursorState, ICursorSimpleModel, PartialCursorState, SelectionStartKind, SingleCursorState } from '../cursorCommon';
+import { MoveOperations } from './cursorMoveOperations';
+import { WordOperations } from './cursorWordOperations';
+import { IPosition, Position } from '../core/position';
+import { Range } from '../core/range';
+import { ICommandMetadata } from '../../../platform/commands/common/commands';
+import { IViewModel } from '../viewModel';
 
 export class CursorMoveCommands {
 

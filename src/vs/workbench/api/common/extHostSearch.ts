@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle';
 import type * as vscode from 'vscode';
-import { ExtHostSearchShape, MainThreadSearchShape, MainContext } from '../common/extHost.protocol';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { FileSearchManager } from 'vs/workbench/services/search/common/fileSearchManager';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery, IRawAITextQuery, IAITextQuery } from 'vs/workbench/services/search/common/search';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { revive } from 'vs/base/common/marshalling';
-import { OldAITextSearchProviderConverter, OldFileSearchProviderConverter, OldTextSearchProviderConverter } from 'vs/workbench/services/search/common/searchExtConversionTypes';
+import { ExtHostSearchShape, MainThreadSearchShape, MainContext } from './extHost.protocol';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { FileSearchManager } from '../../services/search/common/fileSearchManager';
+import { IExtHostRpcService } from './extHostRpcService';
+import { IURITransformerService } from './extHostUriTransformerService';
+import { ILogService } from '../../../platform/log/common/log';
+import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery, IRawAITextQuery, IAITextQuery } from '../../services/search/common/search';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { TextSearchManager } from '../../services/search/common/textSearchManager';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { revive } from '../../../base/common/marshalling';
+import { OldAITextSearchProviderConverter, OldFileSearchProviderConverter, OldTextSearchProviderConverter } from '../../services/search/common/searchExtConversionTypes';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProviderOld(scheme: string, provider: vscode.TextSearchProvider): IDisposable;

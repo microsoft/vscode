@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity, isResourceMergeEditorInput, isResourceMultiDiffEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput, IUntypedEditorOptions } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Event } from '../../../base/common/event';
+import { IMarkdownString } from '../../../base/common/htmlContent';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation';
+import { Registry } from '../../../platform/registry/common/platform';
+import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity, isResourceMergeEditorInput, isResourceMultiDiffEditorInput } from '../editor';
+import { EditorInput, IUntypedEditorOptions } from './editorInput';
+import { IEditorService } from '../../services/editor/common/editorService';
 
 /**
  * Side by side editor inputs that have a primary and secondary side.

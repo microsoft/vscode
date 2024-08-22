@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls';
 
 // Import the effects we need
-import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
+import { registerColor, transparent } from '../colorUtils';
 
 // Import the colors we need
-import { foreground } from 'vs/platform/theme/common/colors/baseColors';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colors/editorColors';
+import { foreground } from './baseColors';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from './editorColors';
 
 
 export const searchResultsInfoForeground = registerColor('search.resultsInfoForeground',

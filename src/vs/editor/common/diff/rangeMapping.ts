@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { AbstractText, SingleTextEdit } from 'vs/editor/common/core/textEdit';
+import { BugIndicatingError } from '../../../base/common/errors';
+import { LineRange } from '../core/lineRange';
+import { Position } from '../core/position';
+import { Range } from '../core/range';
+import { AbstractText, SingleTextEdit } from '../core/textEdit';
 
 /**
  * Maps a line range in the original text model to a line range in the modified text model.

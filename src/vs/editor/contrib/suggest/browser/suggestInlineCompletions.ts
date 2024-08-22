@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
-import { Command, CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CompletionModel, LineContext } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItem, CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { SuggestModel } from 'vs/editor/contrib/suggest/browser/suggestModel';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { FuzzyScore } from '../../../../base/common/filters';
+import { Iterable } from '../../../../base/common/iterator';
+import { Disposable, RefCountedDisposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { ISingleEditOperation } from '../../../common/core/editOperation';
+import { IPosition, Position } from '../../../common/core/position';
+import { IRange, Range } from '../../../common/core/range';
+import { IWordAtPosition } from '../../../common/core/wordHelper';
+import { registerEditorFeature } from '../../../common/editorFeatures';
+import { Command, CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../common/languages';
+import { ITextModel } from '../../../common/model';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { CompletionModel, LineContext } from './completionModel';
+import { CompletionItem, CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from './suggest';
+import { ISuggestMemoryService } from './suggestMemory';
+import { SuggestModel } from './suggestModel';
+import { WordDistance } from './wordDistance';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
 
 class SuggestInlineCompletion implements InlineCompletion {
 

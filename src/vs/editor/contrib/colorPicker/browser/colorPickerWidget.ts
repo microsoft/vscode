@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import * as dom from 'vs/base/browser/dom';
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color, HSVA, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { PixelRatio } from '../../../../base/browser/pixelRatio';
+import * as dom from '../../../../base/browser/dom';
+import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointerMoveMonitor';
+import { Widget } from '../../../../base/browser/ui/widget';
+import { Codicon } from '../../../../base/common/codicons';
+import { Color, HSVA, RGBA } from '../../../../base/common/color';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ThemeIcon } from '../../../../base/common/themables';
 import 'vs/css!./colorPicker';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
-import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { localize } from 'vs/nls';
-import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ColorPickerModel } from './colorPickerModel';
+import { IEditorHoverColorPickerWidget } from '../../hover/browser/hoverTypes';
+import { localize } from '../../../../nls';
+import { editorHoverBackground } from '../../../../platform/theme/common/colorRegistry';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
 
 const $ = dom.$;
 

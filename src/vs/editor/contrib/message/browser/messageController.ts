@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer';
+import { alert } from '../../../../base/browser/ui/aria/aria';
+import { Event } from '../../../../base/common/event';
+import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
 import 'vs/css!./messageController';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { openLinkFromMarkdown } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import * as dom from 'vs/base/browser/dom';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser';
+import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions';
+import { IPosition } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon';
+import { PositionAffinity } from '../../../common/model';
+import { openLinkFromMarkdown } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer';
+import * as nls from '../../../../nls';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import * as dom from '../../../../base/browser/dom';
 
 export class MessageController implements IEditorContribution {
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { coalesce } from 'vs/base/common/arrays';
+import { createTrustedTypesPolicy } from './trustedTypes';
+import { onUnexpectedError } from '../common/errors';
+import { AppResourcePath, COI, FileAccess } from '../common/network';
+import { URI } from '../common/uri';
+import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from '../common/worker/simpleWorker';
+import { Disposable, toDisposable } from '../common/lifecycle';
+import { coalesce } from '../common/arrays';
 
 // ESM-comment-begin
 const isESM = false;

@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { language } from 'vs/base/common/platform';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISurveyData } from 'vs/base/common/product';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { platform } from 'vs/base/common/process';
-import { RunOnceWorker } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { localize } from '../../../../nls';
+import { language } from '../../../../base/common/platform';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from '../../../common/contributions';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { ISurveyData } from '../../../../base/common/product';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { Severity, INotificationService } from '../../../../platform/notification/common/notification';
+import { ITextFileService, ITextFileEditorModel } from '../../../services/textfile/common/textfiles';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { URI } from '../../../../base/common/uri';
+import { platform } from '../../../../base/common/process';
+import { RunOnceWorker } from '../../../../base/common/async';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
 
 class LanguageSurvey extends Disposable {
 

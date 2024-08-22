@@ -9,8 +9,8 @@
  * exist.
  */
 
-import { Lazy } from 'vs/base/common/lazy';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { Lazy } from '../../../../../base/common/lazy';
+import { OperatingSystem } from '../../../../../base/common/platform';
 
 export interface IParsedLink {
 	path: ILinkPartialRange;

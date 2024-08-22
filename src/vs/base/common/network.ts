@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
-import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/path';
+import * as errors from './errors';
+import * as platform from './platform';
+import { equalsIgnoreCase, startsWithIgnoreCase } from './strings';
+import { URI } from './uri';
+import * as paths from './path';
 
 export namespace Schemas {
 

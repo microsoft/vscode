@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions';
+import { Selection } from '../../../common/core/selection';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import * as nls from '../../../../nls';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
 	readonly selections: readonly Selection[];

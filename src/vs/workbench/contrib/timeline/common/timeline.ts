@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Command } from 'vs/editor/common/languages';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { Command } from '../../../../editor/common/languages';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
 
 export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;

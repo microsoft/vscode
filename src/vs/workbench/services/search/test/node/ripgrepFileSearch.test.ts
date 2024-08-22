@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as platform from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { fixDriveC, getAbsoluteGlob } from 'vs/workbench/services/search/node/ripgrepFileSearch';
+import * as platform from '../../../../../base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { fixDriveC, getAbsoluteGlob } from '../../node/ripgrepFileSearch';
 
 suite('RipgrepFileSearch - etc', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

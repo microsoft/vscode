@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ColorTheme, ColorThemeKind } from './extHostTypes';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostThemingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Emitter, Event } from 'vs/base/common/event';
+import { IExtHostRpcService } from './extHostRpcService';
+import { ExtHostThemingShape } from './extHost.protocol';
+import { Emitter, Event } from '../../../base/common/event';
 
 export class ExtHostTheming implements ExtHostThemingShape {
 

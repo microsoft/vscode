@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { URI } from '../../../../base/common/uri';
+import { ITextModel } from '../../../common/model';
+import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend, DocumentRangeSemanticTokensProvider } from '../../../common/languages';
+import { IModelService } from '../../../common/services/model';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { assertType } from '../../../../base/common/types';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { encodeSemanticTokensDto } from '../../../common/services/semanticTokensDto';
+import { Range } from '../../../common/core/range';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
 
 export function isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
 	return v && !!((<SemanticTokens>v).data);

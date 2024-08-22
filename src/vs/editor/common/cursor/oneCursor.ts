@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorState, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { CursorState, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon';
+import { CursorContext } from './cursorContext';
+import { Position } from '../core/position';
+import { Range } from '../core/range';
+import { Selection } from '../core/selection';
+import { PositionAffinity, TrackedRangeStickiness } from '../model';
 
 /**
  * Represents a single cursor.

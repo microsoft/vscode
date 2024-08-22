@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import * as dom from '../../dom';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { DomScrollableElement } from '../scrollbar/scrollableElement';
+import { KeyCode } from '../../../common/keyCodes';
+import { Disposable } from '../../../common/lifecycle';
 import 'vs/css!./hoverWidget';
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls';
 
 const $ = dom.$;
 

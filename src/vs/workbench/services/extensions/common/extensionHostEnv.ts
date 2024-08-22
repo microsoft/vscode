@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment } from '../../../../base/common/platform';
 
 export const enum ExtHostConnectionType {
 	IPC = 1,

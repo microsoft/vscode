@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse as parseUrl, Url } from 'url';
-import { isBoolean } from 'vs/base/common/types';
+import { isBoolean } from '../../../base/common/types';
 
 export type Agent = any;
 

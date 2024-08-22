@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import { localize } from 'vs/nls';
-import { IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/contextkeys';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { contrastBorder, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension } from 'vs/base/browser/dom';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { AbstractPaneCompositePart, CompositeBarPosition } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { localize } from '../../../../nls';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions';
+import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar';
+import { ActivePanelContext, PanelFocusContext } from '../../../common/contextkeys';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { TogglePanelAction } from './panelActions';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../common/theme';
+import { contrastBorder, badgeBackground, badgeForeground } from '../../../../platform/theme/common/colorRegistry';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { Dimension } from '../../../../base/browser/dom';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { assertIsDefined } from '../../../../base/common/types';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { IViewDescriptorService } from '../../../common/views';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions';
+import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { IPaneCompositeBarOptions } from '../paneCompositeBar';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
 
 export class PanelPart extends AbstractPaneCompositePart {
 

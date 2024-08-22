@@ -3,64 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { Event, Emitter } from 'vs/base/common/event';
-import { firstOrDefault, index } from 'vs/base/common/arrays';
-import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IPager, singlePagePager } from 'vs/base/common/paging';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import * as nls from '../../../../nls';
+import * as semver from '../../../../base/common/semver/semver';
+import { Event, Emitter } from '../../../../base/common/event';
+import { firstOrDefault, index } from '../../../../base/common/arrays';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IPager, singlePagePager } from '../../../../base/common/paging';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidUninstallExtensionEvent, InstallOperation, WEB_EXTENSION_TAG, InstallExtensionResult,
 	IExtensionsControlManifest, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible, InstallExtensionInfo, EXTENSION_IDENTIFIER_REGEX,
 	InstallOptions, IProductVersion,
 	UninstallExtensionInfo
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import * as resources from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription, isApplicationScopedExtension } from 'vs/platform/extensions/common/extensions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { FileAccess } from 'vs/base/common/network';
-import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isBoolean, isDefined, isString, isUndefined } from 'vs/base/common/types';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { isWeb, language } from 'vs/base/common/platform';
-import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { mainWindow } from 'vs/base/browser/window';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+} from '../../../../platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IHostService } from '../../../services/host/browser/host';
+import { URI } from '../../../../base/common/uri';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey } from '../common/extensions';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService';
+import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url';
+import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IProgressOptions, IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification';
+import * as resources from '../../../../base/common/resources';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IFileService } from '../../../../platform/files/common/files';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription, isApplicationScopedExtension } from '../../../../platform/extensions/common/extensions';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { FileAccess } from '../../../../base/common/network';
+import { IIgnoredExtensionsManagementService } from '../../../../platform/userDataSync/common/ignoredExtensions';
+import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { isBoolean, isDefined, isString, isUndefined } from '../../../../base/common/types';
+import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService';
+import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions';
+import { isWeb, language } from '../../../../base/common/platform';
+import { getLocale } from '../../../../platform/languagePacks/common/languagePacks';
+import { ILocaleService } from '../../../services/localization/common/locale';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile';
+import { mainWindow } from '../../../../base/browser/window';
+import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update';
+import { isEngineValid } from '../../../../platform/extensions/common/extensionValidator';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { ShowCurrentReleaseNotesActionId } from '../../update/common/update';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;

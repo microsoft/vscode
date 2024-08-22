@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainContext, ExtHostThemingShape, ExtHostContext, MainThreadThemingShape } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { IThemeService } from '../../../platform/theme/common/themeService';
 
 @extHostNamedCustomer(MainContext.MainThreadTheming)
 export class MainThreadTheming implements MainThreadThemingShape {

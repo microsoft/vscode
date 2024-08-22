@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir, tmpdir } from 'os';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IDebugParams } from 'vs/platform/environment/common/environment';
-import { AbstractNativeEnvironmentService, parseDebugParams } from 'vs/platform/environment/common/environmentService';
-import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { NativeParsedArgs } from '../common/argv';
+import { IDebugParams } from '../common/environment';
+import { AbstractNativeEnvironmentService, parseDebugParams } from '../common/environmentService';
+import { getUserDataPath } from './userDataPath';
+import { IProductService } from '../../product/common/productService';
 
 export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
 

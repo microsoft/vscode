@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
-import { getActiveWindow, getWindows } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { ISandboxGlobals, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { getZoomLevel, setZoomFactor, setZoomLevel } from '../../../base/browser/browser';
+import { getActiveWindow, getWindows } from '../../../base/browser/dom';
+import { mainWindow } from '../../../base/browser/window';
+import { ISandboxGlobals, ipcRenderer, webFrame } from '../../../base/parts/sandbox/electron-sandbox/globals';
+import { zoomLevelToZoomFactor } from '../common/window';
 
 export enum ApplyZoomTarget {
 	ACTIVE_WINDOW = 1,

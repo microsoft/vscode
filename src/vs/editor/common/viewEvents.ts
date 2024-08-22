@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { ScrollEvent } from '../../base/common/scrollable';
+import { ConfigurationChangedEvent, EditorOption } from './config/editorOptions';
+import { Range } from './core/range';
+import { Selection } from './core/selection';
+import { CursorChangeReason } from './cursorEvents';
+import { ScrollType } from './editorCommon';
+import { IModelDecorationsChangedEvent } from './textModelEvents';
+import { IColorTheme } from '../../platform/theme/common/themeService';
 
 export const enum ViewEventType {
 	ViewCompositionStart,

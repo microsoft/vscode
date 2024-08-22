@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
-import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AccessibilityVoiceSettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { status } from '../../../../base/browser/ui/aria/aria';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { AccessibilityProgressSignalScheduler } from '../../../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
+import { IChatAccessibilityService } from './chat';
+import { IChatResponseViewModel } from '../common/chatViewModel';
+import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {

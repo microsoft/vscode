@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IUserDataSyncUtilService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { localize, localize2 } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { CONTEXT_SYNC_STATE, DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR, IUserDataSyncWorkbenchService, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { Schemas } from 'vs/base/common/network';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions';
+import { IUserDataSyncUtilService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync';
+import { ISharedProcessService } from '../../../../platform/ipc/electron-sandbox/services';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions';
+import { localize, localize2 } from '../../../../nls';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment';
+import { IFileService } from '../../../../platform/files/common/files';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { CONTEXT_SYNC_STATE, DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR, IUserDataSyncWorkbenchService, SYNC_TITLE } from '../../../services/userDataSync/common/userDataSync';
+import { Schemas } from '../../../../base/common/network';
+import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc';
+import { Disposable } from '../../../../base/common/lifecycle';
 
 class UserDataSyncServicesContribution extends Disposable implements IWorkbenchContribution {
 

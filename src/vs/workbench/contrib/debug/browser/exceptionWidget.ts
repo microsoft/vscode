@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/exceptionWidget';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Color } from 'vs/base/common/color';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DebugLinkHoverBehavior, LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
+import * as nls from '../../../../nls';
+import * as dom from '../../../../base/browser/dom';
+import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from '../common/debug';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { IThemeService, IColorTheme } from '../../../../platform/theme/common/themeService';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { Color } from '../../../../base/common/color';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { DebugLinkHoverBehavior, LinkDetector } from './linkDetector';
+import { EditorOption } from '../../../../editor/common/config/editorOptions';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar';
+import { Action } from '../../../../base/common/actions';
+import { widgetClose } from '../../../../platform/theme/common/iconRegistry';
 const $ = dom.$;
 
 // theming

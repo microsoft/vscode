@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Codicon } from 'vs/base/common/codicons';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { DebugLinkHoverBehavior, DebugLinkHoverBehaviorTypeData, LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugService, IExpression, IExpressionValue } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, ExpressionContainer, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
-import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
+import * as dom from '../../../../base/browser/dom';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar';
+import { HighlightedLabel, IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
+import { IInputValidationOptions, InputBox } from '../../../../base/browser/ui/inputbox/inputBox';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree';
+import { Codicon } from '../../../../base/common/codicons';
+import { FuzzyScore, createMatches } from '../../../../base/common/filters';
+import { createSingleCallFunction } from '../../../../base/common/functional';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { localize } from '../../../../nls';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from './debugCommands';
+import { DebugLinkHoverBehavior, DebugLinkHoverBehaviorTypeData, LinkDetector } from './linkDetector';
+import { IDebugService, IExpression, IExpressionValue } from '../common/debug';
+import { Expression, ExpressionContainer, Variable } from '../common/debugModel';
+import { IDebugVisualizerService } from '../common/debugVisualizers';
+import { ReplEvaluationResult } from '../common/replModel';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 const booleanRegex = /^(true|false)$/i;

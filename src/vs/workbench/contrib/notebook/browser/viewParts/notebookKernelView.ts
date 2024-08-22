@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Action, IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { KernelPickerMRUStrategy, KernelQuickPickContext } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems';
+import { Action, IAction } from '../../../../../base/common/actions';
+import { Event } from '../../../../../base/common/event';
+import { localize, localize2 } from '../../../../../nls';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from '../controller/coreActions';
+import { getNotebookEditorFromEditorPane, INotebookEditor } from '../notebookBrowser';
+import { selectKernelIcon } from '../notebookIcons';
+import { KernelPickerMRUStrategy, KernelQuickPickContext } from './notebookKernelQuickPickStrategy';
+import { NotebookTextModel } from '../../common/model/notebookTextModel';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from '../../common/notebookContextKeys';
+import { INotebookKernelHistoryService, INotebookKernelService } from '../../common/notebookKernelService';
+import { IEditorService } from '../../../../services/editor/common/editorService';
 
 function getEditorFromContext(editorService: IEditorService, context?: KernelQuickPickContext): INotebookEditor | undefined {
 	let editor: INotebookEditor | undefined;

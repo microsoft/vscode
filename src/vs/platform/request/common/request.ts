@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { streamToBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { getErrorMessage } from '../../../base/common/errors';
+import { Disposable } from '../../../base/common/lifecycle';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request';
+import { localize } from '../../../nls';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from '../../log/common/log';
+import { Registry } from '../../registry/common/platform';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 

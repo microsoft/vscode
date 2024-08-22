@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notebookFind';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { FindStartFocusAction, getSelectionSearchString, IFindStartOptions, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
-import { localize2 } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IShowNotebookFindWidgetOptions, NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
-import { INotebookCommandContext, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellUri, NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes';
+import { Schemas } from '../../../../../../base/common/network';
+import { isEqual } from '../../../../../../base/common/resources';
+import { URI } from '../../../../../../base/common/uri';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService';
+import { EditorOption } from '../../../../../../editor/common/config/editorOptions';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys';
+import { ITextModel } from '../../../../../../editor/common/model';
+import { FindStartFocusAction, getSelectionSearchString, IFindStartOptions, StartFindAction, StartFindReplaceAction } from '../../../../../../editor/contrib/find/browser/findController';
+import { localize2 } from '../../../../../../nls';
+import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry';
+import { IShowNotebookFindWidgetOptions, NotebookFindContrib } from './notebookFindWidget';
+import { INotebookCommandContext, NotebookMultiCellAction } from '../../controller/coreActions';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser';
+import { registerNotebookContribution } from '../../notebookEditorExtensions';
+import { CellUri, NotebookFindScopeType } from '../../../common/notebookCommon';
+import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
 
 registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 

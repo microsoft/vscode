@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import { sep } from 'vs/base/common/path';
+import { Lazy } from './lazy';
+import { sep } from './path';
 
 // When comparing large numbers of strings it's better for performance to create an
 // Intl.Collator object and use the function provided by its compare property

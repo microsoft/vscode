@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { localize } from 'vs/nls';
-import { $, append, createStyleSheet } from 'vs/base/browser/dom';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ProcessItem } from 'vs/base/common/processes';
-import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { mainWindow } from 'vs/base/browser/window';
+import '../../../base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { localize } from '../../../nls';
+import { $, append, createStyleSheet } from '../../../base/browser/dom';
+import { IListVirtualDelegate } from '../../../base/browser/ui/list/list';
+import { DataTree } from '../../../base/browser/ui/tree/dataTree';
+import { IDataSource, ITreeNode, ITreeRenderer } from '../../../base/browser/ui/tree/tree';
+import { RunOnceScheduler } from '../../../base/common/async';
+import { ProcessItem } from '../../../base/common/processes';
+import { IContextMenuItem } from '../../../base/parts/contextmenu/common/contextmenu';
+import { popup } from '../../../base/parts/contextmenu/electron-sandbox/contextmenu';
+import { ipcRenderer } from '../../../base/parts/sandbox/electron-sandbox/globals';
+import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../platform/diagnostics/common/diagnostics';
+import { ByteSize } from '../../../platform/files/common/files';
+import { ElectronIPCMainProcessService } from '../../../platform/ipc/electron-sandbox/mainProcessService';
+import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from '../../../platform/issue/common/issue';
+import { INativeHostService } from '../../../platform/native/common/native';
+import { NativeHostService } from '../../../platform/native/common/nativeHostService';
+import { getIconsStyleSheet } from '../../../platform/theme/browser/iconsStyleSheet';
+import { applyZoom, zoomIn, zoomOut } from '../../../platform/window/electron-sandbox/window';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent';
+import { KeyCode } from '../../../base/common/keyCodes';
+import { mainWindow } from '../../../base/browser/window';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../../nls';
+import { MenuId } from '../../../../../platform/actions/common/actions';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey';
 
 export const enum TerminalChatCommandId {
 	Start = 'workbench.action.terminal.chat.start',

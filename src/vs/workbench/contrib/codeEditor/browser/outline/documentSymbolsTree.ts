@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./documentSymbolsTree';
-import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from 'vs/editor/common/languages';
-import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { localize } from 'vs/nls';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { mainWindow } from 'vs/base/browser/window';
+import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
+import * as dom from '../../../../../base/browser/dom';
+import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list';
+import { ITreeNode, ITreeRenderer, ITreeFilter } from '../../../../../base/browser/ui/tree/tree';
+import { createMatches, FuzzyScore } from '../../../../../base/common/filters';
+import { Range } from '../../../../../editor/common/core/range';
+import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from '../../../../../editor/common/languages';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel';
+import { localize } from '../../../../../nls';
+import { IconLabel, IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { MarkerSeverity } from '../../../../../platform/markers/common/markers';
+import { IThemeService } from '../../../../../platform/theme/common/themeService';
+import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colorRegistry';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget';
+import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from '../../../../services/outline/browser/outline';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { mainWindow } from '../../../../../base/browser/window';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 

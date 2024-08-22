@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./selections';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { Range } from 'vs/editor/common/core/range';
-import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { editorSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay';
+import { Range } from '../../../common/core/range';
+import { HorizontalRange, LineVisibleRanges, RenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import { editorSelectionForeground } from '../../../../platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService';
+import { EditorOption } from '../../../common/config/editorOptions';
 
 const enum CornerStyle {
 	EXTERN,

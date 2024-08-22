@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IEditorGroupsService, GroupsOrder, IEditorGroup, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { GroupIdentifier } from '../../../common/editor';
+import { IEditorGroupsService, GroupsOrder, IEditorGroup, preferredSideBySideGroupDirection } from './editorGroupsService';
+import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, SIDE_GROUP, SIDE_GROUP_TYPE } from './editorService';
 
 /**
  * A way to address editor groups through a column based system

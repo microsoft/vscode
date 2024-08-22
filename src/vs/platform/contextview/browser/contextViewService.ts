@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextView, ContextViewDOMPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { ContextView, ContextViewDOMPosition, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview';
+import { Disposable } from '../../../base/common/lifecycle';
+import { ILayoutService } from '../../layout/browser/layoutService';
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from './contextView';
-import { getWindow } from 'vs/base/browser/dom';
+import { getWindow } from '../../../base/browser/dom';
 
 export class ContextViewHandler extends Disposable implements IContextViewProvider {
 

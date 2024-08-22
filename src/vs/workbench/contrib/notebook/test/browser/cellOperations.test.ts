@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { changeCellToKind, computeCellLinesContents, copyCellRange, insertCell, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { FoldingModel, updateFoldingStateAtIndex } from '../../browser/viewModel/foldingModel';
+import { changeCellToKind, computeCellLinesContents, copyCellRange, insertCell, joinNotebookCells, moveCellRange, runDeleteAction } from '../../browser/controller/cellOperations';
+import { CellEditType, CellKind, SelectionStateType } from '../../common/notebookCommon';
+import { withTestNotebook } from './testNotebookEditor';
+import { Range } from '../../../../../editor/common/core/range';
+import { ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService';
+import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits';
+import { ILanguageService } from '../../../../../editor/common/languages/language';
+import { ITextBuffer, ValidAnnotatedEditOperation } from '../../../../../editor/common/model';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('CellOperations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

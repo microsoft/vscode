@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls';
+import { Action } from '../../../../base/common/actions';
+import { Event } from '../../../../base/common/event';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IDisposable } from '../../../../base/common/lifecycle';
 
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace';
+import { Task, ContributedTask, CustomTask, ITaskSet, TaskSorter, ITaskEvent, ITaskIdentifier, ConfiguringTask, TaskRunSource } from './tasks';
+import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from './taskSystem';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
 
 export type { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
 

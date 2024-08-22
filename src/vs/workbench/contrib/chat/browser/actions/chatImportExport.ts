@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { joinPath } from 'vs/base/common/resources';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { isExportableSessionData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { VSBuffer } from '../../../../../base/common/buffer';
+import { joinPath } from '../../../../../base/common/resources';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions';
+import { localize, localize2 } from '../../../../../nls';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { CHAT_CATEGORY } from './chatActions';
+import { IChatWidgetService } from '../chat';
+import { IChatEditorOptions } from '../chatEditor';
+import { ChatEditorInput } from '../chatEditorInput';
+import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys';
+import { isExportableSessionData } from '../../common/chatModel';
+import { IChatService } from '../../common/chatService';
+import { IEditorService } from '../../../../services/editor/common/editorService';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];

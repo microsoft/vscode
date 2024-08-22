@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { create } from './languageDetectionSimpleWorker';
-import { bootstrapSimpleWorker } from 'vs/base/common/worker/simpleWorkerBootstrap';
+import { bootstrapSimpleWorker } from '../../../../base/common/worker/simpleWorkerBootstrap';
 
 bootstrapSimpleWorker(create);

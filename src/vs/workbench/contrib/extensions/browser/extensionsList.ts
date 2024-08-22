@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extension';
-import { append, $, addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
-import { Event } from 'vs/base/common/event';
-import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { append, $, addDisposableListener } from '../../../../base/browser/dom';
+import { IDisposable, dispose, combinedDisposable } from '../../../../base/common/lifecycle';
+import { IAction } from '../../../../base/common/actions';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list';
+import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging';
+import { Event } from '../../../../base/common/event';
+import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from '../common/extensions';
+import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from './extensionsWidgets';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { WORKBENCH_BACKGROUND } from '../../../common/theme';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget';
+import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from './extensionsIcons';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems';
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
+import { AddFirstParameterToFunctions } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { IBackupMainService } from '../../backup/electron-main/backup';
+import { IWindowsMainService } from '../../windows/electron-main/windows';
+import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from '../common/workspaces';
+import { IWorkspaceIdentifier } from '../../workspace/common/workspace';
+import { IWorkspacesHistoryMainService } from './workspacesHistoryMainService';
+import { IWorkspacesManagementMainService } from './workspacesManagementMainService';
+import { IWorkspaceBackupInfo, IFolderBackupInfo } from '../../backup/common/backup';
 
 export class WorkspacesMainService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<unknown> /* only methods, not events */, number /* window ID */> {
 

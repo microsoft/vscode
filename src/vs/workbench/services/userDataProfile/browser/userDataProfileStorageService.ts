@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageDatabase } from 'vs/base/parts/storage/common/storage';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractUserDataProfileStorageService, IProfileStorageChanges, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { IProfileStorageValueChangeEvent, isProfileUsingDefaultStorage, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IndexedDBStorageDatabase } from 'vs/workbench/services/storage/browser/storageService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from '../../../../base/common/event';
+import { IStorageDatabase } from '../../../../base/parts/storage/common/storage';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ILogService } from '../../../../platform/log/common/log';
+import { AbstractUserDataProfileStorageService, IProfileStorageChanges, IUserDataProfileStorageService } from '../../../../platform/userDataProfile/common/userDataProfileStorageService';
+import { IProfileStorageValueChangeEvent, isProfileUsingDefaultStorage, IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IndexedDBStorageDatabase } from '../../storage/browser/storageService';
+import { IUserDataProfileService } from '../common/userDataProfile';
+import { DisposableStore } from '../../../../base/common/lifecycle';
 
 export class UserDataProfileStorageService extends AbstractUserDataProfileStorageService implements IUserDataProfileStorageService {
 

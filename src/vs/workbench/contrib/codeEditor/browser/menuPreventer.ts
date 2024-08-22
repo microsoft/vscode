@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { KeyMod } from '../../../../base/common/keyCodes';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions';
+import { IEditorContribution } from '../../../../editor/common/editorCommon';
 
 /**
  * Prevents the top-level menu from showing up when doing Alt + Click in the editor

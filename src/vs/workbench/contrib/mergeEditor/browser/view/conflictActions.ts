@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, createStyleSheet, h, isInShadowDOM, reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, IObservable, transaction } from 'vs/base/common/observable';
-import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import { ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { FixedZoneWidget } from 'vs/workbench/contrib/mergeEditor/browser/view/fixedZoneWidget';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { $, createStyleSheet, h, isInShadowDOM, reset } from '../../../../../base/browser/dom';
+import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels';
+import { hash } from '../../../../../base/common/hash';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle';
+import { autorun, derived, IObservable, transaction } from '../../../../../base/common/observable';
+import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/editorOptions';
+import { localize } from '../../../../../nls';
+import { ModifiedBaseRange, ModifiedBaseRangeState, ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange';
+import { FixedZoneWidget } from './fixedZoneWidget';
+import { MergeEditorViewModel } from './viewModel';
 
 export class ConflictActionsFactory extends Disposable {
 	private readonly _styleClassName: string;

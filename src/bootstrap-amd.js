@@ -19,28 +19,28 @@
 // import { product, pkg } from './bootstrap-meta.js';
 // import './bootstrap-node.js';
 // import * as performance from './vs/base/common/performance.js';
-//
+// 
 // const require = createRequire(import.meta.url);
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
-//
+// 
 // // Install a hook to module resolution to map 'fs' to 'original-fs'
 // if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-// 	const jsCode = `
-// 	export async function resolve(specifier, context, nextResolve) {
-// 		if (specifier === 'fs') {
-// 			return {
-// 				format: 'builtin',
-// 				shortCircuit: true,
-// 				url: 'node:original-fs'
-// 			};
-// 		}
-
-// 		// Defer to the next hook in the chain, which would be the
-// 		// Node.js default resolve if this is the last user-specified loader.
-// 		return nextResolve(specifier, context);
-// 	}`;
-// 	register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url);
+	// const jsCode = `
+	// export async function resolve(specifier, context, nextResolve) {
+		// if (specifier === 'fs') {
+			// return {
+				// format: 'builtin',
+				// shortCircuit: true,
+				// url: 'node:original-fs'
+			// };
+		// }
+// 
+		// // Defer to the next hook in the chain, which would be the
+		// // Node.js default resolve if this is the last user-specified loader.
+		// return nextResolve(specifier, context);
+	// }`;
+	// register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url);
 // }
 // ESM-uncomment-end
 
@@ -169,24 +169,24 @@ async function doSetupNLS() {
 
 // ESM-uncomment-begin
 // /**
-//  * @param {string=} entrypoint
-//  * @param {(value: any) => void} [onLoad]
-//  * @param {(err: Error) => void} [onError]
-//  */
+ // * @param {string=} entrypoint
+ // * @param {(value: any) => void} [onLoad]
+ // * @param {(err: Error) => void} [onError]
+ // */
 // module.exports.load = function (entrypoint, onLoad, onError) {
-// 	if (!entrypoint) {
-// 		return;
-// 	}
-
-// 	entrypoint = `./${entrypoint}.js`;
-
-// 	onLoad = onLoad || function () { };
-// 	onError = onError || function (err) { console.error(err); };
-
-// 	setupNLS().then(() => {
-// 		performance.mark(`code/fork/willLoadCode`);
-// 		import(entrypoint).then(onLoad, onError);
-// 	});
+	// if (!entrypoint) {
+		// return;
+	// }
+// 
+	// entrypoint = `./${entrypoint}.js`;
+// 
+	// onLoad = onLoad || function () { };
+	// onError = onError || function (err) { console.error(err); };
+// 
+	// setupNLS().then(() => {
+		// performance.mark(`code/fork/willLoadCode`);
+		// import(entrypoint).then(onLoad, onError);
+	// });
 // };
 // ESM-uncomment-end
 

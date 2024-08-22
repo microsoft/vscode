@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isHTMLElement, isMouseEvent } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Gesture } from 'vs/base/browser/touch';
-import { alert, AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
-import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { binarySearch, firstOrDefault, range } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { matchesFuzzy2, matchesPrefix } from 'vs/base/common/filters';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import * as platform from 'vs/base/common/platform';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { isNumber } from 'vs/base/common/types';
+import { IDragAndDropData } from '../../dnd';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isHTMLElement, isMouseEvent } from '../../dom';
+import { DomEmitter } from '../../event';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../keyboardEvent';
+import { Gesture } from '../../touch';
+import { alert, AriaRole } from '../aria/aria';
+import { CombinedSpliceable } from './splice';
+import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions';
+import { binarySearch, firstOrDefault, range } from '../../../common/arrays';
+import { timeout } from '../../../common/async';
+import { Color } from '../../../common/color';
+import { memoize } from '../../../common/decorators';
+import { Emitter, Event, EventBufferer } from '../../../common/event';
+import { matchesFuzzy2, matchesPrefix } from '../../../common/filters';
+import { KeyCode } from '../../../common/keyCodes';
+import { DisposableStore, dispose, IDisposable } from '../../../common/lifecycle';
+import { clamp } from '../../../common/numbers';
+import * as platform from '../../../common/platform';
+import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable';
+import { ISpliceable } from '../../../common/sequence';
+import { isNumber } from '../../../common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { autorun, constObservable, IObservable } from 'vs/base/common/observable';
+import { StandardMouseEvent } from '../../mouseEvent';
+import { autorun, constObservable, IObservable } from '../../../common/observable';
 
 interface ITraitChangeEvent {
 	indexes: number[];

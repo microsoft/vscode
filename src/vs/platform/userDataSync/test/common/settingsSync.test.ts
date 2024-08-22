@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { Event } from '../../../../base/common/event';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IConfigurationService } from '../../../configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry';
+import { IFileService } from '../../../files/common/files';
+import { Registry } from '../../../registry/common/platform';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile';
+import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } from '../../common/settingsSync';
+import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from '../../common/userDataSync';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient';
 
 suite('SettingsSync - Auto', () => {
 

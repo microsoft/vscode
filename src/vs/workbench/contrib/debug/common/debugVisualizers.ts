@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE, MainThreadDebugVisualization, IDebugVisualization, IDebugVisualizationContext, IExpression, IExpressionContainer, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
-import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
-import { Scope, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle';
+import { isDefined } from '../../../../base/common/types';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE, MainThreadDebugVisualization, IDebugVisualization, IDebugVisualizationContext, IExpression, IExpressionContainer, IDebugVisualizationTreeItem } from './debug';
+import { getContextForVariable } from './debugContext';
+import { Scope, Variable, VisualizedExpression } from './debugModel';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry';
 
 export const IDebugVisualizerService = createDecorator<IDebugVisualizerService>('debugVisualizerService');
 

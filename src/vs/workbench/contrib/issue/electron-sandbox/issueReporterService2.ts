@@ -2,19 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, reset } from 'vs/base/browser/dom';
-import { CancellationError } from 'vs/base/common/errors';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IProcessMainService } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
-import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { IIssueFormService, IssueReporterData, IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { $, reset } from '../../../../base/browser/dom';
+import { CancellationError } from '../../../../base/common/errors';
+import { IProductConfiguration } from '../../../../base/common/product';
+import { URI } from '../../../../base/common/uri';
+import { localize } from '../../../../nls';
+import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics';
+import { IProcessMainService } from '../../../../platform/issue/common/issue';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { applyZoom } from '../../../../platform/window/electron-sandbox/window';
+import { BaseIssueReporterService } from '../browser/baseIssueReporterService';
+import { IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel';
+import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191

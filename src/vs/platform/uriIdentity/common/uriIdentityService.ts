@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
-import { ExtUri, IExtUri, normalizePath } from 'vs/base/common/resources';
-import { SkipList } from 'vs/base/common/skipList';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IUriIdentityService } from './uriIdentity';
+import { URI } from '../../../base/common/uri';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions';
+import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from '../../files/common/files';
+import { ExtUri, IExtUri, normalizePath } from '../../../base/common/resources';
+import { SkipList } from '../../../base/common/skipList';
+import { Event } from '../../../base/common/event';
+import { DisposableStore } from '../../../base/common/lifecycle';
 
 class Entry {
 	static _clock = 0;

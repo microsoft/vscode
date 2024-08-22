@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TimeoutTimer } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TimeoutTimer } from '../../../../base/common/async';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle';
+import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from '../../../../base/common/strings';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from '../../../common/cursorEvents';
+import { IPosition, Position } from '../../../common/core/position';
+import { Selection } from '../../../common/core/selection';
+import { ITextModel } from '../../../common/model';
+import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionTriggerKind } from '../../../common/languages';
+import { IEditorWorkerService } from '../../../common/services/editorWorker';
+import { WordDistance } from './wordDistance';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ILogService } from '../../../../platform/log/common/log';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { CompletionModel } from './completionModel';
 import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { FuzzyScoreOptions } from 'vs/base/common/filters';
-import { assertType } from 'vs/base/common/types';
-import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWordAtPosition } from '../../../common/core/wordHelper';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { FuzzyScoreOptions } from '../../../../base/common/filters';
+import { assertType } from '../../../../base/common/types';
+import { InlineCompletionContextKeys } from '../../inlineCompletions/browser/inlineCompletionContextKeys';
+import { SnippetController2 } from '../../snippet/browser/snippetController2';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;

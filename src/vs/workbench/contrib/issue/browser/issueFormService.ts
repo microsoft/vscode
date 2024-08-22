@@ -2,24 +2,24 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { safeInnerHtml } from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
+import { safeInnerHtml } from '../../../../base/browser/dom';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import Severity from '../../../../base/common/severity';
 import 'vs/css!./media/issueReporter';
-import { localize } from 'vs/nls';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IRectangle } from 'vs/platform/window/common/window';
-import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
-import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
-import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
-import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { localize } from '../../../../nls';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import product from '../../../../platform/product/common/product';
+import { IRectangle } from '../../../../platform/window/common/window';
+import BaseHtml from './issueReporterPage';
+import { IssueWebReporter } from './issueReporterService';
+import { IIssueFormService, IssueReporterData } from '../common/issue';
+import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IHostService } from '../../../services/host/browser/host';
 
 export interface IssuePassData {
 	issueTitle: string;

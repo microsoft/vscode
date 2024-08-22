@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ResourceMap } from 'vs/base/common/map';
-import { parse } from 'vs/base/common/marshalling';
-import { matchesScheme, matchesSomeScheme, Schemas } from 'vs/base/common/network';
-import { normalizePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOpenSource } from 'vs/platform/editor/common/editor';
-import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
+import * as dom from '../../../base/browser/dom';
+import { mainWindow } from '../../../base/browser/window';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { LinkedList } from '../../../base/common/linkedList';
+import { ResourceMap } from '../../../base/common/map';
+import { parse } from '../../../base/common/marshalling';
+import { matchesScheme, matchesSomeScheme, Schemas } from '../../../base/common/network';
+import { normalizePath } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { ICodeEditorService } from './codeEditorService';
+import { ICommandService } from '../../../platform/commands/common/commands';
+import { EditorOpenSource } from '../../../platform/editor/common/editor';
+import { extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 

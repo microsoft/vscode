@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Iterable } from '../../../../base/common/iterator';
+import { IJSONSchema } from '../../../../base/common/jsonSchema';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { URI } from '../../../../base/common/uri';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
 
 export interface IToolData {
 	id: string;

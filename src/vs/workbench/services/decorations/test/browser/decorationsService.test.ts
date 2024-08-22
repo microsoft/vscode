@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as resources from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mock } from 'vs/base/test/common/mock';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DecorationsService } from '../../browser/decorationsService';
+import { IDecorationsProvider, IDecorationData } from '../../common/decorations';
+import { URI } from '../../../../../base/common/uri';
+import { Event, Emitter } from '../../../../../base/common/event';
+import * as resources from '../../../../../base/common/resources';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { mock } from '../../../../../base/test/common/mock';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('DecorationsService', function () {
 

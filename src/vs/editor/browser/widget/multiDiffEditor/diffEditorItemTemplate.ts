@@ -2,22 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { h } from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun, derived } from 'vs/base/common/observable';
-import { globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
-import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { h } from '../../../../base/browser/dom';
+import { Button } from '../../../../base/browser/ui/button/button';
+import { Codicon } from '../../../../base/common/codicons';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { autorun, derived } from '../../../../base/common/observable';
+import { globalTransaction, observableValue } from '../../../../base/common/observableInternal/base';
+import { observableCodeEditor } from '../../observableCodeEditor';
+import { DiffEditorWidget } from '../diffEditor/diffEditorWidget';
+import { DocumentDiffItemViewModel } from './multiDiffEditorViewModel';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions';
+import { OffsetRange } from '../../../common/core/offsetRange';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
 import { ActionRunnerWithContext } from './utils';
 

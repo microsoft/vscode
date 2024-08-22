@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { AsyncIterableObject } from 'vs/base/common/async';
+import { coalesce } from '../../../../base/common/arrays';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser';
+import { IModelDecoration } from '../../../common/model';
+import { HoverStartSource, IHoverComputer } from './hoverOperation';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IHoverPart } from './hoverTypes';
+import { AsyncIterableObject } from '../../../../base/common/async';
 
 export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { Range } from 'vs/editor/common/core/range';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IChatCodeBlockInfo, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
-import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { IMarkdownVulnerability } from 'vs/workbench/contrib/chat/common/annotations';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
+import * as dom from '../../../../../base/browser/dom';
+import { Emitter } from '../../../../../base/common/event';
+import { IMarkdownString } from '../../../../../base/common/htmlContent';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle';
+import { equalsIgnoreCase } from '../../../../../base/common/strings';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { Range } from '../../../../../editor/common/core/range';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService';
+import { MenuId } from '../../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat';
+import { IDisposableReference, ResourcePool } from './chatCollections';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts';
+import { IChatRendererDelegate } from '../chatListRenderer';
+import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer';
+import { ChatEditorOptions } from '../chatOptions';
+import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart';
+import { IMarkdownVulnerability } from '../../common/annotations';
+import { IChatProgressRenderableResponseContent } from '../../common/chatModel';
+import { isRequestVM, isResponseVM } from '../../common/chatViewModel';
+import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection';
 
 const $ = dom.$;
 

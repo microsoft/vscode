@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as Paths from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
-import { isObject, isString } from 'vs/base/common/types';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
+import { URI } from '../../../../base/common/uri';
+import * as nls from '../../../../nls';
+import * as Paths from '../../../../base/common/path';
+import * as resources from '../../../../base/common/resources';
+import * as Json from '../../../../base/common/json';
+import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme, ThemeSettingDefaults } from '../common/workbenchThemeService';
+import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from '../common/productIconThemeSchema';
+import { isObject, isString } from '../../../../base/common/types';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from '../../../../platform/theme/common/iconRegistry';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader';
 
 export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
 

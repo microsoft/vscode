@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { assertIsDefined } from 'vs/base/common/types';
+import * as dom from '../../../../base/browser/dom';
+import * as aria from '../../../../base/browser/ui/aria/aria';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement';
+import { Codicon } from '../../../../base/common/codicons';
+import { Event } from '../../../../base/common/event';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { escapeRegExpCharacters } from '../../../../base/common/strings';
+import { assertIsDefined } from '../../../../base/common/types';
 import 'vs/css!./parameterHints';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
-import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from '../../../common/config/editorOptions';
+import * as languages from '../../../common/languages';
+import { ILanguageService } from '../../../common/languages/language';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer';
+import { ParameterHintsModel } from './parameterHintsModel';
+import { Context } from './provideSignatureHelp';
+import * as nls from '../../../../nls';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { listHighlightForeground, registerColor } from '../../../../platform/theme/common/colorRegistry';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 

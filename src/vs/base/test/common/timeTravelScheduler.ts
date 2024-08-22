@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { setTimeout0, setTimeout0IsFaster } from 'vs/base/common/platform';
+import { compareBy, numberComparator, tieBreakComparators } from '../../common/arrays';
+import { Emitter, Event } from '../../common/event';
+import { Disposable, IDisposable } from '../../common/lifecycle';
+import { setTimeout0, setTimeout0IsFaster } from '../../common/platform';
 
 export type TimeOffset = number;
 

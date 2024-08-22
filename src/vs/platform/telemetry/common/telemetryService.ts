@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
-import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { mixin } from '../../../base/common/objects';
+import { isWeb } from '../../../base/common/platform';
+import { escapeRegExpCharacters } from '../../../base/common/strings';
+import { localize } from '../../../nls';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry';
+import product from '../../product/common/product';
+import { IProductService } from '../../product/common/productService';
+import { Registry } from '../../registry/common/platform';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings';
+import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from './telemetry';
+import { cleanData, getTelemetryLevel, ITelemetryAppender } from './telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];

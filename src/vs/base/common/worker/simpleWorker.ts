@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError, transformErrorForSerialization } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { CharCode } from '../charCode';
+import { onUnexpectedError, transformErrorForSerialization } from '../errors';
+import { Emitter, Event } from '../event';
+import { Disposable, IDisposable } from '../lifecycle';
+import { AppResourcePath, FileAccess } from '../network';
+import { isWeb } from '../platform';
+import * as strings from '../strings';
+import { URI } from '../uri';
 
 // ESM-comment-begin
 const isESM = false;

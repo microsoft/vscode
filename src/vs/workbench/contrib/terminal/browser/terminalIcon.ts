@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hash } from 'vs/base/common/hash';
-import { URI } from 'vs/base/common/uri';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { hash } from '../../../../base/common/hash';
+import { URI } from '../../../../base/common/uri';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IExtensionTerminalProfile, ITerminalProfile } from '../../../../platform/terminal/common/terminal';
+import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry';
+import { ColorScheme } from '../../../../platform/theme/common/theme';
+import { IColorTheme } from '../../../../platform/theme/common/themeService';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { ITerminalInstance } from './terminal';
+import { ITerminalProfileResolverService } from '../common/terminal';
+import { ansiColorMap } from '../common/terminalColorRegistry';
+import { createStyleSheet } from '../../../../base/browser/dom';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
 
 
 export function getColorClass(colorKey: string): string;

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWeb } from 'vs/base/common/platform';
-import { format2 } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { isWeb } from '../../../base/common/platform';
+import { format2 } from '../../../base/common/strings';
+import { URI } from '../../../base/common/uri';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { IFileService } from '../../files/common/files';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { IProductService } from '../../product/common/productService';
+import { getServiceMachineId } from '../../externalServices/common/serviceMachineId';
+import { IStorageService } from '../../storage/common/storage';
+import { TelemetryLevel } from '../../telemetry/common/telemetry';
+import { getTelemetryLevel, supportsTelemetry } from '../../telemetry/common/telemetryUtils';
+import { RemoteAuthorities } from '../../../base/common/network';
+import { TargetPlatform } from '../../extensions/common/extensions';
 
 const WEB_EXTENSION_RESOURCE_END_POINT_SEGMENT = '/web-extension-resource/';
 

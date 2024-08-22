@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { assertType } from '../../../../base/common/types';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from '../../../common/languages';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { ITextModel } from '../../../common/model';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { Choice } from './snippetParser';
+import { showSimpleSuggestions } from '../../suggest/browser/suggest';
+import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer';
+import { localize } from '../../../../nls';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { ILogService } from '../../../../platform/log/common/log';
 import { ISnippetEdit, SnippetSession } from './snippetSession';
 
 export interface ISnippetInsertOptions {

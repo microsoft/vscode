@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Widget } from 'vs/base/browser/ui/widget';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter } from 'vs/base/common/event';
+import { Widget } from '../widget';
+import { ThemeIcon } from '../../../common/themables';
+import { Emitter } from '../../../common/event';
 import 'vs/css!./radio';
-import { $ } from 'vs/base/browser/dom';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { $ } from '../../dom';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { Button } from '../button/button';
+import { DisposableMap, DisposableStore } from '../../../common/lifecycle';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
 
 export interface IRadioStyles {
 	readonly activeForeground?: string;

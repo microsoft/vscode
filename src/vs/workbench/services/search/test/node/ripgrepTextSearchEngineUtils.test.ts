@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { Range, TextSearchMatchNew, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
+import { joinPath } from '../../../../../base/common/resources';
+import { URI } from '../../../../../base/common/uri';
+import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine';
+import { Range, TextSearchMatchNew, TextSearchQueryNew, TextSearchResultNew } from '../../common/searchExtTypes';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal';
 
 suite('RipgrepTextSearchEngine', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

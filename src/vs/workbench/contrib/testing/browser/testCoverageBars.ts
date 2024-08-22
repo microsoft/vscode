@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import type { IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, autorun, observableValue } from 'vs/base/common/observable';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import * as coverUtils from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
-import { AbstractFileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
+import { h } from '../../../../base/browser/dom';
+import type { IManagedHover, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { Lazy } from '../../../../base/common/lazy';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle';
+import { ITransaction, autorun, observableValue } from '../../../../base/common/observable';
+import { isDefined } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from '../../files/browser/explorerFileContrib';
+import * as coverUtils from './codeCoverageDisplayUtils';
+import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from '../common/configuration';
+import { AbstractFileCoverage } from '../common/testCoverage';
+import { ITestCoverageService } from '../common/testCoverageService';
 
 export interface TestCoverageBarsOptions {
 	/**

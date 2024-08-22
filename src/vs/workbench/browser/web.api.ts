@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PerformanceMark } from 'vs/base/common/performance';
-import type { UriComponents, URI } from 'vs/base/common/uri';
-import type { IWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import type { LogLevel } from 'vs/platform/log/common/log';
-import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
-import type { Event } from 'vs/base/common/event';
-import type { IProductConfiguration } from 'vs/base/common/product';
-import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
-import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
-import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { IFolderToOpen, IWorkspaceToOpen } from 'vs/platform/window/common/window';
-import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
-import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
-import type { IAuthenticationProvider } from 'vs/workbench/services/authentication/common/authentication';
+import type { PerformanceMark } from '../../base/common/performance';
+import type { UriComponents, URI } from '../../base/common/uri';
+import type { IWebSocketFactory } from '../../platform/remote/browser/browserSocketFactory';
+import type { IURLCallbackProvider } from '../services/url/browser/urlService';
+import type { LogLevel } from '../../platform/log/common/log';
+import type { IUpdateProvider } from '../services/update/browser/updateService';
+import type { Event } from '../../base/common/event';
+import type { IProductConfiguration } from '../../base/common/product';
+import type { ISecretStorageProvider } from '../../platform/secrets/common/secrets';
+import type { TunnelProviderFeatures } from '../../platform/tunnel/common/tunnel';
+import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from '../../platform/progress/common/progress';
+import type { ITextEditorOptions } from '../../platform/editor/common/editor';
+import type { IFolderToOpen, IWorkspaceToOpen } from '../../platform/window/common/window';
+import type { EditorGroupLayout } from '../services/editor/common/editorGroupsService';
+import type { IEmbedderTerminalOptions } from '../services/terminal/common/embedderTerminalService';
+import type { IAuthenticationProvider } from '../services/authentication/common/authentication';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders

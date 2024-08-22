@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/languages';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { ITextModel } from '../../../common/model';
+import { FoldingContext, FoldingRange, FoldingRangeProvider } from '../../../common/languages';
 import { FoldingLimitReporter, RangeProvider } from './folding';
 import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
 

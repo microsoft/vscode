@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewSymbol } from 'vs/platform/accessibility/browser/accessibleView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import { TerminalAccessibilitySettingId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration';
+import { Emitter } from '../../../../../base/common/event';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { IModelService } from '../../../../../editor/common/services/model';
+import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewSymbol } from '../../../../../platform/accessibility/browser/accessibleView';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { TerminalCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities';
+import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration';
+import { ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal';
+import { BufferContentTracker } from './bufferContentTracker';
+import { TerminalAccessibilitySettingId } from '../common/terminalAccessibilityConfiguration';
 
 export class TerminalAccessibleBufferProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Terminal;

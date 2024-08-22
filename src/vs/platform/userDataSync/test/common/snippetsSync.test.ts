@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { dirname, joinPath } from '../../../../base/common/resources';
+import { URI } from '../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IEnvironmentService } from '../../../environment/common/environment';
+import { IFileService } from '../../../files/common/files';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile';
+import { SnippetsSynchroniser } from '../../common/snippetsSync';
+import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from '../../common/userDataSync';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient';
 
 const tsSnippet1 = `{
 

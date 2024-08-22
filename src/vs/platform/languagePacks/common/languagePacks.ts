@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { language } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { localize } from 'vs/nls';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationTokenSource } from '../../../base/common/cancellation';
+import { Disposable } from '../../../base/common/lifecycle';
+import { language } from '../../../base/common/platform';
+import { URI } from '../../../base/common/uri';
+import { IQuickPickItem } from '../../quickinput/common/quickInput';
+import { localize } from '../../../nls';
+import { IExtensionGalleryService, IGalleryExtension } from '../../extensionManagement/common/extensionManagement';
+import { createDecorator } from '../../instantiation/common/instantiation';
 
 export function getLocale(extension: IGalleryExtension): string | undefined {
 	return extension.tags.find(t => t.startsWith('lp-'))?.split('lp-')[1];

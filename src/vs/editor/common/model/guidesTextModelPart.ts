@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arraysFind';
-import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import type { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelPart } from 'vs/editor/common/model/textModelPart';
-import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BracketGuideOptions, HorizontalGuidesState, IActiveIndentGuideInfo, IGuidesTextModelPart, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { findLast } from '../../../base/common/arraysFind';
+import * as strings from '../../../base/common/strings';
+import { CursorColumns } from '../core/cursorColumns';
+import { IPosition, Position } from '../core/position';
+import { Range } from '../core/range';
+import type { TextModel } from './textModel';
+import { TextModelPart } from './textModelPart';
+import { computeIndentLevel } from './utils';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from '../languages/languageConfigurationRegistry';
+import { BracketGuideOptions, HorizontalGuidesState, IActiveIndentGuideInfo, IGuidesTextModelPart, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides';
+import { BugIndicatingError } from '../../../base/common/errors';
 
 export class GuidesTextModelPart extends TextModelPart implements IGuidesTextModelPart {
 	constructor(

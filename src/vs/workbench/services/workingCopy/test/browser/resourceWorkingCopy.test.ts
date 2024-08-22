@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Event } from '../../../../../base/common/event';
+import { URI } from '../../../../../base/common/uri';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { FileChangesEvent, FileChangeType } from '../../../../../platform/files/common/files';
+import { IRevertOptions, ISaveOptions } from '../../../../common/editor';
+import { ResourceWorkingCopy } from '../../common/resourceWorkingCopy';
+import { WorkingCopyCapabilities, IWorkingCopyBackup } from '../../common/workingCopy';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('ResourceWorkingCopy', function () {
 

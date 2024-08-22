@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { language } from 'vs/base/common/platform';
+import { localize } from '../../../../nls';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { language } from '../../../../base/common/platform';
 
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 

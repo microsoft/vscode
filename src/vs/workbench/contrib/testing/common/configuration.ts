@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableFromEvent } from 'vs/base/common/observable';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { observableFromEvent } from '../../../../base/common/observable';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry';
 
 export const enum TestingConfigKeys {
 	AutoRunDelay = 'testing.autoRun.delay',

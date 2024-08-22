@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AsyncIterableSource, DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { mock } from '../../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { ChatMessageRole, IChatResponseFragment, languageModelExtensionPoint, LanguageModelsService } from '../../common/languageModels';
+import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions';
+import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry';
 
 suite('LanguageModels', function () {
 

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { ILocalizedString } from 'vs/nls';
-import { isLocalizedString } from 'vs/platform/action/common/action';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AbstractCommandsQuickAccessProvider, ICommandQuickPick, ICommandsQuickAccessOptions } from 'vs/platform/quickinput/browser/commandsQuickAccess';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { stripIcons } from '../../../../base/common/iconLabels';
+import { IEditor } from '../../../common/editorCommon';
+import { ILocalizedString } from '../../../../nls';
+import { isLocalizedString } from '../../../../platform/action/common/action';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { AbstractCommandsQuickAccessProvider, ICommandQuickPick, ICommandsQuickAccessOptions } from '../../../../platform/quickinput/browser/commandsQuickAccess';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 
 export abstract class AbstractEditorCommandsQuickAccessProvider extends AbstractCommandsQuickAccessProvider {
 

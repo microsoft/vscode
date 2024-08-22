@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { mock } from 'vs/base/test/common/mock';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { mock } from '../../../../../base/test/common/mock';
+import { CoreEditingCommands } from '../../../../browser/coreCommands';
+import { ICodeEditor } from '../../../../browser/editorBrowser';
+import { Selection } from '../../../../common/core/selection';
+import { Range } from '../../../../common/core/range';
+import { Handler } from '../../../../common/editorCommon';
+import { TextModel } from '../../../../common/model/textModel';
+import { SnippetController2 } from '../../browser/snippetController2';
+import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { createTextModel } from '../../../../test/common/testTextModel';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService';
+import { ILabelService } from '../../../../../platform/label/common/label';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
+import { EndOfLineSequence } from '../../../../common/model';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('SnippetController2', function () {
 

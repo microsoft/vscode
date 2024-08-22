@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace';
+import { ResourceGlobMatcher } from '../../common/resources';
+import { TestContextService } from './workbenchTestServices';
 
 suite('ResourceGlobMatcher', () => {
 

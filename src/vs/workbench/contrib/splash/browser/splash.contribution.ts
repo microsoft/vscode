@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { PartsSplash } from 'vs/workbench/contrib/splash/browser/partsSplash';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions';
+import { ISplashStorageService } from './splash';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { PartsSplash } from './partsSplash';
+import { IPartsSplash } from '../../../../platform/theme/common/themeService';
 
 registerSingleton(ISplashStorageService, class SplashStorageService implements ISplashStorageService {
 	_serviceBrand: undefined;

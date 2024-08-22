@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getFirstFrame } from 'vs/base/common/console';
-import { normalize } from 'vs/base/common/path';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { getFirstFrame } from '../../common/console';
+import { normalize } from '../../common/path';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Console', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

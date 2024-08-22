@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { $, append, clearNode } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { IExtensionFeatureDescriptor, Extensions, IExtensionFeaturesRegistry, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeatureTableRenderer, IExtensionFeatureMarkdownRenderer, ITableData, IRenderedData, IExtensionFeatureMarkdownAndTableRenderer } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { getErrorMessage, onUnexpectedError } from 'vs/base/common/errors';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ThemeIcon } from 'vs/base/common/themables';
-import Severity from 'vs/base/common/severity';
-import { errorIcon, infoIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { OS } from 'vs/base/common/platform';
-import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
-import { Color } from 'vs/base/common/color';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Codicon } from 'vs/base/common/codicons';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { fromNow } from 'vs/base/common/date';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { $, append, clearNode } from '../../../../base/browser/dom';
+import { Emitter, Event } from '../../../../base/common/event';
+import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions';
+import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview';
+import { IExtensionFeatureDescriptor, Extensions, IExtensionFeaturesRegistry, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeatureTableRenderer, IExtensionFeatureMarkdownRenderer, ITableData, IRenderedData, IExtensionFeatureMarkdownAndTableRenderer } from '../../../services/extensionManagement/common/extensionFeatures';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { localize } from '../../../../nls';
+import { WorkbenchList } from '../../../../platform/list/browser/listService';
+import { getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list';
+import { Button } from '../../../../base/browser/ui/button/button';
+import { defaultButtonStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer';
+import { getErrorMessage, onUnexpectedError } from '../../../../base/common/errors';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { PANEL_SECTION_BORDER } from '../../../common/theme';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { ThemeIcon } from '../../../../base/common/themables';
+import Severity from '../../../../base/common/severity';
+import { errorIcon, infoIcon, warningIcon } from './extensionsIcons';
+import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel';
+import { OS } from '../../../../base/common/platform';
+import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent';
+import { Color } from '../../../../base/common/color';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { Codicon } from '../../../../base/common/codicons';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { fromNow } from '../../../../base/common/date';
 
 class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
 

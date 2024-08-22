@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContents, webContents, WebFrameMain } from 'electron';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { Emitter } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService';
+import { WebviewProtocolProvider } from './webviewProtocolProvider';
+import { IWindowsMainService } from '../../windows/electron-main/windows';
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 

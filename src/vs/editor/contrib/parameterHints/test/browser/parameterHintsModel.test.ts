@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { promiseWithResolvers } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { promiseWithResolvers } from '../../../../../base/common/async';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Position } from '../../../../common/core/position';
+import { Handler } from '../../../../common/editorCommon';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry';
+import * as languages from '../../../../common/languages';
+import { ITextModel } from '../../../../common/model';
+import { ParameterHintsModel } from '../../browser/parameterHintsModel';
+import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { createTextModel } from '../../../../test/common/testTextModel';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };

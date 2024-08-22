@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { IExtensionDescription, IExtension } from 'vs/platform/extensions/common/extensions';
-import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { IExtensionsScannerService, IScannedExtension, toExtensionDescription as toExtensionDescriptionFromScannedExtension } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ILogService } from 'vs/platform/log/common/log';
-import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { timeout } from 'vs/base/common/async';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as platform from '../../../../base/common/platform';
+import { IExtensionDescription, IExtension } from '../../../../platform/extensions/common/extensions';
+import { dedupExtensions } from '../common/extensionsUtil';
+import { IExtensionsScannerService, IScannedExtension, toExtensionDescription as toExtensionDescriptionFromScannedExtension } from '../../../../platform/extensionManagement/common/extensionsScannerService';
+import { ILogService } from '../../../../platform/log/common/log';
+import Severity from '../../../../base/common/severity';
+import { localize } from '../../../../nls';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IHostService } from '../../host/browser/host';
+import { timeout } from '../../../../base/common/async';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile';
+import { getErrorMessage } from '../../../../base/common/errors';
+import { IWorkbenchExtensionManagementService } from '../../extensionManagement/common/extensionManagement';
+import { toExtensionDescription } from '../common/extensions';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
 
 export class CachedExtensionScanner {
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { machineIdKey, sqmIdKey, devDeviceIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { resolveMachineId as resolveNodeMachineId, resolveSqmId as resolveNodeSqmId, resolvedevDeviceId as resolveNodedevDeviceId } from 'vs/platform/telemetry/node/telemetryUtils';
+import { ILogService } from '../../log/common/log';
+import { IStateService } from '../../state/node/state';
+import { machineIdKey, sqmIdKey, devDeviceIdKey } from '../common/telemetry';
+import { resolveMachineId as resolveNodeMachineId, resolveSqmId as resolveNodeSqmId, resolvedevDeviceId as resolveNodedevDeviceId } from '../node/telemetryUtils';
 
 export async function resolveMachineId(stateService: IStateService, logService: ILogService): Promise<string> {
 	// Call the node layers implementation to avoid code duplication

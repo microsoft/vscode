@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, derived, observableValue, transaction } from 'vs/base/common/observable';
-import { constObservable, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent } from 'vs/base/common/observableInternal/utils';
-import { URI } from 'vs/base/common/uri';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { RefCounted } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle';
+import { IObservable, ITransaction, derived, observableValue, transaction } from '../../../../base/common/observable';
+import { constObservable, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent } from '../../../../base/common/observableInternal/utils';
+import { URI } from '../../../../base/common/uri';
+import { DiffEditorOptions } from '../diffEditor/diffEditorOptions';
+import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel';
+import { RefCounted } from '../diffEditor/utils';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from './model';
+import { IDiffEditorOptions } from '../../../common/config/editorOptions';
+import { Selection } from '../../../common/core/selection';
+import { IDiffEditorViewModel } from '../../../common/editorCommon';
+import { IModelService } from '../../../common/services/model';
+import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 
 export class MultiDiffEditorViewModel extends Disposable {
 	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[]> = observableFromValueWithChangeEvent(this.model, this.model.documents);

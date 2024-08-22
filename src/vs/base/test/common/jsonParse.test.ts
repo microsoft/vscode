@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 
-import { parse, stripComments } from 'vs/base/common/jsonc';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { parse, stripComments } from '../../common/jsonc';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('JSON Parse', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService } from './debug';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { Expression } from './debugModel';
 
 export class DebugWatchAccessibilityAnnouncer extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.debugWatchAccessibilityAnnouncer';

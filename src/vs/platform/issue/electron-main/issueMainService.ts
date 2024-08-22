@@ -5,25 +5,25 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, Display, screen } from 'electron';
 import { arch, release, type } from 'os';
-import { raceTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { localize } from 'vs/nls';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import product from 'vs/platform/product/common/product';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isESM } from 'vs/base/common/amd';
-import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
+import { raceTimeout } from '../../../base/common/async';
+import { CancellationTokenSource } from '../../../base/common/cancellation';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { FileAccess } from '../../../base/common/network';
+import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain';
+import { localize } from '../../../nls';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService';
+import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from '../common/issue';
+import { ILogService } from '../../log/common/log';
+import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService';
+import product from '../../product/common/product';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol';
+import { zoomLevelToZoomFactor } from '../../window/common/window';
+import { ICodeWindow, IWindowState } from '../../window/electron-main/window';
+import { IWindowsMainService } from '../../windows/electron-main/windows';
+import { isESM } from '../../../base/common/amd';
+import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;

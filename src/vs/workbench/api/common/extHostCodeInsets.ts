@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from 'vs/workbench/contrib/webview/common/webview';
+import { Emitter } from '../../../base/common/event';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { ExtHostTextEditor } from './extHostTextEditor';
+import { ExtHostEditors } from './extHostTextEditors';
+import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from '../../contrib/webview/common/webview';
 import type * as vscode from 'vscode';
 import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
 

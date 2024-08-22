@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
-import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isUndefined } from 'vs/base/common/types';
+import { IActivityService, IActivity } from '../common/activity';
+import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IViewDescriptorService, ViewContainer } from '../../../common/views';
+import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from '../../../common/activity';
+import { Emitter, Event } from '../../../../base/common/event';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { isUndefined } from '../../../../base/common/types';
 
 class ViewContainerActivityByView extends Disposable {
 

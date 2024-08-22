@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
-import { InjectedText, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel';
+import { LineTokens } from '../tokens/lineTokens';
+import { Position } from '../core/position';
+import { IRange } from '../core/range';
+import { EndOfLinePreference, ITextModel, PositionAffinity } from '../model';
+import { LineInjectedText } from '../textModelEvents';
+import { InjectedText, ModelLineProjectionData } from '../modelLineProjectionData';
+import { SingleLineInlineDecoration, ViewLineData } from '../viewModel';
 
 export interface IModelLineProjection {
 	isVisible(): boolean;

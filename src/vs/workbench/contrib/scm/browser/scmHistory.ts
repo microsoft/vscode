@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { lastOrDefault } from 'vs/base/common/arrays';
-import { deepClone } from 'vs/base/common/objects';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { buttonForeground } from 'vs/platform/theme/common/colorRegistry';
-import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from 'vs/platform/theme/common/colors/chartsColors';
-import { asCssVariable, ColorIdentifier, registerColor } from 'vs/platform/theme/common/colorUtils';
-import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
-import { rot } from 'vs/base/common/numbers';
+import { localize } from '../../../../nls';
+import { lastOrDefault } from '../../../../base/common/arrays';
+import { deepClone } from '../../../../base/common/objects';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { buttonForeground } from '../../../../platform/theme/common/colorRegistry';
+import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors';
+import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorUtils';
+import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from '../common/history';
+import { rot } from '../../../../base/common/numbers';
 
 const SWIMLANE_HEIGHT = 22;
 const SWIMLANE_WIDTH = 11;

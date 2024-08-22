@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Comparator, compareBy, numberComparator } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Constants } from 'vs/base/common/uint';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { Comparator, compareBy, numberComparator } from '../../../../../base/common/arrays';
+import { BugIndicatingError } from '../../../../../base/common/errors';
+import { Constants } from '../../../../../base/common/uint';
+import { Range } from '../../../../../editor/common/core/range';
+import { ITextModel } from '../../../../../editor/common/model';
 
 export class LineRange {
 	public static readonly compareByStart: Comparator<LineRange> = compareBy(l => l.startLineNumber, numberComparator);

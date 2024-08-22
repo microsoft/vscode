@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IPayloadData, IXHROverride } from '@microsoft/1ds-post-js';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { streamToBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { IRequestOptions } from '../../../base/parts/request/common/request';
+import { IRequestService } from '../../request/common/request';
 import * as https from 'https';
-import { AbstractOneDataSystemAppender, IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';
+import { AbstractOneDataSystemAppender, IAppInsightsCore } from '../common/1dsAppender';
 
 type OnCompleteFunc = (status: number, headers: { [headerName: string]: string }, response?: string) => void;
 

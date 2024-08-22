@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { isWindows } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { Mutable, isNumber, isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import * as nls from '../../../nls';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { Emitter, Event } from '../../../base/common/event';
+import { hash } from '../../../base/common/hash';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle';
+import { ResourceMap } from '../../../base/common/map';
+import { isWindows } from '../../../base/common/platform';
+import { joinPath } from '../../../base/common/resources';
+import { Mutable, isNumber, isString } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { ILocalizedString } from '../../action/common/action';
+import { RawContextKey } from '../../contextkey/common/contextkey';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { createDecorator } from '../../instantiation/common/instantiation';
 
 export const ILogService = createDecorator<ILogService>('logService');
 export const ILoggerService = createDecorator<ILoggerService>('loggerService');

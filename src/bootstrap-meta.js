@@ -12,7 +12,7 @@
 
 // ESM-uncomment-begin
 // import { createRequire } from 'node:module';
-//
+// 
 // const require = createRequire(import.meta.url);
 // const module = { exports: {} };
 // ESM-uncomment-end

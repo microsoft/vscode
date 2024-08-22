@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
-import * as DOM from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
-import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { badgeBackground, badgeForeground, contrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Codicon } from 'vs/base/common/codicons';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { MenuId, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Emitter } from 'vs/base/common/event';
-import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Delayer } from '../../../../base/common/async';
+import * as DOM from '../../../../base/browser/dom';
+import { IAction } from '../../../../base/common/actions';
+import { HistoryInputBox } from '../../../../base/browser/ui/inputbox/inputBox';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView';
+import { toDisposable } from '../../../../base/common/lifecycle';
+import { badgeBackground, badgeForeground, contrastBorder, asCssVariable } from '../../../../platform/theme/common/colorRegistry';
+import { localize } from '../../../../nls';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ContextScopedHistoryInputBox } from '../../../../platform/history/browser/contextScopedHistoryWidget';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { Codicon } from '../../../../base/common/codicons';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint';
+import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { SubmenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { Widget } from '../../../../base/browser/ui/widget';
+import { Emitter } from '../../../../base/common/event';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems';
 
 const viewFilterMenu = new MenuId('menu.view.filter');
 export const viewFilterSubmenu = new MenuId('submenu.view.filter');

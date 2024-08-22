@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/style';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb, isIOS } from 'vs/base/common/platform';
-import { createMetaElement } from 'vs/base/browser/dom';
-import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { mainWindow } from 'vs/base/browser/window';
+import { registerThemingParticipant } from '../../platform/theme/common/themeService';
+import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from '../common/theme';
+import { isWeb, isIOS } from '../../base/common/platform';
+import { createMetaElement } from '../../base/browser/dom';
+import { isSafari, isStandalone } from '../../base/browser/browser';
+import { selectionBackground } from '../../platform/theme/common/colorRegistry';
+import { mainWindow } from '../../base/browser/window';
 
 registerThemingParticipant((theme, collector) => {
 

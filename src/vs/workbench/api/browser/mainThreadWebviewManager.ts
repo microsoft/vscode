@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MainThreadCustomEditors } from 'vs/workbench/api/browser/mainThreadCustomEditors';
-import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
-import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { MainThreadWebviewsViews } from 'vs/workbench/api/browser/mainThreadWebviewViews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
+import { Disposable } from '../../../base/common/lifecycle';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation';
+import { MainThreadCustomEditors } from './mainThreadCustomEditors';
+import { MainThreadWebviewPanels } from './mainThreadWebviewPanels';
+import { MainThreadWebviews } from './mainThreadWebviews';
+import { MainThreadWebviewsViews } from './mainThreadWebviewViews';
+import * as extHostProtocol from '../common/extHost.protocol';
 import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
 
 @extHostCustomer

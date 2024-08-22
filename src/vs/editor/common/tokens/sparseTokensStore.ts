@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import * as arrays from '../../../base/common/arrays';
+import { IRange, Range } from '../core/range';
+import { LineTokens } from './lineTokens';
+import { SparseMultilineTokens } from './sparseMultilineTokens';
+import { ILanguageIdCodec } from '../languages';
+import { MetadataConsts } from '../encodedTokenAttributes';
 
 /**
  * Represents sparse tokens in a text model.

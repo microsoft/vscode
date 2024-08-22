@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { newWriteableBufferStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { isWeb } from 'vs/base/common/platform';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { RequestsSession, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { timeout } from '../../../../base/common/async';
+import { newWriteableBufferStream } from '../../../../base/common/buffer';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { isWeb } from '../../../../base/common/platform';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { NullLogService } from '../../../log/common/log';
+import { IProductService } from '../../../product/common/productService';
+import { IRequestService } from '../../../request/common/request';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from '../../common/userDataSync';
+import { RequestsSession, UserDataSyncStoreService } from '../../common/userDataSyncStoreService';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient';
 
 suite('UserDataSyncStoreService', () => {
 

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import type { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Codicon } from '../../../../base/common/codicons';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { URI } from '../../../../base/common/uri';
+import * as nls from '../../../../nls';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import type { IChatEditorOptions } from './chatEditor';
+import { ChatAgentLocation } from '../common/chatAgents';
+import { IChatModel } from '../common/chatModel';
+import { IChatService } from '../common/chatService';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 

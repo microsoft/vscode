@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessDataEvent } from 'vs/platform/terminal/common/terminal';
+import { Event } from '../../../base/common/event';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { IProcessDataEvent } from './terminal';
 
 interface TerminalDataBuffer extends IDisposable {
 	data: string[];

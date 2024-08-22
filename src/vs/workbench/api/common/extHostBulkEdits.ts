@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MainContext, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { MainContext, MainThreadBulkEditsShape } from './extHost.protocol';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
+import { IExtHostRpcService } from './extHostRpcService';
+import { WorkspaceEdit } from './extHostTypeConverters';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 
 export class ExtHostBulkEdits {

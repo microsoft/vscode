@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { COMMENTS_VIEW_ID, CommentsMenus } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { MarshalledId } from '../../../../base/common/marshallingIds';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry';
+import { IMenuService } from '../../../../platform/actions/common/actions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration';
+import { COMMENTS_VIEW_ID, CommentsMenus } from './commentsTreeViewer';
+import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from './commentsView';
+import { IViewsService } from '../../../services/views/common/viewsService';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;

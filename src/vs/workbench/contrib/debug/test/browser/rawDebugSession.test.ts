@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mock, mockObject } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { IDebugger } from 'vs/workbench/contrib/debug/common/debug';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { mock, mockObject } from '../../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IExtensionHostDebugService } from '../../../../../platform/debug/common/extensionHostDebug';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs';
+import { INotificationService } from '../../../../../platform/notification/common/notification';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { RawDebugSession } from '../../browser/rawDebugSession';
+import { IDebugger } from '../../common/debug';
+import { MockDebugAdapter } from '../common/mockDebug';
 
 suite('RawDebugSession', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import themePickerContent from 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker';
-import notebookProfileContent from 'vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { URI } from 'vs/base/common/uri';
+import themePickerContent from './media/theme_picker';
+import notebookProfileContent from './media/notebookProfile';
+import { localize } from '../../../../nls';
+import { Codicon } from '../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
+import { NotebookSetting } from '../../notebook/common/notebookCommon';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility';
+import { URI } from '../../../../base/common/uri';
 
 interface IGettingStartedContentProvider {
 	(): string;

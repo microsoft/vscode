@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { NullLogService } from '../../../log/common/log';
+import { merge } from '../../common/globalStateMerge';
 
 suite('GlobalStateMerge', () => {
 

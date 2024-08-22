@@ -5,29 +5,29 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { asPromise } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { asPromise } from '../../../base/common/async';
+import { Event, Emitter } from '../../../base/common/event';
 
-import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from './extHost.protocol';
+import * as types from './extHostTypes';
+import { IExtHostWorkspaceProvider, IExtHostWorkspace } from './extHostWorkspace';
 import type * as vscode from 'vscode';
-import * as tasks from '../common/shared/tasks';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
-import * as Platform from 'vs/base/common/platform';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
-import { ErrorNoTelemetry, NotSupportedError } from 'vs/base/common/errors';
+import * as tasks from './shared/tasks';
+import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
+import { IExtHostConfiguration } from './extHostConfiguration';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { IExtHostTerminalService } from './extHostTerminalService';
+import { IExtHostRpcService } from './extHostRpcService';
+import { IExtHostInitDataService } from './extHostInitDataService';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { Schemas } from '../../../base/common/network';
+import * as Platform from '../../../base/common/platform';
+import { ILogService } from '../../../platform/log/common/log';
+import { IExtHostApiDeprecationService } from './extHostApiDeprecationService';
+import { USER_TASKS_GROUP_KEY } from '../../contrib/tasks/common/tasks';
+import { ErrorNoTelemetry, NotSupportedError } from '../../../base/common/errors';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 

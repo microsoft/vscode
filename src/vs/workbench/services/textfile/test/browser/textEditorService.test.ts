@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, registerTestResourceEditor, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { isLinux } from 'vs/base/common/platform';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { URI } from '../../../../../base/common/uri';
+import { IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from '../../../../common/editor';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, registerTestResourceEditor, registerTestSideBySideEditor } from '../../../../test/browser/workbenchTestServices';
+import { TextResourceEditorInput } from '../../../../common/editor/textResourceEditorInput';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors';
+import { FileEditorInput } from '../../../../contrib/files/browser/editors/fileEditorInput';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { UntitledTextEditorModel } from '../../../untitled/common/untitledTextEditorModel';
+import { NullFileSystemProvider } from '../../../../../platform/files/test/common/nullFileSystemProvider';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput';
+import { isLinux } from '../../../../../base/common/platform';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput';
+import { ITextFileEditorModel } from '../../common/textfiles';
+import { TextEditorService } from '../../common/textEditorService';
+import { ILanguageService } from '../../../../../editor/common/languages/language';
+import { EditorInput } from '../../../../common/editor/editorInput';
 
 suite('TextEditorService', () => {
 

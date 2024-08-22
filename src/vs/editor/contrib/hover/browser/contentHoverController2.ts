@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
-import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { HoverVerbosityAction } from 'vs/editor/common/languages';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
-import { ContentHoverWidgetWrapper } from 'vs/editor/contrib/hover/browser/contentHoverWidgetWrapper';
+import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from './hoverActionIds';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from '../../../browser/editorBrowser';
+import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon';
+import { HoverStartMode, HoverStartSource } from './hoverOperation';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IHoverWidget } from './hoverTypes';
+import { InlineSuggestionHintsContentWidget } from '../../inlineCompletions/browser/inlineCompletionsHintsWidget';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver';
+import { HoverVerbosityAction } from '../../../common/languages';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { isMousePositionWithinElement } from './hoverUtils';
+import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper';
 import 'vs/css!./hover';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter } from '../../../../base/common/event';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false

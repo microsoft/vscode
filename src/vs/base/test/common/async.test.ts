@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as async from 'vs/base/common/async';
-import * as MicrotaskDelay from "vs/base/common/symbols";
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import * as async from '../../common/async';
+import * as MicrotaskDelay from "../../common/symbols";
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation';
+import { isCancellationError } from '../../common/errors';
+import { Event } from '../../common/event';
+import { URI } from '../../common/uri';
+import { runWithFakedTimers } from './timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
+import { DisposableStore } from '../../common/lifecycle';
 
 suite('Async', () => {
 

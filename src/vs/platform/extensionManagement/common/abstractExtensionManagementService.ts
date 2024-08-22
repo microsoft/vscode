@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, isNonEmptyArray } from 'vs/base/common/arrays';
-import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { isWeb } from 'vs/base/common/platform';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
+import { distinct, isNonEmptyArray } from '../../../base/common/arrays';
+import { Barrier, CancelablePromise, createCancelablePromise } from '../../../base/common/async';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle';
+import { ResourceMap } from '../../../base/common/map';
+import { isWeb } from '../../../base/common/platform';
+import { isDefined } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import * as nls from '../../../nls';
 import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
@@ -22,15 +22,15 @@ import {
 	EXTENSION_INSTALL_SOURCE_CONTEXT,
 	DidUpdateExtensionMetadata,
 	UninstallExtensionInfo
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { areApiProposalsCompatible } from 'vs/platform/extensions/common/extensionValidator';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+} from './extensionManagement';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from './extensionManagementUtil';
+import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions';
+import { areApiProposalsCompatible } from '../../extensions/common/extensionValidator';
+import { ILogService } from '../../log/common/log';
+import { IProductService } from '../../product/common/productService';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
 
 export type ExtensionVerificationStatus = boolean | string;
 export type InstallableExtension = { readonly manifest: IExtensionManifest; extension: IGalleryExtension | URI; options: InstallOptions };

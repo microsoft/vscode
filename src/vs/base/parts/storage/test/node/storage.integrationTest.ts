@@ -6,17 +6,17 @@
 import * as fs from 'fs';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises } from 'vs/base/node/pfs';
-import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
-import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { timeout } from '../../../../common/async';
+import { Emitter, Event } from '../../../../common/event';
+import { join } from '../../../../common/path';
+import { isWindows } from '../../../../common/platform';
+import { URI } from '../../../../common/uri';
+import { generateUuid } from '../../../../common/uuid';
+import { Promises } from '../../../../node/pfs';
+import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from '../../common/storage';
+import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from '../../node/storage';
+import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler';
+import { flakySuite, getRandomTestPath } from '../../../../test/node/testUtils';
 
 flakySuite('Storage Library', function () {
 

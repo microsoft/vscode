@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, ITextSnapshot, SearchData } from 'vs/editor/common/model';
-import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { splitLines } from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { WordCharacterClassifier } from '../../../../common/core/wordCharacterClassifier';
+import { Position } from '../../../../common/core/position';
+import { Range } from '../../../../common/core/range';
+import { DefaultEndOfLine, ITextSnapshot, SearchData } from '../../../../common/model';
+import { PieceTreeBase } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeBase';
+import { PieceTreeTextBuffer } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { NodeColor, SENTINEL, TreeNode } from '../../../../common/model/pieceTreeTextBuffer/rbTreeBase';
+import { createTextModel } from '../../testTextModel';
+import { splitLines } from '../../../../../base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 

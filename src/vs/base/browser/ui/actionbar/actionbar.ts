@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as types from 'vs/base/common/types';
+import * as DOM from '../../dom';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from './actionViewItems';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from '../../../common/actions';
+import { Emitter } from '../../../common/event';
+import { KeyCode, KeyMod } from '../../../common/keyCodes';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../common/lifecycle';
+import * as types from '../../../common/types';
 import 'vs/css!./actionbar';
 
 export interface IActionViewItem extends IDisposable {

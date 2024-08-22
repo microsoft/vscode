@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
+import { coalesce } from '../../../../base/common/arrays';
+import { URI } from '../../../../base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import type { ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch, CellMatch } from 'vs/workbench/contrib/search/browser/searchModel';
-import type { SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions';
+import { Range } from '../../../../editor/common/core/range';
+import type { ITextModel } from '../../../../editor/common/model';
+import { localize } from '../../../../nls';
+import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch, CellMatch } from '../../search/browser/searchModel';
+import type { SearchConfiguration } from './searchEditorInput';
+import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search';
+import { ITextFileService } from '../../../services/textfile/common/textfiles';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';

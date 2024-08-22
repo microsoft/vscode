@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { FileAccess } from 'vs/base/common/network';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
-import { convertInternalMediaPathToFileURI } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { FileAccess } from '../../../../../base/common/network';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { LanguageService } from '../../../../../editor/common/services/languageService';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService';
+import { GettingStartedDetailsRenderer } from '../../browser/gettingStartedDetailsRenderer';
+import { convertInternalMediaPathToFileURI } from '../../browser/gettingStartedService';
+import { TestFileService } from '../../../../test/browser/workbenchTestServices';
+import { TestExtensionService } from '../../../../test/common/workbenchTestServices';
 
 
 suite('Getting Started Markdown Renderer', () => {

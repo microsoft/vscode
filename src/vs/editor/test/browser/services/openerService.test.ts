@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesScheme, matchesSomeScheme } from 'vs/base/common/network';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { OpenerService } from '../../../browser/services/openerService';
+import { TestCodeEditorService } from '../editorTestServices';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { NullCommandService } from '../../../../platform/commands/test/common/nullCommandService';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor';
+import { matchesScheme, matchesSomeScheme } from '../../../../base/common/network';
+import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService';
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();

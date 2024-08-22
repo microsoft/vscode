@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Composite } from 'vs/workbench/browser/composite';
-import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext, isEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { LRUCache, Touch } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isEmptyObject } from 'vs/base/common/types';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { MementoObject } from 'vs/workbench/common/memento';
-import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
-import { indexOfPath } from 'vs/base/common/extpath';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { getWindowById } from 'vs/base/browser/dom';
+import { Composite } from '../../composite';
+import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext, isEditorInput } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { LRUCache, Touch } from '../../../../base/common/map';
+import { URI } from '../../../../base/common/uri';
+import { Emitter, Event } from '../../../../base/common/event';
+import { isEmptyObject } from '../../../../base/common/types';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from './editor';
+import { MementoObject } from '../../../common/memento';
+import { joinPath, IExtUri, isEqual } from '../../../../base/common/resources';
+import { indexOfPath } from '../../../../base/common/extpath';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IEditorOptions } from '../../../../platform/editor/common/editor';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash';
+import { getWindowById } from '../../../../base/browser/dom';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.

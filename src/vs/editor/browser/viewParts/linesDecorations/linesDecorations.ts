@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./linesDecorations';
-import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { DecorationToRender, DedupOverlay } from '../glyphMargin/glyphMargin';
+import { RenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import { EditorOption } from '../../../common/config/editorOptions';
 
 
 export class LinesDecorationsOverlay extends DedupOverlay {

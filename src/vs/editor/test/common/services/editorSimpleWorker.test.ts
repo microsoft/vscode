@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { TextEdit } from 'vs/editor/common/languages';
-import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { ICommonModel } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { Position } from '../../../common/core/position';
+import { IRange, Range } from '../../../common/core/range';
+import { TextEdit } from '../../../common/languages';
+import { BaseEditorSimpleWorker } from '../../../common/services/editorSimpleWorker';
+import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl';
 
 suite('EditorSimpleWorker', () => {
 

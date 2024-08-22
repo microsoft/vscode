@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { localize } from 'vs/nls';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
+import { renderMarkdownAsPlaintext } from '../../../../../base/browser/markdownRenderer';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { IOutlineModelService, OutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel';
+import { localize } from '../../../../../nls';
+import { ICellViewModel } from '../notebookBrowser';
+import { getMarkdownHeadersInCell } from './foldingModel';
 import { OutlineEntry } from './OutlineEntry';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind } from 'vs/editor/common/languages';
+import { CellKind } from '../../common/notebookCommon';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService';
+import { IRange } from '../../../../../editor/common/core/range';
+import { SymbolKind } from '../../../../../editor/common/languages';
 
 export const enum NotebookOutlineConstants {
 	NonHeaderOutlineLevel = 7,

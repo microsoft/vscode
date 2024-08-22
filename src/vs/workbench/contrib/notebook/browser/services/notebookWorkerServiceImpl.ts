@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
+import { IWorkerClient, Proxied } from '../../../../../base/common/worker/simpleWorker';
+import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel';
+import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from '../../common/notebookCommon';
+import { INotebookService } from '../../common/notebookService';
+import { NotebookEditorSimpleWorker } from '../../common/services/notebookSimpleWorker';
+import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
 	declare readonly _serviceBrand: undefined;

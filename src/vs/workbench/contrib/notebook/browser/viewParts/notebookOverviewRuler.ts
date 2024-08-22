@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotebookEditorDelegate, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getWindow } from '../../../../../base/browser/dom';
+import { createFastDomNode, FastDomNode } from '../../../../../base/browser/fastDomNode';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio';
+import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService';
+import { INotebookEditorDelegate, NotebookOverviewRulerLane } from '../notebookBrowser';
 
 export class NotebookOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;

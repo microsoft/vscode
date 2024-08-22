@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Codicon } from '../../../../base/common/codicons';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { localize } from '../../../../nls';
+import { GlobalExtensionEnablementService } from '../../../../platform/extensionManagement/common/extensionEnablementService';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { IUserDataProfile, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileStorageService } from '../../../../platform/userDataProfile/common/userDataProfileStorageService';
+import { ITreeItemCheckboxState, TreeItemCollapsibleState } from '../../../common/views';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from '../common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;

@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { Event, ValueWithChangeEvent } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { deepClone } from 'vs/base/common/objects';
-import { ObservableLazyPromise, autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { ValueWithChangeEventFromObservable, constObservable, mapObservableArrayCached, observableFromValueWithChangeEvent, recomputeInitiallyAndOnChange } from 'vs/base/common/observableInternal/utils';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isDefined, isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { RefCounted } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
-import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { localize } from 'vs/nls';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/editorInput';
-import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
-import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors';
+import { Event, ValueWithChangeEvent } from '../../../../base/common/event';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle';
+import { parse } from '../../../../base/common/marshalling';
+import { Schemas } from '../../../../base/common/network';
+import { deepClone } from '../../../../base/common/objects';
+import { ObservableLazyPromise, autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable';
+import { ValueWithChangeEventFromObservable, constObservable, mapObservableArrayCached, observableFromValueWithChangeEvent, recomputeInitiallyAndOnChange } from '../../../../base/common/observableInternal/utils';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { isDefined, isObject } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model';
+import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
+import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { localize } from '../../../../nls';
+import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor';
+import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput';
+import { MultiDiffEditorIcon } from './icons.contribution';
+import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService';
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from '../../../services/textfile/common/textfiles';
 
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {

@@ -5,29 +5,29 @@
 
 import 'vs/css!./media/progressService';
 
-import { localize } from 'vs/nls';
-import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventHelper } from 'vs/base/browser/dom';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
+import { localize } from '../../../../nls';
+import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from '../../../../platform/progress/common/progress';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from '../../statusbar/browser/statusbar';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../base/common/async';
+import { ProgressBadge, IActivityService } from '../../activity/common/activity';
+import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource, NotificationsFilter } from '../../../../platform/notification/common/notification';
+import { Action } from '../../../../base/common/actions';
+import { Event, Emitter } from '../../../../base/common/event';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService';
+import { Dialog } from '../../../../base/browser/ui/dialog/dialog';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { EventHelper } from '../../../../base/browser/dom';
+import { parseLinkedText } from '../../../../base/common/linkedText';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views';
+import { IViewsService } from '../../views/common/viewsService';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite';
+import { stripIcons } from '../../../../base/common/iconLabels';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver';
+import { IUserActivityService } from '../../userActivity/common/userActivityService';
 
 export class ProgressService extends Disposable implements IProgressService {
 

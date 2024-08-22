@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Location } from 'vs/editor/common/languages';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
-import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { coalesce } from '../../../base/common/arrays';
+import { raceCancellation } from '../../../base/common/async';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { Emitter } from '../../../base/common/event';
+import { IMarkdownString } from '../../../base/common/htmlContent';
+import { Iterable } from '../../../base/common/iterator';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle';
+import { revive } from '../../../base/common/marshalling';
+import { StopWatch } from '../../../base/common/stopwatch';
+import { assertType } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { Location } from '../../../editor/common/languages';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { ILogService } from '../../../platform/log/common/log';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol';
+import { CommandsConverter, ExtHostCommands } from './extHostCommands';
+import { ExtHostDocuments } from './extHostDocuments';
+import * as typeConvert from './extHostTypeConverters';
+import * as extHostTypes from './extHostTypes';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings } from '../../contrib/chat/common/chatAgents';
+import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent } from '../../contrib/chat/common/chatService';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions';
+import { Dto } from '../../services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 
 class ChatAgentResponseStream {

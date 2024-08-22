@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./overlayWidgets';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as dom from 'vs/base/browser/dom';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode';
+import { IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from '../../editorBrowser';
+import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import { EditorOption } from '../../../common/config/editorOptions';
+import * as dom from '../../../../base/browser/dom';
 
 
 interface IWidgetData {

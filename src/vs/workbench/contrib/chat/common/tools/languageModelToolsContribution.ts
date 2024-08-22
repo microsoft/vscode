@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableMap } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ILanguageModelToolsService, IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IJSONSchema } from '../../../../../base/common/jsonSchema';
+import { DisposableMap } from '../../../../../base/common/lifecycle';
+import { joinPath } from '../../../../../base/common/resources';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { localize } from '../../../../../nls';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions';
+import { ILogService } from '../../../../../platform/log/common/log';
+import { IWorkbenchContribution } from '../../../../common/contributions';
+import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService';
+import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry';
 
 interface IRawToolContribution {
 	id: string;

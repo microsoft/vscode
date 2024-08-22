@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceIdentifier } from './instantiation';
 import { SyncDescriptor } from './descriptors';
 
 export class ServiceCollection {

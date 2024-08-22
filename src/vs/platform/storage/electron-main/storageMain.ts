@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { top } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState } from 'vs/base/parts/storage/common/storage';
-import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { Schemas } from 'vs/base/common/network';
+import { top } from '../../../base/common/arrays';
+import { DeferredPromise } from '../../../base/common/async';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle';
+import { join } from '../../../base/common/path';
+import { StopWatch } from '../../../base/common/stopwatch';
+import { URI } from '../../../base/common/uri';
+import { Promises } from '../../../base/node/pfs';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState } from '../../../base/parts/storage/common/storage';
+import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from '../../../base/parts/storage/node/storage';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { IFileService } from '../../files/common/files';
+import { ILogService, LogLevel } from '../../log/common/log';
+import { IS_NEW_KEY } from '../common/storage';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from '../../telemetry/common/telemetry';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../workspace/common/workspace';
+import { Schemas } from '../../../base/common/network';
 
 export interface IStorageMainOptions {
 

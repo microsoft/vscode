@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { listenStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { listenStream } from '../../../base/common/stream';
+import { URI } from '../../../base/common/uri';
+import { IChecksumService } from '../common/checksumService';
+import { IFileService } from '../../files/common/files';
 
 export class ChecksumService implements IChecksumService {
 

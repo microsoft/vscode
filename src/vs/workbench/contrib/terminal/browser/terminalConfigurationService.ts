@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ITerminalConfigurationService, LinuxDistro } from './terminal';
+import type { IXtermCore } from './xterm-private';
+import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal';
 
 // #region TerminalConfigurationService
 

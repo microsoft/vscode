@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ISaveOptions } from 'vs/workbench/common/editor';
-import { raceCancellation } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { emptyStream } from 'vs/base/common/stream';
+import { Event, Emitter } from '../../../../base/common/event';
+import { VSBufferReadableStream } from '../../../../base/common/buffer';
+import { IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from './fileWorkingCopy';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { IWorkingCopyService } from './workingCopyService';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { ISaveOptions } from '../../../common/editor';
+import { raceCancellation } from '../../../../base/common/async';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IWorkingCopyBackupService } from './workingCopyBackup';
+import { emptyStream } from '../../../../base/common/stream';
 
 /**
  * Untitled file specific working copy model factory.

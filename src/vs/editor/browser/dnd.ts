@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { CodeDataTransfers, FileAdditionalNativeProperties } from 'vs/platform/dnd/browser/dnd';
+import { DataTransfers } from '../../base/browser/dnd';
+import { createFileDataTransferItem, createStringDataTransferItem, IDataTransferItem, UriList, VSDataTransfer } from '../../base/common/dataTransfer';
+import { Mimes } from '../../base/common/mime';
+import { URI } from '../../base/common/uri';
+import { CodeDataTransfers, FileAdditionalNativeProperties } from '../../platform/dnd/browser/dnd';
 
 
 export function toVSDataTransfer(dataTransfer: DataTransfer) {

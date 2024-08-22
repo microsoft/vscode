@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
-import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import * as nls from '../../../../nls';
+import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry';
+import { languagesExtPoint } from '../../../services/language/common/languageService';
+import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { MarkdownString } from '../../../../base/common/htmlContent';
 
 enum CodeActionExtensionPointFields {
 	languages = 'languages',

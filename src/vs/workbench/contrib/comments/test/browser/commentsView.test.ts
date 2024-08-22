@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { CommentService, ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
-import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from 'vs/editor/common/languages';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices';
+import { IRange, Range } from '../../../../../editor/common/core/range';
+import { CommentsPanel } from '../../browser/commentsView';
+import { CommentService, ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../browser/commentService';
+import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../../editor/common/languages';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { URI, UriComponents } from '../../../../../base/common/uri';
+import { IHoverService } from '../../../../../platform/hover/browser/hover';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {

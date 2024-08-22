@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IBaseSerializableStorageRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from 'vs/platform/storage/common/storageIpc';
-import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { reviveIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { revive } from '../../../base/common/marshalling';
+import { IServerChannel } from '../../../base/parts/ipc/common/ipc';
+import { ILogService } from '../../log/common/log';
+import { IBaseSerializableStorageRequest, ISerializableItemsChangeEvent, ISerializableUpdateRequest, Key, Value } from '../common/storageIpc';
+import { IStorageChangeEvent, IStorageMain } from './storageMain';
+import { IStorageMainService } from './storageMainService';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile';
+import { reviveIdentifier, IAnyWorkspaceIdentifier } from '../../workspace/common/workspace';
 
 export class StorageDatabaseChannel extends Disposable implements IServerChannel {
 

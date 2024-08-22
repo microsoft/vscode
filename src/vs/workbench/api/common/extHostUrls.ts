@@ -5,10 +5,10 @@
 
 import type * as vscode from 'vscode';
 import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from './extHost.protocol';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { toDisposable } from '../../../base/common/lifecycle';
+import { onUnexpectedError } from '../../../base/common/errors';
+import { ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 

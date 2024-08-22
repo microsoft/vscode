@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { Cache } from 'vs/base/common/cache';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { timeout } from '../../common/async';
+import { Cache } from '../../common/cache';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Cache', () => {
 

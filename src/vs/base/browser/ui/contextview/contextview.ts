@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { Range } from 'vs/base/common/range';
-import { OmitOptional } from 'vs/base/common/types';
+import { BrowserFeatures } from '../../canIUse';
+import * as DOM from '../../dom';
+import { StandardMouseEvent } from '../../mouseEvent';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle';
+import * as platform from '../../../common/platform';
+import { Range } from '../../../common/range';
+import { OmitOptional } from '../../../common/types';
 import 'vs/css!./contextview';
 
 export const enum ContextViewDOMPosition {

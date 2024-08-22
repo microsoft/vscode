@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/path';
-import * as Json from 'vs/base/common/json';
-import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from 'vs/platform/theme/common/colorRegistry';
-import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { URI } from 'vs/base/common/uri';
-import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
-import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { CharCode } from 'vs/base/common/charCode';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { basename } from '../../../../base/common/path';
+import * as Json from '../../../../base/common/json';
+import { Color } from '../../../../base/common/color';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME } from './workbenchThemeService';
+import { convertSettings } from './themeCompatibility';
+import * as nls from '../../../../nls';
+import * as types from '../../../../base/common/types';
+import * as resources from '../../../../base/common/resources';
+import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from '../../../../platform/theme/common/colorRegistry';
+import { ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages';
+import { URI } from '../../../../base/common/uri';
+import { parse as parsePList } from './plistParser';
+import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from '../../../../platform/theme/common/tokenClassificationRegistry';
+import { MatcherWithPriority, Matcher, createMatchers } from './textMateScopeMatcher';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader';
+import { CharCode } from '../../../../base/common/charCode';
+import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage';
+import { ThemeConfiguration } from './themeConfiguration';
+import { ColorScheme } from '../../../../platform/theme/common/theme';
 
 const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 

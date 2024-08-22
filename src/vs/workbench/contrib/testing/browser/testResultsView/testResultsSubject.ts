@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { IRichLocation, ITestItem, ITestMessage, ITestMessageMenuArgs, ITestRunTask, ITestTaskState, InternalTestItem, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestUriType, buildTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
+import { MarshalledId } from '../../../../../base/common/marshallingIds';
+import { URI } from '../../../../../base/common/uri';
+import { Range } from '../../../../../editor/common/core/range';
+import { TestId } from '../../common/testId';
+import { ITestResult } from '../../common/testResult';
+import { IRichLocation, ITestItem, ITestMessage, ITestMessageMenuArgs, ITestRunTask, ITestTaskState, InternalTestItem, TestMessageType, TestResultItem } from '../../common/testTypes';
+import { TestUriType, buildTestUri } from '../../common/testingUri';
 
 export const getMessageArgs = (test: TestResultItem, message: ITestMessage): ITestMessageMenuArgs => ({
 	$mid: MarshalledId.TestMessageMenuArgs,

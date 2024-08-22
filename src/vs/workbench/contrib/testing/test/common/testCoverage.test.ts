@@ -10,12 +10,12 @@
 
 import assert from 'assert';
 import { SinonSandbox, createSandbox } from 'sinon';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { onObservableChange } from 'vs/workbench/contrib/testing/common/observableUtils';
-import { ICoverageAccessor, TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { URI } from '../../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { onObservableChange } from '../../common/observableUtils';
+import { ICoverageAccessor, TestCoverage } from '../../common/testCoverage';
+import { LiveTestResult } from '../../common/testResult';
+import { IFileCoverage } from '../../common/testTypes';
 
 suite('TestCoverage', () => {
 	let sandbox: SinonSandbox;

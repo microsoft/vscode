@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { hash } from 'vs/base/common/hash';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostWebviews, shouldSerializeBuffersForPostMessage, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
-import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { hash } from '../../../base/common/hash';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { joinPath } from '../../../base/common/resources';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { ExtHostDocuments } from './extHostDocuments';
+import { IExtensionStoragePaths } from './extHostStoragePaths';
+import * as typeConverters from './extHostTypeConverters';
+import { ExtHostWebviews, shouldSerializeBuffersForPostMessage, toExtensionData } from './extHostWebview';
+import { ExtHostWebviewPanels } from './extHostWebviewPanels';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
 import * as extHostProtocol from './extHost.protocol';

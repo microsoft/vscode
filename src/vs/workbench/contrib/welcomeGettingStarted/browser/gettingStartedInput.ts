@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/gettingStarted';
-import { localize } from 'vs/nls';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { localize } from '../../../../nls';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { URI } from '../../../../base/common/uri';
+import { Schemas } from '../../../../base/common/network';
+import { IUntypedEditorInput } from '../../../common/editor';
+import { IEditorOptions } from '../../../../platform/editor/common/editor';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 

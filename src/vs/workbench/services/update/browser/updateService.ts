@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from '../../../../base/common/event';
+import { IUpdateService, State, UpdateType } from '../../../../platform/update/common/update';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService';
+import { IHostService } from '../../host/browser/host';
+import { Disposable } from '../../../../base/common/lifecycle';
 
 export interface IUpdate {
 	version: string;

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeAction, CodeActionList, CodeActionProvider, WorkspaceEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
-import { getSurroundableSnippets, SurroundWithSnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/surroundWithSnippet';
-import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { IRange, Range } from '../../../../editor/common/core/range';
+import { Selection } from '../../../../editor/common/core/selection';
+import { CodeAction, CodeActionList, CodeActionProvider, WorkspaceEdit } from '../../../../editor/common/languages';
+import { ITextModel } from '../../../../editor/common/model';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
+import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/types';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ApplyFileSnippetAction } from './commands/fileTemplateSnippets';
+import { getSurroundableSnippets, SurroundWithSnippetEditorAction } from './commands/surroundWithSnippet';
+import { Snippet } from './snippetsFile';
 import { ISnippetsService } from './snippets';
 
 class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {

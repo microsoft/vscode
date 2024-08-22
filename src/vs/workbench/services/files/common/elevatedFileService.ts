@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { URI } from '../../../../base/common/uri';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer';
+import { IFileStatWithMetadata, IWriteFileOptions } from '../../../../platform/files/common/files';
 
 export const IElevatedFileService = createDecorator<IElevatedFileService>('elevatedFileService');
 

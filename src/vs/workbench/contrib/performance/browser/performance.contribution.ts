@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
-import { EventProfiling } from 'vs/base/common/event';
-import { InputLatencyContrib } from 'vs/workbench/contrib/performance/browser/inputLatencyContrib';
+import { localize2 } from '../../../../nls';
+import { registerAction2, Action2 } from '../../../../platform/actions/common/actions';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { Extensions, IWorkbenchContributionsRegistry, registerWorkbenchContribution2 } from '../../../common/contributions';
+import { EditorExtensions, IEditorSerializer, IEditorFactoryRegistry } from '../../../common/editor';
+import { PerfviewContrib, PerfviewInput } from './perfviewEditor';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { InstantiationService, Trace } from '../../../../platform/instantiation/common/instantiationService';
+import { EventProfiling } from '../../../../base/common/event';
+import { InputLatencyContrib } from './inputLatencyContrib';
 
 // -- startup performance view
 

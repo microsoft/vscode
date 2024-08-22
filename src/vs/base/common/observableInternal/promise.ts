@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { autorun } from 'vs/base/common/observableInternal/autorun';
+import { autorun } from './autorun';
 import { IObservable, IReader, observableValue, transaction } from './base';
-import { Derived, derived } from 'vs/base/common/observableInternal/derived';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DebugNameData, DebugOwner } from 'vs/base/common/observableInternal/debugName';
-import { strictEquals } from 'vs/base/common/equals';
-import { CancellationError } from 'vs/base/common/errors';
+import { Derived, derived } from './derived';
+import { CancellationToken, CancellationTokenSource } from '../cancellation';
+import { DebugNameData, DebugOwner } from './debugName';
+import { strictEquals } from '../equals';
+import { CancellationError } from '../errors';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);

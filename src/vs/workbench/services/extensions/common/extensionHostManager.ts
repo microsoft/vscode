@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import * as nls from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
+import { IntervalTimer } from '../../../../base/common/async';
+import { VSBuffer } from '../../../../base/common/buffer';
+import * as errors from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { URI } from '../../../../base/common/uri';
+import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc';
+import * as nls from '../../../../nls';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IEditorService } from '../../editor/common/editorService';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { ExtHostCustomersRegistry, IInternalExtHostContext } from './extHostCustomers';
+import { ExtensionHostKind, extensionHostKindToString } from './extensionHostKind';
+import { IExtensionHostManager } from './extensionHostManagers';
+import { IExtensionDescriptionDelta } from './extensionHostProtocol';
+import { IExtensionHostProxy, IResolveAuthorityResult } from './extensionHostProxy';
+import { ExtensionRunningLocation } from './extensionRunningLocation';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from './extensions';
+import { Proxied, ProxyIdentifier } from './proxyIdentifier';
+import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from './rpcProtocol';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;

@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import { IValidEditOperation } from 'vs/editor/common/model';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { IRange } from '../../../../editor/common/core/range';
+import { IValidEditOperation } from '../../../../editor/common/model';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { EditMode } from '../common/inlineChat';
 import { Session, StashedSession } from './inlineChatSession';
 
 export interface ISessionKeyComputer {

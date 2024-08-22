@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { join, normalize } from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { URI } from 'vs/base/common/uri';
-import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { join, normalize } from '../../../../../base/common/path';
+import * as platform from '../../../../../base/common/platform';
+import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager } from '../../common/debug';
+import { Debugger } from '../../common/debugger';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { URI } from '../../../../../base/common/uri';
+import { ExecutableDebugAdapter } from '../../node/debugAdapter';
+import { TestTextResourcePropertiesService } from '../../../../../editor/test/common/services/testTextResourcePropertiesService';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../platform/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 
 suite('Debug - Debugger', () => {

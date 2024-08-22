@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
-import { Link } from 'vs/platform/opener/browser/link';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
-import { IAction } from 'vs/base/common/actions';
-import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
-import { DomEmitter } from 'vs/base/browser/event';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Range } from 'vs/editor/common/core/range';
-import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
-import Severity from 'vs/base/common/severity';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { localize } from '../../../../nls';
+import * as DOM from '../../../../base/browser/dom';
+import { Event } from '../../../../base/common/event';
+import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from '../../../../platform/list/browser/listService';
+import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel';
+import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from './markersModel';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers';
+import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { FilterOptions } from './markersFilterOptions';
+import { Link } from '../../../../platform/opener/browser/link';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { MarkersViewModel } from './markersTreeViewer';
+import { IAction } from '../../../../base/common/actions';
+import { QuickFixAction, QuickFixActionViewItem } from './markersViewActions';
+import { DomEmitter } from '../../../../base/browser/event';
+import Messages from './messages';
+import { isUndefinedOrNull } from '../../../../base/common/types';
+import { IProblemsWidget } from './markersView';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { Range } from '../../../../editor/common/core/range';
+import { unsupportedSchemas } from '../../../../platform/markers/common/markerService';
+import Severity from '../../../../base/common/severity';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
 
 const $ = DOM.$;
 

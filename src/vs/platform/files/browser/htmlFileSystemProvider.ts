@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, extname, normalize } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { ILogService } from 'vs/platform/log/common/log';
+import { localize } from '../../../nls';
+import { URI } from '../../../base/common/uri';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Event } from '../../../base/common/event';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { basename, extname, normalize } from '../../../base/common/path';
+import { isLinux } from '../../../base/common/platform';
+import { extUri, extUriIgnorePathCase } from '../../../base/common/resources';
+import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/stream';
+import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files';
+import { WebFileSystemAccess } from './webFileSystemAccess';
+import { IndexedDB } from '../../../base/browser/indexedDB';
+import { ILogService } from '../../log/common/log';
 
 export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 

@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { IProfileAnalysisWorkerService } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
-import { IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostProfile, IExtensionService, IResponsiveStateChangeEvent, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { timeout } from '../../../../base/common/async';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network';
+import { joinPath } from '../../../../base/common/resources';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree';
+import { URI } from '../../../../base/common/uri';
+import { generateUuid } from '../../../../base/common/uuid';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { IFileService } from '../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification';
+import { IProfileAnalysisWorkerService } from '../../../../platform/profiling/electron-sandbox/profileAnalysisWorkerService';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput';
+import { createSlowExtensionAction } from './extensionsSlowActions';
+import { IExtensionHostProfileService } from './runtimeExtensionsEditor';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind';
+import { IExtensionHostProfile, IExtensionService, IResponsiveStateChangeEvent, ProfileSession } from '../../../services/extensions/common/extensions';
+import { ExtensionHostProfiler } from '../../../services/extensions/electron-sandbox/extensionHostProfiler';
+import { ITimerService } from '../../../services/timer/browser/timerService';
 
 export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 

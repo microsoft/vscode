@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeKeybinding, ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { decodeKeybinding, ResolvedKeybinding } from '../../../../base/common/keybindings';
+import { OperatingSystem } from '../../../../base/common/platform';
+import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding';
 
 export function createUSLayoutResolvedKeybinding(encodedKeybinding: number | number[], OS: OperatingSystem): ResolvedKeybinding | undefined {
 	if (encodedKeybinding === 0) {

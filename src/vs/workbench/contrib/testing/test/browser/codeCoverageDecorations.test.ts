@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { assertSnapshot } from 'vs/base/test/common/snapshot';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { CoverageDetailsModel } from 'vs/workbench/contrib/testing/browser/codeCoverageDecorations';
-import { CoverageDetails, DetailType } from 'vs/workbench/contrib/testing/common/testTypes';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Position } from '../../../../../editor/common/core/position';
+import { Range } from '../../../../../editor/common/core/range';
+import { ITextModel } from '../../../../../editor/common/model';
+import { CoverageDetailsModel } from '../../browser/codeCoverageDecorations';
+import { CoverageDetails, DetailType } from '../../common/testTypes';
 
 suite('Code Coverage Decorations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

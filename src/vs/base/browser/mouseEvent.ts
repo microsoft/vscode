@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { IframeUtils } from 'vs/base/browser/iframe';
-import * as platform from 'vs/base/common/platform';
+import * as browser from './browser';
+import { IframeUtils } from './iframe';
+import * as platform from '../common/platform';
 
 export interface IMouseEvent {
 	readonly browserEvent: MouseEvent;

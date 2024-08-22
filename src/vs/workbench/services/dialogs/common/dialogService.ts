@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IAsyncPromptResult, IAsyncPromptResultWithCancel, IConfirmation, IConfirmationResult, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel } from 'vs/platform/dialogs/common/dialogs';
-import { DialogsModel } from 'vs/workbench/common/dialogs';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
+import Severity from '../../../../base/common/severity';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IAsyncPromptResult, IAsyncPromptResultWithCancel, IConfirmation, IConfirmationResult, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel } from '../../../../platform/dialogs/common/dialogs';
+import { DialogsModel } from '../../../common/dialogs';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { ILogService } from '../../../../platform/log/common/log';
 
 export class DialogService extends Disposable implements IDialogService {
 

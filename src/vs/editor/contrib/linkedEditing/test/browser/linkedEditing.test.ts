@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { DeleteAllLeftAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
-import { DeleteWordLeft } from 'vs/editor/contrib/wordOperations/browser/wordOperations';
-import { ITestCodeEditor, createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { CoreEditingCommands } from '../../../../browser/coreCommands';
+import { IPosition, Position } from '../../../../common/core/position';
+import { IRange, Range } from '../../../../common/core/range';
+import { USUAL_WORD_SEPARATORS } from '../../../../common/core/wordHelper';
+import { Handler } from '../../../../common/editorCommon';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { ITextModel } from '../../../../common/model';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures';
+import { DeleteAllLeftAction } from '../../../linesOperations/browser/linesOperations';
+import { LinkedEditingContribution } from '../../browser/linkedEditing';
+import { DeleteWordLeft } from '../../../wordOperations/browser/wordOperations';
+import { ITestCodeEditor, createCodeEditorServices, instantiateTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { instantiateTextModel } from '../../../../test/common/testTextModel';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };

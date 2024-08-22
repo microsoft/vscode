@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { Color, RGBA } from '../../../../base/common/color';
+import { localize } from '../../../../nls';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',

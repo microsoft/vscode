@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { LanguageId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { IState, Token } from 'vs/editor/common/languages';
-import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IFileIconTheme, IProductIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { Color } from '../../../../base/common/color';
+import { Emitter } from '../../../../base/common/event';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { LanguageId, MetadataConsts } from '../../../common/encodedTokenAttributes';
+import { IState, Token } from '../../../common/languages';
+import { TokenTheme } from '../../../common/languages/supports/tokenization';
+import { LanguageService } from '../../../common/services/languageService';
+import { ILineTokens, IToken, TokenizationSupportAdapter, TokensProvider } from '../../browser/standaloneLanguages';
+import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from '../../common/standaloneTheme';
+import { UnthemedProductIconTheme } from '../../../../platform/theme/browser/iconsStyleSheet';
+import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry';
+import { ColorScheme } from '../../../../platform/theme/common/theme';
+import { IColorTheme, IFileIconTheme, IProductIconTheme, ITokenStyle } from '../../../../platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 

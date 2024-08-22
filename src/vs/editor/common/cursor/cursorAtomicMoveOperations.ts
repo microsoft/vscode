@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
+import { CharCode } from '../../../base/common/charCode';
+import { CursorColumns } from '../core/cursorColumns';
 
 export const enum Direction {
 	Left,

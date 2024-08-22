@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { MainThreadDiagnostics } from 'vs/workbench/api/browser/mainThreadDiagnostics';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
+import { timeout } from '../../../../base/common/async';
+import { URI, UriComponents } from '../../../../base/common/uri';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { MarkerService } from '../../../../platform/markers/common/markerService';
+import { IMarkerData } from '../../../../platform/markers/common/markers';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { MainThreadDiagnostics } from '../../browser/mainThreadDiagnostics';
+import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind';
+import { mock } from '../../../test/common/workbenchTestServices';
 
 
 suite('MainThreadDiagnostics', function () {

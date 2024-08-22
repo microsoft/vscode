@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { localize2 } from 'vs/nls';
-import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
+import { EditorAction2 } from '../../../../../editor/browser/editorExtensions';
+import { localize2 } from '../../../../../nls';
+import { Action2, IAction2Options } from '../../../../../platform/actions/common/actions';
 
 const defaultOptions = {
 	category: localize2('snippets', "Snippets"),

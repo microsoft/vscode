@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
-import { createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isRemoteConsoleLog, log } from 'vs/base/common/console';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { createQueuedSender } from 'vs/base/node/processes';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
-import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
+import { createCancelablePromise, Delayer } from '../../../common/async';
+import { VSBuffer } from '../../../common/buffer';
+import { CancellationToken } from '../../../common/cancellation';
+import { isRemoteConsoleLog, log } from '../../../common/console';
+import * as errors from '../../../common/errors';
+import { Emitter, Event } from '../../../common/event';
+import { dispose, IDisposable, toDisposable } from '../../../common/lifecycle';
+import { deepClone } from '../../../common/objects';
+import { createQueuedSender } from '../../../node/processes';
+import { removeDangerousEnvVariables } from '../../../common/processes';
+import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from '../common/ipc';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.

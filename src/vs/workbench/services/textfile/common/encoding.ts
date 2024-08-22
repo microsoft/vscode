@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { importAMDNodeModule } from 'vs/amdX';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { coalesce } from 'vs/base/common/arrays';
-import { isESM } from 'vs/base/common/amd';
+import { Readable, ReadableStream, newWriteableStream, listenStream } from '../../../../base/common/stream';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer';
+import { importAMDNodeModule } from '../../../../amdX';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { coalesce } from '../../../../base/common/arrays';
+import { isESM } from '../../../../base/common/amd';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';

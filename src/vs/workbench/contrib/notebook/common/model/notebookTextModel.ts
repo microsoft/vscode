@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
-import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { hash } from 'vs/base/common/hash';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { isDefined } from 'vs/base/common/types';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event';
+import { Disposable, dispose, IDisposable } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
+import { NotebookCellTextModel } from './notebookCellTextModel';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind } from '../notebookCommon';
+import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from '../../../../../platform/undoRedo/common/undoRedo';
+import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from './cellEdit';
+import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff';
+import { hash } from '../../../../../base/common/hash';
+import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel';
+import { IModelService } from '../../../../../editor/common/services/model';
+import { Schemas } from '../../../../../base/common/network';
+import { isEqual } from '../../../../../base/common/resources';
+import { ILanguageService } from '../../../../../editor/common/languages/language';
+import { FindMatch, ITextModel } from '../../../../../editor/common/model';
+import { TextModel } from '../../../../../editor/common/model/textModel';
+import { isDefined } from '../../../../../base/common/types';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService';
+import { IPosition } from '../../../../../editor/common/core/position';
+import { Range } from '../../../../../editor/common/core/range';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;

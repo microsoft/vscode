@@ -7,14 +7,14 @@ import * as fs from 'fs';
 import * as url from 'url';
 import * as cp from 'child_process';
 import * as http from 'http';
-import { cwd } from 'vs/base/common/process';
-import { dirname, extname, resolve, join } from 'vs/base/common/path';
-import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
-import { PipeCommand } from 'vs/workbench/api/node/extHostCLIServer';
-import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
-import { DeferredPromise } from 'vs/base/common/async';
+import { cwd } from '../../base/common/process';
+import { dirname, extname, resolve, join } from '../../base/common/path';
+import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from '../../platform/environment/node/argv';
+import { NativeParsedArgs } from '../../platform/environment/common/argv';
+import { createWaitMarkerFileSync } from '../../platform/environment/node/wait';
+import { PipeCommand } from '../../workbench/api/node/extHostCLIServer';
+import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin';
+import { DeferredPromise } from '../../base/common/async';
 
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.

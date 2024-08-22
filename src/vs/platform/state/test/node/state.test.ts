@@ -6,18 +6,18 @@
 import assert from 'assert';
 import { readFileSync, promises } from 'fs';
 import { tmpdir } from 'os';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { Promises, writeFileSync } from 'vs/base/node/pfs';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { FileStorage, SaveStrategy } from 'vs/platform/state/node/stateService';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network';
+import { join } from '../../../../base/common/path';
+import { URI } from '../../../../base/common/uri';
+import { Promises, writeFileSync } from '../../../../base/node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils';
+import { IFileService } from '../../../files/common/files';
+import { FileService } from '../../../files/common/fileService';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider';
+import { ILogService, NullLogService } from '../../../log/common/log';
+import { FileStorage, SaveStrategy } from '../../node/stateService';
 
 flakySuite('StateService', () => {
 

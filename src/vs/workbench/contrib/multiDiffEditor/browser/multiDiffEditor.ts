@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
-import { IResourceLabel, IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
-import { ICompositeControl } from 'vs/workbench/common/composite';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { URI } from 'vs/base/common/uri';
-import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
-import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
+import * as DOM from '../../../../base/browser/dom';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
+import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { ResourceLabel } from '../../../browser/labels';
+import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState';
+import { ICompositeControl } from '../../../common/composite';
+import { IEditorOpenContext } from '../../../common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from './multiDiffEditorInput';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { URI } from '../../../../base/common/uri';
+import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
+import { IMultiDiffEditorOptions, IMultiDiffEditorViewState } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { IDiffEditor } from '../../../../editor/common/editorCommon';
+import { Range } from '../../../../editor/common/core/range';
+import { MultiDiffEditorItem } from './multiDiffSourceResolverService';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';

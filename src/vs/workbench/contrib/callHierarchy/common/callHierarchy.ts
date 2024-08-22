@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IRange } from '../../../../editor/common/core/range';
+import { SymbolKind, ProviderResult, SymbolTag } from '../../../../editor/common/languages';
+import { ITextModel } from '../../../../editor/common/model';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { LanguageFeatureRegistry } from '../../../../editor/common/languageFeatureRegistry';
+import { URI } from '../../../../base/common/uri';
+import { IPosition, Position } from '../../../../editor/common/core/position';
+import { isNonEmptyArray } from '../../../../base/common/arrays';
+import { onUnexpectedExternalError } from '../../../../base/common/errors';
+import { IDisposable, RefCountedDisposable } from '../../../../base/common/lifecycle';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands';
+import { assertType } from '../../../../base/common/types';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ITextModelService } from '../../../../editor/common/services/resolverService';
 
 export const enum CallHierarchyDirection {
 	CallsTo = 'incomingCalls',

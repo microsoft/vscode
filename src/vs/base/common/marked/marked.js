@@ -12,10 +12,10 @@
 // ESM-uncomment-begin
 // let __marked_exports = {};
 // (function() {
-//   function define(deps, factory) {
-//     factory(__marked_exports);
-//   }
-//   define.amd = true;
+  // function define(deps, factory) {
+    // factory(__marked_exports);
+  // }
+  // define.amd = true;
 // ESM-uncomment-end
 
 (function (global, factory) {

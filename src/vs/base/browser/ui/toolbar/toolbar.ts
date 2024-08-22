@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { Action, IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { EventMultiplexer } from 'vs/base/common/event';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IContextMenuProvider } from '../../contextmenu';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar';
+import { AnchorAlignment } from '../contextview/contextview';
+import { DropdownMenuActionViewItem } from '../dropdown/dropdownActionViewItem';
+import { Action, IAction, IActionRunner, SubmenuAction } from '../../../common/actions';
+import { Codicon } from '../../../common/codicons';
+import { ThemeIcon } from '../../../common/themables';
+import { EventMultiplexer } from '../../../common/event';
+import { ResolvedKeybinding } from '../../../common/keybindings';
+import { Disposable, DisposableStore } from '../../../common/lifecycle';
 import 'vs/css!./toolbar';
-import * as nls from 'vs/nls';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import * as nls from '../../../../nls';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory';
 
 
 

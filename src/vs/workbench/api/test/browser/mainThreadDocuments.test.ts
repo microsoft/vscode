@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { extUri } from 'vs/base/common/resources';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { BoundModelReferenceCollection } from '../../browser/mainThreadDocuments';
+import { timeout } from '../../../../base/common/async';
+import { URI } from '../../../../base/common/uri';
+import { extUri } from '../../../../base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('BoundModelReferenceCollection', function () {
 

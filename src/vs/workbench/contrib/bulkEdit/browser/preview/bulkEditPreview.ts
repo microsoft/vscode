@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { coalesceInPlace } from 'vs/base/common/arrays';
-import { Range } from 'vs/editor/common/core/range';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ConflictDetector } from 'vs/workbench/contrib/bulkEdit/browser/conflicts';
-import { ResourceMap } from 'vs/base/common/map';
-import { localize } from 'vs/nls';
-import { extUri } from 'vs/base/common/resources';
-import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Codicon } from 'vs/base/common/codicons';
-import { generateUuid } from 'vs/base/common/uuid';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
+import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService';
+import { URI } from '../../../../../base/common/uri';
+import { ILanguageService } from '../../../../../editor/common/languages/language';
+import { IModelService } from '../../../../../editor/common/services/model';
+import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel';
+import { WorkspaceEditMetadata } from '../../../../../editor/common/languages';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { coalesceInPlace } from '../../../../../base/common/arrays';
+import { Range } from '../../../../../editor/common/core/range';
+import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation';
+import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { ConflictDetector } from '../conflicts';
+import { ResourceMap } from '../../../../../base/common/map';
+import { localize } from '../../../../../nls';
+import { extUri } from '../../../../../base/common/resources';
+import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService';
+import { Codicon } from '../../../../../base/common/codicons';
+import { generateUuid } from '../../../../../base/common/uuid';
+import { SnippetParser } from '../../../../../editor/contrib/snippet/browser/snippetParser';
+import { MicrotaskDelay } from '../../../../../base/common/symbols';
 
 export class CheckedStates<T extends object> {
 

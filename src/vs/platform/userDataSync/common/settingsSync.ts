@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getIgnoredSettingsForExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { distinct } from '../../../base/common/arrays';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Event } from '../../../base/common/event';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration';
+import { ConfigurationModelParser } from '../../configuration/common/configurationModels';
+import { IEnvironmentService } from '../../environment/common/environment';
+import { IExtensionManagementService } from '../../extensionManagement/common/extensionManagement';
+import { ExtensionType } from '../../extensions/common/extensions';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files';
+import { IStorageService } from '../../storage/common/storage';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
+import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from './abstractSynchronizer';
+import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from './settingsMerge';
+import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getIgnoredSettingsForExtension } from './userDataSync';
 
 interface ISettingsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;

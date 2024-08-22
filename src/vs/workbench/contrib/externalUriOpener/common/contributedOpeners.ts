@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { updateContributedOpeners } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { Memento } from '../../../common/memento';
+import { updateContributedOpeners } from './configuration';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
 
 interface RegisteredExternalOpener {
 	readonly extensionId: string;

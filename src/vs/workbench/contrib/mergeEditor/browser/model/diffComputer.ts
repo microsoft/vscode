@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { IReader } from 'vs/base/common/observable';
-import { RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { LineRange as DiffLineRange } from 'vs/editor/common/core/lineRange';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert';
+import { IReader } from '../../../../../base/common/observable';
+import { RangeMapping as DiffRangeMapping } from '../../../../../editor/common/diff/rangeMapping';
+import { ITextModel } from '../../../../../editor/common/model';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { LineRange } from './lineRange';
+import { DetailedLineRangeMapping, RangeMapping } from './mapping';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils';
+import { LineRange as DiffLineRange } from '../../../../../editor/common/core/lineRange';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import * as marked from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from '../../browser/markdownRenderer';
+import { IMarkdownString, MarkdownString } from '../../common/htmlContent';
+import * as marked from '../../common/marked/marked';
+import { parse } from '../../common/marshalling';
+import { isWeb } from '../../common/platform';
+import { URI } from '../../common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils';
 
 function strToNode(str: string): HTMLElement {
 	return new DOMParser().parseFromString(str, 'text/html').body.firstChild as HTMLElement;

@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./indentGuides';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketPairGuideActiveBackground1, editorBracketPairGuideActiveBackground2, editorBracketPairGuideActiveBackground3, editorBracketPairGuideActiveBackground4, editorBracketPairGuideActiveBackground5, editorBracketPairGuideActiveBackground6, editorBracketPairGuideBackground1, editorBracketPairGuideBackground2, editorBracketPairGuideBackground3, editorBracketPairGuideBackground4, editorBracketPairGuideBackground5, editorBracketPairGuideBackground6, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption, InternalGuidesOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { isDefined } from 'vs/base/common/types';
-import { BracketPairGuidesClassNames } from 'vs/editor/common/model/guidesTextModelPart';
-import { IndentGuide, HorizontalGuidesState } from 'vs/editor/common/textModelGuides';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay';
+import { editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketPairGuideActiveBackground1, editorBracketPairGuideActiveBackground2, editorBracketPairGuideActiveBackground3, editorBracketPairGuideActiveBackground4, editorBracketPairGuideActiveBackground5, editorBracketPairGuideActiveBackground6, editorBracketPairGuideBackground1, editorBracketPairGuideBackground2, editorBracketPairGuideBackground3, editorBracketPairGuideBackground4, editorBracketPairGuideBackground5, editorBracketPairGuideBackground6, editorIndentGuide1, editorIndentGuide2, editorIndentGuide3, editorIndentGuide4, editorIndentGuide5, editorIndentGuide6, editorActiveIndentGuide1, editorActiveIndentGuide2, editorActiveIndentGuide3, editorActiveIndentGuide4, editorActiveIndentGuide5, editorActiveIndentGuide6 } from '../../../common/core/editorColorRegistry';
+import { RenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService';
+import { EditorOption, InternalGuidesOptions } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { ArrayQueue } from '../../../../base/common/arrays';
+import { Color } from '../../../../base/common/color';
+import { isDefined } from '../../../../base/common/types';
+import { BracketPairGuidesClassNames } from '../../../common/model/guidesTextModelPart';
+import { IndentGuide, HorizontalGuidesState } from '../../../common/textModelGuides';
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 

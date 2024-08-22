@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir } from 'os';
-import { ExtHostVariableResolverProviderService } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { ExtHostVariableResolverProviderService } from '../common/extHostVariableResolverService';
 
 export class NodeExtHostVariableResolverProviderService extends ExtHostVariableResolverProviderService {
 	protected override homeDir(): string | undefined {

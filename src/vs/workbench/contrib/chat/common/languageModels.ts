@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Iterable } from '../../../../base/common/iterator';
+import { IJSONSchema } from '../../../../base/common/jsonSchema';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings';
+import { localize } from '../../../../nls';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry';
 
 export const enum ChatMessageRole {
 	System,

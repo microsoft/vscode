@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageIdCodec, ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { AbstractTokens } from 'vs/editor/common/model/tokens';
-import { IPosition } from 'vs/editor/common/core/position';
+import { ILanguageIdCodec, ITreeSitterTokenizationSupport, TreeSitterTokenizationRegistry } from '../languages';
+import { LineTokens } from '../tokens/lineTokens';
+import { StandardTokenType } from '../encodedTokenAttributes';
+import { TextModel } from './textModel';
+import { ITreeSitterParserService } from '../services/treeSitterParserService';
+import { IModelContentChangedEvent } from '../textModelEvents';
+import { AbstractTokens } from './tokens';
+import { IPosition } from '../core/position';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { DomEmitter } from 'vs/base/browser/event';
-import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
-import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { dirname, resolvePath } from 'vs/base/common/resources';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import * as DOM from './dom';
+import * as dompurify from './dompurify/dompurify';
+import { DomEmitter } from './event';
+import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer';
+import { StandardKeyboardEvent } from './keyboardEvent';
+import { StandardMouseEvent } from './mouseEvent';
+import { renderLabelWithIcons } from './ui/iconLabel/iconLabels';
+import { onUnexpectedError } from '../common/errors';
+import { Event } from '../common/event';
+import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent';
+import { markdownEscapeEscapedIcons } from '../common/iconLabels';
+import { defaultGenerator } from '../common/idGenerator';
+import { KeyCode } from '../common/keyCodes';
+import { Lazy } from '../common/lazy';
+import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle';
+import * as marked from '../common/marked/marked';
+import { parse } from '../common/marshalling';
+import { FileAccess, Schemas } from '../common/network';
+import { cloneAndChange } from '../common/objects';
+import { dirname, resolvePath } from '../common/resources';
+import { escape } from '../common/strings';
+import { URI } from '../common/uri';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;

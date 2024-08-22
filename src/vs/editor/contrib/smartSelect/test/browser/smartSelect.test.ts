@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { SelectionRangeProvider } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/bracketSelections';
-import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
-import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/wordSelections';
-import { createModelServices } from 'vs/editor/test/common/testTextModel';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { Event } from '../../../../../base/common/event';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri';
+import { Position } from '../../../../common/core/position';
+import { IRange, Range } from '../../../../common/core/range';
+import { SelectionRangeProvider } from '../../../../common/languages';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry';
+import { IModelService } from '../../../../common/services/model';
+import { BracketSelectionRangeProvider } from '../../browser/bracketSelections';
+import { provideSelectionRanges } from '../../browser/smartSelect';
+import { WordSelectionRangeProvider } from '../../browser/wordSelections';
+import { createModelServices } from '../../../../test/common/testTextModel';
+import { javascriptOnEnterRules } from '../../../../test/common/modes/supports/onEnterRules';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry';
+import { ILanguageSelection, ILanguageService } from '../../../../common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 class StaticLanguageSelector implements ILanguageSelection {
 	readonly onDidChange: Event<string> = Event.None;

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { basename } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IEditorIdentifier, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
-import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from '../../../../../base/common/codicons';
+import { basename } from '../../../../../base/common/resources';
+import { URI, UriComponents } from '../../../../../base/common/uri';
+import { localize, localize2 } from '../../../../../nls';
+import { ILocalizedString } from '../../../../../platform/action/common/action';
+import { Action2, IAction2Options, MenuId } from '../../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs';
+import { ITextEditorOptions } from '../../../../../platform/editor/common/editor';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage';
+import { IEditorIdentifier, IResourceMergeEditorInput } from '../../../../common/editor';
+import { MergeEditorInput, MergeEditorInputData } from '../mergeEditorInput';
+import { IMergeEditorInputModel } from '../mergeEditorInputModel';
+import { MergeEditor } from '../view/mergeEditor';
+import { MergeEditorViewModel } from '../view/viewModel';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from '../../common/mergeEditor';
+import { IEditorService } from '../../../../services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
 	constructor(desc: Readonly<IAction2Options>) {

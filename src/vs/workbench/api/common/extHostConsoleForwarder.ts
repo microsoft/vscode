@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStackArgument } from 'vs/base/common/console';
-import { safeStringify } from 'vs/base/common/objects';
-import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IStackArgument } from '../../../base/common/console';
+import { safeStringify } from '../../../base/common/objects';
+import { MainContext, MainThreadConsoleShape } from './extHost.protocol';
+import { IExtHostInitDataService } from './extHostInitDataService';
+import { IExtHostRpcService } from './extHostRpcService';
 
 export abstract class AbstractExtHostConsoleForwarder {
 

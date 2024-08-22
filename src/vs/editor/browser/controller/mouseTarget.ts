@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { IMouseTargetContentEmptyData, IMouseTargetMarginData, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetContentWidget, IMouseTargetMargin, IMouseTargetOutsideEditor, IMouseTargetOverlayWidget, IMouseTargetScrollbar, IMouseTargetTextarea, IMouseTargetUnknown, IMouseTargetViewZone, IMouseTargetContentTextData, IMouseTargetViewZoneData, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from 'vs/editor/browser/editorDom';
-import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
-import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { IViewModel } from 'vs/editor/common/viewModel';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import * as dom from 'vs/base/browser/dom';
-import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { Mutable } from 'vs/base/common/types';
-import { Lazy } from 'vs/base/common/lazy';
+import { IPointerHandlerHelper } from './mouseHandler';
+import { IMouseTargetContentEmptyData, IMouseTargetMarginData, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetContentWidget, IMouseTargetMargin, IMouseTargetOutsideEditor, IMouseTargetOverlayWidget, IMouseTargetScrollbar, IMouseTargetTextarea, IMouseTargetUnknown, IMouseTargetViewZone, IMouseTargetContentTextData, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser';
+import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from '../editorDom';
+import { PartFingerprint, PartFingerprints } from '../view/viewPart';
+import { ViewLine } from '../viewParts/lines/viewLine';
+import { IViewCursorRenderData } from '../viewParts/viewCursors/viewCursor';
+import { EditorLayoutInfo, EditorOption } from '../../common/config/editorOptions';
+import { Position } from '../../common/core/position';
+import { Range as EditorRange } from '../../common/core/range';
+import { HorizontalPosition } from '../view/renderingContext';
+import { ViewContext } from '../../common/viewModel/viewContext';
+import { IViewModel } from '../../common/viewModel';
+import { CursorColumns } from '../../common/core/cursorColumns';
+import * as dom from '../../../base/browser/dom';
+import { AtomicTabMoveOperations, Direction } from '../../common/cursor/cursorAtomicMoveOperations';
+import { PositionAffinity } from '../../common/model';
+import { InjectedText } from '../../common/modelLineProjectionData';
+import { Mutable } from '../../../base/common/types';
+import { Lazy } from '../../../base/common/lazy';
 
 const enum HitTestResultType {
 	Unknown,

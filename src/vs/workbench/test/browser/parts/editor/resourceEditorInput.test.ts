@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IFileService } from 'vs/platform/files/common/files';
-import { EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CustomEditorLabelService, ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { URI } from '../../../../../base/common/uri';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { workbenchInstantiationService } from '../../workbenchTestServices';
+import { AbstractResourceEditorInput } from '../../../../common/editor/resourceEditorInput';
+import { ILabelService } from '../../../../../platform/label/common/label';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { EditorInputCapabilities, Verbosity } from '../../../../common/editor';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { CustomEditorLabelService, ICustomEditorLabelService } from '../../../../services/editor/common/customEditorLabelService';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
 
 suite('ResourceEditorInput', () => {
 

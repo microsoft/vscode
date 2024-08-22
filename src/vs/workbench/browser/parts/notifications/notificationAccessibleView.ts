@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { IAccessibilitySignalService, AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
+import { IAction } from '../../../../base/common/actions';
+import { Codicon } from '../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { localize } from '../../../../nls';
+import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry';
+import { IAccessibilitySignalService, AccessibilitySignal } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService';
+import { getNotificationFromContext } from './notificationsCommands';
+import { NotificationFocusedContext } from '../../../common/contextkeys';
+import { INotificationViewItem } from '../../../common/notifications';
 
 export class NotificationAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 90;

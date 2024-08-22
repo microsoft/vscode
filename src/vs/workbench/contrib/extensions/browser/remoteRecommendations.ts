@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, GalleryExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { PlatformToString, platform } from 'vs/base/common/platform';
+import { ExtensionRecommendations, GalleryExtensionRecommendation } from './extensionRecommendations';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { ExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations';
+import { PlatformToString, platform } from '../../../../base/common/platform';
 
 export class RemoteRecommendations extends ExtensionRecommendations {
 

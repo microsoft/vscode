@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { VSBuffer } from './buffer';
+import { URI, UriComponents } from './uri';
 import { MarshalledId } from './marshallingIds';
 
 export function stringify(obj: any): string {

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Codicon } from 'vs/base/common/codicons';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize, localize2 } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { ctxIsMergeEditor, MergeEditorContents } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { VSBuffer } from '../../../../../base/common/buffer';
+import { Codicon } from '../../../../../base/common/codicons';
+import { URI } from '../../../../../base/common/uri';
+import { ILanguageService } from '../../../../../editor/common/languages/language';
+import { localize, localize2 } from '../../../../../nls';
+import { ILocalizedString } from '../../../../../platform/action/common/action';
+import { Action2 } from '../../../../../platform/actions/common/actions';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { INotificationService } from '../../../../../platform/notification/common/notification';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput';
+import { IResourceMergeEditorInput } from '../../../../common/editor';
+import { MergeEditor } from '../view/mergeEditor';
+import { ctxIsMergeEditor, MergeEditorContents } from '../../common/mergeEditor';
+import { IEditorService } from '../../../../services/editor/common/editorService';
 
 const MERGE_EDITOR_CATEGORY: ILocalizedString = localize2('mergeEditor', 'Merge Editor (Dev)');
 

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainThreadStatusBarShape, MainContext, ExtHostContext, StatusBarItemDto } from '../common/extHost.protocol';
-import { ThemeColor } from 'vs/base/common/themables';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/languages';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IExtensionStatusBarItemService, StatusBarUpdateKind } from 'vs/workbench/api/browser/statusBarExtensionPoint';
-import { IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { ThemeColor } from '../../../base/common/themables';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle';
+import { Command } from '../../../editor/common/languages';
+import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility';
+import { IMarkdownString } from '../../../base/common/htmlContent';
+import { IExtensionStatusBarItemService, StatusBarUpdateKind } from './statusBarExtensionPoint';
+import { IStatusbarEntry, StatusbarAlignment } from '../../services/statusbar/browser/statusbar';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICustomEditorModel, ICustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { createSingleCallFunction } from '../../../../base/common/functional';
+import { IReference } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { ICustomEditorModel, ICustomEditorModelManager } from './customEditor';
 
 export class CustomEditorModelManager implements ICustomEditorModelManager {
 

@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, h, reset } from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { autorun, autorunOpts, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
-import { noBreakWhitespace } from 'vs/base/common/strings';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isDefined } from 'vs/base/common/types';
-import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { InputState, ModifiedBaseRange, ModifiedBaseRangeState } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { applyObservableDecorations, setFields } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
+import { addDisposableListener, EventType, h, reset } from '../../../../../../base/browser/dom';
+import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels';
+import { Toggle } from '../../../../../../base/browser/ui/toggle/toggle';
+import { Action, IAction, Separator } from '../../../../../../base/common/actions';
+import { Codicon } from '../../../../../../base/common/codicons';
+import { Disposable } from '../../../../../../base/common/lifecycle';
+import { clamp } from '../../../../../../base/common/numbers';
+import { autorun, autorunOpts, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from '../../../../../../base/common/observable';
+import { noBreakWhitespace } from '../../../../../../base/common/strings';
+import { ThemeIcon } from '../../../../../../base/common/themables';
+import { isDefined } from '../../../../../../base/common/types';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model';
+import { localize } from '../../../../../../nls';
+import { MenuId } from '../../../../../../platform/actions/common/actions';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { defaultToggleStyles } from '../../../../../../platform/theme/browser/defaultStyles';
+import { InputState, ModifiedBaseRange, ModifiedBaseRangeState } from '../../model/modifiedBaseRange';
+import { applyObservableDecorations, setFields } from '../../utils';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from '../colors';
+import { MergeEditorViewModel } from '../viewModel';
 import { EditorGutter, IGutterItemInfo, IGutterItemView } from '../editorGutter';
 import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
 

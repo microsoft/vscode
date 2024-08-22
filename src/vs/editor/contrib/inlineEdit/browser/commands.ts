@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { inlineEditAcceptId, inlineEditJumpBackId, inlineEditJumpToId, inlineEditRejectId } from 'vs/editor/contrib/inlineEdit/browser/commandIds';
-import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, ServicesAccessor } from '../../../browser/editorExtensions';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { inlineEditAcceptId, inlineEditJumpBackId, inlineEditJumpToId, inlineEditRejectId } from './commandIds';
+import { InlineEditController } from './inlineEditController';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
 
 export class AcceptInlineEdit extends EditorAction {
 	constructor() {

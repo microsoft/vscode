@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CodeCellViewModel, outputDisplayLimit } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { RunOnceScheduler } from '../../../../../../base/common/async';
+import { Disposable } from '../../../../../../base/common/lifecycle';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility';
+import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from '../../notebookBrowser';
+import { registerNotebookContribution } from '../../notebookEditorExtensions';
+import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel';
+import { CellKind } from '../../../common/notebookCommon';
+import { cellRangesToIndexes } from '../../../common/notebookRange';
+import { INotebookService } from '../../../common/notebookService';
 
 class NotebookViewportContribution extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.viewportWarmup';

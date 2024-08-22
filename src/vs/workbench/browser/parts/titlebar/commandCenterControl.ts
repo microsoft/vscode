@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isActiveDocument, reset } from 'vs/base/browser/dom';
-import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { isActiveDocument, reset } from '../../../../base/browser/dom';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels';
+import { IAction, SubmenuAction } from '../../../../base/common/actions';
+import { Codicon } from '../../../../base/common/codicons';
+import { Emitter, Event } from '../../../../base/common/event';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { localize } from '../../../../nls';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar';
+import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput';
+import { WindowTitle } from './windowTitle';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
 
 export class CommandCenterControl {
 

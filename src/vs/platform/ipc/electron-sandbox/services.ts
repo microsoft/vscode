@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { IRemoteService } from 'vs/platform/ipc/common/services';
+import { IChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc';
+import { SyncDescriptor } from '../../instantiation/common/descriptors';
+import { registerSingleton } from '../../instantiation/common/extensions';
+import { createDecorator, IInstantiationService, ServiceIdentifier } from '../../instantiation/common/instantiation';
+import { IMainProcessService } from '../common/mainProcessService';
+import { IRemoteService } from '../common/services';
 
 type ChannelClientCtor<T> = { new(channel: IChannel, ...args: any[]): T };
 type Remote = { getChannel(channelName: string): IChannel };

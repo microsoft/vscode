@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
-import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ILogService } from 'vs/platform/log/common/log';
+import { WorkerDescriptor } from '../../../../base/browser/defaultWorkerFactory';
+import { EditorWorkerService } from '../../../../editor/browser/services/editorWorkerService';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
+import { IModelService } from '../../../../editor/common/services/model';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration';
+import { ILogService } from '../../../../platform/log/common/log';
 
 export class WorkbenchEditorWorkerService extends EditorWorkerService {
 	constructor(

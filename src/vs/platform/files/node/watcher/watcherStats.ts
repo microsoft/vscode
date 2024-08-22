@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUniversalWatchRequest, requestFilterToString } from 'vs/platform/files/common/watcher';
-import { INodeJSWatcherInstance, NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
-import { ParcelWatcher, ParcelWatcherInstance } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
+import { IUniversalWatchRequest, requestFilterToString } from '../../common/watcher';
+import { INodeJSWatcherInstance, NodeJSWatcher } from './nodejs/nodejsWatcher';
+import { ParcelWatcher, ParcelWatcherInstance } from './parcel/parcelWatcher';
 
 export function computeStats(
 	requests: IUniversalWatchRequest[],

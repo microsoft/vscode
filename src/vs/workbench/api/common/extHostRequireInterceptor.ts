@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as performance from 'vs/base/common/performance';
-import { URI } from 'vs/base/common/uri';
-import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import * as performance from '../../../base/common/performance';
+import { URI } from '../../../base/common/uri';
+import { MainThreadTelemetryShape, MainContext } from './extHost.protocol';
+import { ExtHostConfigProvider, IExtHostConfiguration } from './extHostConfiguration';
+import { nullExtensionDescription } from '../../services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { IExtensionApiFactory, IExtensionRegistries } from 'vs/workbench/api/common/extHost.api.impl';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionPaths, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { ExtensionIdentifierMap } from '../../../platform/extensions/common/extensions';
+import { IExtensionApiFactory, IExtensionRegistries } from './extHost.api.impl';
+import { IExtHostRpcService } from './extHostRpcService';
+import { IExtHostInitDataService } from './extHostInitDataService';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation';
+import { ExtensionPaths, IExtHostExtensionService } from './extHostExtensionService';
+import { ILogService } from '../../../platform/log/common/log';
+import { escapeRegExpCharacters } from '../../../base/common/strings';
 
 
 interface LoadFunction {

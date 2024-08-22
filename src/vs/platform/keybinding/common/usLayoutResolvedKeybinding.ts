@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode } from 'vs/base/common/keyCodes';
-import { SingleModifierChord, Chord, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-import { toEmptyArrayIfContainsNull } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode } from '../../../base/common/keyCodes';
+import { SingleModifierChord, Chord, KeyCodeChord, Keybinding } from '../../../base/common/keybindings';
+import { OperatingSystem } from '../../../base/common/platform';
+import { BaseResolvedKeybinding } from './baseResolvedKeybinding';
+import { toEmptyArrayIfContainsNull } from './resolvedKeybindingItem';
 
 /**
  * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding seeded with information about the current kb layout.

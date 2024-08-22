@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { localize, localize2 } from 'vs/nls';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InlineChatController, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IValidEditOperation } from 'vs/editor/common/model';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents';
+import { IEditorContribution } from '../../../../editor/common/editorCommon';
+import { localize, localize2 } from '../../../../nls';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { IChatAgentService } from '../../chat/common/chatAgents';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { InlineChatController, State } from './inlineChatController';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE } from '../common/inlineChat';
+import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions';
+import { EditOperation } from '../../../../editor/common/core/editOperation';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { Range } from '../../../../editor/common/core/range';
+import { Position } from '../../../../editor/common/core/position';
+import { AbstractInlineChatAction } from './inlineChatActions';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys';
+import { IValidEditOperation } from '../../../../editor/common/model';
 
 
 export const CTX_INLINE_CHAT_EXPANSION = new RawContextKey<boolean>('inlineChatExpansion', false, localize('inlineChatExpansion', "Whether the inline chat expansion is enabled when at the end of a just-typed line"));

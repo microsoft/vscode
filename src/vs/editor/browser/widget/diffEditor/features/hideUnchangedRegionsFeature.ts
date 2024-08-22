@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, getWindow, h, reset } from 'vs/base/browser/dom';
-import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Codicon } from 'vs/base/common/codicons';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorun, derived, derivedWithStore, observableValue, transaction } from 'vs/base/common/observable';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isDefined } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel, RevealPreference, UnchangedRegion } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { SymbolKind, SymbolKinds } from 'vs/editor/common/languages';
-import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { $, addDisposableListener, getWindow, h, reset } from '../../../../../base/browser/dom';
+import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels';
+import { Codicon } from '../../../../../base/common/codicons';
+import { MarkdownString } from '../../../../../base/common/htmlContent';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle';
+import { IObservable, IReader, autorun, derived, derivedWithStore, observableValue, transaction } from '../../../../../base/common/observable';
+import { derivedDisposable } from '../../../../../base/common/observableInternal/derived';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { isDefined } from '../../../../../base/common/types';
+import { ICodeEditor } from '../../../editorBrowser';
+import { observableCodeEditor } from '../../../observableCodeEditor';
+import { DiffEditorEditors } from '../components/diffEditorEditors';
+import { DiffEditorOptions } from '../diffEditorOptions';
+import { DiffEditorViewModel, RevealPreference, UnchangedRegion } from '../diffEditorViewModel';
+import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle } from '../utils';
+import { EditorOption } from '../../../../common/config/editorOptions';
+import { LineRange } from '../../../../common/core/lineRange';
+import { Position } from '../../../../common/core/position';
+import { Range } from '../../../../common/core/range';
+import { CursorChangeReason } from '../../../../common/cursorEvents';
+import { SymbolKind, SymbolKinds } from '../../../../common/languages';
+import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from '../../../../common/model';
+import { localize } from '../../../../../nls';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
 
 /**
  * Make sure to add the view zones to the editor!

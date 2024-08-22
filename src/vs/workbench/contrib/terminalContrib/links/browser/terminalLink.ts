@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from '@xterm/xterm';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as dom from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import type { URI } from 'vs/base/common/uri';
-import type { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import * as dom from '../../../../../base/browser/dom';
+import { RunOnceScheduler } from '../../../../../base/common/async';
+import { convertBufferRangeToViewport } from './terminalLinkHelpers';
+import { isMacintosh } from '../../../../../base/common/platform';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TerminalLinkType } from './links';
+import type { URI } from '../../../../../base/common/uri';
+import type { IParsedLink } from './terminalLinkParsing';
+import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;

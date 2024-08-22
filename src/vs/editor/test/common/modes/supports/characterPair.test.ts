@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
-import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes';
+import { StandardAutoClosingPairConditional } from '../../../../common/languages/languageConfiguration';
+import { CharacterPairSupport } from '../../../../common/languages/supports/characterPair';
+import { TokenText, createFakeScopedLineTokens } from '../../modesTestUtils';
 
 suite('CharacterPairSupport', () => {
 

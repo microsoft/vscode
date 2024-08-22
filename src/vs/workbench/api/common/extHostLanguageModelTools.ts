@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IToolData, IToolDelta, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { revive } from '../../../base/common/marshalling';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol';
+import * as typeConvert from './extHostTypeConverters';
+import { IToolData, IToolDelta, IToolResult } from '../../contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {

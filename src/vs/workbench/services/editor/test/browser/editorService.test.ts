@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { ACTIVE_GROUP, IBaseSaveRevertAllEditorOptions, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { timeout } from 'vs/base/common/async';
-import { FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ErrorPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEditorPaneService } from 'vs/workbench/services/editor/common/editorPaneService';
+import { EditorActivation, IResourceEditorInput } from '../../../../../platform/editor/common/editor';
+import { URI } from '../../../../../base/common/uri';
+import { Event } from '../../../../../base/common/event';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from '../../../../common/editor';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput, workbenchTeardown } from '../../../../test/browser/workbenchTestServices';
+import { EditorService } from '../../browser/editorService';
+import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from '../../common/editorGroupsService';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart';
+import { ACTIVE_GROUP, IBaseSaveRevertAllEditorOptions, IEditorService, PreferredGroup, SIDE_GROUP } from '../../common/editorService';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors';
+import { FileEditorInput } from '../../../../contrib/files/browser/editors/fileEditorInput';
+import { timeout } from '../../../../../base/common/async';
+import { FileOperationEvent, FileOperation } from '../../../../../platform/files/common/files';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService';
+import { RegisteredEditorPriority } from '../../common/editorResolverService';
+import { WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput';
+import { EditorInput } from '../../../../common/editor/editorInput';
+import { ErrorPlaceholderEditor } from '../../../../browser/parts/editor/editorPlaceholder';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { IEditorPaneService } from '../../common/editorPaneService';
 
 suite('EditorService', () => {
 

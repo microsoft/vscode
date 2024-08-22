@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy } from 'vs/base/common/arrays';
-import { findLastMax, findFirstMin } from 'vs/base/common/arraysFind';
-import { CursorState, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
-import { Cursor } from 'vs/editor/common/cursor/oneCursor';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { compareBy } from '../../../base/common/arrays';
+import { findLastMax, findFirstMin } from '../../../base/common/arraysFind';
+import { CursorState, PartialCursorState } from '../cursorCommon';
+import { CursorContext } from './cursorContext';
+import { Cursor } from './oneCursor';
+import { Position } from '../core/position';
+import { Range } from '../core/range';
+import { ISelection, Selection } from '../core/selection';
 
 export class CursorCollection {
 

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
-import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { Event } from '../../../base/common/event';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { illegalState } from '../../../base/common/errors';
+import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol';
+import { TextEdit } from './extHostTypes';
+import { Range, TextDocumentSaveReason, EndOfLine } from './extHostTypeConverters';
+import { ExtHostDocuments } from './extHostDocuments';
+import { SaveReason } from '../../common/editor';
 import type * as vscode from 'vscode';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { LinkedList } from '../../../base/common/linkedList';
+import { ILogService } from '../../../platform/log/common/log';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
 
 type Listener = [Function, any, IExtensionDescription];
 

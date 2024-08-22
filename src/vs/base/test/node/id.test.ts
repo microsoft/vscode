@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getMachineId, getSqmMachineId, getdevDeviceId } from 'vs/base/node/id';
-import { getMac } from 'vs/base/node/macAddress';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { getMachineId, getSqmMachineId, getdevDeviceId } from '../../node/id';
+import { getMac } from '../../node/macAddress';
+import { flakySuite } from './testUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils';
 
 flakySuite('ID', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { DebounceEmitter, Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandAction, ILocalizedString } from 'vs/platform/action/common/action';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { removeFastWithoutKeepingOrder } from 'vs/base/common/arrays';
-import { localize } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { RunOnceScheduler } from '../../../base/common/async';
+import { DebounceEmitter, Emitter, Event } from '../../../base/common/event';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from './actions';
+import { ICommandAction, ILocalizedString } from '../../action/common/action';
+import { ICommandService } from '../../commands/common/commands';
+import { ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey';
+import { IAction, Separator, toAction } from '../../../base/common/actions';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage';
+import { removeFastWithoutKeepingOrder } from '../../../base/common/arrays';
+import { localize } from '../../../nls';
+import { IKeybindingService } from '../../keybinding/common/keybinding';
 
 export class MenuService implements IMenuService {
 

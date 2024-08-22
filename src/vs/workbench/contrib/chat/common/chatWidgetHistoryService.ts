@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CHAT_PROVIDER_ID } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+import { Emitter, Event } from '../../../../base/common/event';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { Memento } from '../../../common/memento';
+import { ChatAgentLocation } from './chatAgents';
+import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes';
 
 export interface IChatHistoryEntry {
 	text: string;

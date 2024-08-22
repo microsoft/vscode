@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CoreNavigationCommands, NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
-import { IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { IViewModel } from 'vs/editor/common/viewModel';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as platform from 'vs/base/common/platform';
+import { IKeyboardEvent } from '../../../base/browser/keyboardEvent';
+import { CoreNavigationCommands, NavigationCommandRevealType } from '../coreCommands';
+import { IEditorMouseEvent, IPartialEditorMouseEvent } from '../editorBrowser';
+import { ViewUserInputEvents } from './viewUserInputEvents';
+import { Position } from '../../common/core/position';
+import { Selection } from '../../common/core/selection';
+import { IEditorConfiguration } from '../../common/config/editorConfiguration';
+import { IViewModel } from '../../common/viewModel';
+import { IMouseWheelEvent } from '../../../base/browser/mouseEvent';
+import { EditorOption } from '../../common/config/editorOptions';
+import * as platform from '../../../base/common/platform';
 
 export interface IMouseDispatchData {
 	position: Position;

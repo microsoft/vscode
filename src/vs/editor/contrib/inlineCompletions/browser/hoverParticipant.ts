@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, constObservable } from 'vs/base/common/observable';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import * as nls from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import * as dom from '../../../../base/browser/dom';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { autorun, constObservable } from '../../../../base/common/observable';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Range } from '../../../common/core/range';
+import { ILanguageService } from '../../../common/languages/language';
+import { IModelDecoration } from '../../../common/model';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../hover/browser/hoverTypes';
+import { InlineCompletionsController } from './inlineCompletionsController';
+import { InlineSuggestionHintsContentWidget } from './inlineCompletionsHintsWidget';
+import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer';
+import * as nls from '../../../../nls';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(

@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
-import { CompletionContext, CompletionItem, CompletionItemKind } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { ChatAgentLocation, getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { Position } from '../../../../../editor/common/core/position';
+import { Range } from '../../../../../editor/common/core/range';
+import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper';
+import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../../editor/common/languages';
+import { ITextModel } from '../../../../../editor/common/model';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures';
+import { localize } from '../../../../../nls';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { Registry } from '../../../../../platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions';
+import { SubmitAction } from '../actions/chatExecuteActions';
+import { IChatWidget, IChatWidgetService } from '../chat';
+import { ChatInputPart } from '../chatInputPart';
+import { SelectAndInsertFileAction } from './chatDynamicVariables';
+import { ChatAgentLocation, getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../common/chatAgents';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes';
+import { IChatSlashCommandService } from '../../common/chatSlashCommands';
+import { IChatVariablesService } from '../../common/chatVariables';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService';
+import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(

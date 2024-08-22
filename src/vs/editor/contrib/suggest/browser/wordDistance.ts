@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CompletionItem, CompletionItemKind } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/bracketSelections';
+import { binarySearch, isFalsyOrEmpty } from '../../../../base/common/arrays';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { IPosition } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { CompletionItem, CompletionItemKind } from '../../../common/languages';
+import { IEditorWorkerService } from '../../../common/services/editorWorker';
+import { BracketSelectionRangeProvider } from '../../smartSelect/browser/bracketSelections';
 
 export abstract class WordDistance {
 

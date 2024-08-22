@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationSource, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { IAction } from '../../../base/common/actions';
+import { DeferredPromise } from '../../../base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { INotificationSource, NotificationPriority } from '../../notification/common/notification';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 

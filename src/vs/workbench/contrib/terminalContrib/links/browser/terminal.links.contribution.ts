@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager, isTerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
-import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
-import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
+import { Event } from '../../../../../base/common/event';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { localize2 } from '../../../../../nls';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal, isDetachedTerminalInstance } from '../../../terminal/browser/terminal';
+import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager';
+import { ITerminalProcessInfo, ITerminalProcessManager, isTerminalProcessManager } from '../../../terminal/common/terminal';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey';
+import { terminalStrings } from '../../../terminal/common/terminalStrings';
+import { ITerminalLinkProviderService } from './links';
+import { IDetectedLinks, TerminalLinkManager } from './terminalLinkManager';
+import { TerminalLinkProviderService } from './terminalLinkProviderService';
+import { TerminalLinkQuickpick } from './terminalLinkQuickpick';
+import { TerminalLinkResolver } from './terminalLinkResolver';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { TerminalLinksCommandId } from 'vs/workbench/contrib/terminalContrib/links/common/terminal.links';
-import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { TerminalLinksCommandId } from '../common/terminal.links';
+import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView';
 
 // #region Services
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
-import { MenuHiddenStatesReset } from 'vs/platform/actions/common/menuResetAction';
-import { MenuService } from 'vs/platform/actions/common/menuService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IMenuService, registerAction2 } from './actions';
+import { MenuHiddenStatesReset } from './menuResetAction';
+import { MenuService } from './menuService';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions';
 
 registerSingleton(IMenuService, MenuService, InstantiationType.Delayed);
 

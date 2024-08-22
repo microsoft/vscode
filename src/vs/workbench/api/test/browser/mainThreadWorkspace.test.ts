@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { IFileQuery, ISearchService } from 'vs/workbench/services/search/common/search';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol';
+import { IFileQuery, ISearchService } from '../../../services/search/common/search';
+import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices';
 
 suite('MainThreadWorkspace', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

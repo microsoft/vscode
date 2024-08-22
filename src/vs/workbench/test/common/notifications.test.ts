@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType, INotificationsFilter } from 'vs/workbench/common/notifications';
-import { Action } from 'vs/base/common/actions';
-import { INotification, Severity, NotificationsFilter, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType, INotificationsFilter } from '../../common/notifications';
+import { Action } from '../../../base/common/actions';
+import { INotification, Severity, NotificationsFilter, NotificationPriority } from '../../../platform/notification/common/notification';
+import { createErrorWithActions } from '../../../base/common/errorMessage';
+import { NotificationService } from '../../services/notification/common/notificationService';
+import { TestStorageService } from './workbenchTestServices';
+import { timeout } from '../../../base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils';
+import { DisposableStore } from '../../../base/common/lifecycle';
 
 suite('Notifications', () => {
 

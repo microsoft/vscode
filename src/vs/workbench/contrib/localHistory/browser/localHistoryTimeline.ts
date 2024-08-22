@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITimelineService, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { URI } from 'vs/base/common/uri';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IFileService } from 'vs/platform/files/common/files';
-import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getVirtualWorkspaceAuthority } from 'vs/platform/workspace/common/virtualWorkspace';
+import { localize } from '../../../../nls';
+import { Emitter } from '../../../../base/common/event';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ITimelineService, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider } from '../../timeline/common/timeline';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from '../../../services/workingCopy/common/workingCopyHistory';
+import { URI } from '../../../../base/common/uri';
+import { IPathService } from '../../../services/path/common/pathService';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands';
+import { IFileService } from '../../../../platform/files/common/files';
+import { LocalHistoryFileSystemProvider } from './localHistoryFileSystemProvider';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService';
+import { SaveSourceRegistry } from '../../../common/editor';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from './localHistoryCommands';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from './localHistory';
+import { Schemas } from '../../../../base/common/network';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { getVirtualWorkspaceAuthority } from '../../../../platform/workspace/common/virtualWorkspace';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 

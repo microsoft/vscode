@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import * as DOM from '../../../../../base/browser/dom';
+import * as nls from '../../../../../nls';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from './diffElementViewModel';
+import { DiffSide, INotebookTextDiffEditor } from './notebookDiffEditorBrowser';
+import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from '../notebookBrowser';
+import { NotebookTextModel } from '../../common/model/notebookTextModel';
+import { NotebookCellOutputsSplice } from '../../common/notebookCommon';
+import { INotebookService } from '../../common/notebookService';
+import { DiffNestedCellViewModel } from './diffNestedCellViewModel';
+import { ThemeIcon } from '../../../../../base/common/themables';
+import { mimetypeIcon } from '../notebookIcons';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent';
+import { KeyCode } from '../../../../../base/common/keyCodes';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;

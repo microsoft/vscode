@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as nls from '../../../../nls';
+import * as Objects from '../../../../base/common/objects';
+import { IJSONSchema } from '../../../../base/common/jsonSchema';
 
-import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ProblemMatcherRegistry } from './problemMatcher';
 
 import commonSchema from './jsonSchemaCommon';
 

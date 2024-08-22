@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Action, Separator } from 'vs/base/common/actions';
-import { localize } from 'vs/nls';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLElement, isHTMLInputElement, isHTMLTextAreaElement } from 'vs/base/browser/dom';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { isNative } from 'vs/base/common/platform';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Event as BaseEvent } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
+import { IAction, Action, Separator } from '../../../base/common/actions';
+import { localize } from '../../../nls';
+import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView';
+import { Disposable } from '../../../base/common/lifecycle';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLElement, isHTMLInputElement, isHTMLTextAreaElement } from '../../../base/browser/dom';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions';
+import { isNative } from '../../../base/common/platform';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent';
+import { Event as BaseEvent } from '../../../base/common/event';
+import { Lazy } from '../../../base/common/lazy';
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 

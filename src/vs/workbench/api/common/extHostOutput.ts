@@ -5,21 +5,21 @@
 
 import { MainContext, MainThreadOutputServiceShape, ExtHostOutputServiceShape } from './extHost.protocol';
 import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { AbstractMessageLogger, ILogger, ILoggerService, ILogService, log, LogLevel, parseLogLevel } from 'vs/platform/log/common/log';
-import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
-import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { toLocalISOString } from 'vs/base/common/date';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { isString } from 'vs/base/common/types';
-import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IExtHostRpcService } from './extHostRpcService';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { AbstractMessageLogger, ILogger, ILoggerService, ILogService, log, LogLevel, parseLogLevel } from '../../../platform/log/common/log';
+import { OutputChannelUpdateMode } from '../../services/output/common/output';
+import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer';
+import { IExtHostInitDataService } from './extHostInitDataService';
+import { IExtHostFileSystemInfo } from './extHostFileSystemInfo';
+import { toLocalISOString } from '../../../base/common/date';
+import { VSBuffer } from '../../../base/common/buffer';
+import { isString } from '../../../base/common/types';
+import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../platform/files/common/files';
+import { Emitter } from '../../../base/common/event';
+import { DisposableStore } from '../../../base/common/lifecycle';
 
 class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOutputChannel {
 

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { joinPath } from 'vs/base/common/resources';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { Event } from '../../../../base/common/event';
+import { joinPath } from '../../../../base/common/resources';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IEnvironmentService } from '../../../environment/common/environment';
+import { IFileService } from '../../../files/common/files';
+import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile';
+import { UserDataAutoSyncService } from '../../common/userDataAutoSyncService';
+import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from '../../common/userDataSync';
+import { IUserDataSyncMachinesService } from '../../common/userDataSyncMachines';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected override startAutoSync(): boolean { return false; }

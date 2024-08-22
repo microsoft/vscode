@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/model';
-import { URI } from 'vs/base/common/uri';
-import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Event } from '../../../../../base/common/event';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { mock } from '../../../../test/common/workbenchTestServices';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IModelService } from '../../../../../editor/common/services/model';
+import { URI } from '../../../../../base/common/uri';
+import { BulkFileOperations } from '../../browser/preview/bulkEditPreview';
+import { Range } from '../../../../../editor/common/core/range';
+import { ResourceFileEdit, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('BulkEditPreview', function () {
 

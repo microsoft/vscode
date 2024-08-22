@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { EditorAutoSave } from 'vs/workbench/browser/parts/editor/editorAutoSave';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { Event } from '../../../../../base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService, TestTextResourceConfigurationService } from '../../../../test/browser/workbenchTestServices';
+import { ITextFileEditorModel } from '../../../../services/textfile/common/textfiles';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { TextFileEditorModelManager } from '../../../../services/textfile/common/textFileEditorModelManager';
+import { EditorService } from '../../../../services/editor/browser/editorService';
+import { EditorAutoSave } from '../../../../browser/parts/editor/editorAutoSave';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor';
+import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace';
+import { TestContextService, TestMarkerService } from '../../../../test/common/workbenchTestServices';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
 
 suite('EditorAutoSave', () => {
 

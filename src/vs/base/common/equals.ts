@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
+import * as arrays from './arrays';
 
 export type EqualityComparer<T> = (a: T, b: T) => boolean;
 

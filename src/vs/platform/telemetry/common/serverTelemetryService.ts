@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation';
+import { IProductService } from '../../product/common/productService';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from './telemetry';
+import { ITelemetryServiceConfig, TelemetryService } from './telemetryService';
+import { NullTelemetryServiceShape } from './telemetryUtils';
 
 export interface IServerTelemetryService extends ITelemetryService {
 	updateInjectedTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;

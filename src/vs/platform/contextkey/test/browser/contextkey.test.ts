@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService, setContext } from 'vs/platform/contextkey/browser/contextKeyService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DeferredPromise } from '../../../../base/common/async';
+import { URI } from '../../../../base/common/uri';
+import { mock } from '../../../../base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { IConfigurationService } from '../../../configuration/common/configuration';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService';
+import { ContextKeyService, setContext } from '../../browser/contextKeyService';
+import { ContextKeyExpr, IContextKeyService } from '../../common/contextkey';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock';
+import { ITelemetryService } from '../../../telemetry/common/telemetry';
 
 suite('ContextKeyService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();

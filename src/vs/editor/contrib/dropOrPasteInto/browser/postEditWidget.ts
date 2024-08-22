@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { toAction } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as dom from '../../../../base/browser/dom';
+import { Button } from '../../../../base/browser/ui/button/button';
+import { toAction } from '../../../../base/common/actions';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import { isCancellationError } from '../../../../base/common/errors';
+import { Event } from '../../../../base/common/event';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle';
 import 'vs/css!./postEditWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import { DocumentDropEdit, DocumentPasteEdit } from 'vs/editor/common/languages';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { createCombinedWorkspaceEdit } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser';
+import { IBulkEditResult, IBulkEditService } from '../../../browser/services/bulkEditService';
+import { Range } from '../../../common/core/range';
+import { DocumentDropEdit, DocumentPasteEdit } from '../../../common/languages';
+import { TrackedRangeStickiness } from '../../../common/model';
+import { createCombinedWorkspaceEdit } from './edit';
+import { localize } from '../../../../nls';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { INotificationService } from '../../../../platform/notification/common/notification';
 
 
 interface EditSet<Edit extends DocumentPasteEdit | DocumentDropEdit> {

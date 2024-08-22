@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor, createEditorPart, TestEnvironmentService, TestFileService, workbenchTeardown, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IResolvedTextFileEditorModel, snapshotToString, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { Event } from '../../../../../base/common/event';
+import { TextFileEditorTracker } from '../../browser/editors/textFileEditorTracker';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor, createEditorPart, TestEnvironmentService, TestFileService, workbenchTeardown, TestTextResourceConfigurationService } from '../../../../test/browser/workbenchTestServices';
+import { IResolvedTextFileEditorModel, snapshotToString, ITextFileService } from '../../../../services/textfile/common/textfiles';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService';
+import { timeout } from '../../../../../base/common/async';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { TextFileEditorModelManager } from '../../../../services/textfile/common/textFileEditorModelManager';
+import { EditorService } from '../../../../services/editor/browser/editorService';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput';
+import { isEqual } from '../../../../../base/common/resources';
+import { URI } from '../../../../../base/common/uri';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { FILE_EDITOR_INPUT_ID } from '../../common/files';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor';
+import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace';
+import { TestContextService, TestMarkerService } from '../../../../test/common/workbenchTestServices';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService';
 
 suite('Files - TextFileEditorTracker', () => {
 

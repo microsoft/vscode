@@ -3,86 +3,86 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as glob from 'vs/base/common/glob';
-import * as json from 'vs/base/common/json';
-import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { LRUCache, Touch } from 'vs/base/common/map';
-import * as Objects from 'vs/base/common/objects';
-import { ValidationState, ValidationStatus } from 'vs/base/common/parsers';
-import * as Platform from 'vs/base/common/platform';
-import { TerminateResponseCode } from 'vs/base/common/processes';
-import * as resources from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import * as Types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import * as nls from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INamedProblemMatcher, ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Action } from '../../../../base/common/actions';
+import { IStringDictionary } from '../../../../base/common/collections';
+import { Emitter, Event } from '../../../../base/common/event';
+import * as glob from '../../../../base/common/glob';
+import * as json from '../../../../base/common/json';
+import { Disposable, dispose, IDisposable, IReference } from '../../../../base/common/lifecycle';
+import { LRUCache, Touch } from '../../../../base/common/map';
+import * as Objects from '../../../../base/common/objects';
+import { ValidationState, ValidationStatus } from '../../../../base/common/parsers';
+import * as Platform from '../../../../base/common/platform';
+import { TerminateResponseCode } from '../../../../base/common/processes';
+import * as resources from '../../../../base/common/resources';
+import Severity from '../../../../base/common/severity';
+import * as Types from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import * as UUID from '../../../../base/common/uuid';
+import * as nls from '../../../../nls';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IFileService, IFileStatWithPartialMetadata } from '../../../../platform/files/common/files';
+import { IMarkerService } from '../../../../platform/markers/common/markers';
+import { IProgressOptions, IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { INamedProblemMatcher, ProblemMatcherRegistry } from '../common/problemMatcher';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
 
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
 
-import { IModelService } from 'vs/editor/common/services/model';
+import { IModelService } from '../../../../editor/common/services/model';
 
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Markers } from 'vs/workbench/contrib/markers/common/markers';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from '../../../../platform/workspace/common/workspace';
+import { Markers } from '../../markers/common/markers';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
-import { IOutputChannel, IOutputService } from 'vs/workbench/services/output/common/output';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IOutputChannel, IOutputService } from '../../../services/output/common/output';
+import { ITextFileService } from '../../../services/textfile/common/textfiles';
 
-import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal';
+import { ITerminalProfileResolverService } from '../../terminal/common/terminal';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
-import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks';
+import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService';
+import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from '../common/taskSystem';
+import { getTemplates as getTaskTemplates } from '../common/taskTemplates';
 
 import * as TaskConfig from '../common/taskConfiguration';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput';
 
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
-import { raceTimeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toFormattedString } from 'vs/base/common/jsonFormatter';
-import { Schemas } from 'vs/base/common/network';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
-import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { raceTimeout } from '../../../../base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { toFormattedString } from '../../../../base/common/jsonFormatter';
+import { Schemas } from '../../../../base/common/network';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { TerminalExitReason } from '../../../../platform/terminal/common/terminal';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust';
+import { VirtualWorkspaceContext } from '../../../common/contextkeys';
+import { EditorResourceAccessor, SaveReason } from '../../../common/editor';
+import { IViewDescriptorService } from '../../../common/views';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from './taskQuickPick';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService';
+import { ILifecycleService, ShutdownReason, StartupKind } from '../../../services/lifecycle/common/lifecycle';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite';
+import { IPathService } from '../../../services/path/common/pathService';
+import { IPreferencesService } from '../../../services/preferences/common/preferences';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';

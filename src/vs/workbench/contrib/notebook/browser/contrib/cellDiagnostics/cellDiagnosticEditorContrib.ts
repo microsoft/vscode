@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { IRange } from 'vs/editor/common/core/range';
-import { ICellExecutionError, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { Iterable } from 'vs/base/common/iterator';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle';
+import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers';
+import { IRange } from '../../../../../../editor/common/core/range';
+import { ICellExecutionError, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { CellKind, NotebookSetting } from '../../../common/notebookCommon';
+import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser';
+import { registerNotebookContribution } from '../../notebookEditorExtensions';
+import { Iterable } from '../../../../../../base/common/iterator';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel';
+import { URI } from '../../../../../../base/common/uri';
+import { Event } from '../../../../../../base/common/event';
+import { IChatAgentService } from '../../../../chat/common/chatAgents';
 
 type CellDiagnostic = {
 	cellUri: URI;

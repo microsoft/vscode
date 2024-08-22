@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { FileAccess, Schemas } from '../../common/network';
+import { isWeb } from '../../common/platform';
+import { isEqual } from '../../common/resources';
+import { URI } from '../../common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('network', () => {
 

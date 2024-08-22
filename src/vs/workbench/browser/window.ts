@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { matchesScheme, Schemas } from 'vs/base/common/network';
-import { isIOS, isMacintosh } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { isSafari, setFullscreen } from '../../base/browser/browser';
+import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom';
+import { DomEmitter } from '../../base/browser/event';
+import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess';
+import { timeout } from '../../base/common/async';
+import { Event } from '../../base/common/event';
+import { Disposable, IDisposable, dispose, toDisposable } from '../../base/common/lifecycle';
+import { matchesScheme, Schemas } from '../../base/common/network';
+import { isIOS, isMacintosh } from '../../base/common/platform';
+import Severity from '../../base/common/severity';
+import { URI } from '../../base/common/uri';
+import { localize } from '../../nls';
+import { CommandsRegistry } from '../../platform/commands/common/commands';
+import { IDialogService, IPromptButton } from '../../platform/dialogs/common/dialogs';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../platform/label/common/label';
+import { IOpenerService } from '../../platform/opener/common/opener';
+import { IProductService } from '../../platform/product/common/productService';
+import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService';
+import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService';
+import { BrowserLifecycleService } from '../services/lifecycle/browser/lifecycleService';
+import { ILifecycleService, ShutdownReason } from '../services/lifecycle/common/lifecycle';
+import { IHostService } from '../services/host/browser/host';
+import { registerWindowDriver } from '../services/driver/browser/driver';
+import { CodeWindow, isAuxiliaryWindow, mainWindow } from '../../base/browser/window';
+import { createSingleCallFunction } from '../../base/common/functional';
+import { IConfigurationService } from '../../platform/configuration/common/configuration';
+import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService';
 
 export abstract class BaseWindow extends Disposable {
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { IExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations';
 
 export type GalleryExtensionRecommendation = {
 	readonly extension: string;

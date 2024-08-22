@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { BrowserWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { mainWindow } from '../../../../base/browser/window';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment';
+import { IFileService } from '../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { BrowserWindowDriver } from '../browser/driver';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle';
 
 interface INativeWindowDriverHelper {
 	exitApplication(): Promise<void>;

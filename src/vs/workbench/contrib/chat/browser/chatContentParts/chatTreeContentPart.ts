@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileKind, FileType } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
-import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import * as dom from '../../../../../base/browser/dom';
+import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list';
+import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree';
+import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel';
+import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree';
+import { IAsyncDataSource, ITreeNode } from '../../../../../base/browser/ui/tree/tree';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle';
+import { localize } from '../../../../../nls';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { FileKind, FileType } from '../../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { IThemeService } from '../../../../../platform/theme/common/themeService';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels';
+import { ChatTreeItem } from '../chat';
+import { IDisposableReference, ResourcePool } from './chatCollections';
+import { IChatContentPart } from './chatContentParts';
+import { IChatProgressRenderableResponseContent } from '../../common/chatModel';
+import { IChatResponseProgressFileTreeData } from '../../common/chatService';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView';
+import { IFilesConfiguration } from '../../../files/common/files';
 
 const $ = dom.$;
 

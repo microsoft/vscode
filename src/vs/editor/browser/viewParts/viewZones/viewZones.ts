@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { IEditorWhitespace, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from 'vs/editor/common/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { IViewZone, IViewZoneChangeAccessor } from '../../editorBrowser';
+import { ViewPart } from '../../view/viewPart';
+import { Position } from '../../../common/core/position';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext';
+import { ViewContext } from '../../../common/viewModel/viewContext';
+import * as viewEvents from '../../../common/viewEvents';
+import { IEditorWhitespace, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../../../common/viewModel';
+import { EditorOption } from '../../../common/config/editorOptions';
 
 interface IMyViewZone {
 	whitespaceId: string;

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { FoldingController, RangesLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
-import { IndentRangeProvider } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
-import { Iterable } from 'vs/base/common/iterator';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { IActiveCodeEditor } from '../../../browser/editorBrowser';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../../documentSymbols/browser/outlineModel';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async';
+import { FoldingController, RangesLimitReporter } from '../../folding/browser/folding';
+import { SyntaxRangeProvider } from '../../folding/browser/syntaxRangeProvider';
+import { IndentRangeProvider } from '../../folding/browser/indentRangeProvider';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { FoldingRegions } from '../../folding/browser/foldingRanges';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement';
+import { Iterable } from '../../../../base/common/iterator';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { EditorOption } from '../../../common/config/editorOptions';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',

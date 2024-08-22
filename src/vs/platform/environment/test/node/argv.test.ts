@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
-import { addArg } from 'vs/platform/environment/node/argvHelper';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv';
+import { addArg } from '../../node/argvHelper';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
 	return {

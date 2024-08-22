@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { getDocumentSemanticTokens } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { canceled } from '../../../../../base/common/errors';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry';
+import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from '../../../../common/languages';
+import { ITextModel } from '../../../../common/model';
+import { getDocumentSemanticTokens } from '../../common/getSemanticTokens';
+import { createTextModel } from '../../../../test/common/testTextModel';
 
 suite('getSemanticTokens', () => {
 

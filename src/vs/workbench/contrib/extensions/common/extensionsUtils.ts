@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { localize } from '../../../../nls';
+import { Event } from '../../../../base/common/event';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier, InstallOperation } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState } from '../../../services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { Severity, INotificationService } from '../../../../platform/notification/common/notification';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;

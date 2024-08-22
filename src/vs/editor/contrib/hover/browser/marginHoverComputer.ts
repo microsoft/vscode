@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray } from 'vs/base/common/arrays';
-import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { GlyphMarginLane } from 'vs/editor/common/model';
+import { asArray } from '../../../../base/common/arrays';
+import { IMarkdownString, isEmptyMarkdownString } from '../../../../base/common/htmlContent';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { IHoverComputer } from './hoverOperation';
+import { GlyphMarginLane } from '../../../common/model';
 
 export type LaneOrLineNumber = GlyphMarginLane | 'lineNo';
 

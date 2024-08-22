@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from '../../common/fuzzyScorer';
+import { Schemas } from '../../common/network';
+import { basename, dirname, posix, sep, win32 } from '../../common/path';
+import { isWindows } from '../../common/platform';
+import { URI } from '../../common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 class ResourceAccessorClass implements IItemAccessor<URI> {
 

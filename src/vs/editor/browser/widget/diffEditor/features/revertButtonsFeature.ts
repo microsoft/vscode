@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, h, EventType } from 'vs/base/browser/dom';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorunWithStore, derived } from 'vs/base/common/observable';
-import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
-import { Range } from 'vs/editor/common/core/range';
-import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { GlyphMarginLane } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
+import { addDisposableListener, h, EventType } from '../../../../../base/browser/dom';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels';
+import { Codicon } from '../../../../../base/common/codicons';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle';
+import { IObservable, autorunWithStore, derived } from '../../../../../base/common/observable';
+import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from '../../../editorBrowser';
+import { DiffEditorEditors } from '../components/diffEditorEditors';
+import { DiffEditorOptions } from '../diffEditorOptions';
+import { DiffEditorViewModel } from '../diffEditorViewModel';
+import { DiffEditorWidget } from '../diffEditorWidget';
+import { LineRange, LineRangeSet } from '../../../../common/core/lineRange';
+import { Range } from '../../../../common/core/range';
+import { LineRangeMapping, RangeMapping } from '../../../../common/diff/rangeMapping';
+import { GlyphMarginLane } from '../../../../common/model';
+import { localize } from '../../../../../nls';
 
 const emptyArr: never[] = [];
 

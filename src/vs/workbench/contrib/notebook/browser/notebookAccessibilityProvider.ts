@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { observableFromEvent } from 'vs/base/common/observable';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { CellKind, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget';
+import { Event, Emitter } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { observableFromEvent } from '../../../../base/common/observable';
+import * as nls from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands';
+import { CellViewModel, NotebookViewModel } from './viewModel/notebookViewModelImpl';
+import { CellKind, NotebookCellExecutionState } from '../common/notebookCommon';
+import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from '../common/notebookExecutionStateService';
 
 export class NotebookAccessibilityProvider extends Disposable implements IListAccessibilityProvider<CellViewModel> {
 	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();

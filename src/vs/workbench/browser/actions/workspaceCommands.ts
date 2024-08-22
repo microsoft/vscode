@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { dirname } from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { localize, localize2 } from '../../../nls';
+import { hasWorkspaceFileExtension, IWorkspaceContextService } from '../../../platform/workspace/common/workspace';
+import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing';
+import { dirname } from '../../../base/common/resources';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { mnemonicButtonLabel } from '../../../base/common/labels';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands';
+import { FileKind } from '../../../platform/files/common/files';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../../platform/label/common/label';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from '../../../platform/quickinput/common/quickInput';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses';
+import { IModelService } from '../../../editor/common/services/model';
+import { ILanguageService } from '../../../editor/common/languages/language';
+import { IFileDialogService, IPickAndOpenOptions } from '../../../platform/dialogs/common/dialogs';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { Schemas } from '../../../base/common/network';
+import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/common/window';
+import { IRecent, IWorkspacesService } from '../../../platform/workspaces/common/workspaces';
+import { IPathService } from '../../services/path/common/pathService';
+import { ILocalizedString } from '../../../platform/action/common/action';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWorkspace', 'Add Folder to Workspace...');

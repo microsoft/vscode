@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalizedString, localize, localize2 } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { IAction } from 'vs/base/common/actions';
-import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarStyleContext, TitleBarVisibleContext } from 'vs/workbench/common/contextkeys';
-import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
+import { ILocalizedString, localize, localize2 } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { LayoutSettings } from '../../../services/layout/browser/layoutService';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity';
+import { IAction } from '../../../../base/common/actions';
+import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys';
+import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window';
 
 // --- Context Menu Actions --- //
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionTipsService, IExecutableBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { localize } from 'vs/nls';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionTipsService, IExecutableBasedExtensionTip } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendations, ExtensionRecommendation } from './extensionRecommendations';
+import { localize } from '../../../../nls';
+import { ExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations';
 
 export class ExeBasedRecommendations extends ExtensionRecommendations {
 

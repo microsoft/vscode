@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import * as nls from 'vs/nls';
-import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import * as dom from '../../../../base/browser/dom';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle';
+import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview';
+import { HistoryInputBox, IInputBoxStyles } from '../../../../base/browser/ui/inputbox/inputBox';
+import { Widget } from '../../../../base/browser/ui/widget';
+import { Codicon } from '../../../../base/common/codicons';
+import { Emitter, Event as CommonEvent } from '../../../../base/common/event';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import * as nls from '../../../../nls';
+import { ContextScopedHistoryInputBox } from '../../../../platform/history/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
 
 export interface IOptions {
 	placeholder?: string;

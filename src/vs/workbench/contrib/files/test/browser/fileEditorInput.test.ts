@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from 'vs/platform/files/common/files';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { timeout } from 'vs/base/common/async';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { FileEditorInputSerializer } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { URI } from '../../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils';
+import { FileEditorInput } from '../../browser/editors/fileEditorInput';
+import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFileStat } from '../../../../test/browser/workbenchTestServices';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from '../../../../common/editor';
+import { EncodingMode, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles';
+import { FileOperationResult, NotModifiedSinceFileOperationError, TooLargeFileOperationError } from '../../../../../platform/files/common/files';
+import { TextFileEditorModel } from '../../../../services/textfile/common/textFileEditorModel';
+import { timeout } from '../../../../../base/common/async';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { BinaryEditorModel } from '../../../../common/editor/binaryEditorModel';
+import { IResourceEditorInput } from '../../../../../platform/editor/common/editor';
+import { Registry } from '../../../../../platform/registry/common/platform';
+import { FileEditorInputSerializer } from '../../browser/editors/fileEditorHandler';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider';
+import { TextEditorService } from '../../../../services/textfile/common/textEditorService';
 
 suite('Files - FileEditorInput', () => {
 

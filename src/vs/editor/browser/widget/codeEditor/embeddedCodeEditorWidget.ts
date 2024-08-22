@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as objects from 'vs/base/common/objects';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { ConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import * as objects from '../../../../base/common/objects';
+import { ICodeEditor } from '../../editorBrowser';
+import { ICodeEditorService } from '../../services/codeEditorService';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from './codeEditorWidget';
+import { ConfigurationChangedEvent, IEditorOptions } from '../../../common/config/editorOptions';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
 
 export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 	private readonly _parentEditor: ICodeEditor;

@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as platform from 'vs/base/common/platform';
-import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
-import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { ColorScheme, isHighContrast } from 'vs/platform/theme/common/theme';
-import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
+import * as browser from '../../../../base/browser/browser';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode';
+import * as platform from '../../../../base/common/platform';
+import { IVisibleLine } from '../../view/viewLayer';
+import { RangeUtil } from './rangeUtil';
+import { StringBuilder } from '../../../common/core/stringBuilder';
+import { IEditorConfiguration } from '../../../common/config/editorConfiguration';
+import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from '../../../common/viewLayout/viewLineRenderer';
+import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData';
+import { InlineDecorationType } from '../../../common/viewModel';
+import { ColorScheme, isHighContrast } from '../../../../platform/theme/common/theme';
+import { EditorOption, EditorFontLigatures } from '../../../common/config/editorOptions';
+import { DomReadingContext } from './domReadingContext';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {

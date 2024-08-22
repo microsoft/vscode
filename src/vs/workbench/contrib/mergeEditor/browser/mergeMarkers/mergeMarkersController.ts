@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun, IObservable } from 'vs/base/common/observable';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel } from 'vs/editor/common/model';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import * as nls from 'vs/nls';
+import { h } from '../../../../../base/browser/dom';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle';
+import { autorun, IObservable } from '../../../../../base/common/observable';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser';
+import { ITextModel } from '../../../../../editor/common/model';
+import { LineRange } from '../model/lineRange';
+import { MergeEditorViewModel } from '../view/viewModel';
+import * as nls from '../../../../../nls';
 
 export const conflictMarkers = {
 	start: '<<<<<<<',

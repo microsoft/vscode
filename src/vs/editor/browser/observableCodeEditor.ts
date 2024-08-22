@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIfDefined, itemsEquals } from 'vs/base/common/equals';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
-import { TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { derivedWithSetter } from 'vs/base/common/observableInternal/derived';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { equalsIfDefined, itemsEquals } from '../../base/common/equals';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle';
+import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable';
+import { TransactionImpl } from '../../base/common/observableInternal/base';
+import { derivedWithSetter } from '../../base/common/observableInternal/derived';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser';
+import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions';
+import { Position } from '../common/core/position';
+import { Selection } from '../common/core/selection';
+import { ICursorSelectionChangedEvent } from '../common/cursorEvents';
+import { IModelDeltaDecoration, ITextModel } from '../common/model';
+import { IModelContentChangedEvent } from '../common/textModelEvents';
 
 /**
  * Returns a facade for the code editor that provides observables for various states/events.

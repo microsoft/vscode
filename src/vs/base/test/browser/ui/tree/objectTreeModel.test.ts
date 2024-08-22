@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IList } from '../../../../browser/ui/tree/indexTreeModel';
+import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel';
+import { ITreeFilter, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from '../../../../browser/ui/tree/tree';
+import { timeout } from '../../../../common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {

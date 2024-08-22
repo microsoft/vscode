@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { LinkedList } from '../../common/linkedList';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('LinkedList', function () {
 

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
-import { DefaultDropProvidersFeature } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
-import * as nls from 'vs/nls';
-import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions';
+import { editorConfigurationBaseNode } from '../../../common/config/editorConfigurationSchema';
+import { registerEditorFeature } from '../../../common/editorFeatures';
+import { DefaultDropProvidersFeature } from './defaultProviders';
+import * as nls from '../../../../nls';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { Registry } from '../../../../platform/registry/common/platform';
 import { DropIntoEditorController, changeDropTypeCommandId, defaultProviderConfig, dropWidgetVisibleCtx } from './dropIntoEditorController';
 
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);

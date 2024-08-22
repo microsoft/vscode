@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { IAddress } from './remoteAgentConnection';
 
 export const ISharedProcessTunnelService = createDecorator<ISharedProcessTunnelService>('sharedProcessTunnelService');
 

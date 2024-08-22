@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/terminalQuickFix';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
-import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
-import { freePort, gitCreatePr, gitPull, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
-import { TerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixService';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { localize2 } from '../../../../../nls';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal';
+import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey';
+import { ITerminalQuickFixService } from './quickFix';
+import { TerminalQuickFixAddon } from './quickFixAddon';
+import { freePort, gitCreatePr, gitPull, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from './terminalQuickFixBuiltinActions';
+import { TerminalQuickFixService } from './terminalQuickFixService';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
 // #region Services

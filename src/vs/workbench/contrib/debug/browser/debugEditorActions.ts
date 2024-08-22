@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { Action } from 'vs/base/common/actions';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import * as nls from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
-import { Repl } from 'vs/workbench/contrib/debug/browser/repl';
-import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { getDomNodePagePosition } from '../../../../base/browser/dom';
+import { Action } from '../../../../base/common/actions';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, registerEditorAction } from '../../../../editor/browser/editorExtensions';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { Position } from '../../../../editor/common/core/position';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
+import { MessageController } from '../../../../editor/contrib/message/browser/messageController';
+import * as nls from '../../../../nls';
+import { ILocalizedString } from '../../../../platform/action/common/action';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { PanelFocusContext } from '../../../common/contextkeys';
+import { CONTEXT_IN_CHAT_SESSION } from '../../chat/common/chatContextKeys';
+import { openBreakpointSource } from './breakpointsView';
+import { DisassemblyView } from './disassemblyView';
+import { Repl } from './repl';
+import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, WATCH_VIEW_ID } from '../common/debug';
+import { getEvaluatableExpressionAtPosition } from '../common/debugUtils';
+import { DisassemblyViewInput } from '../common/disassemblyViewInput';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IViewsService } from '../../../services/views/common/viewsService';
 
 class ToggleBreakpointAction extends Action2 {
 	constructor() {

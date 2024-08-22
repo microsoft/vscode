@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { BottomUpSample } from 'vs/platform/profiling/common/profilingModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { errorHandler } from 'vs/base/common/errors';
+import { ILogService } from '../../log/common/log';
+import { BottomUpSample } from './profilingModel';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { errorHandler } from '../../../base/common/errors';
 
 type TelemetrySampleData = {
 	selfTime: number;

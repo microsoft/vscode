@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
+import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from '../../dom';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IListRenderer, IListVirtualDelegate } from '../list/list';
+import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from '../list/listWidget';
+import { ISplitViewDescriptor, IView, Orientation, SplitView } from '../splitview/splitview';
+import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from './table';
+import { Emitter, Event } from '../../../common/event';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle';
+import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable';
+import { ISpliceable } from '../../../common/sequence';
 import 'vs/css!./table';
 
 // TODO@joao

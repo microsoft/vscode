@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService } from '../../../../platform/storage/common/storage';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer';
+import { IViewDescriptorService } from '../../../common/views';
+import { Testing } from '../common/constants';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService';
 
 export class TestingViewPaneContainer extends ViewPaneContainer {
 

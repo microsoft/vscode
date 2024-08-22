@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
-import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation';
+import { Event } from '../../../../../base/common/event';
+import { IDisposable } from '../../../../../base/common/lifecycle';
+import { IAction } from '../../../../../base/common/actions';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { URI } from '../../../../../base/common/uri';
+import { ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from '../../../../../platform/terminal/common/terminal';
+import { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities';
 
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {

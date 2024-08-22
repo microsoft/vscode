@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ParseError, parse, getNodeType } from 'vs/base/common/json';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as types from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
+import * as nls from '../../../../nls';
+import { ParseError, parse, getNodeType } from '../../../../base/common/json';
+import { IJSONSchema } from '../../../../base/common/jsonSchema';
+import * as types from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingMarkers, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from '../../../../editor/common/languages/languageConfiguration';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader';
+import { hash } from '../../../../base/common/hash';
+import { Disposable } from '../../../../base/common/lifecycle';
 
 interface IRegExp {
 	pattern: string;

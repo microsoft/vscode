@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { mock } from 'vs/base/test/common/mock';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { UriIdentityService } from '../../common/uriIdentityService';
+import { mock } from '../../../../base/test/common/mock';
+import { IFileService, FileSystemProviderCapabilities } from '../../../files/common/files';
+import { URI } from '../../../../base/common/uri';
+import { Event } from '../../../../base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('URI Identity', function () {
 

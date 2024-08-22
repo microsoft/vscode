@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IKeyMods, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions as QuickaccesExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { localize, localize2 } from '../../../../../nls';
+import { IKeyMods, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { IRange } from '../../../../../editor/common/core/range';
+import { AbstractGotoLineQuickAccessProvider } from '../../../../../editor/contrib/quickAccess/browser/gotoLineQuickAccess';
+import { Registry } from '../../../../../platform/registry/common/platform';
+import { IQuickAccessRegistry, Extensions as QuickaccesExtensions } from '../../../../../platform/quickinput/common/quickAccess';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { IWorkbenchEditorConfiguration } from '../../../../common/editor';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions';
+import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry';
+import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
+import { ITextEditorOptions } from '../../../../../platform/editor/common/editor';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 

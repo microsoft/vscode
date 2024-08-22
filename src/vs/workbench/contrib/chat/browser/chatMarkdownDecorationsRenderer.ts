@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { Location } from 'vs/editor/common/languages';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { asCssVariable } from 'vs/platform/theme/common/colorUtils';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
-import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import * as dom from '../../../../base/browser/dom';
+import { Button } from '../../../../base/browser/ui/button/button';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
+import { toErrorMessage } from '../../../../base/common/errorMessage';
+import { Lazy } from '../../../../base/common/lazy';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle';
+import { revive } from '../../../../base/common/marshalling';
+import { URI } from '../../../../base/common/uri';
+import { Location } from '../../../../editor/common/languages';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { ILogService } from '../../../../platform/log/common/log';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils';
+import { IChatWidgetService } from './chat';
+import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/chatColors';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes';
+import { IChatService } from '../common/chatService';
 import { contentRefUrl } from '../common/annotations';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IChatVariablesService } from '../common/chatVariables';
+import { ILanguageModelToolsService } from '../common/languageModelToolsService';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Event } from '../../../base/common/event';
+import * as types from '../../../base/common/types';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { IWorkspaceFolder } from '../../workspace/common/workspace';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 

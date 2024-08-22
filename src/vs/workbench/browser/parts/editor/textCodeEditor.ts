@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ITextEditorPane } from 'vs/workbench/common/editor';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { isEqual } from 'vs/base/common/resources';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { Dimension } from 'vs/base/browser/dom';
+import { localize } from '../../../../nls';
+import { URI } from '../../../../base/common/uri';
+import { assertIsDefined } from '../../../../base/common/types';
+import { ITextEditorPane } from '../../../common/editor';
+import { applyTextEditorOptions } from '../../../common/editor/editorOptions';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor';
+import { isEqual } from '../../../../base/common/resources';
+import { IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget';
+import { IEditorViewState, ScrollType } from '../../../../editor/common/editorCommon';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { AbstractTextEditor } from './textEditor';
+import { Dimension } from '../../../../base/browser/dom';
 
 /**
  * A text editor using the code editor widget.

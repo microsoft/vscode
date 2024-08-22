@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { EndOfLineSequence, FindMatch, SearchData } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { getMapForWordSeparators } from '../../../common/core/wordCharacterClassifier';
+import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper';
+import { EndOfLineSequence, FindMatch, SearchData } from '../../../common/model';
+import { TextModel } from '../../../common/model/textModel';
+import { SearchParams, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch';
+import { createTextModel } from '../testTextModel';
 
 // --------- Find
 suite('TextModelSearch', () => {

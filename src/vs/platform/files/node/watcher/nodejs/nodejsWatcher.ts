@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { patternsEquals } from 'vs/base/common/glob';
-import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
-import { isLinux } from 'vs/base/common/platform';
-import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { isEqual } from 'vs/base/common/extpath';
+import { Event } from '../../../../../base/common/event';
+import { patternsEquals } from '../../../../../base/common/glob';
+import { BaseWatcher } from '../baseWatcher';
+import { isLinux } from '../../../../../base/common/platform';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from '../../../common/watcher';
+import { NodeJSFileWatcherLibrary } from './nodejsWatcherLib';
+import { isEqual } from '../../../../../base/common/extpath';
 
 export interface INodeJSWatcherInstance {
 

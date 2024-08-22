@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Event, MicrotaskEmitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IAction, SubmenuAction } from '../../../base/common/actions';
+import { ThemeIcon } from '../../../base/common/themables';
+import { Event, MicrotaskEmitter } from '../../../base/common/event';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { LinkedList } from '../../../base/common/linkedList';
+import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from '../../action/common/action';
+import { Categories } from '../../action/common/actionCommonCategories';
+import { CommandsRegistry, ICommandService } from '../../commands/common/commands';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey';
+import { createDecorator, ServicesAccessor } from '../../instantiation/common/instantiation';
+import { IKeybindingRule, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry';
 
 export interface IMenuItem {
 	command: ICommandAction;

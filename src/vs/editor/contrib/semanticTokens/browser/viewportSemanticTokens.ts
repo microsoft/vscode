@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
-import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
-import { toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ISemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStyling';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from '../../../../base/common/async';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { ITextModel } from '../../../common/model';
+import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from '../common/getSemanticTokens';
+import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from '../common/semanticTokensConfig';
+import { toMultilineTokens2 } from '../../../common/services/semanticTokensProviderStyling';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry';
+import { DocumentRangeSemanticTokensProvider } from '../../../common/languages';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { ISemanticTokensStylingService } from '../../../common/services/semanticTokensStyling';
 
 export class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 

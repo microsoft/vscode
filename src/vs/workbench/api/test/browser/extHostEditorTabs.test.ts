@@ -5,13 +5,13 @@
 
 import type * as vscode from 'vscode';
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TextMergeTabInput, TextTabInput } from 'vs/workbench/api/common/extHostTypes';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../base/common/uri';
+import { mock } from '../../../../base/test/common/mock';
+import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from '../../common/extHost.protocol';
+import { ExtHostEditorTabs } from '../../common/extHostEditorTabs';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol';
+import { TextMergeTabInput, TextTabInput } from '../../common/extHostTypes';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('ExtHostEditorTabs', function () {
 

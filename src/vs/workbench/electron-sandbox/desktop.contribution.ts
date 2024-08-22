@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize, localize2 } from 'vs/nls';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
-import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sandbox/window';
-import product from 'vs/platform/product/common/product';
+import { Registry } from '../../platform/registry/common/platform';
+import { localize, localize2 } from '../../nls';
+import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/common/actions';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry';
+import { KeyMod, KeyCode } from '../../base/common/keyCodes';
+import { isLinux, isMacintosh, isWindows } from '../../base/common/platform';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from './actions/developerActions';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from './actions/windowActions';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey';
+import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry';
+import { CommandsRegistry } from '../../platform/commands/common/commands';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation';
+import { IsMacContext } from '../../platform/contextkey/common/contextkeys';
+import { INativeHostService } from '../../platform/native/common/native';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from '../../base/common/jsonSchema';
+import { InstallShellScriptAction, UninstallShellScriptAction } from './actions/installActions';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from '../common/contextkeys';
+import { TELEMETRY_SETTING_ID } from '../../platform/telemetry/common/telemetry';
+import { IConfigurationService } from '../../platform/configuration/common/configuration';
+import { ShutdownReason } from '../services/lifecycle/common/lifecycle';
+import { NativeWindow } from './window';
+import { ModifierKeyEmitter } from '../../base/browser/dom';
+import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from '../common/configuration';
+import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-sandbox/window';
+import product from '../../platform/product/common/product';
 
 // Actions
 (function registerActions(): void {

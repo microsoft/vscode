@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promiseWithResolvers } from 'vs/base/common/async';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { localize, localize2 } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { promiseWithResolvers } from '../../../../base/common/async';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { assertIsDefined } from '../../../../base/common/types';
+import { localize, localize2 } from '../../../../nls';
+import { ILocalizedString } from '../../../../platform/action/common/action';
+import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from '../../../../platform/actions/common/actions';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
 
 const builtInSource = localize('Built-In', "Built-In");
 const category: ILocalizedString = localize2('Create', 'Create');

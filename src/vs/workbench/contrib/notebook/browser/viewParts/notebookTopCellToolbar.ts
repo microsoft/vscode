@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
+import * as DOM from '../../../../../base/browser/dom';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar';
+import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { INotebookActionContext } from '../controller/coreActions';
+import { INotebookEditorDelegate } from '../notebookBrowser';
+import { NotebookOptions } from '../notebookOptions';
+import { CodiconActionViewItem } from '../view/cellParts/cellActionView';
 
 export class ListTopCellToolbar extends Disposable {
 	private readonly topCellToolbarContainer: HTMLElement;

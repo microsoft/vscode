@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { OperatingSystem } from 'vs/base/common/platform';
+import * as dom from '../../dom';
+import type { IManagedHover } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { UILabelProvider } from '../../../common/keybindingLabels';
+import { ResolvedKeybinding, ResolvedChord } from '../../../common/keybindings';
+import { Disposable } from '../../../common/lifecycle';
+import { equals } from '../../../common/objects';
+import { OperatingSystem } from '../../../common/platform';
 import 'vs/css!./keybindingLabel';
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls';
 
 const $ = dom.$;
 

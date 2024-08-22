@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
+import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from '../../../../../base/browser/dom';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle';
+import { MicrotaskDelay } from '../../../../../base/common/symbols';
 import 'vs/css!./media/terminalChatWidget';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { ITerminalInstance, type IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalStickyScrollContribution } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollContribution';
+import { localize } from '../../../../../nls';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { ChatAgentLocation } from '../../../chat/common/chatAgents';
+import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget';
+import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat';
+import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution';
 
 const enum Constants {
 	HorizontalMargin = 10,

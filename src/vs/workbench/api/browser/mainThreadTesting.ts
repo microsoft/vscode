@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, observableValue, transaction } from 'vs/base/common/observable';
-import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Event } from '../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { ISettableObservable, observableValue, transaction } from '../../../base/common/observable';
+import { WellDefinedPrefixTree } from '../../../base/common/prefixTree';
+import { URI } from '../../../base/common/uri';
+import { Range } from '../../../editor/common/core/range';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity';
+import { TestCoverage } from '../../contrib/testing/common/testCoverage';
+import { TestId } from '../../contrib/testing/common/testId';
+import { ITestProfileService } from '../../contrib/testing/common/testProfileService';
+import { LiveTestResult } from '../../contrib/testing/common/testResult';
+import { ITestResultService } from '../../contrib/testing/common/testResultService';
+import { IMainThreadTestController, ITestService } from '../../contrib/testing/common/testService';
+import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestResultState, TestRunProfileBitset, TestsDiffOp } from '../../contrib/testing/common/testTypes';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)

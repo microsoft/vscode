@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { BareFontInfo, FontInfo, IValidatedEditorOptions } from 'vs/editor/common/config/fontInfo';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { getWindow, getWindowById } from 'vs/base/browser/dom';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import * as browser from '../../../base/browser/browser';
+import * as arrays from '../../../base/common/arrays';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import * as objects from '../../../base/common/objects';
+import * as platform from '../../../base/common/platform';
+import { ElementSizeObserver } from './elementSizeObserver';
+import { FontMeasurements } from './fontMeasurements';
+import { migrateOptions } from './migrateOptions';
+import { TabFocus } from './tabFocus';
+import { ComputeOptionsMemory, ConfigurationChangedEvent, EditorOption, editorOptionsRegistry, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, IEnvironmentalOptions } from '../../common/config/editorOptions';
+import { EditorZoom } from '../../common/config/editorZoom';
+import { BareFontInfo, FontInfo, IValidatedEditorOptions } from '../../common/config/fontInfo';
+import { IDimension } from '../../common/core/dimension';
+import { IEditorConfiguration } from '../../common/config/editorConfiguration';
+import { AccessibilitySupport, IAccessibilityService } from '../../../platform/accessibility/common/accessibility';
+import { getWindow, getWindowById } from '../../../base/browser/dom';
+import { PixelRatio } from '../../../base/browser/pixelRatio';
+import { MenuId } from '../../../platform/actions/common/actions';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { insert } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { EditSessionIdentityMatch, IEditSessionIdentityCreateParticipant, IEditSessionIdentityProvider, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { insert } from '../../../../base/common/arrays';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ILogService } from '../../../../platform/log/common/log';
+import { EditSessionIdentityMatch, IEditSessionIdentityCreateParticipant, IEditSessionIdentityProvider, IEditSessionIdentityService } from '../../../../platform/workspace/common/editSessions';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace';
+import { IExtensionService } from '../../extensions/common/extensions';
 
 export class EditSessionIdentityService implements IEditSessionIdentityService {
 	readonly _serviceBrand: undefined;

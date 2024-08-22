@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CellEditState, CellFocusMode, CellFoldingState, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
-import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import * as DOM from '../../../../../../base/browser/dom';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels';
+import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation';
+import { Codicon } from '../../../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../../../base/common/themables';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys';
+import { ILanguageService } from '../../../../../../editor/common/languages/language';
+import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer';
+import { IReadonlyTextBuffer } from '../../../../../../editor/common/model';
+import { localize } from '../../../../../../nls';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding';
+import { CellEditState, CellFocusMode, CellFoldingState, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate, ICellViewModel } from '../../notebookBrowser';
+import { collapsedIcon, expandedIcon } from '../../notebookIcons';
+import { CellEditorOptions } from './cellEditorOptions';
+import { MarkdownCellRenderTemplate } from '../notebookRenderingCommon';
+import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel';
+import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter';
 
 export class MarkupCell extends Disposable {
 

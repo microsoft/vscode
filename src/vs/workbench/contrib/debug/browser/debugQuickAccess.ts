@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { localize } from 'vs/nls';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { ADD_CONFIGURATION_ID, DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { debugConfigure, debugRemoveConfig } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess';
+import { localize } from '../../../../nls';
+import { INotificationService } from '../../../../platform/notification/common/notification';
+import { IDebugService } from '../common/debug';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { matchesFuzzy } from '../../../../base/common/filters';
+import { ADD_CONFIGURATION_ID, DEBUG_QUICK_ACCESS_PREFIX } from './debugCommands';
+import { debugConfigure, debugRemoveConfig } from './debugIcons';
+import { ThemeIcon } from '../../../../base/common/themables';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 

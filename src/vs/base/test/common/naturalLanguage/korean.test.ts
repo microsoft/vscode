@@ -6,8 +6,8 @@
 // allow-any-unicode-file
 
 import { strictEqual } from 'assert';
-import { getKoreanAltChars } from 'vs/base/common/naturalLanguage/korean';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { getKoreanAltChars } from '../../../common/naturalLanguage/korean';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils';
 
 function getKoreanAltCharsForString(text: string): string {
 	let result = '';

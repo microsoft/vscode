@@ -8,12 +8,12 @@
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto, ExtHostStatusBarShape, StatusBarItemDto } from './extHost.protocol';
-import { localize } from 'vs/nls';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
-import { isNumber } from 'vs/base/common/types';
+import { localize } from '../../../nls';
+import { CommandsConverter } from './extHostCommands';
+import { DisposableStore } from '../../../base/common/lifecycle';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { MarkdownString } from './extHostTypeConverters';
+import { isNumber } from '../../../base/common/types';
 
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {

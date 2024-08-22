@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $ } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RepositoryActionRunner, RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { localize } from '../../../../nls';
+import { Event } from '../../../../base/common/event';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane';
+import { append, $ } from '../../../../base/browser/dom';
+import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from '../../../../base/browser/ui/list/list';
+import { ISCMRepository, ISCMViewService } from '../common/scm';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { IThemeService } from '../../../../platform/theme/common/themeService';
+import { WorkbenchList } from '../../../../platform/list/browser/listService';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IViewDescriptorService } from '../../../common/views';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer';
+import { collectContextMenuActions, getActionViewItemProvider } from './util';
+import { Orientation } from '../../../../base/browser/ui/sash/sash';
+import { Iterable } from '../../../../base/common/iterator';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 

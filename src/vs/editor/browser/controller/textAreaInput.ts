@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { inputLatency } from 'vs/base/browser/performance';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { OperatingSystem } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ILogService } from 'vs/platform/log/common/log';
+import * as browser from '../../../base/browser/browser';
+import * as dom from '../../../base/browser/dom';
+import { DomEmitter } from '../../../base/browser/event';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../base/browser/keyboardEvent';
+import { inputLatency } from '../../../base/browser/performance';
+import { RunOnceScheduler } from '../../../base/common/async';
+import { Emitter, Event } from '../../../base/common/event';
+import { KeyCode } from '../../../base/common/keyCodes';
+import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle';
+import { Mimes } from '../../../base/common/mime';
+import { OperatingSystem } from '../../../base/common/platform';
+import * as strings from '../../../base/common/strings';
+import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from './textAreaState';
+import { Position } from '../../common/core/position';
+import { Selection } from '../../common/core/selection';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility';
+import { ILogService } from '../../../platform/log/common/log';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';

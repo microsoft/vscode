@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as collections from 'vs/base/common/collections';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as collections from '../../common/collections';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('Collections', () => {
 

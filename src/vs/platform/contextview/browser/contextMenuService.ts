@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu';
+import { ModifierKeyEmitter } from '../../../base/browser/dom';
+import { IAction, Separator } from '../../../base/common/actions';
+import { Emitter } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { createAndFillInContextMenuActions } from '../../actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from '../../actions/common/actions';
+import { IContextKeyService } from '../../contextkey/common/contextkey';
+import { IKeybindingService } from '../../keybinding/common/keybinding';
+import { INotificationService } from '../../notification/common/notification';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ContextMenuHandler, IContextMenuHandlerOptions } from './contextMenuHandler';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from './contextView';
 

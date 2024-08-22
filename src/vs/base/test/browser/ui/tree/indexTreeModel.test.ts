@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IList, IndexTreeModel } from '../../../../browser/ui/tree/indexTreeModel';
+import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from '../../../../browser/ui/tree/tree';
+import { timeout } from '../../../../common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {

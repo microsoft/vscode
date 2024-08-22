@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyInitialContents, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, IUntitledFileWorkingCopySaveDelegate, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService } from 'vs/platform/files/common/files';
-import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { ResourceMap } from 'vs/base/common/map';
+import { DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle';
+import { URI } from '../../../../base/common/uri';
+import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyInitialContents, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, IUntitledFileWorkingCopySaveDelegate, UntitledFileWorkingCopy } from './untitledFileWorkingCopy';
+import { Event, Emitter } from '../../../../base/common/event';
+import { Schemas } from '../../../../base/common/network';
+import { IWorkingCopyService } from './workingCopyService';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IWorkingCopyBackupService } from './workingCopyBackup';
+import { IFileService } from '../../../../platform/files/common/files';
+import { BaseFileWorkingCopyManager, IBaseFileWorkingCopyManager } from './abstractFileWorkingCopyManager';
+import { ResourceMap } from '../../../../base/common/map';
 
 /**
  * The only one that should be dealing with `IUntitledFileWorkingCopy` and

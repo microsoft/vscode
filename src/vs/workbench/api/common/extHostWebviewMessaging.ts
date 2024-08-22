@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer } from '../../../base/common/buffer';
 import * as extHostProtocol from './extHost.protocol';
 
 class ArrayBufferSet {

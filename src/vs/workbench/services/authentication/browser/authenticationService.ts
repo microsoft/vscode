@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings';
+import { isString } from '../../../../base/common/types';
+import { localize } from '../../../../nls';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets';
+import { IAuthenticationAccessService } from './authenticationAccessService';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from '../common/authentication';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService';
+import { ActivationKind, IExtensionService } from '../../extensions/common/extensions';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 

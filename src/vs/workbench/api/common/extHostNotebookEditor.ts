@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { illegalArgument } from '../../../base/common/errors';
+import { MainThreadNotebookEditorsShape } from './extHost.protocol';
+import * as extHostConverter from './extHostTypeConverters';
+import * as extHostTypes from './extHostTypes';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
 

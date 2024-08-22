@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement } from 'vs/base/browser/dom';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize2 } from 'vs/nls';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getActiveElement } from '../../../../base/browser/dom';
+import { Codicon } from '../../../../base/common/codicons';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { ICodeEditor, IDiffEditor } from '../../editorBrowser';
+import { EditorAction2, ServicesAccessor } from '../../editorExtensions';
+import { ICodeEditorService } from '../../services/codeEditorService';
+import { DiffEditorWidget } from './diffEditorWidget';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { localize2 } from '../../../../nls';
+import { ILocalizedString } from '../../../../platform/action/common/action';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
 import './registrations.contribution';
-import { DiffEditorSelectionHunkToolbarContext } from 'vs/editor/browser/widget/diffEditor/features/gutterFeature';
-import { URI } from 'vs/base/common/uri';
+import { DiffEditorSelectionHunkToolbarContext } from './features/gutterFeature';
+import { URI } from '../../../../base/common/uri';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
+import * as dom from '../../../../base/browser/dom';
 
-import { IAction } from 'vs/base/common/actions';
-import { IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IRange } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IAction } from '../../../../base/common/actions';
+import { IMenu, SubmenuItemAction } from '../../../../platform/actions/common/actions';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { MarshalledId } from '../../../../base/common/marshallingIds';
+import { IRange } from '../../../../editor/common/core/range';
+import * as languages from '../../../../editor/common/languages';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { CommentFormActions } from './commentFormActions';
+import { CommentMenus } from './commentMenus';
+import { ICellRange } from '../../notebook/common/notebookRange';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
 
 export class CommentThreadAdditionalActions<T extends IRange | ICellRange> extends Disposable {
 	private _container: HTMLElement | null;

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, disposableTimeout, ThrottledDelayer, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toLocalISOString } from 'vs/base/common/date';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUserDataSyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, ThrottledDelayer, timeout } from '../../../base/common/async';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { toLocalISOString } from '../../../base/common/date';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { isCancellationError } from '../../../base/common/errors';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { isWeb } from '../../../base/common/platform';
+import { isEqual } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { IProductService } from '../../product/common/productService';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { IUserDataSyncTask, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from './userDataSync';
+import { IUserDataSyncAccountService } from './userDataSyncAccount';
+import { IUserDataSyncMachinesService } from './userDataSyncMachines';
 
 type AutoSyncClassification = {
 	owner: 'sandy081';

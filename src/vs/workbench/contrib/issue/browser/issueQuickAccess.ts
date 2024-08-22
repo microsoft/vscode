@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, FastAndSlowPicks, Picks, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Codicon } from 'vs/base/common/codicons';
-import { IssueSource } from 'vs/workbench/contrib/issue/common/issue';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, FastAndSlowPicks, Picks, TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions';
+import { matchesFuzzy } from '../../../../base/common/filters';
+import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput';
+import { localize } from '../../../../nls';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { IExtensionService } from '../../../services/extensions/common/extensions';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { Codicon } from '../../../../base/common/codicons';
+import { IssueSource } from '../common/issue';
+import { IProductService } from '../../../../platform/product/common/productService';
 
 export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 

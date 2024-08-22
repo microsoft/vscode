@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/path';
-import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import * as glob from '../../../../base/common/glob';
+import { URI } from '../../../../base/common/uri';
+import { basename } from '../../../../base/common/path';
+import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from './notebookCommon';
+import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
 
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 

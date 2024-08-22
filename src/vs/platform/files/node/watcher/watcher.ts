@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogMessage, IUniversalWatcher, IUniversalWatchRequest } from 'vs/platform/files/common/watcher';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
-import { Promises } from 'vs/base/common/async';
-import { computeStats } from 'vs/platform/files/node/watcher/watcherStats';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { ILogMessage, IUniversalWatcher, IUniversalWatchRequest } from '../../common/watcher';
+import { Emitter, Event } from '../../../../base/common/event';
+import { ParcelWatcher } from './parcel/parcelWatcher';
+import { NodeJSWatcher } from './nodejs/nodejsWatcher';
+import { Promises } from '../../../../base/common/async';
+import { computeStats } from './watcherStats';
 
 export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 

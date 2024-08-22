@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DomActivityTracker } from 'vs/workbench/services/userActivity/browser/domActivityTracker';
-import { userActivityRegistry } from 'vs/workbench/services/userActivity/common/userActivityRegistry';
+import { DomActivityTracker } from './domActivityTracker';
+import { userActivityRegistry } from '../common/userActivityRegistry';
 
 userActivityRegistry.add(DomActivityTracker);

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { isEmptyObject } from 'vs/base/common/types';
-import { ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
-import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { coalesce } from '../../../base/common/arrays';
+import { IStringDictionary } from '../../../base/common/collections';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable } from '../../../base/common/lifecycle';
+import { equals } from '../../../base/common/objects';
+import { isEmptyObject } from '../../../base/common/types';
+import { ConfigurationModel } from './configurationModels';
+import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from './configurationRegistry';
+import { ILogService, NullLogService } from '../../log/common/log';
+import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from '../../policy/common/policy';
+import { Registry } from '../../registry/common/platform';
 
 export class DefaultConfiguration extends Disposable {
 

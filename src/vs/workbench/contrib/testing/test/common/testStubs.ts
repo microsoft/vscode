@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { ITestItem, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
+import { URI } from '../../../../../base/common/uri';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection';
+import { ITestItem, TestsDiff } from '../../common/testTypes';
+import { TestId } from '../../common/testId';
+import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from '../../common/testItemCollection';
 
 export class TestTestItem implements ITestItemLike {
 	private readonly props: ITestItem;

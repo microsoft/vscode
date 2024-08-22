@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize2 } from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { URI } from 'vs/base/common/uri';
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { localize2 } from '../../../nls';
+import { INativeHostService } from '../../../platform/native/common/native';
+import { IEditorService } from '../../services/editor/common/editorService';
+import { Action2, MenuId } from '../../../platform/actions/common/actions';
+import { Categories } from '../../../platform/action/common/actionCommonCategories';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry';
+import { IsDevelopmentContext } from '../../../platform/contextkey/common/contextkeys';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes';
+import { IFileService } from '../../../platform/files/common/files';
+import { INativeWorkbenchEnvironmentService } from '../../services/environment/electron-sandbox/environmentService';
+import { URI } from '../../../base/common/uri';
+import { getActiveWindow } from '../../../base/browser/dom';
 
 export class ToggleDevToolsAction extends Action2 {
 

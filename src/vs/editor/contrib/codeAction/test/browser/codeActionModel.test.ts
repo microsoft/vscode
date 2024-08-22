@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { promiseWithResolvers } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { promiseWithResolvers } from '../../../../../base/common/async';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { assertType } from '../../../../../base/common/types';
+import { URI } from '../../../../../base/common/uri';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler';
+import { ICodeEditor } from '../../../../browser/editorBrowser';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry';
+import * as languages from '../../../../common/languages';
+import { TextModel } from '../../../../common/model/textModel';
+import { CodeActionModel, CodeActionsState } from '../../browser/codeActionModel';
+import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { createTextModel } from '../../../../test/common/testTextModel';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService';
+import { MarkerService } from '../../../../../platform/markers/common/markerService';
 
 const testProvider = {
 	provideCodeActions(): languages.CodeActionList {

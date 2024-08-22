@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event, Emitter } from '../../../../base/common/event';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { URI } from '../../../../base/common/uri';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
 
 /**
  * Mime type used by the output editor.

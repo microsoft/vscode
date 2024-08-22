@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'vs/base/common/assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IObservable } from 'vs/base/common/observable';
-import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Location } from 'vs/editor/common/languages';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
+import { assert } from '../../../../base/common/assert';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Event } from '../../../../base/common/event';
+import { Iterable } from '../../../../base/common/iterator';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { MarshalledId } from '../../../../base/common/marshallingIds';
+import { IObservable } from '../../../../base/common/observable';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../../base/common/prefixTree';
+import { URI } from '../../../../base/common/uri';
+import { Position } from '../../../../editor/common/core/position';
+import { Location } from '../../../../editor/common/languages';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { MutableObservableValue } from './observableValue';
+import { TestExclusions } from './testExclusions';
+import { TestId } from './testId';
+import { ITestResult } from './testResult';
+import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from './testTypes';
 
 export const ITestService = createDecorator<ITestService>('testService');
 

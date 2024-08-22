@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { StoredValue } from './storedValue';
 
 export interface IObservableValue<T> {
 	onDidChange: Event<T>;

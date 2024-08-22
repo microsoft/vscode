@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import * as UUID from 'vs/base/common/uuid';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutContext, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkupCellLayoutChangeEvent, MarkupCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookFindOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { Emitter, Event } from '../../../../../base/common/event';
+import * as UUID from '../../../../../base/common/uuid';
+import * as editorCommon from '../../../../../editor/common/editorCommon';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutContext, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkupCellLayoutChangeEvent, MarkupCellLayoutInfo } from '../notebookBrowser';
+import { BaseCellViewModel } from './baseCellViewModel';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel';
+import { CellKind, INotebookFindOptions } from '../../common/notebookCommon';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService';
+import { ViewContext } from './viewContext';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo';
+import { NotebookOptionsChangeEvent } from '../notebookOptions';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService';
+import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from '../notebookViewEvents';
 
 export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewModel {
 

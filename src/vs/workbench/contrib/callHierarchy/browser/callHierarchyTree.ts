@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { SymbolKinds, Location, SymbolTag } from 'vs/editor/common/languages';
-import { compare } from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from '../../../../base/browser/ui/tree/tree';
+import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from '../common/callHierarchy';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list';
+import { FuzzyScore, createMatches } from '../../../../base/common/filters';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel';
+import { SymbolKinds, Location, SymbolTag } from '../../../../editor/common/languages';
+import { compare } from '../../../../base/common/strings';
+import { Range } from '../../../../editor/common/core/range';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget';
+import { localize } from '../../../../nls';
+import { ThemeIcon } from '../../../../base/common/themables';
 
 export class Call {
 	constructor(

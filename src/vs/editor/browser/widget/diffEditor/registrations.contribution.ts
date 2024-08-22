@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { localize } from '../../../../nls';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry';
 
 export const diffMoveBorder = registerColor(
 	'diffEditor.move.border',

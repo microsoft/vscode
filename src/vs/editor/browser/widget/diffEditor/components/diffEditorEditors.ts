@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IReader, autorunHandleChanges, derived, derivedOpts, observableFromEvent } from 'vs/base/common/observable';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
-import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Emitter } from '../../../../../base/common/event';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { IReader, autorunHandleChanges, derived, derivedOpts, observableFromEvent } from '../../../../../base/common/observable';
+import { IEditorConstructionOptions } from '../../../config/editorConfiguration';
+import { IDiffEditorConstructionOptions } from '../../../editorBrowser';
+import { observableCodeEditor } from '../../../observableCodeEditor';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../codeEditor/codeEditorWidget';
+import { IDiffCodeEditorWidgetOptions } from '../diffEditorWidget';
+import { OverviewRulerFeature } from '../features/overviewRulerFeature';
+import { EditorOptions, IEditorOptions } from '../../../../common/config/editorOptions';
+import { Position } from '../../../../common/core/position';
+import { IContentSizeChangedEvent } from '../../../../common/editorCommon';
+import { localize } from '../../../../../nls';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding';
 import { DiffEditorOptions } from '../diffEditorOptions';
 
 export class DiffEditorEditors extends Disposable {

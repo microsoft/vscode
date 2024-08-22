@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from 'vs/workbench/contrib/chat/common/languageModels';
-import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors';
+import { Emitter, Event } from '../../../base/common/event';
+import { Iterable } from '../../../base/common/iterator';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { localize } from '../../../nls';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../platform/log/common/log';
+import { Progress } from '../../../platform/progress/common/progress';
+import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol';
+import { IExtHostAuthentication } from './extHostAuthentication';
+import { IExtHostRpcService } from './extHostRpcService';
+import * as typeConvert from './extHostTypeConverters';
+import * as extHostTypes from './extHostTypes';
+import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }

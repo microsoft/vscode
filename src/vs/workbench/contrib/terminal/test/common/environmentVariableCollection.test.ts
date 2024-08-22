@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { EnvironmentVariableMutatorType } from '../../../../../platform/terminal/common/environmentVariable';
+import { IProcessEnvironment, isWindows } from '../../../../../base/common/platform';
+import { MergedEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableCollection';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableShared';
+import { URI } from '../../../../../base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

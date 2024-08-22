@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { detectLinks, getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { Schemas } from '../../../../../base/common/network';
+import { OperatingSystem } from '../../../../../base/common/platform';
+import { URI } from '../../../../../base/common/uri';
+import { ICommandService } from '../../../../../platform/commands/common/commands';
+import { ITextEditorSelection } from '../../../../../platform/editor/common/editor';
+import { IFileService } from '../../../../../platform/files/common/files';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IOpenerService } from '../../../../../platform/opener/common/opener';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace';
+import { ITerminalLinkOpener, ITerminalSimpleLink } from './links';
+import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities';
+import { IEditorService } from '../../../../services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService';
+import { IHostService } from '../../../../services/host/browser/host';
+import { QueryBuilder } from '../../../../services/search/common/queryBuilder';
+import { ISearchService } from '../../../../services/search/common/search';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { detectLinks, getLinkSuffix } from './terminalLinkParsing';
+import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { isLowerAsciiLetter, isUpperAsciiLetter } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/languages';
+import { CharCode } from '../../../../base/common/charCode';
+import { isLowerAsciiLetter, isUpperAsciiLetter } from '../../../../base/common/strings';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { ITextModel } from '../../../common/model';
+import { SelectionRange, SelectionRangeProvider } from '../../../common/languages';
 
 export class WordSelectionRangeProvider implements SelectionRangeProvider {
 

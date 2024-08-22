@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
-import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService } from 'vs/editor/standalone/browser/standaloneServices';
-import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { KeyCode } from '../../../../base/common/keyCodes';
+import { DisposableStore } from '../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { StandaloneCodeEditorService } from '../../browser/standaloneCodeEditorService';
+import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService } from '../../browser/standaloneServices';
+import { StandaloneThemeService } from '../../browser/standaloneThemeService';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService';
+import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection';
+import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding';
+import { NullLogService } from '../../../../platform/log/common/log';
+import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils';
 
 suite('StandaloneKeybindingService', () => {
 

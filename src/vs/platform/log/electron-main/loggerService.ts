@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
-import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { ResourceMap } from '../../../base/common/map';
+import { URI } from '../../../base/common/uri';
+import { Event } from '../../../base/common/event';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation';
+import { DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, LogLevel, isLogLevel } from '../common/log';
+import { LoggerService } from '../node/loggerService';
 
 export const ILoggerMainService = refineServiceDecorator<ILoggerService, ILoggerMainService>(ILoggerService);
 

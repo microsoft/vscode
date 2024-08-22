@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironment, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { URI } from 'vs/base/common/uri';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation';
+import { IExtHostInitDataService } from './extHostInitDataService';
+import { ILogService } from '../../../platform/log/common/log';
+import { IEnvironment, IStaticWorkspaceData } from '../../services/extensions/common/extensionHostProtocol';
+import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer';
+import { URI } from '../../../base/common/uri';
 
 export const IExtensionStoragePaths = createDecorator<IExtensionStoragePaths>('IExtensionStoragePaths');
 

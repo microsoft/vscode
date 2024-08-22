@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollEvent } from 'vs/base/common/scrollable';
+import { isFirefox } from '../../browser';
+import { DataTransfers } from '../../dnd';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from '../../dom';
+import { DomEmitter } from '../../event';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { Gesture, EventType as TouchEventType } from '../../touch';
+import { IBoundarySashes, Orientation } from '../sash/sash';
+import { Color, RGBA } from '../../../common/color';
+import { Emitter, Event } from '../../../common/event';
+import { KeyCode } from '../../../common/keyCodes';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle';
+import { ScrollEvent } from '../../../common/scrollable';
 import 'vs/css!./paneview';
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls';
 import { IView, Sizing, SplitView } from './splitview';
 
 export interface IPaneOptions {

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { HydratedTestResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testTypes';
+import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from '../../../../base/common/buffer';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { isDefined } from '../../../../base/common/types';
+import { URI } from '../../../../base/common/uri';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment';
+import { IFileService } from '../../../../platform/files/common/files';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { StoredValue } from './storedValue';
+import { HydratedTestResult, ITestResult } from './testResult';
+import { ISerializedTestResults } from './testTypes';
 
 export const RETAIN_MAX_RESULTS = 128;
 const RETAIN_MIN_RESULTS = 16;

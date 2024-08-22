@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IWorkbenchExtensionManagementService, IExtensionManagementServer, ExtensionInstallLocation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { areSameExtensions, BetterMergeId, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtension, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from 'vs/workbench/services/extensions/common/extensions';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { localize } from '../../../../nls';
+import { Event, Emitter } from '../../../../base/common/event';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle';
+import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, InstallOperation } from '../../../../platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IWorkbenchExtensionManagementService, IExtensionManagementServer, ExtensionInstallLocation } from '../common/extensionManagement';
+import { areSameExtensions, BetterMergeId, getExtensionDependencies } from '../../../../platform/extensionManagement/common/extensionManagementUtil';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { IExtension, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { StorageManager } from '../../../../platform/extensionManagement/common/extensionEnablementService';
+import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions';
+import { IUserDataSyncAccountService } from '../../../../platform/userDataSync/common/userDataSyncAccount';
+import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification';
+import { IHostService } from '../../host/browser/host';
+import { IExtensionBisectService } from './extensionBisect';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService';
+import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 

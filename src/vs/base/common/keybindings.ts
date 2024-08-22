@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { KeyCode, ScanCode } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { illegalArgument } from './errors';
+import { KeyCode, ScanCode } from './keyCodes';
+import { OperatingSystem } from './platform';
 
 /**
  * Binary encoding strategy:

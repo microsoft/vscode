@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Searcher } from 'vs/editor/common/model/textModelSearch';
-import * as strings from 'vs/base/common/strings';
-import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { assertNever } from 'vs/base/common/assert';
-import { DEFAULT_WORD_REGEXP, getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IRange, Range } from '../core/range';
+import { Searcher } from '../model/textModelSearch';
+import * as strings from '../../../base/common/strings';
+import { IUnicodeHighlightsResult } from './editorWorker';
+import { assertNever } from '../../../base/common/assert';
+import { DEFAULT_WORD_REGEXP, getWordAtText } from '../core/wordHelper';
 
 export class UnicodeTextModelHighlighter {
 	public static computeUnicodeHighlights(model: IUnicodeCharacterSearcherTarget, options: UnicodeHighlighterOptions, range?: IRange): IUnicodeHighlightsResult {

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
-import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { FoldingMarkers } from '../../../../common/languages/languageConfiguration';
+import { computeRanges } from '../../browser/indentRangeProvider';
+import { createTextModel } from '../../../../test/common/testTextModel';
 
 interface ExpectedIndentRange {
 	startLineNumber: number;

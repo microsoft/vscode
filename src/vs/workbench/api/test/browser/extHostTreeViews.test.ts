@@ -5,20 +5,20 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { Emitter } from 'vs/base/common/event';
-import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainThreadTreeViewsShape, MainContext, MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { Emitter } from '../../../../base/common/event';
+import { ExtHostTreeViews } from '../../common/extHostTreeViews';
+import { ExtHostCommands } from '../../common/extHostCommands';
+import { MainThreadTreeViewsShape, MainContext, MainThreadCommandsShape } from '../../common/extHost.protocol';
 import { TreeDataProvider, TreeItem } from 'vscode';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { mock } from 'vs/base/test/common/mock';
-import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
-import { NullLogService } from 'vs/platform/log/common/log';
-import type { IDisposable } from 'vs/base/common/lifecycle';
-import { nullExtensionDescription as extensionsDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestRPCProtocol } from '../common/testRPCProtocol';
+import { mock } from '../../../../base/test/common/mock';
+import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from '../../../common/views';
+import { NullLogService } from '../../../../platform/log/common/log';
+import type { IDisposable } from '../../../../base/common/lifecycle';
+import { nullExtensionDescription as extensionsDescription } from '../../../services/extensions/common/extensions';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler';
+import { IExtHostTelemetry } from '../../common/extHostTelemetry';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
 
 suite('ExtHostTreeView', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

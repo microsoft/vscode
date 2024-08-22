@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { RGBA } from 'vs/base/common/color';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { noBreakWhitespace } from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/browser/color';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../../../base/common/async';
+import { RGBA } from '../../../../base/common/color';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import { noBreakWhitespace } from '../../../../base/common/strings';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { DynamicCssRules } from '../../../browser/editorDom';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { Range } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { IModelDecoration, IModelDeltaDecoration } from '../../../common/model';
+import { ModelDecorationOptions } from '../../../common/model/textModel';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { getColors, IColorData } from './color';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
 

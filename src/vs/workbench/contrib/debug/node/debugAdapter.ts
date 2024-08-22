@@ -6,14 +6,14 @@
 import * as cp from 'child_process';
 import * as net from 'net';
 import * as stream from 'stream';
-import * as objects from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { Promises } from 'vs/base/node/pfs';
-import * as nls from 'vs/nls';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/contrib/debug/common/debug';
+import * as objects from '../../../../base/common/objects';
+import * as path from '../../../../base/common/path';
+import * as platform from '../../../../base/common/platform';
+import * as strings from '../../../../base/common/strings';
+import { Promises } from '../../../../base/node/pfs';
+import * as nls from '../../../../nls';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions';
+import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from '../common/debug';
 import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
 
 /**

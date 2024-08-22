@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AnyStackFrame, CallStackFrame, CallStackWidget } from 'vs/workbench/contrib/debug/browser/callStackWidget';
-import { ITestMessageStackFrame } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Emitter } from '../../../../../base/common/event';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { AnyStackFrame, CallStackFrame, CallStackWidget } from '../../../debug/browser/callStackWidget';
+import { ITestMessageStackFrame } from '../../common/testTypes';
 
 export class TestResultStackWidget extends Disposable {
 	private readonly widget: CallStackWidget;

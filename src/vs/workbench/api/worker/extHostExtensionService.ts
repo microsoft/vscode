@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
-import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { URI } from 'vs/base/common/uri';
-import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { timeout } from 'vs/base/common/async';
-import { ExtHostConsoleForwarder } from 'vs/workbench/api/worker/extHostConsoleForwarder';
+import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl';
+import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator';
+import { AbstractExtHostExtensionService } from '../common/extHostExtensionService';
+import { URI } from '../../../base/common/uri';
+import { RequireInterceptor } from '../common/extHostRequireInterceptor';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { ExtensionRuntime } from '../common/extHostTypes';
+import { timeout } from '../../../base/common/async';
+import { ExtHostConsoleForwarder } from './extHostConsoleForwarder';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 

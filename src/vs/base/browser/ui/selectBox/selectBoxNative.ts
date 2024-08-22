@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { EventType, Gesture } from 'vs/base/browser/touch';
-import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
+import * as dom from '../../dom';
+import { EventType, Gesture } from '../../touch';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from './selectBox';
+import * as arrays from '../../../common/arrays';
+import { Emitter, Event } from '../../../common/event';
+import { KeyCode } from '../../../common/keyCodes';
+import { Disposable } from '../../../common/lifecycle';
+import { isMacintosh } from '../../../common/platform';
 
 export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 

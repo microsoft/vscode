@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IConnectionOptions, IRemoteExtensionHostStartParams, connectRemoteAgentExtensionHost } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { Emitter, Event } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { Schemas } from '../../../../base/common/network';
+import * as platform from '../../../../base/common/platform';
+import { URI } from '../../../../base/common/uri';
+import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc';
+import { PersistentProtocol } from '../../../../base/parts/ipc/common/ipc.net';
+import { IExtensionHostDebugService } from '../../../../platform/debug/common/extensionHostDebug';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { ILogService, ILoggerService } from '../../../../platform/log/common/log';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { IConnectionOptions, IRemoteExtensionHostStartParams, connectRemoteAgentExtensionHost } from '../../../../platform/remote/common/remoteAgentConnection';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData } from '../../../../platform/remote/common/remoteAuthorityResolver';
+import { IRemoteSocketFactoryService } from '../../../../platform/remote/common/remoteSocketFactoryService';
+import { ISignService } from '../../../../platform/sign/common/sign';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { parseExtensionDevOptions } from './extensionDevOptions';
+import { IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from './extensionHostProtocol';
+import { RemoteRunningLocation } from './extensionRunningLocation';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from './extensions';
 
 export interface IRemoteExtensionHostInitData {
 	readonly connectionData: IRemoteConnectionData | null;

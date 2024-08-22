@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/singleeditortabscontrol';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { Dimension } from 'vs/base/browser/dom';
-import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { IToolbarActions } from 'vs/workbench/common/editor';
+import { EditorInput } from '../../../common/editor/editorInput';
+import { EditorTabsControl } from './editorTabsControl';
+import { Dimension } from '../../../../base/browser/dom';
+import { IEditorTitleControlDimensions } from './editorTitleControl';
+import { IToolbarActions } from '../../../common/editor';
 
 export class NoEditorTabsControl extends EditorTabsControl {
 	private activeEditor: EditorInput | null = null;

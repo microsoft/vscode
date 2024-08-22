@@ -5,18 +5,18 @@
 
 
 import assert from 'assert';
-import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import severity from 'vs/base/common/severity';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplModel, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockDebugAdapter, MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { TreeVisibility } from '../../../../../base/browser/ui/tree/tree';
+import { timeout } from '../../../../../base/common/async';
+import severity from '../../../../../base/common/severity';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { RawDebugSession } from '../../browser/rawDebugSession';
+import { ReplFilter } from '../../browser/replFilter';
+import { DebugModel, StackFrame, Thread } from '../../common/debugModel';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplModel, ReplOutputElement, ReplVariableElement } from '../../common/replModel';
+import { createTestSession } from './callStack.test';
+import { createMockDebugModel } from './mockDebugModel';
+import { MockDebugAdapter, MockRawSession } from '../common/mockDebug';
 
 suite('Debug - REPL', () => {
 	let model: DebugModel;

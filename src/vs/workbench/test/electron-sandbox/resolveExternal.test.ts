@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
-import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils';
+import { NativeWindow } from '../../electron-sandbox/window';
+import { ITunnelService, RemoteTunnel } from '../../../platform/tunnel/common/tunnel';
+import { URI } from '../../../base/common/uri';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock';
+import { IAddressProvider } from '../../../platform/remote/common/remoteAgentConnection';
+import { workbenchInstantiationService } from './workbenchTestServices';
+import { DisposableStore } from '../../../base/common/lifecycle';
 
 type PortMap = Record<number, number>;
 

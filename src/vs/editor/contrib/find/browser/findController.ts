@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, EditorContributionInstantiation, MultiEditorAction, registerEditorAction, registerEditorCommand, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRegistry';
-import { IRange } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { OverviewRulerLane } from 'vs/editor/common/model';
-import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
-import { FindOptionsWidget } from 'vs/editor/contrib/find/browser/findOptionsWidget';
-import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { FindWidget, IFindController } from 'vs/editor/contrib/find/browser/findWidget';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { Delayer } from '../../../../base/common/async';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import * as strings from '../../../../base/common/strings';
+import { ICodeEditor } from '../../../browser/editorBrowser';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, MultiEditorAction, registerEditorAction, registerEditorCommand, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from '../../../browser/editorExtensions';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { overviewRulerRangeHighlight } from '../../../common/core/editorColorRegistry';
+import { IRange } from '../../../common/core/range';
+import { IEditorContribution } from '../../../common/editorCommon';
+import { EditorContextKeys } from '../../../common/editorContextKeys';
+import { OverviewRulerLane } from '../../../common/model';
+import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from './findModel';
+import { FindOptionsWidget } from './findOptionsWidget';
+import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from './findState';
+import { FindWidget, IFindController } from './findWidget';
+import * as nls from '../../../../nls';
+import { MenuId } from '../../../../platform/actions/common/actions';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { IThemeService, themeColorFromId } from '../../../../platform/theme/common/themeService';
+import { Selection } from '../../../common/core/selection';
+import { IHoverService } from '../../../../platform/hover/browser/hover';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { BracketsUtils } from 'vs/editor/common/languages/supports/richEditBrackets';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Range } from '../../../../common/core/range';
+import { BracketsUtils } from '../../../../common/languages/supports/richEditBrackets';
 
 suite('richEditBrackets', () => {
 

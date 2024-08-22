@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { createDecorator } from '../../instantiation/common/instantiation';
 
 export const IProtocolMainService = createDecorator<IProtocolMainService>('protocolMainService');
 

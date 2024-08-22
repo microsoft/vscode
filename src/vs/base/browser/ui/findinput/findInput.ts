@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import * as dom from '../../dom';
+import { IKeyboardEvent } from '../../keyboardEvent';
+import { IMouseEvent } from '../../mouseEvent';
+import { IToggleStyles, Toggle } from '../toggle/toggle';
+import { IContextViewProvider } from '../contextview/contextview';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from './findInputToggles';
+import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox';
+import { Widget } from '../widget';
+import { Emitter, Event } from '../../../common/event';
+import { KeyCode } from '../../../common/keyCodes';
 import 'vs/css!./findInput';
-import * as nls from 'vs/nls';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import * as nls from '../../../../nls';
+import { DisposableStore, MutableDisposable } from '../../../common/lifecycle';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory';
 
 
 export interface IFindInputOptions {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerColor, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from '../../../../nls';
+import { registerColor, editorBackground } from '../../../../platform/theme/common/colorRegistry';
 
 export const multiDiffEditorHeaderBackground = registerColor(
 	'multiDiffEditor.headerBackground',

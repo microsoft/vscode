@@ -17,7 +17,7 @@
 // import * as path from 'path';
 // import * as fs from 'fs';
 // import * as perf from '../common/performance.js';
-//
+// 
 // const module = { exports: {} };
 // ESM-uncomment-end
 

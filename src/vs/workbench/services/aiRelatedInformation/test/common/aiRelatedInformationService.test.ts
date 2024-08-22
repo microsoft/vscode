@@ -5,11 +5,11 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { AiRelatedInformationService } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformationService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { CommandInformationResult, IAiRelatedInformationProvider, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { AiRelatedInformationService } from '../../common/aiRelatedInformationService';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { CommandInformationResult, IAiRelatedInformationProvider, RelatedInformationType, SettingInformationResult } from '../../common/aiRelatedInformation';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
 
 suite('AiRelatedInformationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

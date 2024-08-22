@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import severity from 'vs/base/common/severity';
-import { URI, UriComponents, URI as uri } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel as EditorIModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IAction } from '../../../../base/common/actions';
+import { VSBuffer } from '../../../../base/common/buffer';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Color } from '../../../../base/common/color';
+import { Event } from '../../../../base/common/event';
+import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import severity from '../../../../base/common/severity';
+import { URI, UriComponents, URI as uri } from '../../../../base/common/uri';
+import { IPosition, Position } from '../../../../editor/common/core/position';
+import { IRange } from '../../../../editor/common/core/range';
+import * as editorCommon from '../../../../editor/common/editorCommon';
+import { ITextModel as EditorIModel } from '../../../../editor/common/model';
+import * as nls from '../../../../nls';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ITelemetryEndpoint } from '../../../../platform/telemetry/common/telemetry';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace';
+import { IEditorPane } from '../../../common/editor';
+import { DebugCompoundRoot } from './debugCompoundRoot';
+import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from './debugModel';
+import { Source } from './debugSource';
+import { ITaskIdentifier } from '../../tasks/common/tasks';
+import { LiveTestResult } from '../../testing/common/testResult';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 

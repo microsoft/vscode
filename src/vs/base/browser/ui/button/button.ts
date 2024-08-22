@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from 'vs/base/browser/dom';
-import { sanitize } from 'vs/base/browser/dompurify/dompurify';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { IMarkdownString, isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { IContextMenuProvider } from '../../contextmenu';
+import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from '../../dom';
+import { sanitize } from '../../dompurify/dompurify';
+import { StandardKeyboardEvent } from '../../keyboardEvent';
+import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer';
+import { Gesture, EventType as TouchEventType } from '../../touch';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory';
+import { IHoverDelegate } from '../hover/hoverDelegate';
+import { renderLabelWithIcons } from '../iconLabel/iconLabels';
+import { Action, IAction, IActionRunner } from '../../../common/actions';
+import { Codicon } from '../../../common/codicons';
+import { Color } from '../../../common/color';
+import { Event as BaseEvent, Emitter } from '../../../common/event';
+import { IMarkdownString, isMarkdownString, markdownStringEqual } from '../../../common/htmlContent';
+import { KeyCode } from '../../../common/keyCodes';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle';
+import { ThemeIcon } from '../../../common/themables';
 import 'vs/css!./button';
-import { localize } from 'vs/nls';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
+import { localize } from '../../../../nls';
+import type { IManagedHover } from '../hover/hover';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2';
+import { IActionProvider } from '../dropdown/dropdown';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;

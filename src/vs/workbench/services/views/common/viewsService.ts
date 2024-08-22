@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IView, IViewPaneContainer, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Event } from '../../../../base/common/event';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IProgressIndicator } from '../../../../platform/progress/common/progress';
+import { IPaneComposite } from '../../../common/panecomposite';
+import { IView, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../common/views';
 
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {

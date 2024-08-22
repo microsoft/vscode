@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { PositionAffinity } from '../../../common/model';
+import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel';
+import { ModelLineProjectionData } from '../../../common/modelLineProjectionData';
 
 suite('Editor ViewModel - LineBreakData', () => {
 

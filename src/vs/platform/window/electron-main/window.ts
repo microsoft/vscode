@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { Event } from '../../../base/common/event';
+import { IDisposable } from '../../../base/common/lifecycle';
+import { ISerializableCommandAction } from '../../action/common/action';
+import { NativeParsedArgs } from '../../environment/common/argv';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile';
+import { INativeWindowConfiguration } from '../common/window';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace';
 
 export interface IBaseWindow extends IDisposable {
 

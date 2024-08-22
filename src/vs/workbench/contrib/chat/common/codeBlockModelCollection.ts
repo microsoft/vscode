@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { Disposable, IReference } from '../../../../base/common/lifecycle';
+import { ResourceMap } from '../../../../base/common/map';
+import { Schemas } from '../../../../base/common/network';
+import { URI } from '../../../../base/common/uri';
+import { Range } from '../../../../editor/common/core/range';
+import { ILanguageService } from '../../../../editor/common/languages/language';
+import { EndOfLinePreference } from '../../../../editor/common/model';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService';
+import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from './chatViewModel';
 import { extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations';
 
 

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from 'vs/base/common/async';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise } from 'vs/base/common/observable';
-import { observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from 'vs/base/common/observableInternal/utils';
-import { isDefined } from 'vs/base/common/types';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { disposableTimeout } from '../../../../base/common/async';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle';
+import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise } from '../../../../base/common/observable';
+import { observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observableInternal/utils';
+import { isDefined } from '../../../../base/common/types';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser';
+import { Position } from '../../../../editor/common/core/position';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents';
+import { ITextModel } from '../../../../editor/common/model';
+import { FoldingController } from '../../../../editor/contrib/folding/browser/folding';
+import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { IDebugService } from '../../debug/common/debug';
+import { IEditorService } from '../../../services/editor/common/editorService';
 
 export class EditorTextPropertySignalsContribution extends Disposable implements IWorkbenchContribution {
 	private readonly _textProperties: TextProperty[] = [

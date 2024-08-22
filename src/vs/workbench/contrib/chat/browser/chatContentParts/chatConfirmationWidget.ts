@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
+import * as dom from '../../../../../base/browser/dom';
 import 'vs/css!./media/chatConfirmationWidget';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Button } from '../../../../../base/browser/ui/button/button';
+import { Emitter, Event } from '../../../../../base/common/event';
+import { MarkdownString } from '../../../../../base/common/htmlContent';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles';
 
 export interface IChatConfirmationButton {
 	label: string;

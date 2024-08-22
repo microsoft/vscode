@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { getCompressedContent, IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { getCompressedContent, IJSONSchema } from '../../common/jsonSchema';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils';
 
 suite('JSON Schema', () => {
 

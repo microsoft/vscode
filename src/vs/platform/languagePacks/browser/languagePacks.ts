@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { ILanguagePackItem, LanguagePackBaseService } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationTokenSource } from '../../../base/common/cancellation';
+import { URI } from '../../../base/common/uri';
+import { IExtensionGalleryService } from '../../extensionManagement/common/extensionManagement';
+import { IExtensionResourceLoaderService } from '../../extensionResourceLoader/common/extensionResourceLoader';
+import { ILanguagePackItem, LanguagePackBaseService } from '../common/languagePacks';
+import { ILogService } from '../../log/common/log';
 
 export class WebLanguagePacksService extends LanguagePackBaseService {
 	constructor(

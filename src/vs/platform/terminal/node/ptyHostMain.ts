@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Server as ChildProcessServer } from 'vs/base/parts/ipc/node/ipc.cp';
-import { Server as UtilityProcessServer } from 'vs/base/parts/ipc/node/ipc.mp';
-import { localize } from 'vs/nls';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { getLogLevel } from 'vs/platform/log/common/log';
-import { LoggerChannel } from 'vs/platform/log/common/logIpc';
-import { LogService } from 'vs/platform/log/common/logService';
-import { LoggerService } from 'vs/platform/log/node/loggerService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IReconnectConstants, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
-import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
-import { PtyService } from 'vs/platform/terminal/node/ptyService';
-import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DefaultURITransformer } from '../../../base/common/uriIpc';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc';
+import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp';
+import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp';
+import { localize } from '../../../nls';
+import { OPTIONS, parseArgs } from '../../environment/node/argv';
+import { NativeEnvironmentService } from '../../environment/node/environmentService';
+import { getLogLevel } from '../../log/common/log';
+import { LoggerChannel } from '../../log/common/logIpc';
+import { LogService } from '../../log/common/logService';
+import { LoggerService } from '../../log/node/loggerService';
+import product from '../../product/common/product';
+import { IProductService } from '../../product/common/productService';
+import { IReconnectConstants, TerminalIpcChannels } from '../common/terminal';
+import { HeartbeatService } from './heartbeatService';
+import { PtyService } from './ptyService';
+import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes';
+import { timeout } from '../../../base/common/async';
+import { DisposableStore } from '../../../base/common/lifecycle';
 
 startPtyHost();
 

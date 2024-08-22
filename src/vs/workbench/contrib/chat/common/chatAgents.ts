@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arraysFind';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { IObservable } from 'vs/base/common/observable';
-import { observableValue } from 'vs/base/common/observableInternal/base';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { Command, ProviderResult } from 'vs/editor/common/languages';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, IRequestService } from 'vs/platform/request/common/request';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
-import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
+import { findLast } from '../../../../base/common/arraysFind';
+import { timeout } from '../../../../base/common/async';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { Emitter, Event } from '../../../../base/common/event';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { Iterable } from '../../../../base/common/iterator';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle';
+import { revive } from '../../../../base/common/marshalling';
+import { IObservable } from '../../../../base/common/observable';
+import { observableValue } from '../../../../base/common/observableInternal/base';
+import { equalsIgnoreCase } from '../../../../base/common/strings';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { URI } from '../../../../base/common/uri';
+import { Command, ProviderResult } from '../../../../editor/common/languages';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { asJson, IRequestService } from '../../../../platform/request/common/request';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { CONTEXT_CHAT_ENABLED } from './chatContextKeys';
+import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel';
+import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes';
+import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService';
 
 //#region agent service, commands etc
 

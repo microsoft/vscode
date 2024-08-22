@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotSupportedError } from 'vs/base/common/errors';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { NotSupportedError } from '../../../../../base/common/errors';
+import { StandardTokenType, TokenMetadata } from '../../../encodedTokenAttributes';
+import { IViewLineTokens } from '../../../tokens/lineTokens';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
 import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length';

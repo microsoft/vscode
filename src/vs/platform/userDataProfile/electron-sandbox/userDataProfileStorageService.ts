@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataProfileStorageService, RemoteUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IUserDataProfileStorageService, RemoteUserDataProfileStorageService } from '../common/userDataProfileStorageService';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions';
+import { IStorageService } from '../../storage/common/storage';
+import { ILogService } from '../../log/common/log';
+import { IUserDataProfilesService } from '../common/userDataProfile';
+import { IMainProcessService } from '../../ipc/common/mainProcessService';
 
 export class NativeUserDataProfileStorageService extends RemoteUserDataProfileStorageService {
 

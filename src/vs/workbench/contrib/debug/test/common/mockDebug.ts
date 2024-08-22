@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { URI as uri } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { AdapterEndEvent, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IConfig, IConfigurationManager, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugLocationReferenced, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, ILaunch, IMemoryRegion, INewReplElementData, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, IViewModel, LoadedSourceEvent, State } from 'vs/workbench/contrib/debug/common/debug';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
+import { DeferredPromise } from '../../../../../base/common/async';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { Event } from '../../../../../base/common/event';
+import { URI as uri } from '../../../../../base/common/uri';
+import { IPosition, Position } from '../../../../../editor/common/core/position';
+import { ITextModel } from '../../../../../editor/common/model';
+import { NullLogService } from '../../../../../platform/log/common/log';
+import { IStorageService } from '../../../../../platform/storage/common/storage';
+import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace';
+import { AbstractDebugAdapter } from '../../common/abstractDebugAdapter';
+import { AdapterEndEvent, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IConfig, IConfigurationManager, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugLocationReferenced, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, ILaunch, IMemoryRegion, INewReplElementData, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, IViewModel, LoadedSourceEvent, State } from '../../common/debug';
+import { DebugCompoundRoot } from '../../common/debugCompoundRoot';
+import { IInstructionBreakpointOptions } from '../../common/debugModel';
+import { Source } from '../../common/debugSource';
+import { DebugStorage } from '../../common/debugStorage';
 
 export class MockDebugService implements IDebugService {
 	_serviceBrand: undefined;

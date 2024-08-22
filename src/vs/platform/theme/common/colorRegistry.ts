@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export * from 'vs/platform/theme/common/colorUtils';
+export * from './colorUtils';
 
 // Make sure all color files are exported
-export * from 'vs/platform/theme/common/colors/baseColors';
-export * from 'vs/platform/theme/common/colors/chartsColors';
-export * from 'vs/platform/theme/common/colors/editorColors';
-export * from 'vs/platform/theme/common/colors/inputColors';
-export * from 'vs/platform/theme/common/colors/listColors';
-export * from 'vs/platform/theme/common/colors/menuColors';
-export * from 'vs/platform/theme/common/colors/minimapColors';
-export * from 'vs/platform/theme/common/colors/miscColors';
-export * from 'vs/platform/theme/common/colors/quickpickColors';
-export * from 'vs/platform/theme/common/colors/searchColors';
+export * from './colors/baseColors';
+export * from './colors/chartsColors';
+export * from './colors/editorColors';
+export * from './colors/inputColors';
+export * from './colors/listColors';
+export * from './colors/menuColors';
+export * from './colors/minimapColors';
+export * from './colors/miscColors';
+export * from './colors/quickpickColors';
+export * from './colors/searchColors';

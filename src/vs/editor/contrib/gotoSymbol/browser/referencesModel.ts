@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { basename, extUri } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Location, LocationLink } from 'vs/editor/common/languages';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
+import { onUnexpectedError } from '../../../../base/common/errors';
+import { Emitter, Event } from '../../../../base/common/event';
+import { IMatch } from '../../../../base/common/filters';
+import { defaultGenerator } from '../../../../base/common/idGenerator';
+import { dispose, IDisposable, IReference } from '../../../../base/common/lifecycle';
+import { ResourceMap } from '../../../../base/common/map';
+import { basename, extUri } from '../../../../base/common/resources';
+import * as strings from '../../../../base/common/strings';
+import { Constants } from '../../../../base/common/uint';
+import { URI } from '../../../../base/common/uri';
+import { Position } from '../../../common/core/position';
+import { IRange, Range } from '../../../common/core/range';
+import { Location, LocationLink } from '../../../common/languages';
+import { ITextEditorModel, ITextModelService } from '../../../common/services/resolverService';
+import { localize } from '../../../../nls';
 
 export class OneReference {
 

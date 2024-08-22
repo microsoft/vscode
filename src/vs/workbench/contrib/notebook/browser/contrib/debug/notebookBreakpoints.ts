@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle';
+import { ResourceMap } from '../../../../../../base/common/map';
+import { Schemas } from '../../../../../../base/common/network';
+import { isEqual } from '../../../../../../base/common/resources';
+import { Registry } from '../../../../../../platform/registry/common/platform';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../../../common/contributions';
+import { IBreakpoint, IDebugService } from '../../../../debug/common/debug';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel';
+import { CellUri, NotebookCellsChangeType } from '../../../common/notebookCommon';
+import { INotebookService } from '../../../common/notebookService';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle';
 
 class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	constructor(

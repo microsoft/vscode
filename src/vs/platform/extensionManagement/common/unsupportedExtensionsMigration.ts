@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from './extensionManagement';
+import { areSameExtensions, getExtensionId } from './extensionManagementUtil';
+import { IExtensionStorageService } from './extensionStorage';
+import { ExtensionType } from '../../extensions/common/extensions';
+import { ILogService } from '../../log/common/log';
 
 /**
  * Migrates the installed unsupported nightly extension to a supported pre-release extension. It includes following:

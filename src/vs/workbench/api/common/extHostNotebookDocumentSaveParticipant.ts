@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AsyncEmitter, Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { TextDocumentSaveReason, WorkspaceEdit as WorksapceEditConverter } from 'vs/workbench/api/common/extHostTypeConverters';
-import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypes';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { AsyncEmitter, Event } from '../../../base/common/event';
+import { URI, UriComponents } from '../../../base/common/uri';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions';
+import { ILogService } from '../../../platform/log/common/log';
+import { ExtHostNotebookDocumentSaveParticipantShape, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol';
+import { ExtHostNotebookController } from './extHostNotebook';
+import { TextDocumentSaveReason, WorkspaceEdit as WorksapceEditConverter } from './extHostTypeConverters';
+import { WorkspaceEdit } from './extHostTypes';
+import { SaveReason } from '../../common/editor';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier';
 import { NotebookDocumentWillSaveEvent } from 'vscode';
 
 interface IExtensionListener<E> {

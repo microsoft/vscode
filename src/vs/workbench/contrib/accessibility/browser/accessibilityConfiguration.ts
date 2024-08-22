@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
-import { AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from 'vs/workbench/contrib/speech/common/speechService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Event } from 'vs/base/common/event';
-import { isDefined } from 'vs/base/common/types';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { localize } from '../../../../nls';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from '../../../common/configuration';
+import { AccessibilitySignal } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from '../../speech/common/speechService';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { IWorkbenchContribution } from '../../../common/contributions';
+import { Event } from '../../../../base/common/event';
+import { isDefined } from '../../../../base/common/types';
+import { IProductService } from '../../../../platform/product/common/productService';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);

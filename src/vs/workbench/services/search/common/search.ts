@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapArrayOrNot } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as extpath from 'vs/base/common/extpath';
-import { fuzzyContains, getNLines } from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { Event } from 'vs/base/common/event';
-import * as paths from 'vs/base/common/path';
-import { isCancellationError } from 'vs/base/common/errors';
-import { GlobPattern, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
-import { isThenable } from 'vs/base/common/async';
-import { ResourceSet } from 'vs/base/common/map';
+import { mapArrayOrNot } from '../../../../base/common/arrays';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import * as glob from '../../../../base/common/glob';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import * as objects from '../../../../base/common/objects';
+import * as extpath from '../../../../base/common/extpath';
+import { fuzzyContains, getNLines } from '../../../../base/common/strings';
+import { URI, UriComponents } from '../../../../base/common/uri';
+import { IFilesConfiguration } from '../../../../platform/files/common/files';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { ITelemetryData } from '../../../../platform/telemetry/common/telemetry';
+import { Event } from '../../../../base/common/event';
+import * as paths from '../../../../base/common/path';
+import { isCancellationError } from '../../../../base/common/errors';
+import { GlobPattern, TextSearchCompleteMessageType } from './searchExtTypes';
+import { isThenable } from '../../../../base/common/async';
+import { ResourceSet } from '../../../../base/common/map';
 
 export { TextSearchCompleteMessageType };
 

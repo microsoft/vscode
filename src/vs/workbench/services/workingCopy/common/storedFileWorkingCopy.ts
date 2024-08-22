@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { hash } from 'vs/base/common/hash';
-import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { isWindows } from 'vs/base/common/platform';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize } from '../../../../nls';
+import { URI } from '../../../../base/common/uri';
+import { Event, Emitter } from '../../../../base/common/event';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from '../../../../platform/files/common/files';
+import { ISaveOptions, IRevertOptions, SaveReason } from '../../../common/editor';
+import { IWorkingCopyService } from './workingCopyService';
+import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy';
+import { raceCancellation, TaskSequentializer, timeout } from '../../../../base/common/async';
+import { ILogService } from '../../../../platform/log/common/log';
+import { assertIsDefined } from '../../../../base/common/types';
+import { IWorkingCopyFileService } from './workingCopyFileService';
+import { VSBufferReadableStream } from '../../../../base/common/buffer';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService';
+import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from './workingCopyBackup';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification';
+import { hash } from '../../../../base/common/hash';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage';
+import { IAction, toAction } from '../../../../base/common/actions';
+import { isWindows } from '../../../../base/common/platform';
+import { IWorkingCopyEditorService } from './workingCopyEditorService';
+import { IEditorService } from '../../editor/common/editorService';
+import { IElevatedFileService } from '../../files/common/elevatedFileService';
+import { IResourceWorkingCopy, ResourceWorkingCopy } from './resourceWorkingCopy';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from './fileWorkingCopy';
+import { IMarkdownString } from '../../../../base/common/htmlContent';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress';
 
 /**
  * Stored file specific working copy model factory.

@@ -6,20 +6,20 @@
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import { StringDecoder } from 'string_decoder';
-import { coalesce, mapArrayOrNot } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { groupBy } from 'vs/base/common/collections';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from 'vs/workbench/services/search/common/search';
-import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { coalesce, mapArrayOrNot } from '../../../../base/common/arrays';
+import { CancellationToken } from '../../../../base/common/cancellation';
+import { groupBy } from '../../../../base/common/collections';
+import { splitGlobAware } from '../../../../base/common/glob';
+import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings';
+import { URI } from '../../../../base/common/uri';
+import { Progress } from '../../../../platform/progress/common/progress';
+import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search';
+import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from '../common/searchExtTypes';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils';
-import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
-import { newToOldPreviewOptions } from 'vs/workbench/services/search/common/searchExtConversionTypes';
+import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal';
+import { newToOldPreviewOptions } from '../common/searchExtConversionTypes';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');

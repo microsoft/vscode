@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CSSPluginUtilities, rewriteUrls } from 'vs/css.build';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils';
+import { CSSPluginUtilities, rewriteUrls } from '../../../css.build';
 
 suite('CSSPlugin', () => {
 

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { numberComparator } from 'vs/base/common/arrays';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
-import { Range } from 'vs/editor/common/core/range';
-import { AbstractText, SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
+import { numberComparator } from '../../../../base/common/arrays';
+import { OffsetRange } from '../../../common/core/offsetRange';
+import { Position } from '../../../common/core/position';
+import { PositionOffsetTransformer } from '../../../common/core/positionToOffset';
+import { Range } from '../../../common/core/range';
+import { AbstractText, SingleTextEdit, TextEdit } from '../../../common/core/textEdit';
 
 export abstract class Random {
 	public static basicAlphabet: string = '      abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

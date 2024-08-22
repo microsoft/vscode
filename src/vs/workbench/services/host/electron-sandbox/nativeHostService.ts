@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle } from 'vs/platform/window/common/window';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { memoize } from 'vs/base/common/decorators';
-import { isAuxiliaryWindow } from 'vs/base/browser/window';
-import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { Emitter, Event } from '../../../../base/common/event';
+import { IHostService } from '../browser/host';
+import { INativeHostService } from '../../../../platform/native/common/native';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { NativeHostService } from '../../../../platform/native/common/nativeHostService';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService';
+import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom';
+import { memoize } from '../../../../base/common/decorators';
+import { isAuxiliaryWindow } from '../../../../base/browser/window';
+import { webUtils } from '../../../../base/parts/sandbox/electron-sandbox/globals';
 
 class WorkbenchNativeHostService extends NativeHostService {
 

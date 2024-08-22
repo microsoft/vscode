@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProfileStorageChanges, IProfileStorageValueChanges } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
-import { loadKeyTargets, StorageScope, TARGET_KEY } from 'vs/platform/storage/common/storage';
-import { IBaseSerializableStorageRequest } from 'vs/platform/storage/common/storageIpc';
-import { IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle';
+import { IServerChannel } from '../../../base/parts/ipc/common/ipc';
+import { ILogService } from '../../log/common/log';
+import { IProfileStorageChanges, IProfileStorageValueChanges } from '../common/userDataProfileStorageService';
+import { loadKeyTargets, StorageScope, TARGET_KEY } from '../../storage/common/storage';
+import { IBaseSerializableStorageRequest } from '../../storage/common/storageIpc';
+import { IStorageMain } from '../../storage/electron-main/storageMain';
+import { IStorageMainService } from '../../storage/electron-main/storageMainService';
+import { IUserDataProfile, IUserDataProfilesService } from '../common/userDataProfile';
 
 export class ProfileStorageChangesListenerChannel extends Disposable implements IServerChannel {
 

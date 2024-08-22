@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { DeferredPromise } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isSafari, isWebkitWebView } from '../../../base/browser/browser';
+import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom';
+import { mainWindow } from '../../../base/browser/window';
+import { DeferredPromise } from '../../../base/common/async';
+import { Event } from '../../../base/common/event';
+import { hash } from '../../../base/common/hash';
+import { Disposable } from '../../../base/common/lifecycle';
+import { URI } from '../../../base/common/uri';
+import { IClipboardService } from '../common/clipboardService';
+import { ILayoutService } from '../../layout/browser/layoutService';
+import { ILogService } from '../../log/common/log';
 
 /**
  * Custom mime type used for storing a list of uris in the clipboard.

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { basename } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getSystemShell } from 'vs/base/node/shell';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { clamp } from 'vs/base/common/numbers';
+import { basename } from '../../../base/common/path';
+import { localize } from '../../../nls';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { CancellationError, isCancellationError } from '../../../base/common/errors';
+import { IProcessEnvironment, isWindows, OS } from '../../../base/common/platform';
+import { generateUuid } from '../../../base/common/uuid';
+import { getSystemShell } from '../../../base/node/shell';
+import { NativeParsedArgs } from '../../environment/common/argv';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper';
+import { ILogService } from '../../log/common/log';
+import { Promises } from '../../../base/common/async';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { clamp } from '../../../base/common/numbers';
 
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 

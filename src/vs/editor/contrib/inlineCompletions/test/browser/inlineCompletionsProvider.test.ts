@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { Selection } from 'vs/editor/common/core/selection';
-import { computeGhostText } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { timeout } from '../../../../../base/common/async';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { Range } from '../../../../common/core/range';
+import { InlineCompletionsProvider } from '../../../../common/languages';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl';
+import { InlineCompletionsController } from '../../browser/inlineCompletionsController';
+import { InlineCompletionsModel } from '../../browser/inlineCompletionsModel';
+import { SingleTextEdit } from '../../../../common/core/textEdit';
+import { GhostTextContext, MockInlineCompletionsProvider } from './utils';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor';
+import { createTextModel } from '../../../../test/common/testTextModel';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection';
+import { Selection } from '../../../../common/core/selection';
+import { computeGhostText } from '../../browser/singleTextEdit';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

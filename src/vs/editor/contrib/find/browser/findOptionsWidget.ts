@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
+import * as dom from '../../../../base/browser/dom';
 import 'vs/css!./findOptionsWidget';
-import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { FIND_IDS } from 'vs/editor/contrib/find/browser/findModel';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from '../../../../base/browser/ui/findinput/findInputToggles';
+import { Widget } from '../../../../base/browser/ui/widget';
+import { RunOnceScheduler } from '../../../../base/common/async';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser';
+import { FIND_IDS } from './findModel';
+import { FindReplaceState } from './findState';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colorRegistry';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 

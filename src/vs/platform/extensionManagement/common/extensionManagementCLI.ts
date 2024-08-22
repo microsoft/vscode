@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/resources';
-import { gt } from 'vs/base/common/semver/semver';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionInfo, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { ILogger } from 'vs/platform/log/common/log';
+import { CancellationToken } from '../../../base/common/cancellation';
+import { getErrorMessage, isCancellationError } from '../../../base/common/errors';
+import { Schemas } from '../../../base/common/network';
+import { basename } from '../../../base/common/resources';
+import { gt } from '../../../base/common/semver/semver';
+import { URI } from '../../../base/common/uri';
+import { localize } from '../../../nls';
+import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionInfo, InstallOperation } from './extensionManagement';
+import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from './extensionManagementUtil';
+import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from '../../extensions/common/extensions';
+import { ILogger } from '../../log/common/log';
 
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);

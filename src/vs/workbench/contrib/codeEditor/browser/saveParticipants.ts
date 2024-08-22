@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import * as strings from 'vs/base/common/strings';
-import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { StopWatch } from '../../../../base/common/stopwatch';
+import * as strings from '../../../../base/common/strings';
+import { IActiveCodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService';
+import { trimTrailingWhitespace } from '../../../../editor/common/commands/trimTrailingWhitespaceCommand';
+import { EditOperation } from '../../../../editor/common/core/editOperation';
+import { Position } from '../../../../editor/common/core/position';
+import { Range } from '../../../../editor/common/core/range';
+import { Selection } from '../../../../editor/common/core/selection';
+import { CodeActionProvider, CodeActionTriggerType } from '../../../../editor/common/languages';
+import { ITextModel } from '../../../../editor/common/model';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures';
+import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from '../../../../editor/contrib/codeAction/browser/codeAction';
+import { CodeActionKind, CodeActionTriggerSource } from '../../../../editor/contrib/codeAction/common/types';
+import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from '../../../../editor/contrib/format/browser/format';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2';
+import { localize } from '../../../../nls';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../common/contributions';
+import { SaveReason } from '../../../common/editor';
+import { getModifiedRanges } from '../../format/browser/formatModified';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { IHostService } from '../../../services/host/browser/host';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileSaveParticipantContext, ITextFileService } from '../../../services/textfile/common/textfiles';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 

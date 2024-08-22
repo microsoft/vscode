@@ -5,26 +5,26 @@
 
 import * as fs from 'fs';
 import electron from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { dirname, join } from 'vs/base/common/path';
-import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
-import { getStoredWorkspaceFolder, IEnterWorkspaceResult, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
+import { Emitter, Event } from '../../../base/common/event';
+import { parse } from '../../../base/common/json';
+import { Disposable } from '../../../base/common/lifecycle';
+import { Schemas } from '../../../base/common/network';
+import { dirname, join } from '../../../base/common/path';
+import { basename, extUriBiasedIgnorePathCase, joinPath, originalFSPath } from '../../../base/common/resources';
+import { URI } from '../../../base/common/uri';
+import { Promises } from '../../../base/node/pfs';
+import { localize } from '../../../nls';
+import { IBackupMainService } from '../../backup/electron-main/backup';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService';
+import { createDecorator } from '../../instantiation/common/instantiation';
+import { ILogService } from '../../log/common/log';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile';
+import { ICodeWindow } from '../../window/electron-main/window';
+import { findWindowOnWorkspaceOrFolder } from '../../windows/electron-main/windowsFinder';
+import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from '../../workspace/common/workspace';
+import { getStoredWorkspaceFolder, IEnterWorkspaceResult, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, toWorkspaceFolders } from '../common/workspaces';
+import { getWorkspaceIdentifier } from '../node/workspaces';
 
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
 

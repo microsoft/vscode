@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { notStrictEqual, strictEqual } from 'assert';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { isLinux } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TestTerminalConfigurationService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { getActiveWindow } from '../../../../../base/browser/dom';
+import { mainWindow } from '../../../../../base/browser/window';
+import { isLinux } from '../../../../../base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/editorOptions';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock';
+import { ITerminalConfigurationService, LinuxDistro } from '../../browser/terminal';
+import { TestTerminalConfigurationService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices';
 
 suite('Workbench - TerminalConfigurationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

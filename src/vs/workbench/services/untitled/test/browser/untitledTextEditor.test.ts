@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IUntitledTextEditorModel, UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isReadable, isReadableStream } from 'vs/base/common/stream';
-import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { timeout } from 'vs/base/common/async';
+import { URI } from '../../../../../base/common/uri';
+import { join } from '../../../../../base/common/path';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation';
+import { IUntitledTextEditorService, UntitledTextEditorService } from '../../common/untitledTextEditorService';
+import { workbenchInstantiationService, TestServiceAccessor } from '../../../../test/browser/workbenchTestServices';
+import { snapshotToString } from '../../../textfile/common/textfiles';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry';
+import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation';
+import { Range } from '../../../../../editor/common/core/range';
+import { UntitledTextEditorInput } from '../../common/untitledTextEditorInput';
+import { IUntitledTextEditorModel, UntitledTextEditorModel } from '../../common/untitledTextEditorModel';
+import { CancellationToken } from '../../../../../base/common/cancellation';
+import { EditorInputCapabilities } from '../../../../common/editor';
+import { DisposableStore } from '../../../../../base/common/lifecycle';
+import { isReadable, isReadableStream } from '../../../../../base/common/stream';
+import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer';
+import { LanguageDetectionLanguageEventSource } from '../../../languageDetection/common/languageDetectionWorkerService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils';
+import { timeout } from '../../../../../base/common/async';
 
 suite('Untitled text editors', () => {
 

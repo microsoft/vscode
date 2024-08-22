@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Emitter } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, getChildrenForParent, testIdentityProvider } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
-import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree';
+import { Emitter } from '../../../../../base/common/event';
+import { FuzzyScore } from '../../../../../base/common/filters';
+import { Iterable } from '../../../../../base/common/iterator';
+import { Disposable } from '../../../../../base/common/lifecycle';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, getChildrenForParent, testIdentityProvider } from './index';
+import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from './testingViewState';
+import { IComputedStateAndDurationAccessor, refreshComputedState } from '../../common/getComputedState';
+import { TestId } from '../../common/testId';
+import { TestResultItemChangeReason } from '../../common/testResult';
+import { ITestResultService } from '../../common/testResultService';
+import { ITestService } from '../../common/testService';
+import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from '../../common/testTypes';
 
 const computedStateAccessor: IComputedStateAndDurationAccessor<TreeTestItemElement> = {
 	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,

@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotebookCellExecution } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { ICellExecutionParticipant, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { CodeActionParticipantUtils } from 'vs/workbench/contrib/notebook/browser/contrib/saveParticipants/saveParticipants';
+import { localize, localize2 } from '../../../../../../nls';
+import { CancellationToken } from '../../../../../../base/common/cancellation';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser';
+import { EditorAction, registerEditorAction } from '../../../../../../editor/browser/editorExtensions';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../../editor/browser/services/bulkEditService';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService';
+import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsWithSelectedProvider } from '../../../../../../editor/contrib/format/browser/format';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation';
+import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry';
+import { Progress } from '../../../../../../platform/progress/common/progress';
+import { NOTEBOOK_ACTIONS_CATEGORY } from '../../controller/coreActions';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser';
+import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys';
+import { IEditorService } from '../../../../../services/editor/common/editorService';
+import { INotebookCellExecution } from '../../../common/notebookExecutionStateService';
+import { ICellExecutionParticipant, INotebookExecutionService } from '../../../common/notebookExecutionService';
+import { NotebookSetting } from '../../../common/notebookCommon';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle';
+import { Registry } from '../../../../../../platform/registry/common/platform';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../../../common/contributions';
+import { INotebookService } from '../../../common/notebookService';
+import { CodeActionParticipantUtils } from '../saveParticipants/saveParticipants';
 
 // format notebook
 registerAction2(class extends Action2 {

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ISettableObservable, observableValue, transaction } from 'vs/base/common/observable';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { bindContextKey, observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestRunTaskResults } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { CancellationTokenSource } from '../../../../base/common/cancellation';
+import { Iterable } from '../../../../base/common/iterator';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle';
+import { IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils';
+import { TestingConfigKeys } from './configuration';
+import { Testing } from './constants';
+import { TestCoverage } from './testCoverage';
+import { TestId } from './testId';
+import { ITestRunTaskResults } from './testResult';
+import { ITestResultService } from './testResultService';
+import { TestingContextKeys } from './testingContextKeys';
+import { IViewsService } from '../../../services/views/common/viewsService';
 
 export const ITestCoverageService = createDecorator<ITestCoverageService>('testCoverageService');
 

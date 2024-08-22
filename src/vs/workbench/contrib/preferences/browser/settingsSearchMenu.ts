@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { localize } from 'vs/nls';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
-import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems';
+import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem';
+import { IAction, IActionRunner } from '../../../../base/common/actions';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController';
+import { localize } from '../../../../nls';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView';
+import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG } from '../common/preferences';
 
 export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 	private readonly suggestController: SuggestController | null;

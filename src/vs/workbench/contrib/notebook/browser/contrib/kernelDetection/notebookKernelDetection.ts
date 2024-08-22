@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle';
+import { Registry } from '../../../../../../platform/registry/common/platform';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions';
+import { INotebookKernelService } from '../../../common/notebookKernelService';
+import { INotebookLoggingService } from '../../../common/notebookLoggingService';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle';
 
 class NotebookKernelDetection extends Disposable implements IWorkbenchContribution {
 	private _detectionMap = new Map<string, IDisposable>();

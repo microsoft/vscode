@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
+import { Emitter } from '../../../../base/common/event';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { localize } from '../../../../nls';
 
 export const ILanguageModelStatsService = createDecorator<ILanguageModelStatsService>('ILanguageModelStatsService');
 

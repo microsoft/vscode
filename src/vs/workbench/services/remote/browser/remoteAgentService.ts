@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import * as nls from '../../../../nls';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
+import { IRemoteAgentService } from '../common/remoteAgentService';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from '../../../../platform/remote/common/remoteAuthorityResolver';
+import { AbstractRemoteAgentService } from '../common/abstractRemoteAgentService';
+import { IProductService } from '../../../../platform/product/common/productService';
+import { ISignService } from '../../../../platform/sign/common/sign';
+import { ILogService } from '../../../../platform/log/common/log';
+import { Severity } from '../../../../platform/notification/common/notification';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions';
+import { IHostService } from '../../host/browser/host';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile';
+import { IRemoteSocketFactoryService } from '../../../../platform/remote/common/remoteSocketFactoryService';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 

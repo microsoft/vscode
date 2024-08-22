@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, promiseWithResolvers } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import * as performance from 'vs/base/common/performance';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
-import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { RemoteAuthorityResolverError, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
-import { ISignService } from 'vs/platform/sign/common/sign';
+import { CancelablePromise, createCancelablePromise, promiseWithResolvers } from '../../../base/common/async';
+import { VSBuffer } from '../../../base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation';
+import { isCancellationError, onUnexpectedError } from '../../../base/common/errors';
+import { Emitter } from '../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { RemoteAuthorities } from '../../../base/common/network';
+import * as performance from '../../../base/common/performance';
+import { StopWatch } from '../../../base/common/stopwatch';
+import { generateUuid } from '../../../base/common/uuid';
+import { IIPCLogger } from '../../../base/parts/ipc/common/ipc';
+import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net';
+import { ILogService } from '../../log/common/log';
+import { RemoteAgentConnectionContext } from './remoteAgentEnvironment';
+import { RemoteAuthorityResolverError, RemoteConnection } from './remoteAuthorityResolver';
+import { IRemoteSocketFactoryService } from './remoteSocketFactoryService';
+import { ISignService } from '../../sign/common/sign';
 
 const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
 

@@ -4,36 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/languageStatus';
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize, localize2 } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Link } from 'vs/platform/opener/browser/link';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { equals } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IHoverService, nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { Event } from 'vs/base/common/event';
+import * as dom from '../../../../base/browser/dom';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels';
+import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle';
+import Severity from '../../../../base/common/severity';
+import { getCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { localize, localize2 } from '../../../../nls';
+import { Registry } from '../../../../platform/registry/common/platform';
+import { ThemeIcon } from '../../../../base/common/themables';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions';
+import { IEditorService } from '../../../services/editor/common/editorService';
+import { ILanguageStatus, ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar';
+import { parseLinkedText } from '../../../../base/common/linkedText';
+import { Link } from '../../../../platform/opener/browser/link';
+import { IOpenerService } from '../../../../platform/opener/common/opener';
+import { MarkdownString } from '../../../../base/common/htmlContent';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar';
+import { Action } from '../../../../base/common/actions';
+import { Codicon } from '../../../../base/common/codicons';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage';
+import { equals } from '../../../../base/common/arrays';
+import { URI } from '../../../../base/common/uri';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories';
+import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility';
+import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService';
+import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover';
+import { Event } from '../../../../base/common/event';
 
 class LanguageStatusViewModel {
 

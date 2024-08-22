@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reverseOrder, compareBy, numberComparator } from 'vs/base/common/arrays';
-import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from 'vs/base/common/observable';
-import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from 'vs/editor/browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
-import { DisposableCancellationTokenSource } from 'vs/editor/browser/widget/diffEditor/utils';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { SymbolKind } from 'vs/editor/common/languages';
+import { reverseOrder, compareBy, numberComparator } from '../../../../base/common/arrays';
+import { observableValue, observableSignalFromEvent, autorunWithStore, IReader } from '../../../../base/common/observable';
+import { HideUnchangedRegionsFeature, IDiffEditorBreadcrumbsSource } from '../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature';
+import { DisposableCancellationTokenSource } from '../../../browser/widget/diffEditor/utils';
+import { LineRange } from '../../../common/core/lineRange';
+import { ITextModel } from '../../../common/model';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures';
+import { IOutlineModelService, OutlineModel } from '../../documentSymbols/browser/outlineModel';
+import { Disposable } from '../../../../base/common/lifecycle';
+import { Event } from '../../../../base/common/event';
+import { SymbolKind } from '../../../common/languages';
 
 class DiffEditorBreadcrumbsSource extends Disposable implements IDiffEditorBreadcrumbsSource {
 	private readonly _currentModel = observableValue<OutlineModel | undefined>(this, undefined);

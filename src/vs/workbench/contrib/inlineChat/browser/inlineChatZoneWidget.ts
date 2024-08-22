@@ -2,27 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, Dimension } from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { addDisposableListener, Dimension } from '../../../../base/browser/dom';
+import * as aria from '../../../../base/browser/ui/aria/aria';
+import { toDisposable } from '../../../../base/common/lifecycle';
+import { assertType } from '../../../../base/common/types';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser';
+import { EditorLayoutInfo, EditorOption } from '../../../../editor/common/config/editorOptions';
+import { Position } from '../../../../editor/common/core/position';
+import { Range } from '../../../../editor/common/core/range';
+import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget';
+import { localize } from '../../../../nls';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation';
+import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
-import { isEqual } from 'vs/base/common/resources';
-import { StableEditorBottomScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { isEqual } from '../../../../base/common/resources';
+import { StableEditorBottomScrollState } from '../../../../editor/browser/stableEditorScroll';
+import { ScrollType } from '../../../../editor/common/editorCommon';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { ILogService } from '../../../../platform/log/common/log';
+import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget';
+import { MenuId } from '../../../../platform/actions/common/actions';
 
 export class InlineChatZoneWidget extends ZoneWidget {
 

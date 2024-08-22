@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ViewLineData } from 'vs/editor/common/viewModel';
-import { IModelLineProjection, ISimpleModel, createModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IDisposable } from '../../../../base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils';
+import { EditorOption } from '../../../common/config/editorOptions';
+import { Position } from '../../../common/core/position';
+import { IRange, Range } from '../../../common/core/range';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes';
+import * as languages from '../../../common/languages';
+import { NullState } from '../../../common/languages/nullTokenize';
+import { EndOfLinePreference } from '../../../common/model';
+import { TextModel } from '../../../common/model/textModel';
+import { ModelLineProjectionData } from '../../../common/modelLineProjectionData';
+import { IViewLineTokens } from '../../../common/tokens/lineTokens';
+import { ViewLineData } from '../../../common/viewModel';
+import { IModelLineProjection, ISimpleModel, createModelLineProjection } from '../../../common/viewModel/modelLineProjection';
+import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer';
+import { ViewModelLinesFromProjectedModel } from '../../../common/viewModel/viewModelLines';
+import { TestConfiguration } from '../config/testConfiguration';
+import { createTextModel } from '../../common/testTextModel';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 

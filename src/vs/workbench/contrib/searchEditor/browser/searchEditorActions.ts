@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { Schemas } from '../../../../base/common/network';
+import { URI } from '../../../../base/common/uri';
 import 'vs/css!./media/searchEditor';
-import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
-import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { ICodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation';
+import { ILabelService } from '../../../../platform/label/common/label';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace';
+import { EditorsOrder } from '../../../common/editor';
+import { IViewsService } from '../../../services/views/common/viewsService';
+import { getSearchView } from '../../search/browser/searchActionsBase';
+import { SearchResult } from '../../search/browser/searchModel';
+import { SearchEditor } from './searchEditor';
+import { OpenSearchEditorArgs } from './searchEditor.contribution';
+import { getOrMakeSearchEditorInput, SearchEditorInput } from './searchEditorInput';
+import { serializeSearchResultForEditor } from './searchEditorSerialization';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService';
+import { IHistoryService } from '../../../services/history/common/history';
+import { ISearchConfigurationProperties } from '../../../services/search/common/search';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);

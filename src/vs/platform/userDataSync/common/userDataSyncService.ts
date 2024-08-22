@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { isBoolean, isUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
-import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { TasksSynchroniser } from 'vs/platform/userDataSync/common/tasksSync';
-import { UserDataProfilesManifestSynchroniser } from 'vs/platform/userDataSync/common/userDataProfilesManifestSync';
+import { equals } from '../../../base/common/arrays';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from '../../../base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation';
+import { toErrorMessage } from '../../../base/common/errorMessage';
+import { Emitter, Event } from '../../../base/common/event';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle';
+import { isEqual } from '../../../base/common/resources';
+import { isBoolean, isUndefined } from '../../../base/common/types';
+import { URI } from '../../../base/common/uri';
+import { generateUuid } from '../../../base/common/uuid';
+import { IConfigurationService } from '../../configuration/common/configuration';
+import { IExtensionGalleryService } from '../../extensionManagement/common/extensionManagement';
+import { IFileService } from '../../files/common/files';
+import { IInstantiationService } from '../../instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage';
+import { ITelemetryService } from '../../telemetry/common/telemetry';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile';
+import { ExtensionsSynchroniser } from './extensionsSync';
+import { GlobalStateSynchroniser } from './globalStateSync';
+import { KeybindingsSynchroniser } from './keybindingsSync';
+import { SettingsSynchroniser } from './settingsSync';
+import { SnippetsSynchroniser } from './snippetsSync';
+import { TasksSynchroniser } from './tasksSync';
+import { UserDataProfilesManifestSynchroniser } from './userDataProfilesManifestSync';
 import {
 	ALL_SYNC_RESOURCES, Change, createSyncHeaders, IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError,
 	IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, ISyncUserDataProfile, IUserDataManifest, IUserDataResourceManifest, IUserDataSyncConfiguration,
 	IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService,
 	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE, IUserDataSyncResourceProviderService, IUserDataActivityData, IUserDataSyncLocalStoreService
-} from 'vs/platform/userDataSync/common/userDataSync';
+} from './userDataSync';
 
 type SyncErrorClassification = {
 	owner: 'sandy081';
