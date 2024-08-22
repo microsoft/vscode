@@ -124,27 +124,23 @@ export class ViewLinesGpu extends ViewPart {
 				Offset_ViewportHeight_ = 5,
 			}
 			const bufferValues = new Float32Array(Info.FloatsPerEntry);
+			const updateBufferValues = (canvasDevicePixelWidth: number = this.canvas.width, canvasDevicePixelHeight: number = this.canvas.height) => {
+				bufferValues[Info.Offset_CanvasWidth____] = canvasDevicePixelWidth;
+				bufferValues[Info.Offset_CanvasHeight___] = canvasDevicePixelHeight;
+				bufferValues[Info.Offset_ViewportOffsetX] = Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
+				// TODO: This value should probably be 0 if the text is rendered to the baseline
+				bufferValues[Info.Offset_ViewportOffsetY] = -4;
+				bufferValues[Info.Offset_ViewportWidth__] = bufferValues[Info.Offset_CanvasWidth____] - bufferValues[Info.Offset_ViewportOffsetX];
+				bufferValues[Info.Offset_ViewportHeight_] = bufferValues[Info.Offset_CanvasHeight___] - bufferValues[Info.Offset_ViewportOffsetY];
+				return bufferValues;
+			};
 			layoutInfoUniformBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 				label: 'Monaco uniform buffer',
 				size: Info.BytesPerEntry,
 				usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-			}, () => {
-				bufferValues[Info.Offset_CanvasWidth____] = this.canvas.width;
-				bufferValues[Info.Offset_CanvasHeight___] = this.canvas.height;
-				bufferValues[Info.Offset_ViewportOffsetX] = Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
-				bufferValues[Info.Offset_ViewportOffsetY] = 0;
-				bufferValues[Info.Offset_ViewportWidth__] = this.canvas.width - bufferValues[Info.Offset_ViewportOffsetX];
-				bufferValues[Info.Offset_ViewportHeight_] = this.canvas.height - bufferValues[Info.Offset_ViewportOffsetY];
-				return bufferValues;
-			})).object;
+			}, () => updateBufferValues())).object;
 			this._register(observeDevicePixelDimensions(this.canvas, getActiveWindow(), (w, h) => {
-				bufferValues[Info.Offset_CanvasWidth____] = this.canvas.width;
-				bufferValues[Info.Offset_CanvasHeight___] = this.canvas.height;
-				bufferValues[Info.Offset_ViewportOffsetX] = Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
-				bufferValues[Info.Offset_ViewportOffsetY] = 0;
-				bufferValues[Info.Offset_ViewportWidth__] = this.canvas.width - bufferValues[Info.Offset_ViewportOffsetX];
-				bufferValues[Info.Offset_ViewportHeight_] = this.canvas.height - bufferValues[Info.Offset_ViewportOffsetY];
-				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, bufferValues);
+				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, updateBufferValues(w, h));
 			}));
 		}
 
@@ -405,6 +401,7 @@ export class ViewLinesGpu extends ViewPart {
 		pass.setBindGroup(0, this._bindGroup);
 
 		if (this._renderStrategy?.draw) {
+			// TODO: Don't draw lines if ViewLinesGpu.canRender is false
 			this._renderStrategy.draw(pass, viewportData);
 		} else {
 			pass.draw(quadVertices.length / 2, visibleObjectCount);
