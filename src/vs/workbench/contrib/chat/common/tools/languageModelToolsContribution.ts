@@ -92,7 +92,15 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 							}
 						}
 					}]
-				}
+				},
+				supportedContentTypes: {
+					markdownDescription: localize('supportedContentTypes', "An array of content types supported by this tool. The content type `{0}` should be used "),
+					type: 'array',
+					items: {
+						type: 'string'
+					},
+					default: ['string']
+				},
 			}
 		}
 	}

@@ -39,11 +39,6 @@ declare module 'vscode' {
 		constructor(name: string, parameters: any, toolCallId: string);
 	}
 
-	// TODO@API- this type is returned by LanguageModelChatMessage.Assistant
-	export class LanguageModelAssistantChatMessage extends LanguageModelChatMessage {
-		toolCalls?: LanguageModelChatResponseToolCallPart[];
-	}
-
 	// LM -> USER: text chunk
 	export class LanguageModelChatResponseTextPart {
 		value: string;
@@ -68,18 +63,34 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelChatMessage {
-		content2: string | LanguageModelChatMessageToolResultPart;
+		// A heterogeneous array of other things that a message can contain as content. Some parts would be message-type specific for some models
+		// and wouldn't go together, but it's up to the chat provider to decide what to do about that. Can drop parts that are not valid for the message type.
+		// For OpenAI:
+		// LanguageModelChatMessageToolResultPart: only on User messages
+		// LanguageModelChatResponseToolCallPart: only on Assistant messages
+		content2: (string | LanguageModelChatMessageToolResultPart | LanguageModelChatResponseToolCallPart)[];
 	}
 
 	export interface LanguageModelToolResult {
-		// Type determined by LanguageModelToolInvokationOptions#contentType
-		value: any;
+		// Types determined by LanguageModelToolInvokationOptions#contentTypes
+		[contentType: string]: any;
+
+		/**
+		 * The 'string' contentType must be supported by all tools.
+		 */
+		string?: string;
 	}
 
 	// Tool registration/invoking between extensions
 
 	export interface LanguageModelToolInvokationOptions {
-		contentType?: 'string' | string;
+		/**
+		 * The content types that the tool should emit, which should be pulled from `LanguageModelToolDescription#supportedContentTypes`.
+		 * The string 'string' must be supported for all tools and should be used as a general value for content that can be incorporated into an LLM prompt with no special processing.
+		 * Another example would be the `contentType` exported by the `@vscode/prompt-tsx` library to return a PromptElementJSON.
+		 * TODO@API if the caller didn't specify any content types, this parameter should default to ['string'] for the tool.
+		 */
+		contentTypes?: string[];
 
 		/**
 		 * Parameters with which to invoke the tool.
@@ -144,6 +155,8 @@ declare module 'vscode' {
 		 * A JSON schema for the parameters this tool accepts.
 		 */
 		parametersSchema?: JSONSchema;
+
+		supportedContentTypes?: string[];
 	}
 
 	export interface LanguageModelToolResponseStream {
