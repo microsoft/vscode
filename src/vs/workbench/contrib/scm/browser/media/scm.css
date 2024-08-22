@@ -549,3 +549,26 @@
 .monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span:not(.codicon) {
 	margin-bottom: 0 !important;
 }
+
+/* History Item Load More */
+
+.scm-history-view .history-item-load-more {
+	display: flex;
+	height: 22px;
+	gap: 2px;
+}
+
+.scm-history-view .history-item-load-more .graph-placeholder {
+	margin: 2px 0;
+	background: var(--vscode-scm-historyItemStatisticsBorder);
+	border-radius: 2px;
+	opacity: 0.5;
+}
+
+.scm-history-view .history-item-load-more .history-item-placeholder {
+	flex-grow: 1;
+	margin: 2px 0;
+	background: var(--vscode-scm-historyItemStatisticsBorder);
+	border-radius: 2px;
+	opacity: 0.5;
+}

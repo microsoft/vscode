@@ -11,7 +11,7 @@ import { FullFileRenderStrategy } from 'vs/editor/browser/view/gpu/fullFileRende
 import { BindingId, type IRendererContext, type IRenderStrategy } from 'vs/editor/browser/view/gpu/gpu';
 import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
 import { ensureNonNullable, observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
-import type { IVisibleLine, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
+import type { ILineFactory, IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import type { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +30,7 @@ const enum GlyphStorageBufferInfo {
 export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 
 	readonly domNode: HTMLCanvasElement;
-	host: IVisibleLinesHost<T>;
+	host: ILineFactory<T>;
 	viewportData: ViewportData;
 
 	private readonly _gpuCtx!: GPUCanvasContext;
@@ -56,7 +56,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> extends Disposable {
 	constructor(
 		domNode: HTMLCanvasElement,
 		private readonly _context: ViewContext,
-		host: IVisibleLinesHost<T>,
+		host: ILineFactory<T>,
 		viewportData: ViewportData,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,

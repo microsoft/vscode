@@ -111,6 +111,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
 	},
 	{
+		key: 'debug/createConfiguration',
+		id: MenuId.DebugCreateConfiguration,
+		proposed: 'contribDebugCreateConfiguration',
+		description: localize('menus.debugCreateConfiguation', "The debug create configuration menu")
+	},
+	{
 		key: 'notebook/variables/context',
 		id: MenuId.NotebookVariablesContext,
 		description: localize('menus.notebookVariablesContext', "The notebook variables view context menu")
@@ -168,6 +174,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.SCMInputBox,
 		description: localize('menus.input', "The Source Control input box menu"),
 		proposed: 'contribSourceControlInputBoxMenu'
+	},
+	{
+		key: 'scm/history/title',
+		id: MenuId.SCMHistoryTitle,
+		description: localize('menus.scmHistoryTitle', "The Source Control History title menu"),
+		proposed: 'contribSourceControlHistoryTitleMenu'
 	},
 	{
 		key: 'scm/historyItemChanges/title',

@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
+import { TextEdit, IInplaceReplaceSupportResult, IColorInformation } from 'vs/editor/common/languages';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { SectionHeader } from 'vs/editor/common/services/findSectionHeaders';
@@ -27,4 +27,5 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
 	async findSectionHeaders(uri: URI): Promise<SectionHeader[]> { return []; }
+	async computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null> { return null; }
 }

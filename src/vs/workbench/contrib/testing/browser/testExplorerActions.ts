@@ -1020,6 +1020,15 @@ async function getTestsAtCursor(testService: ITestService, uriIdentityService: I
 	return bestNodes.length ? bestNodes : bestNodesBefore;
 }
 
+const enum EditorContextOrder {
+	RunAtCursor,
+	DebugAtCursor,
+	RunInFile,
+	DebugInFile,
+	GoToRelated,
+	PeekRelated,
+}
+
 abstract class ExecuteTestAtCursor extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
@@ -1030,7 +1039,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 			}, {
 				id: MenuId.EditorContext,
 				group: 'testing',
-				order: group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug,
+				order: group === TestRunProfileBitset.Run ? EditorContextOrder.RunAtCursor : EditorContextOrder.DebugAtCursor,
 				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
 			}]
 		});
@@ -1221,8 +1230,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 			}, {
 				id: MenuId.EditorContext,
 				group: 'testing',
-				// add 0.1 to be after the "at cursor" commands
-				order: (group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug) + 0.1,
+				order: group === TestRunProfileBitset.Run ? EditorContextOrder.RunInFile : EditorContextOrder.DebugInFile,
 				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
 			}],
 		});
@@ -1771,8 +1779,8 @@ class GoToRelatedTest extends GoToRelatedTestAction {
 			),
 			menu: [{
 				id: MenuId.EditorContext,
-				group: 'navigation',
-				order: 3
+				group: 'testing',
+				order: EditorContextOrder.GoToRelated,
 			}]
 		});
 	}
@@ -1796,9 +1804,9 @@ class PeekRelatedTest extends GoToRelatedTestAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
 			menu: [{
-				id: MenuId.EditorContextPeek,
-				group: 'navigation',
-				order: 3
+				id: MenuId.EditorContext,
+				group: 'testing',
+				order: EditorContextOrder.PeekRelated,
 			}]
 		});
 	}
@@ -1832,8 +1840,8 @@ class GoToRelatedCode extends GoToRelatedCodeAction {
 			),
 			menu: [{
 				id: MenuId.EditorContext,
-				group: 'navigation',
-				order: 3
+				group: 'testing',
+				order: EditorContextOrder.GoToRelated,
 			}]
 		});
 	}
@@ -1856,9 +1864,9 @@ class PeekRelatedCode extends GoToRelatedCodeAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()
 			),
 			menu: [{
-				id: MenuId.EditorContextPeek,
-				group: 'navigation',
-				order: 3
+				id: MenuId.EditorContext,
+				group: 'testing',
+				order: EditorContextOrder.PeekRelated,
 			}]
 		});
 	}

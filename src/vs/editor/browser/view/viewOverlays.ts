@@ -6,7 +6,7 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { IVisibleLine, IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
+import { IVisibleLine, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
@@ -17,12 +17,11 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { disableNonGpuRendering } from 'vs/editor/browser/view/gpu/gpuViewLayer';
 
-export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
-
+export class ViewOverlays extends ViewPart {
 	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
 	protected readonly domNode: FastDomNode<HTMLElement>;
-	private _dynamicOverlays: DynamicViewOverlay[];
-	private _isFocused: boolean;
+	private _dynamicOverlays: DynamicViewOverlay[] = [];
+	private _isFocused: boolean = false;
 
 	constructor(
 		context: ViewContext,
@@ -30,15 +29,14 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	) {
 		super(context);
 
-		this._visibleLines = this._register(instantiationService.createInstance(VisibleLinesCollection<ViewOverlayLine>, context, this));
+		this._visibleLines = this._register(instantiationService.createInstance(VisibleLinesCollection, context, {
+			createLine: () => new ViewOverlayLine(this._dynamicOverlays)
+		}));
 		this.domNode = this._visibleLines.domNode;
 
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		applyFontInfo(this.domNode, fontInfo);
-
-		this._dynamicOverlays = [];
-		this._isFocused = false;
 
 		this.domNode.setClassName('view-overlays');
 	}
@@ -71,14 +69,6 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this.domNode;
 	}
-
-	// ---- begin IVisibleLinesHost
-
-	public createVisibleLine(): ViewOverlayLine {
-		return new ViewOverlayLine(this._dynamicOverlays);
-	}
-
-	// ---- end IVisibleLinesHost
 
 	public addDynamicOverlay(overlay: DynamicViewOverlay): void {
 		this._dynamicOverlays.push(overlay);

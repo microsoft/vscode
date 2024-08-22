@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WindowIntervalTimer } from 'vs/base/browser/dom';
+import { getTotalWidth, WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { themeColorFromId } from 'vs/base/common/themables';
-import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -28,7 +28,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { HunkInformation, Session, HunkState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
@@ -40,10 +40,22 @@ import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DefaultChatTextEditor } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { isEqual } from 'vs/base/common/resources';
+import { generateUuid } from 'vs/base/common/uuid';
+import { MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IEditObserver {
 	start(): void;
 	stop(): void;
+}
+
+export const enum HunkAction {
+	Accept,
+	Discard,
+	MoveNext,
+	MovePrev,
+	ToggleDiff
 }
 
 export abstract class EditModeStrategy {
@@ -62,18 +74,24 @@ export abstract class EditModeStrategy {
 	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
 
-	toggleDiff?: () => any;
-
 	constructor(
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
 		protected readonly _zone: InlineChatZoneWidget,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) { }
 
 	dispose(): void {
 		this._store.dispose();
+	}
+
+	performHunkAction(_hunk: HunkInformation | undefined, action: HunkAction) {
+		if (action === HunkAction.Accept) {
+			this._onDidAccept.fire();
+		} else if (action === HunkAction.Discard) {
+			this._onDidDiscard.fire();
+		}
 	}
 
 	protected async _doApplyChanges(ignoreLocal: boolean): Promise<void> {
@@ -122,21 +140,13 @@ export abstract class EditModeStrategy {
 		return this._session.hunkData.discardAll();
 	}
 
-	async acceptHunk(): Promise<void> {
-		this._onDidAccept.fire();
-	}
 
-	async discardHunk(): Promise<void> {
-		this._onDidDiscard.fire();
-	}
 
 	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void>;
 
 	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
 
 	abstract renderChanges(): Promise<Position | undefined>;
-
-	move?(next: boolean): void;
 
 	abstract hasFocus(): boolean;
 
@@ -250,13 +260,11 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
 	private _editCount: number = 0;
 
-	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
-	override discardHunk: () => Promise<void> = () => super.discardHunk();
-
 	constructor(
 		session: Session,
 		editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
+		private readonly _showOverlayToolbar: boolean,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
@@ -360,6 +368,58 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
+	override performHunkAction(hunk: HunkInformation | undefined, action: HunkAction) {
+		const displayData = this._findDisplayData(hunk);
+		if (!displayData) {
+			return;
+		}
+		if (action === HunkAction.Accept) {
+			displayData.acceptHunk();
+		} else if (action === HunkAction.Discard) {
+			displayData.discardHunk();
+		} else if (action === HunkAction.MoveNext) {
+			displayData.move(true);
+		} else if (action === HunkAction.MovePrev) {
+			displayData.move(false);
+		} else if (action === HunkAction.ToggleDiff) {
+			displayData.toggleDiff?.();
+		}
+	}
+
+	private _findDisplayData(hunkInfo?: HunkInformation) {
+		let result: HunkDisplayData | undefined;
+		if (hunkInfo) {
+			// use context hunk (from tool/buttonbar)
+			result = this._hunkDisplayData.get(hunkInfo);
+		}
+
+		if (!result && this._zone.position) {
+			// find nearest from zone position
+			const zoneLine = this._zone.position.lineNumber;
+			let distance: number = Number.MAX_SAFE_INTEGER;
+			for (const candidate of this._hunkDisplayData.values()) {
+				if (candidate.hunk.getState() !== HunkState.Pending) {
+					continue;
+				}
+				const hunkRanges = candidate.hunk.getRangesN();
+				const myDistance = zoneLine <= hunkRanges[0].startLineNumber
+					? hunkRanges[0].startLineNumber - zoneLine
+					: zoneLine - hunkRanges[0].endLineNumber;
+
+				if (myDistance < distance) {
+					distance = myDistance;
+					result = candidate;
+				}
+			}
+		}
+
+		if (!result) {
+			// fallback: first hunk that is pending
+			result = Iterable.first(Iterable.filter(this._hunkDisplayData.values(), candidate => candidate.hunk.getState() === HunkState.Pending));
+		}
+		return result;
+	}
+
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
 
 	override async renderChanges() {
@@ -429,14 +489,20 @@ export class LiveStrategy extends EditModeStrategy {
 									const [hunkRange] = hunkData.getRangesN();
 									viewZoneData.afterLineNumber = hunkRange.startLineNumber - 1;
 									data.viewZoneId = viewZoneAccessor.addZone(viewZoneData);
+									overlay?.updateExtraTop(result.heightInLines);
 								} else {
 									viewZoneAccessor.removeZone(data.viewZoneId!);
+									overlay?.updateExtraTop(0);
 									data.viewZoneId = undefined;
 								}
 							});
 							this._ctxCurrentChangeShowsDiff.set(typeof data?.viewZoneId === 'string');
 							scrollState.restore(this._editor);
 						};
+
+						const overlay = this._showOverlayToolbar
+							? this._instaService.createInstance(InlineChangeOverlay, this._editor, hunkData)
+							: undefined;
 
 						const remove = () => {
 							changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
@@ -450,36 +516,22 @@ export class LiveStrategy extends EditModeStrategy {
 								data.decorationIds = [];
 								data.viewZoneId = undefined;
 							});
+
+							overlay?.dispose();
 						};
 
 						const move = (next: boolean) => {
-							assertType(widgetData);
-
-							const candidates: Position[] = [];
-							for (const item of this._session.hunkData.getInfo()) {
-								if (item.getState() === HunkState.Pending) {
-									candidates.push(item.getRangesN()[0].getStartPosition().delta(-1));
-								}
-							}
-							if (candidates.length < 2) {
-								return;
-							}
-							for (let i = 0; i < candidates.length; i++) {
-								if (candidates[i].equals(widgetData.position)) {
-									let newPos: Position;
-									if (next) {
-										newPos = candidates[(i + 1) % candidates.length];
-									} else {
-										newPos = candidates[(i + candidates.length - 1) % candidates.length];
-									}
-									this._zone.updatePositionAndHeight(newPos);
-									renderHunks();
-									break;
-								}
+							const keys = Array.from(this._hunkDisplayData.keys());
+							const idx = keys.indexOf(hunkData);
+							const nextIdx = (idx + (next ? 1 : -1) + keys.length) % keys.length;
+							if (nextIdx !== idx) {
+								const nextData = this._hunkDisplayData.get(keys[nextIdx])!;
+								this._zone.updatePositionAndHeight(nextData?.position);
+								renderHunks();
 							}
 						};
 
-						const zoneLineNumber = this._zone.position!.lineNumber;
+						const zoneLineNumber = this._zone.position?.lineNumber ?? this._editor.getPosition()!.lineNumber;
 						const myDistance = zoneLineNumber <= hunkRanges[0].startLineNumber
 							? hunkRanges[0].startLineNumber - zoneLineNumber
 							: zoneLineNumber - hunkRanges[0].endLineNumber;
@@ -505,7 +557,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 					} else {
 						// update distance and position based on modifiedRange-decoration
-						const zoneLineNumber = this._zone.position!.lineNumber;
+						const zoneLineNumber = this._zone.position?.lineNumber ?? this._editor.getPosition()!.lineNumber;
 						const modifiedRangeNow = hunkRanges[0];
 						data.position = modifiedRangeNow.getStartPosition().delta(-1);
 						data.distance = zoneLineNumber <= modifiedRangeNow.startLineNumber
@@ -540,10 +592,6 @@ export class LiveStrategy extends EditModeStrategy {
 				}
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
-				this.toggleDiff = widgetData.toggleDiff;
-				this.acceptHunk = async () => widgetData!.acceptHunk();
-				this.discardHunk = async () => widgetData!.discardHunk();
-				this.move = next => widgetData!.move(next);
 
 			} else if (this._hunkDisplayData.size > 0) {
 				// everything accepted or rejected
@@ -607,4 +655,77 @@ function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor:
 			callback(decorationsAccessor, viewZoneAccessor);
 		});
 	});
+}
+
+
+class InlineChangeOverlay implements IOverlayWidget {
+
+	readonly allowEditorOverflow: boolean = true;
+
+	private readonly _id: string = `inline-chat-diff-overlay-` + generateUuid();
+	private readonly _domNode: HTMLElement = document.createElement('div');
+	private readonly _store: DisposableStore = new DisposableStore();
+
+	private _extraTopLines: number = 0;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _hunkInfo: HunkInformation,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+	) {
+
+		this._domNode.classList.add('inline-chat-diff-overlay');
+
+		if (_hunkInfo.getState() === HunkState.Pending) {
+
+			this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
+				menuOptions: { arg: _hunkInfo },
+				telemetrySource: 'inlineChat-changesZone',
+				buttonConfigProvider: (_action, idx) => {
+					return {
+						isSecondary: idx > 0,
+						showIcon: true,
+						showLabel: false
+					};
+				},
+			}));
+		}
+
+		this._editor.addOverlayWidget(this);
+		this._store.add(Event.any(this._editor.onDidLayoutChange, this._editor.onDidScrollChange)(() => this._editor.layoutOverlayWidget(this)));
+		queueMicrotask(() => this._editor.layoutOverlayWidget(this)); // FUNKY but needed to get the initial layout right
+	}
+
+	dispose(): void {
+		this._editor.removeOverlayWidget(this);
+		this._store.dispose();
+	}
+
+	getId(): string {
+		return this._id;
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition | null {
+
+		const line = this._hunkInfo.getRangesN()[0].startLineNumber;
+		const info = this._editor.getLayoutInfo();
+		const top = this._editor.getTopForLineNumber(line) - this._editor.getScrollTop();
+		const left = info.contentLeft + info.contentWidth - info.verticalScrollbarWidth;
+
+		const extraTop = this._editor.getOption(EditorOption.lineHeight) * this._extraTopLines;
+		const width = getTotalWidth(this._domNode);
+
+		return { preference: { top: top - extraTop, left: left - width } };
+	}
+
+	updateExtraTop(value: number) {
+		if (this._extraTopLines !== value) {
+			this._extraTopLines = value;
+			this._editor.layoutOverlayWidget(this);
+		}
+	}
 }

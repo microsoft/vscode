@@ -14,14 +14,14 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, SearchProviderType, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
+import { ILocalFileSearchSimpleWorker, LocalFileSearchSimpleWorkerHost } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { memoize } from 'vs/base/common/decorators';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
@@ -46,10 +46,9 @@ export class RemoteSearchService extends SearchService {
 	}
 }
 
-export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider, ILocalFileSearchSimpleWorkerHost {
+export class LocalFileSearchWorkerClient extends Disposable implements ISearchResultProvider {
 
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
-	protected readonly _workerFactory: DefaultWorkerFactory;
 
 	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
 	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
@@ -64,7 +63,6 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	) {
 		super();
 		this._worker = null;
-		this._workerFactory = new DefaultWorkerFactory(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), 'localFileSearchWorker');
 	}
 
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
@@ -77,15 +75,15 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 
 	private async cancelQuery(queryId: number) {
-		const proxy = await this._getOrCreateWorker().getProxyObject();
-		proxy.cancelQuery(queryId);
+		const proxy = this._getOrCreateWorker().proxy;
+		proxy.$cancelQuery(queryId);
 	}
 
 	async textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
 		try {
 			const queryDisposables = new DisposableStore();
 
-			const proxy = await this._getOrCreateWorker().getProxyObject();
+			const proxy = this._getOrCreateWorker().proxy;
 			const results: IFileMatch[] = [];
 
 			let limitHit = false;
@@ -114,7 +112,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 				}));
 
 				const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
-				const folderResults = await proxy.searchDirectory(handle, query, fq, ignorePathCasing, queryId);
+				const folderResults = await proxy.$searchDirectory(handle, query, fq, ignorePathCasing, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push(revive(folderResult));
 				}
@@ -144,7 +142,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 			const queryDisposables = new DisposableStore();
 			let limitHit = false;
 
-			const proxy = await this._getOrCreateWorker().getProxyObject();
+			const proxy = this._getOrCreateWorker().proxy;
 			const results: IFileMatch[] = [];
 			await Promise.all(query.folderQueries.map(async fq => {
 				const queryId = this.queryId++;
@@ -156,7 +154,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					return;
 				}
 				const caseSensitive = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
-				const folderResults = await proxy.listDirectory(handle, query, fq, caseSensitive, queryId);
+				const folderResults = await proxy.$listDirectory(handle, query, fq, caseSensitive, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
 				}
@@ -185,11 +183,15 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	private _getOrCreateWorker(): IWorkerClient<ILocalFileSearchSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost>(
-					this._workerFactory,
+				this._worker = this._register(createWebWorker<ILocalFileSearchSimpleWorker>(
 					'vs/workbench/services/search/worker/localFileSearch',
-					this,
+					'LocalFileSearchWorker'
 				));
+				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {
+					$sendTextSearchMatch: (match, queryId) => {
+						return this.sendTextSearchMatch(match, queryId);
+					}
+				});
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
 				throw err;
