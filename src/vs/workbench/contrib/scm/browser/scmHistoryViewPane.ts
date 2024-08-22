@@ -11,7 +11,7 @@ import { IHoverOptions, IManagedHoverTooltipMarkdownString } from 'vs/base/brows
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { fromNow } from 'vs/base/common/date';
@@ -367,6 +367,24 @@ class SCMHistoryTreeIdentityProvider implements IIdentityProvider<TreeElement> {
 	}
 }
 
+export class SCMHistoryTreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } | { toString(): string }[] | undefined {
+		if (isSCMRepository(element)) {
+			return undefined;
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			// For a history item we want to match both the message and
+			// the author. A match in the message takes precedence over
+			// a match in the author.
+			return [element.historyItemViewModel.historyItem.message, element.historyItemViewModel.historyItem.author];
+		} else if (isSCMHistoryItemLoadMoreTreeElement(element)) {
+			// We don't want to match the load more element
+			return '';
+		} else {
+			throw new Error('Invalid tree element');
+		}
+	}
+}
+
 type HistoryItemCacheEntry = { items: ISCMHistoryItem[]; loadMore: boolean };
 
 class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
@@ -453,8 +471,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 
 			const existingHistoryItems = historyItemsCacheEntry?.items ?? [];
 			const historyItems = await historyProvider.provideHistoryItems2({
-				historyItemGroupIds,
-				skip: existingHistoryItems.length
+				historyItemGroupIds, limit: 50, skip: existingHistoryItems.length
 			}) ?? [];
 
 			historyItemsCacheEntry = {
@@ -605,6 +622,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				accessibilityProvider: new SCMHistoryTreeAccessibilityProvider(),
 				identityProvider: this._treeIdentityProvider,
 				collapseByDefault: (e: unknown) => !isSCMRepository(e),
+				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
 			}
