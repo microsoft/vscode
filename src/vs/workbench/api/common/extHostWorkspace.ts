@@ -498,7 +498,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				parent: options.useParentIgnoreFiles
 			},
 			useExcludeSettings: excludeSetting,
-			followSymlinks: options.followSymlinks ?? true,
+			followSymlinks: options.followSymlinks,
 			maxResults: options.maxResults,
 		};
 		return this._findFilesImpl(undefined, filePattern !== undefined ? [filePattern] : [], newOptions, token);
