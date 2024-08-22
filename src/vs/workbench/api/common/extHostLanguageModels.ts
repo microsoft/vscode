@@ -104,7 +104,7 @@ class LanguageModelResponse {
 		if (fragment.part.type === 'text') {
 			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
 		} else {
-			out = new extHostTypes.LanguageModelToolUsePart(fragment.part.name, fragment.part.toolCallId, fragment.part.parameters);
+			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.name, fragment.part.toolCallId, fragment.part.parameters);
 		}
 		res.stream.emitOne(out);
 	}
@@ -201,7 +201,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 
 			let part: IChatResponsePart | undefined;
-			if (fragment.part instanceof extHostTypes.LanguageModelToolUsePart) {
+			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
 				part = { type: 'tool_use', name: fragment.part.name, toolCallId: fragment.part.toolCallId, parameters: fragment.part.parameters };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };

@@ -2302,7 +2302,7 @@ export namespace LanguageModelChatMessage {
 			content = {
 				type: 'tool_result',
 				name: message.content2.name,
-				toolCallId: message.content2.toolUseId,
+				toolCallId: message.content2.toolCallId,
 				value: message.content2.content,
 				isError: message.content2.isError
 			};

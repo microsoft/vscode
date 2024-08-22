@@ -60,11 +60,11 @@ declare module 'vscode' {
 	// USER -> LM: the result of a function call
 	export class LanguageModelChatMessageToolResultPart {
 		name: string;
-		toolUseId: string;
+		toolCallId: string;
 		content: string;
 		isError: boolean;
 
-		constructor(name: string, toolUseId: string, content: string, isError?: boolean);
+		constructor(name: string, toolCallId: string, content: string, isError?: boolean);
 	}
 
 	export interface LanguageModelChatMessage {
