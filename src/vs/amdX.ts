@@ -39,7 +39,7 @@ class AMDModuleImporter {
 		}
 		this._initialized = true;
 
-		(<any>globalThis).define = (id: any, dependencies: any, callback: any) => {
+		(globalThis as any).define = (id: any, dependencies: any, callback: any) => {
 			if (typeof id !== 'string') {
 				callback = dependencies;
 				dependencies = id;
@@ -55,32 +55,25 @@ class AMDModuleImporter {
 			this._defineCalls.push(new DefineCall(id, dependencies, callback));
 		};
 
-		(<any>globalThis).define.amd = true;
+		(globalThis as any).define.amd = true;
 
-		try {
-			if (this._isRenderer) {
-				// eslint-disable-next-line no-restricted-globals
-				this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-					createScriptURL(value) {
-						// eslint-disable-next-line no-restricted-globals
-						if (value.startsWith(window.location.origin)) {
-							return value;
-						}
-						if (value.startsWith('vscode-file://vscode-app')) {
-							return value;
-						}
-						throw new Error(`[trusted_script_src] Invalid script url: ${value}`);
-					}
-				});
-			} else if (this._isWebWorker) {
-				this._amdPolicy = (<any>globalThis).trustedTypes?.createPolicy('amdLoader', {
-					createScriptURL(value: string) {
+		if (this._isRenderer) {
+			// eslint-disable-next-line no-restricted-globals
+			this._amdPolicy = (globalThis as any)._VSCODE_WEB_PACKAGE_TTP ?? window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					// eslint-disable-next-line no-restricted-globals
+					if (value.startsWith(window.location.origin)) {
 						return value;
 					}
-				});
-			}
-		} catch (error) {
-			console.warn(error);
+					throw new Error(`[trusted_script_src] Invalid script url: ${value}`);
+				}
+			});
+		} else if (this._isWebWorker) {
+			this._amdPolicy = (globalThis as any)._VSCODE_WEB_PACKAGE_TTP ?? (globalThis as any).trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value: string) {
+					return value;
+				}
+			});
 		}
 	}
 
@@ -200,7 +193,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 
 		if (isBuilt === undefined) {
 			const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-			isBuilt = Boolean((product ?? (<any>globalThis).vscode?.context?.configuration()?.product)?.commit);
+			isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
 		}
 
 		if (_paths[nodeModuleName]) {
@@ -234,7 +227,7 @@ export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeM
 	assertType(isESM);
 
 	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-	const isBuilt = Boolean((product ?? (<any>globalThis).vscode?.context?.configuration()?.product)?.commit);
+	const isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
 	const useASAR = (canASAR && isBuilt && !platform.isWeb);
 
 	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
