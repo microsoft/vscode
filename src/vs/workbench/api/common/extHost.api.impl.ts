@@ -965,18 +965,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			findFiles2New: (filePattern: vscode.GlobPattern[], options?: vscode.FindFiles2OptionsNew, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
 				checkProposedApiEnabled(extension, 'findFiles2New');
-
-				const oldOptions = {
-					exclude: options?.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
-					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
-					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
-					maxResults: options?.maxResults,
-					useIgnoreFiles: options?.useIgnoreFiles?.local,
-					useGlobalIgnoreFiles: options?.useIgnoreFiles?.global,
-					useParentIgnoreFiles: options?.useIgnoreFiles?.parent,
-					followSymlinks: options?.followSymlinks,
-				};
-				return extHostWorkspace.findFiles2(filePattern && filePattern.length > 0 ? filePattern[0] : undefined, oldOptions, extension.identifier, token);
+				return extHostWorkspace.findFiles2New(filePattern, options, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'findTextInFiles');
@@ -1500,7 +1489,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
 			},
-			invokeTool(toolId: string, parameters: Object, token: vscode.CancellationToken) {
+			invokeTool(toolId: string, parameters: vscode.LanguageModelToolInvokationOptions, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
 			},

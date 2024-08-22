@@ -59,6 +59,7 @@ type ChatProviderInvokedEvent = {
 	location: ChatAgentLocation;
 	citations: number;
 	numCodeBlocks: number;
+	isParticipantDetected: boolean;
 };
 
 type ChatProviderInvokedClassification = {
@@ -73,6 +74,7 @@ type ChatProviderInvokedClassification = {
 	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location at which chat request was made.' };
 	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
 	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code blocks in the response.' };
+	isParticipantDetected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the participant was automatically detected.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -577,6 +579,9 @@ export class ChatService extends Disposable implements IChatService {
 				completeResponseCreated();
 			};
 
+			let detectedAgent: IChatAgentData | undefined;
+			let detectedCommand: IChatAgentCommand | undefined;
+
 			const stopWatch = new StopWatch(false);
 			const listener = token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
@@ -592,7 +597,8 @@ export class ChatService extends Disposable implements IChatService {
 					chatSessionId: model.sessionId,
 					location,
 					citations: request?.response?.codeCitations.length ?? 0,
-					numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length
+					numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
+					isParticipantDetected: !!detectedAgent
 				});
 
 				model.cancelRequest(request);
@@ -631,8 +637,6 @@ export class ChatService extends Disposable implements IChatService {
 						} satisfies IChatAgentRequest;
 					};
 
-					let detectedAgent: IChatAgentData | undefined;
-					let detectedCommand: IChatAgentCommand | undefined;
 					if (this.configurationService.getValue('chat.experimental.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && enableCommandDetection) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(model, location, defaultAgent.id);
@@ -711,6 +715,7 @@ export class ChatService extends Disposable implements IChatService {
 						agentExtensionId: agentPart?.agent.extensionId.value ?? '',
 						slashCommand: commandForTelemetry,
 						chatSessionId: model.sessionId,
+						isParticipantDetected: !!detectedAgent,
 						location,
 						citations: request.response?.codeCitations.length ?? 0,
 						numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length
@@ -745,7 +750,8 @@ export class ChatService extends Disposable implements IChatService {
 					chatSessionId: model.sessionId,
 					location,
 					citations: 0,
-					numCodeBlocks: 0
+					numCodeBlocks: 0,
+					isParticipantDetected: !!detectedAgent
 				});
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {
