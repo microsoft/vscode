@@ -36,7 +36,7 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			pid: instance.processId || 0,
 			title: instance.title,
 			titleSource: instance.titleSource,
-			cwd: '',
+			cwd: instance.cwd || '',
 			icon: instance.icon,
 			color: instance.color,
 			hasChildProcesses: instance.hasChildProcesses,
