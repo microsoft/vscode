@@ -29,11 +29,10 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 	const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
 	// ESM-comment-end
 	// ESM-uncomment-begin
-	// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
 	// // eslint-disable-next-line local/code-amd-node-module
-	// const oneDs = await import('@microsoft/1ds-core-js');
+	// const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.js') : await import('@microsoft/1ds-core-js');
 	// // eslint-disable-next-line local/code-amd-node-module
-	// const postPlugin = await import('@microsoft/1ds-post-js');
+	// const postPlugin = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'bundle/ms.post.js'): await import('@microsoft/1ds-post-js');
 	// ESM-uncomment-end
 
 	const appInsightsCore = new oneDs.AppInsightsCore();
