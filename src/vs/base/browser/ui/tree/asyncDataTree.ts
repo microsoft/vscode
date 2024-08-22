@@ -9,9 +9,9 @@ import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/u
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { getVisibleState, IList, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -22,7 +22,6 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { isIterable } from 'vs/base/common/types';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IObjectTreeModel, IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -818,8 +817,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return;
 		}
 
-		const findTree = new AsyncFindTree<TInput, T>(this.dataSource);
-
 		this.activeTokenSource?.cancel();
 		this.activeTokenSource = new CancellationTokenSource();
 
@@ -851,12 +848,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private setFindResults(findTree: AsyncFindTree<TInput, T>) {
-		const roots: IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>[] = [];
+		const rootChildren: IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>[] = [];
 		for (const root of findTree.root?.children ?? []) {
-			roots.push(this.asTreeElement(this.findNodeToAsyncNode(root, null)));
+			rootChildren.push(this.asTreeElement(this.findNodeToAsyncNode(root, null)));
 		}
 
-		this.tree.setChildren(null, children);
+		this.tree.setChildren(null, rootChildren);
 		this.tree!.rerender();
 	}
 
