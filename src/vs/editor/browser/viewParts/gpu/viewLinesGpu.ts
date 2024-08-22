@@ -128,8 +128,7 @@ export class ViewLinesGpu extends ViewPart {
 				bufferValues[Info.Offset_CanvasWidth____] = canvasDevicePixelWidth;
 				bufferValues[Info.Offset_CanvasHeight___] = canvasDevicePixelHeight;
 				bufferValues[Info.Offset_ViewportOffsetX] = Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
-				// TODO: This value should probably be 0 if the text is rendered to the baseline
-				bufferValues[Info.Offset_ViewportOffsetY] = -4;
+				bufferValues[Info.Offset_ViewportOffsetY] = 0;
 				bufferValues[Info.Offset_ViewportWidth__] = bufferValues[Info.Offset_CanvasWidth____] - bufferValues[Info.Offset_ViewportOffsetX];
 				bufferValues[Info.Offset_ViewportHeight_] = bufferValues[Info.Offset_CanvasHeight___] - bufferValues[Info.Offset_ViewportOffsetY];
 				return bufferValues;

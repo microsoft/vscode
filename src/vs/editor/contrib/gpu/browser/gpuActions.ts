@@ -117,9 +117,9 @@ class DrawGlyphAction extends EditorAction {
 		if (!chars) {
 			return;
 		}
-		const codePoint = chars.match(/0x(?<codePoint>\d+)/)?.groups?.codePoint;
+		const codePoint = chars.match(/0x(?<codePoint>[0-9a-f]+)/i)?.groups?.codePoint;
 		if (codePoint !== undefined) {
-			chars = String.fromCodePoint(parseInt(codePoint));
+			chars = String.fromCodePoint(parseInt(codePoint, 16));
 		}
 		const metadata = 0;
 		const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, metadata);
@@ -139,7 +139,7 @@ class DrawGlyphAction extends EditorAction {
 		const ctx = ensureNonNullable(canvas.getContext('2d'));
 		ctx.putImageData(imageData, 0, 0);
 		const blob = await canvas.convertToBlob({ type: 'image/png' });
-		const resource = URI.joinPath(folders[0].uri, `glyph_${chars}_${metadata}_${fontSize}px_${fontFamily.replaceAll(/[,\.'\s]/g, '_')}.png`);
+		const resource = URI.joinPath(folders[0].uri, `glyph_${chars}_${metadata}_${fontSize}px_${fontFamily.replaceAll(/[,\\\/\.'\s]/g, '_')}.png`);
 		await fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer())));
 	}
 }

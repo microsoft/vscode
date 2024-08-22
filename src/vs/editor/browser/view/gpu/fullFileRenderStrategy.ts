@@ -312,8 +312,16 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
+					// TODO: Proper char width
 					screenAbsoluteX = Math.round((x + xOffset) * 7 * activeWindow.devicePixelRatio);
-					screenAbsoluteY = Math.round(viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] * activeWindow.devicePixelRatio);
+					screenAbsoluteY = (
+						Math.ceil((
+							// Top of line including line height
+							viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] +
+							// Delta to top of line after line height
+							Math.floor((viewportData.lineHeight - this._context.configuration.options.get(EditorOption.fontSize)) / 2)
+						) * activeWindow.devicePixelRatio)
+					);
 					zeroToOneX = screenAbsoluteX / this._canvas.width;
 					zeroToOneY = screenAbsoluteY / this._canvas.height;
 					wgslX = zeroToOneX * 2 - 1;
