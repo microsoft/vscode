@@ -14,7 +14,8 @@ import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, Vis
 import { VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
-import { ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+import { ViewLineOptions } from './viewLineOptions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';

@@ -45,6 +45,12 @@
 	border-style: dotted;
 }
 
+.monaco-editor .editorCanvas {
+	position: absolute;
+	z-index: 0;
+	pointer-events: none;
+}
+
 /* -------------------- Misc -------------------- */
 
 .monaco-editor .overflow-guard {

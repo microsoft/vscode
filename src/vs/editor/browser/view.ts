@@ -26,6 +26,7 @@ import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from '
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
+import { ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
@@ -57,7 +58,6 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 
-
 export interface IContentWidgetData {
 	widget: IContentWidget;
 	position: IContentWidgetPosition | null;
@@ -81,6 +81,7 @@ export class View extends ViewEventHandler {
 
 	// The view lines
 	private readonly _viewLines: ViewLines;
+	private readonly _viewLinesGpu: ViewLinesGpu;
 
 	// These are parts, but we must do some API related calls on them, so we keep a reference
 	private readonly _viewZones: ViewZones;
@@ -95,6 +96,7 @@ export class View extends ViewEventHandler {
 
 	// Dom nodes
 	private readonly _linesContent: FastDomNode<HTMLElement>;
+	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
 
@@ -134,6 +136,9 @@ export class View extends ViewEventHandler {
 		this._linesContent.setClassName('lines-content' + ' monaco-editor-background');
 		this._linesContent.setPosition('absolute');
 
+		this._canvas = createFastDomNode(document.createElement('canvas'));
+		this._canvas.setClassName('editorCanvas');
+
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName(this._getEditorClassName());
 		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
@@ -148,6 +153,7 @@ export class View extends ViewEventHandler {
 
 		// View Lines
 		this._viewLines = new ViewLines(this._context, this._linesContent);
+		this._viewLinesGpu = new ViewLinesGpu(this._context, this._canvas.domNode);
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
@@ -221,6 +227,7 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
+		this._overflowGuardContainer.appendChild(this._canvas);
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
 		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
@@ -392,6 +399,7 @@ export class View extends ViewEventHandler {
 		this._context.removeEventHandler(this);
 
 		this._viewLines.dispose();
+		this._viewLinesGpu.dispose();
 
 		// Destroy view parts
 		for (const viewPart of this._viewParts) {
@@ -503,6 +511,11 @@ export class View extends ViewEventHandler {
 
 					// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 					viewPartsToRender = this._getViewPartsToRender();
+				}
+
+				if (this._viewLinesGpu.shouldRender()) {
+					this._viewLinesGpu.renderText(viewportData);
+					this._viewLinesGpu.onDidRender();
 				}
 
 				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines)];
