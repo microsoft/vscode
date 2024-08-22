@@ -870,6 +870,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			const cancellationTokenSource = new CancellationTokenSource();
 			disposables.add(toDisposable(() => cancellationTokenSource.dispose(true)));
 			const primaryActions: Action[] = [];
+			const secondaryActions: Action[] = [];
 			const createAction = disposables.add(new Action(
 				'userDataProfile.create',
 				localize('create', "Create"),
@@ -894,6 +895,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.discardNewProfile()
 			));
+			secondaryActions.push(cancelAction);
 			const previewProfileAction = disposables.add(new Action(
 				'userDataProfile.preview',
 				localize('preview', "Preview"),
@@ -901,6 +903,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.previewNewProfile(cancellationTokenSource.token)
 			));
+			if (!isWeb) {
+				secondaryActions.push(previewProfileAction);
+			}
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,

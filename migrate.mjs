@@ -26,7 +26,7 @@ const srcFolder = fileURLToPath(new URL('src', import.meta.url));
 const dstFolder = fileURLToPath(new URL('src2', import.meta.url));
 
 const binaryFileExtensions = new Set([
-	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.psm1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.tsx'
+	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.psm1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.actual', '.tsx', '.scm'
 ]);
 
 function migrate() {

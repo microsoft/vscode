@@ -117,6 +117,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private readonly _messages = this._store.add(new Emitter<Message>());
 	protected readonly _onDidEnterState = this._store.add(new Emitter<State>());
+	readonly onDidEnterState = this._onDidEnterState.event;
 
 	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
 	readonly onWillStartSession = this._onWillStartSession.event;
@@ -879,7 +880,7 @@ export class InlineChatController implements IEditorContribution {
 			if (this._ui.rawValue?.zone?.position) {
 				this._ui.value.zone.updatePositionAndHeight(widgetPosition);
 
-			} else if (initialRender && !this._configurationService.getValue<boolean>(InlineChatConfigKeys.OnlyZoneWidget)) {
+			} else if (initialRender && this._configurationService.getValue<boolean>(InlineChatConfigKeys.StartWithOverlayWidget)) {
 				const selection = this._editor.getSelection();
 				widgetPosition = selection.getStartPosition();
 				this._ui.value.content.show(widgetPosition, selection.isEmpty());
