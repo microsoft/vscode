@@ -142,10 +142,14 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 										},
 									}
 								}
-							},
+							}
 						}
 					}
 				},
+				supportsToolReferences: {
+					description: localize('chatParticipantSupportsToolReferences', "Whether this participant supports {0}.", 'ChatRequest#toolReferences'),
+					type: 'boolean'
+				}
 			}
 		}
 	},
@@ -278,6 +282,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								[ChatAgentLocation.Panel],
 							slashCommands: providerDescriptor.commands ?? [],
 							disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
+							supportsToolReferences: providerDescriptor.supportsToolReferences,
 						} satisfies IChatAgentData));
 
 					this._participantRegistrationDisposables.set(

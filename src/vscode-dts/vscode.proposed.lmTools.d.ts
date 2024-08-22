@@ -80,7 +80,7 @@ declare module 'vscode' {
 		/**
 		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution point.
 		 */
-		export function registerTool(name: string, tool: LanguageModelTool): Disposable;
+		export function registerTool(id: string, tool: LanguageModelTool): Disposable;
 
 		/**
 		 * A list of all available tools.

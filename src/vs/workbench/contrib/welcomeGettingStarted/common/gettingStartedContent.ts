@@ -472,11 +472,11 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 	},
 	{
 		id: 'SetupScreenReaderExtended',
-		title: localize('gettingStarted.setupScreenReaderExtended.title', "Learn more about using VS Code"),
+		title: localize('gettingStarted.setupScreenReaderExtended.title', "Learn more about using VS Code with a Screen Reader"),
 		description: localize('gettingStarted.setupScreenReaderExtended.description', "Customize your editor, learn the basics, and start coding"),
 		isFeatured: true,
 		icon: setupIcon,
-		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
+		when: `!isWeb && ${CONTEXT_ACCESSIBILITY_MODE_ENABLED.key}`,
 		content: {
 			type: 'steps',
 			steps: [

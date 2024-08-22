@@ -583,15 +583,20 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 	computedTitle: string | undefined;
 }
 
+export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
+	version: 3;
+	customTitle: string | undefined;
+}
+
 /**
  * Chat data that has been parsed and normalized to the current format.
  */
-export type ISerializableChatData = ISerializableChatData2;
+export type ISerializableChatData = ISerializableChatData3;
 
 /**
  * Chat data that has been loaded but not normalized, and could be any format
  */
-export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2;
+export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2 | ISerializableChatData3;
 
 /**
  * Normalize chat data from storage to the current format.
@@ -600,10 +605,18 @@ export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChat
 export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISerializableChatData {
 	if (!('version' in raw)) {
 		return {
-			version: 2,
+			version: 3,
 			...raw,
 			lastMessageDate: raw.creationDate,
-			computedTitle: undefined
+			customTitle: undefined,
+		};
+	}
+
+	if (raw.version === 2) {
+		return {
+			...raw,
+			version: 3,
+			customTitle: raw.computedTitle
 		};
 	}
 
@@ -727,12 +740,16 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get requestInProgress(): boolean {
-		const lastRequest = this._requests[this._requests.length - 1];
-		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
+		const lastRequest = this.lastRequest;
+		return !!lastRequest?.response && !lastRequest.response.isComplete;
 	}
 
 	get hasRequests(): boolean {
 		return this._requests.length > 0;
+	}
+
+	get lastRequest(): ChatRequestModel | undefined {
+		return this._requests.at(-1);
 	}
 
 	private _creationDate: number;
@@ -784,13 +801,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isImported;
 	}
 
-	private _computedTitle: string | undefined;
-	get computedTitle(): string | undefined {
-		return this._computedTitle;
+	private _customTitle: string | undefined;
+	get customTitle(): string | undefined {
+		return this._customTitle;
 	}
 
 	get title(): string {
-		return this._computedTitle || ChatModel.getDefaultTitle(this._requests);
+		return this._customTitle || ChatModel.getDefaultTitle(this._requests);
 	}
 
 	get initialLocation() {
@@ -811,7 +828,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
 		this._lastMessageDate = (isSerializableSessionData(initialData) && initialData.lastMessageDate) || this._creationDate;
-		this._computedTitle = isSerializableSessionData(initialData) ? initialData.computedTitle : undefined;
+		this._customTitle = isSerializableSessionData(initialData) ? initialData.customTitle : undefined;
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
@@ -952,8 +969,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
-	setComputedTitle(title: string): void {
-		this._computedTitle = title;
+	setCustomTitle(title: string): void {
+		this._customTitle = title;
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
@@ -1118,13 +1135,13 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toJSON(): ISerializableChatData {
 		return {
-			version: 2,
+			version: 3,
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
-			computedTitle: this._computedTitle
+			customTitle: this._customTitle
 		};
 	}
 

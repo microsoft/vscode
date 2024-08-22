@@ -17,7 +17,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ISerializableChatData1, normalizeSerializableChatData, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ISerializableChatData1, ISerializableChatData2, normalizeSerializableChatData, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -203,7 +203,31 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.creationDate, v1Data.creationDate);
 		assert.strictEqual(newData.lastMessageDate, v1Data.creationDate);
-		assert.strictEqual(newData.version, 2);
-		assert.ok('computedTitle' in newData);
+		assert.strictEqual(newData.version, 3);
+		assert.ok('customTitle' in newData);
+	});
+
+	test('v2', () => {
+		const v2Data: ISerializableChatData2 = {
+			version: 2,
+			creationDate: 100,
+			lastMessageDate: Date.now(),
+			initialLocation: undefined,
+			isImported: false,
+			requesterAvatarIconUri: undefined,
+			requesterUsername: 'me',
+			requests: [],
+			responderAvatarIconUri: undefined,
+			responderUsername: 'bot',
+			sessionId: 'session1',
+			welcomeMessage: [],
+			computedTitle: 'computed title'
+		};
+
+		const newData = normalizeSerializableChatData(v2Data);
+		assert.strictEqual(newData.version, 3);
+		assert.strictEqual(newData.creationDate, v2Data.creationDate);
+		assert.strictEqual(newData.lastMessageDate, v2Data.lastMessageDate);
+		assert.strictEqual(newData.customTitle, v2Data.computedTitle);
 	});
 });

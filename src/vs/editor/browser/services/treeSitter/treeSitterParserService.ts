@@ -214,8 +214,8 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			owner: 'alros';
 			comment: 'Used to understand how long it takes to parse a tree-sitter tree';
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The programming language ID.' };
-			time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ms it took to parse' };
-			passes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of passes it took to parse' };
+			time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The ms it took to parse' };
+			passes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of passes it took to parse' };
 		};
 		if (parseType === TelemetryParseType.Full) {
 			this._telemetryService.publicLog2<{ languageId: string; time: number; passes: number }, ParseTimeClassification>(`treeSitter.fullParse`, { languageId, time, passes });
@@ -252,11 +252,10 @@ export class TreeSitterLanguages extends Disposable {
 	}
 
 	private async _addLanguage(languageId: string): Promise<void> {
-		let language = this._languages.getSyncIfCached(languageId);
-		if (!language) {
-			const fetchPromise = this._fetchLanguage(languageId);
-			this._languages.set(languageId, fetchPromise);
-			language = await fetchPromise;
+		const languagePromise = this._languages.get(languageId);
+		if (!languagePromise) {
+			this._languages.set(languageId, this._fetchLanguage(languageId));
+			const language = await this._languages.get(languageId);
 			if (!language) {
 				return undefined;
 			}

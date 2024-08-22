@@ -39,6 +39,7 @@ import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/serv
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+export const NOTEBOOK_MULTI_DIFF_EDITOR_ID = 'workbench.editor.notebookMultiTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 export const REPL_EDITOR_ID = 'workbench.editor.repl';
 

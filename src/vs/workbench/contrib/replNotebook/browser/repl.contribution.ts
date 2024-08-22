@@ -108,7 +108,8 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		editorResolverService.registerEditor(
-			`*.ipynb`,
+			// don't match anything, we don't need to support re-opening files as REPL editor at this point
+			` `,
 			{
 				id: 'repl',
 				label: 'repl Editor',

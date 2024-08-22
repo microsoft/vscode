@@ -11,7 +11,7 @@ import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, NOTEBOOK_DIFF_CELLS_COLLAPSED, NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS, NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
 import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon, toggleWhitespace } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -24,6 +24,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CellEditType, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { NotebookMultiTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor';
+import { Codicon } from 'vs/base/common/codicons';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -33,11 +35,11 @@ registerAction2(class extends Action2 {
 			id: 'notebook.diff.switchToText',
 			icon: openAsTextIcon,
 			title: localize2('notebook.diff.switchToText', 'Open Text Diff Editor'),
-			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID)),
 			menu: [{
 				id: MenuId.EditorTitle,
 				group: 'navigation',
-				when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				when: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID)),
 			}]
 		});
 	}
@@ -46,7 +48,10 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const activeEditor = editorService.activeEditorPane;
-		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
+		if (!activeEditor) {
+			return;
+		}
+		if (activeEditor instanceof NotebookTextDiffEditor || activeEditor instanceof NotebookMultiTextDiffEditor) {
 			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
 
 			await editorService.openEditor(
@@ -59,6 +64,91 @@ registerAction2(class extends Action2 {
 						override: DEFAULT_EDITOR_ASSOCIATION.id
 					}
 				});
+		}
+	}
+});
+
+
+registerAction2(class CollapseAllAction extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.multiDiffEditor.collapseAll',
+			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
+			icon: Codicon.collapseAll,
+			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.not(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
+			menu: {
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.not(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 100
+			},
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const activeEditor = accessor.get(IEditorService).activeEditorPane;
+		if (!activeEditor) {
+			return;
+		}
+		if (activeEditor instanceof NotebookMultiTextDiffEditor) {
+			activeEditor.collapseAll();
+		}
+	}
+});
+
+registerAction2(class ExpandAllAction extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.multiDiffEditor.expandAll',
+			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
+			icon: Codicon.expandAll,
+			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
+			menu: {
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_CELLS_COLLAPSED.key)),
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 100
+			},
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const activeEditor = accessor.get(IEditorService).activeEditorPane;
+		if (!activeEditor) {
+			return;
+		}
+		if (activeEditor instanceof NotebookMultiTextDiffEditor) {
+			activeEditor.expandAll();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.diffEditor.toggleCollapseUnchangedCells',
+			title: localize2('toggleCollapseUnchangedCells', 'Toggle Collapse Unchanged Cells'),
+			icon: Codicon.map,
+			toggled: ContextKeyExpr.has(NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN.key),
+			precondition: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key)),
+			menu: {
+				when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID), ContextKeyExpr.has(NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS.key)),
+				id: MenuId.EditorTitle,
+				order: 22,
+				group: 'navigation',
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const activeEditor = accessor.get(IEditorService).activeEditorPane;
+		if (!activeEditor) {
+			return;
+		}
+		if (activeEditor instanceof NotebookMultiTextDiffEditor) {
+			activeEditor.toggleUnchangedCells();
 		}
 	}
 });

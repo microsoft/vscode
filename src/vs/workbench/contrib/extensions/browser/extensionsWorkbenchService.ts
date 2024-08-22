@@ -1072,7 +1072,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0)));
 		this._register(this.updateService.onStateChange(e => {
 			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloaded) {
-				this.eventuallyCheckForUpdates(true);
+				this.telemetryService.publicLog2<{}, {
+					owner: 'sandy081';
+					comment: 'Report when update check is triggered on product update';
+				}>('extensions:updatecheckonproductupdate');
+				if (this.isAutoCheckUpdatesEnabled()) {
+					this.checkForUpdates();
+				}
 			}
 		}));
 

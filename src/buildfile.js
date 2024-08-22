@@ -38,6 +38,7 @@ function createEditorWorkerModuleDescription(name) {
 	return [amdVariant, esmVariant];
 }
 
+// TODO@esm take the editor simple worker top level and rename away from "base"
 exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
@@ -57,6 +58,7 @@ exports.base = [
 	{
 		name: 'vs/base/common/worker/simpleWorker',
 		exclude: [],
+		target: 'amd'
 	}
 ];
 
