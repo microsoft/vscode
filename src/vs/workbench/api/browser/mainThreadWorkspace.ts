@@ -160,7 +160,6 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	$startTextSearch(pattern: IPatternInfo, _folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
-		console.log(JSON.stringify(options));
 		const folder = URI.revive(_folder);
 		const workspace = this._contextService.getWorkspace();
 		const folders = folder ? [folder] : workspace.folders.map(folder => folder.uri);

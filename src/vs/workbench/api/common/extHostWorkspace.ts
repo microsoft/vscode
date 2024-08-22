@@ -517,6 +517,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			fileQueries.filePattern = parseInclude?.pattern;
 		}
 
+		console.log(JSON.stringify(fileQueries));
 		return this._proxy.$startFileSearch(
 			folderToUse ?? null,
 			fileQueries,
@@ -642,15 +643,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 
 		try {
-			const result = await Promise.all(queryOptions?.map(option => {
-				console.log(JSON.stringify(option));
-				return this._proxy.$startTextSearch(
+			const result = await Promise.all(queryOptions?.map(option =>
+				this._proxy.$startTextSearch(
 					query,
 					option.folder ?? null,
 					option.options,
 					requestId,
-					token) || {};
-			}
+					token) || {}
 			) ?? []);
 			delete this._activeSearchCallbacks[requestId];
 			return result.reduce((acc, val) => {
