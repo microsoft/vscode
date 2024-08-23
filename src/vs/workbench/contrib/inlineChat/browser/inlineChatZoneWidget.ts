@@ -23,6 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
@@ -78,21 +79,20 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		});
 		this._disposables.add(this.widget);
 
-		let scrollState: StableEditorBottomScrollState | undefined;
+		let revealFn: (() => void) | undefined;
 		this._disposables.add(this.widget.chatWidget.onWillMaybeChangeHeight(() => {
 			if (this.position) {
-				scrollState = StableEditorBottomScrollState.capture(this.editor);
+				revealFn = this._createZoneAndScrollRestoreFn(this.position);
 			}
 		}));
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
 			if (this.position) {
 				// only relayout when visible
-				scrollState ??= StableEditorBottomScrollState.capture(this.editor);
+				revealFn ??= this._createZoneAndScrollRestoreFn(this.position);
 				const height = this._computeHeight();
 				this._relayout(height.linesValue);
-				scrollState.restore(this.editor);
-				scrollState = undefined;
-				this._revealTopOfZoneWidget(this.position, height);
+				revealFn();
+				revealFn = undefined;
 			}
 		}));
 
@@ -154,57 +154,68 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	override show(position: Position): void {
 		assertType(this.container);
 
-		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
 
-		const height = this._computeHeight();
-		super.show(position, height.linesValue);
+		const revealZone = this._createZoneAndScrollRestoreFn(position);
+		super.show(position, this._computeHeight().linesValue);
 		this.widget.chatWidget.setVisible(true);
 		this.widget.focus();
 
-		scrollState.restore(this.editor);
-
-		this._revealTopOfZoneWidget(position, height);
+		revealZone();
 	}
 
 	override updatePositionAndHeight(position: Position): void {
-		const scrollState = StableEditorBottomScrollState.capture(this.editor);
-		const height = this._computeHeight();
-		super.updatePositionAndHeight(position, height.linesValue);
-		scrollState.restore(this.editor);
-
-		this._revealTopOfZoneWidget(position, height);
+		const revealZone = this._createZoneAndScrollRestoreFn(position);
+		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
+		revealZone();
 	}
 
-	private _revealTopOfZoneWidget(position: Position, height: { linesValue: number; pixelsValue: number }) {
+	private _createZoneAndScrollRestoreFn(position: Position): () => void {
 
-		// reveal top of zone widget
+		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 
 		const lineNumber = position.lineNumber <= 1 ? 1 : 1 + position.lineNumber;
-
 		const scrollTop = this.editor.getScrollTop();
 		const lineTop = this.editor.getTopForLineNumber(lineNumber);
-		const zoneTop = lineTop - height.pixelsValue;
+		const zoneTop = lineTop - this._computeHeight().pixelsValue;
 
-		const editorHeight = this.editor.getLayoutInfo().height;
-		const lineBottom = this.editor.getBottomForLineNumber(lineNumber);
+		const hasResponse = this.widget.chatWidget.viewModel?.getItems().find(candidate => {
+			return isResponseVM(candidate) && candidate.response.value.length > 0;
+		});
 
-		let newScrollTop = zoneTop;
-		let forceScrollTop = false;
-
-		if (lineBottom >= (scrollTop + editorHeight)) {
-			// revealing the top of the zone would pust out the line we are interested it and
-			// therefore we keep the line in the view port
-			newScrollTop = lineBottom - editorHeight;
-			forceScrollTop = true;
+		if (hasResponse && zoneTop < scrollTop) {
+			// don't reveal the zone if it is already out of view (unless we are still getting ready)
+			return () => {
+				scrollState.restore(this.editor);
+			};
 		}
 
-		if (newScrollTop < scrollTop || forceScrollTop) {
-			this._logService.trace('[IE] REVEAL zone', { zoneTop, lineTop, lineBottom, scrollTop, newScrollTop, forceScrollTop });
-			this.editor.setScrollTop(newScrollTop, ScrollType.Immediate);
-		}
+		return () => {
+			scrollState.restore(this.editor);
+
+			const scrollTop = this.editor.getScrollTop();
+			const lineTop = this.editor.getTopForLineNumber(lineNumber);
+			const zoneTop = lineTop - this._computeHeight().pixelsValue;
+			const editorHeight = this.editor.getLayoutInfo().height;
+			const lineBottom = this.editor.getBottomForLineNumber(lineNumber);
+
+			let newScrollTop = zoneTop;
+			let forceScrollTop = false;
+
+			if (lineBottom >= (scrollTop + editorHeight)) {
+				// revealing the top of the zone would push out the line we are interested in and
+				// therefore we keep the line in the viewport
+				newScrollTop = lineBottom - editorHeight;
+				forceScrollTop = true;
+			}
+
+			if (newScrollTop < scrollTop || forceScrollTop) {
+				this._logService.trace('[IE] REVEAL zone', { zoneTop, lineTop, lineBottom, scrollTop, newScrollTop, forceScrollTop });
+				this.editor.setScrollTop(newScrollTop, ScrollType.Immediate);
+			}
+		};
 	}
 
 	protected override revealRange(range: Range, isLastLine: boolean): void {
