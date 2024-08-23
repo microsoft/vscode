@@ -4559,13 +4559,11 @@ export enum LanguageModelChatMessageRole {
 
 export class LanguageModelToolResultPart implements vscode.LanguageModelChatMessageToolResultPart {
 
-	name: string;
 	toolCallId: string;
 	content: string;
 	isError: boolean;
 
-	constructor(name: string, toolCallId: string, content: string, isError?: boolean) {
-		this.name = name;
+	constructor(toolCallId: string, content: string, isError?: boolean) {
 		this.toolCallId = toolCallId;
 		this.content = content;
 		this.isError = isError ?? false;

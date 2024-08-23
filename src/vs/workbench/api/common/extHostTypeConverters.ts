@@ -2317,7 +2317,7 @@ export namespace LanguageModelChatMessage {
 			if (c.type === 'text') {
 				return c.value;
 			} else {
-				return new types.LanguageModelToolResultPart(c.name, c.name, c.value, c.isError);
+				return new types.LanguageModelToolResultPart(c.toolCallId, c.value, c.isError);
 			}
 		});
 		const content = content2.find(c => typeof c === 'string') ?? '';
@@ -2336,7 +2336,6 @@ export namespace LanguageModelChatMessage {
 			if (message.content2 instanceof types.LanguageModelToolResultPart) {
 				return {
 					type: 'tool_result',
-					name: message.content2.name,
 					toolCallId: message.content2.toolCallId,
 					value: message.content2.content,
 					isError: message.content2.isError
