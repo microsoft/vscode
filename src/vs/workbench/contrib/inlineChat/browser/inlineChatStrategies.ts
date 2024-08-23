@@ -370,9 +370,18 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override performHunkAction(hunk: HunkInformation | undefined, action: HunkAction) {
 		const displayData = this._findDisplayData(hunk);
+
 		if (!displayData) {
+			// no hunks (left or not yet) found, make sure to
+			// finish the sessions
+			if (action === HunkAction.Accept) {
+				this._onDidAccept.fire();
+			} else if (action === HunkAction.Discard) {
+				this._onDidDiscard.fire();
+			}
 			return;
 		}
+
 		if (action === HunkAction.Accept) {
 			displayData.acceptHunk();
 		} else if (action === HunkAction.Discard) {
