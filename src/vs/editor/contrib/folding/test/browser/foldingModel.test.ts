@@ -8,8 +8,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IModelDecorationsChangeAccessor, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { toSelectedLines } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { FoldingRegion } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
@@ -288,7 +290,7 @@ suite('Folding Model', () => {
 
 			textModel.applyEdits([EditOperation.delete(new Range(6, 11, 9, 0))]);
 
-			foldingModel.update(computeRanges(textModel, false, undefined));
+			foldingModel.update(computeRanges(textModel, true, undefined), toSelectedLines([new Selection(7, 1, 7, 1)]));
 
 			assertRanges(foldingModel, [r(1, 9, false), r(2, 8, false), r(3, 5, false), r(6, 8, false)]);
 		} finally {
