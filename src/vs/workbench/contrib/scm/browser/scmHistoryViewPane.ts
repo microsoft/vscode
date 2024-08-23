@@ -55,6 +55,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
@@ -680,6 +681,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService,
+		@IProgressService private readonly _progressService: IProgressService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -980,17 +982,20 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._updateChildrenThrottler.queue(
 			() => this._treeOperationSequencer.queue(
 				async () => {
-					if (element && this._tree.hasNode(element)) {
-						// Refresh specific repository
-						await this._tree.updateChildren(element, undefined, undefined, {
-							// diffIdentityProvider: this._treeIdentityProvider
+					await this._progressService.withProgress({ location: this.id },
+						async () => {
+							if (element && this._tree.hasNode(element)) {
+								// Refresh specific repository
+								await this._tree.updateChildren(element, undefined, undefined, {
+									// diffIdentityProvider: this._treeIdentityProvider
+								});
+							} else {
+								// Refresh the entire tree
+								await this._tree.updateChildren(undefined, undefined, undefined, {
+									// diffIdentityProvider: this._treeIdentityProvider
+								});
+							}
 						});
-					} else {
-						// Refresh the entire tree
-						await this._tree.updateChildren(undefined, undefined, undefined, {
-							// diffIdentityProvider: this._treeIdentityProvider
-						});
-					}
 				}));
 	}
 
