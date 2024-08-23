@@ -157,7 +157,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				logOptions = { ...logOptions, skip: options.skip };
 			}
 
-			const commits = await this.repository.log(logOptions);
+			const commits = await this.repository.log({ ...logOptions, silent: true });
 
 			await ensureEmojis();
 
