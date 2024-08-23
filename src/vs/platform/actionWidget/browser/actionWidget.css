@@ -62,7 +62,6 @@
 	touch-action: none;
 	width: 100%;
 	border-radius: 4px;
-	text-transform: capitalize;
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
