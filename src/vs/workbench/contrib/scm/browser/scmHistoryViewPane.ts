@@ -18,7 +18,7 @@ import { fromNow } from 'vs/base/common/date';
 import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, IObservable, observableValue } from 'vs/base/common/observable';
+import { autorun, autorunWithStore, IObservable, ISettableObservable, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -362,7 +362,7 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 	get templateId(): string { return HistoryItemLoadMoreRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private readonly _loadingMore: IObservable<boolean>,
+		private readonly _loadingMore: (repository: ISCMRepository) => IObservable<boolean>,
 		private readonly _loadMoreCallback: (repository: ISCMRepository) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService) { }
@@ -391,7 +391,7 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 
 		if (repositoryCount > 1 || alwaysShowRepositories) {
 			templateData.elementDisposables.add(autorun(reader => {
-				const loadingMore = this._loadingMore.read(reader);
+				const loadingMore = this._loadingMore(element.element.repository).read(reader);
 				const icon = `$(${loadingMore ? 'loading~spin' : 'fold-down'})`;
 
 				templateData.historyItemPlaceholderLabel.setLabel(localize('loadMore', "{0} Load More...", icon));
@@ -667,7 +667,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 	private _treeDataSource!: SCMHistoryTreeDataSource;
 	private _treeIdentityProvider!: SCMHistoryTreeIdentityProvider;
-	private _isLoadMore = observableValue(this, false);
+	private _repositoryLoadMore = new Map<ISCMRepository, ISettableObservable<boolean>>();
 
 	private readonly _repositories = new DisposableMap<ISCMRepository>();
 	private readonly _visibilityDisposables = new DisposableStore();
@@ -773,7 +773,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			[
 				this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
-				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, this._isLoadMore, repository => this._loadMoreCallback(repository)),
+				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, repository => this._getLoadMore(repository), repository => this._loadMoreCallback(repository)),
 			],
 			this._treeDataSource,
 			{
@@ -888,6 +888,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		// Removed repositories
 		for (const repository of removed) {
 			this._treeDataSource.clearState(repository);
+			this._repositoryLoadMore.delete(repository);
 			this._repositories.deleteAndDispose(repository);
 		}
 
@@ -906,16 +907,27 @@ export class SCMHistoryViewPane extends ViewPane {
 			.filter(r => !!r && isSCMHistoryItemViewModelTreeElement(r))!;
 	}
 
+	private _getLoadMore(repository: ISCMRepository): ISettableObservable<boolean> {
+		let loadMore = this._repositoryLoadMore.get(repository);
+		if (!loadMore) {
+			loadMore = observableValue<boolean>(this, false);
+			this._repositoryLoadMore.set(repository, loadMore);
+		}
+
+		return loadMore;
+	}
+
 	private _loadMoreCallback(repository: ISCMRepository): void {
-		if (this._isLoadMore.get()) {
+		const loadMore = this._getLoadMore(repository);
+		if (loadMore.get()) {
 			return;
 		}
 
-		this._isLoadMore.set(true, undefined);
+		loadMore.set(true, undefined);
 		this._treeDataSource.loadMore(repository);
 
 		this._updateChildren(repository)
-			.finally(() => this._isLoadMore.set(false, undefined));
+			.finally(() => loadMore.set(false, undefined));
 	}
 
 	private _updateChildren(element?: ISCMRepository): Promise<void> {
