@@ -670,7 +670,7 @@ function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor:
 
 class InlineChangeOverlay implements IOverlayWidget {
 
-	readonly allowEditorOverflow: boolean = true;
+	readonly allowEditorOverflow: boolean = false;
 
 	private readonly _id: string = `inline-chat-diff-overlay-` + generateUuid();
 	private readonly _domNode: HTMLElement = document.createElement('div');
