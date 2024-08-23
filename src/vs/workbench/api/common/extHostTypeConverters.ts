@@ -2313,18 +2313,17 @@ export namespace LanguageModelChatMessageRole {
 export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		let content: string = '';
-		let content2: vscode.LanguageModelChatMessageFunctionResultPart | undefined;
-		if (message.content.type === 'text') {
-			content = message.content.value;
-		} else {
-			content2 = new types.LanguageModelFunctionResultPart(message.content.name, message.content.value, message.content.isError);
-		}
+		const content2 = message.content.map(c => {
+			if (c.type === 'text') {
+				return c.value;
+			} else {
+				return new types.LanguageModelToolResultPart(c.name, c.name, c.value, c.isError);
+			}
+		});
+		const content = content2.find(c => typeof c === 'string') ?? '';
 		const role = LanguageModelChatMessageRole.to(message.role);
 		const result = new types.LanguageModelChatMessage(role, content, message.name);
-		if (content2 !== undefined) {
-			result.content2 = content2;
-		}
+		result.content2 = content2;
 		return result;
 	}
 
@@ -2333,21 +2332,22 @@ export namespace LanguageModelChatMessage {
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
-		let content: chatProvider.IChatMessagePart;
-
-		if (message.content2 instanceof types.LanguageModelFunctionResultPart) {
-			content = {
-				type: 'function_result',
-				name: message.content2.name,
-				value: message.content2.content,
-				isError: message.content2.isError
-			};
-		} else {
-			content = {
-				type: 'text',
-				value: message.content
-			};
-		}
+		const content = message.content2.map((c): chatProvider.IChatMessagePart => {
+			if (message.content2 instanceof types.LanguageModelToolResultPart) {
+				return {
+					type: 'tool_result',
+					name: message.content2.name,
+					toolCallId: message.content2.toolCallId,
+					value: message.content2.content,
+					isError: message.content2.isError
+				};
+			} else {
+				return {
+					type: 'text',
+					value: message.content
+				};
+			}
+		});
 
 		return {
 			role,
