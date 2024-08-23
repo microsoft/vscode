@@ -10,9 +10,9 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IToolData, IToolDelta, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
@@ -22,7 +22,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	private readonly _tokenCountFuncs = new Map</* call ID */string, (text: string, token?: vscode.CancellationToken) => Thenable<number>>();
 
 	/** A map of all known tools, from other EHs or registered in vscode core */
-	private readonly _allTools = new Map<string, IToolData>();
+	private readonly _allTools = new Map<string, IToolDataDto>();
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModelTools);
@@ -62,13 +62,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 	}
 
-	async $acceptToolDelta(delta: IToolDelta): Promise<void> {
-		if (delta.added) {
-			this._allTools.set(delta.added.id, delta.added);
-		}
-
-		if (delta.removed) {
-			this._allTools.delete(delta.removed);
+	$onDidChangeTools(tools: IToolDataDto[]): void {
+		this._allTools.clear();
+		for (const tool of tools) {
+			this._allTools.set(tool.id, tool);
 		}
 	}
 
