@@ -8800,7 +8800,7 @@ declare module 'vscode' {
 		 * The problem matchers attached to the task. Defaults to an empty
 		 * array.
 		 */
-		problemMatchers: string[];
+		problemMatchers: string | string[];
 
 		/**
 		 * Run options for the task
