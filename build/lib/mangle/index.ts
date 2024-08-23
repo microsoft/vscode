@@ -13,7 +13,7 @@ import { pathToFileURL } from 'url';
 import * as workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
 import { isESM } from '../esm';
-import * as buildfile from '../../buildfile';
+const buildfile = require('../../buildfile');
 
 class ShortIdent {
 
