@@ -125,6 +125,7 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 
 	constructor(
 		private readonly description: (repository: ISCMRepository) => IObservable<string>,
+		private readonly actionRunner: IActionRunner,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -145,7 +146,7 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 		const label = new IconLabel(element);
 		const labelCustomHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), label.element, '', {});
 		const stateLabel = append(element, $('div.state-label.monaco-count-badge.long'));
-		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionViewItemProvider: this.actionViewItemProvider, resetMenu: MenuId.SCMHistoryTitle }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionRunner: this.actionRunner, actionViewItemProvider: this.actionViewItemProvider, resetMenu: MenuId.SCMHistoryTitle }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 
 		return { label, labelCustomHover, stateLabel, toolBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(labelCustomHover, toolBar) };
 	}
@@ -484,6 +485,17 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 	}
 }
 
+class SCMHistoryViewPaneActionRunner extends ActionRunner {
+	constructor(@IProgressService private readonly _progressService: IProgressService) {
+		super();
+	}
+
+	protected override runAction(action: IAction, context?: unknown): Promise<void> {
+		return this._progressService.withProgress({ location: HISTORY_VIEW_PANE_ID },
+			async () => await super.runAction(action, context));
+	}
+}
+
 class SCMHistoryTreeAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	getWidgetAriaLabel(): string {
@@ -674,6 +686,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _repositoryDescription = new Map<ISCMRepository, ISettableObservable<string>>();
 	private _repositoryLoadMore = new Map<ISCMRepository, ISettableObservable<boolean>>();
 
+	private readonly _actionRunner: IActionRunner;
 	private readonly _repositories = new DisposableMap<ISCMRepository>();
 	private readonly _visibilityDisposables = new DisposableStore();
 
@@ -703,6 +716,9 @@ export class SCMHistoryViewPane extends ViewPane {
 		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._scmHistoryItemGroupHasRemoteContextKey = this.scopedContextKeyService.createKey('scmHistoryItemGroupHasRemote', undefined);
+
+		this._actionRunner = this.instantiationService.createInstance(SCMHistoryViewPaneActionRunner);
+		this._register(this._actionRunner);
 
 		this._register(this._updateChildrenThrottler);
 	}
@@ -755,6 +771,10 @@ export class SCMHistoryViewPane extends ViewPane {
 		});
 	}
 
+	override getActionRunner(): IActionRunner | undefined {
+		return this._actionRunner;
+	}
+
 	async refresh(repository?: ISCMRepository): Promise<void> {
 		this._treeDataSource.clearState(repository);
 		await this._updateChildren(repository);
@@ -778,7 +798,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			container,
 			new ListDelegate(),
 			[
-				this.instantiationService.createInstance(RepositoryRenderer, repository => this._getRepositoryDescription(repository), getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(RepositoryRenderer, repository => this._getRepositoryDescription(repository), this._actionRunner, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
 				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, repository => this._getLoadMore(repository), repository => this._loadMoreCallback(repository)),
 			],
