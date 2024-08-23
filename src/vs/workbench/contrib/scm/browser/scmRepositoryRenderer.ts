@@ -7,7 +7,7 @@ import 'vs/css!./media/scm';
 import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observable';
 import { append, $ } from 'vs/base/browser/dom';
-import { ISCMProvider, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,7 +20,7 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -63,9 +63,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private readonly toolbarResetMenu: MenuId,
-		private readonly toolbarMenu: (provider: ISCMProvider) => IMenu | undefined,
-		private readonly renderStatusBarCommands: boolean,
+		private readonly toolbarMenuId: MenuId,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -73,6 +71,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@IHoverService private hoverService: IHoverService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
+		@ISCMViewService private scmViewService: ISCMViewService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
@@ -88,7 +87,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
 		const actions = append(provider, $('.actions'));
-		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarResetMenu }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
@@ -117,13 +116,11 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		if (this.renderStatusBarCommands) {
-			templateData.elementDisposables.add(autorun(reader => {
-				const commands = repository.provider.statusBarCommands.read(reader) ?? [];
-				statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
-				updateToolbar();
-			}));
-		}
+		templateData.elementDisposables.add(autorun(reader => {
+			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
+			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
+			updateToolbar();
+		}));
 
 		templateData.elementDisposables.add(autorun(reader => {
 			const count = repository.provider.count.read(reader) ?? getRepositoryResourceCount(repository.provider);
@@ -131,16 +128,14 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.count.setCount(count);
 		}));
 
-		const menu = this.toolbarMenu(repository.provider);
-		if (menu) {
-			templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
-				menuPrimaryActions = primary;
-				menuSecondaryActions = secondary;
-				updateToolbar();
-			}));
-		} else {
+		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
+		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;
+		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
+			menuPrimaryActions = primary;
+			menuSecondaryActions = secondary;
 			updateToolbar();
-		}
+		}));
+
 		templateData.toolBar.context = repository.provider;
 	}
 

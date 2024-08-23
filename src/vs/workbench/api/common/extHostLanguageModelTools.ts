@@ -12,15 +12,14 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, IToolDelta, IToolInvokation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolDelta, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
 	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.LanguageModelTool }>();
 	private readonly _proxy: MainThreadLanguageModelToolsShape;
-	private readonly _tokenCountFuncs = new Map</* call ID */string, (text: string | vscode.LanguageModelChatMessage, token?: vscode.CancellationToken) => Thenable<number>>();
+	private readonly _tokenCountFuncs = new Map</* call ID */string, (text: string, token?: vscode.CancellationToken) => Thenable<number>>();
 
 	/** A map of all known tools, from other EHs or registered in vscode core */
 	private readonly _allTools = new Map<string, IToolData>();
@@ -35,16 +34,16 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		});
 	}
 
-	async $countTokensForInvokation(callId: string, input: string | IChatMessage, token: CancellationToken): Promise<number> {
+	async $countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
 		const fn = this._tokenCountFuncs.get(callId);
 		if (!fn) {
-			throw new Error(`Tool invokation call ${callId} not found`);
+			throw new Error(`Tool invocation call ${callId} not found`);
 		}
 
-		return await fn(typeof input === 'string' ? input : typeConvert.LanguageModelChatMessage.to(input), token);
+		return await fn(input, token);
 	}
 
-	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvokationOptions, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const callId = generateUuid();
 		if (options.tokenOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenOptions.countTokens);
@@ -78,18 +77,18 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
 	}
 
-	async $invokeTool(dto: IToolInvokation, token: CancellationToken): Promise<IToolResult> {
+	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvokationOptions = { parameters: dto.parameters };
+		const options: vscode.LanguageModelToolInvocationOptions = { parameters: dto.parameters };
 		if (dto.tokenBudget !== undefined) {
 			options.tokenOptions = {
 				tokenBudget: dto.tokenBudget,
 				countTokens: this._tokenCountFuncs.get(dto.callId) || ((value, token = CancellationToken.None) =>
-					this._proxy.$countTokensForInvokation(dto.callId, typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage.from(value), token))
+					this._proxy.$countTokensForInvocation(dto.callId, value, token))
 			};
 		}
 

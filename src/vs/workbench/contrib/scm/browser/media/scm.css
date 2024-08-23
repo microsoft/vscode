@@ -469,7 +469,16 @@
 	margin-bottom: 0 !important;
 }
 
-/* History Item Load More */
+/* Graph */
+
+.scm-history-view .scm-provider .label-name {
+	font-weight: bold;
+}
+
+.scm-history-view .scm-provider .monaco-icon-label {
+	flex-grow: 1;
+	align-items: center;
+}
 
 .scm-history-view .history-item-load-more {
 	display: flex;

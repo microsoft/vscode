@@ -91,10 +91,10 @@ declare module 'vscode' {
 		 * Invoke a tool with the given parameters.
 		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
 		 */
-		export function invokeTool(id: string, options: LanguageModelToolInvokationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
-	export interface LanguageModelToolInvokationOptions {
+	export interface LanguageModelToolInvocationOptions {
 		/**
 		 * Parameters with which to invoke the tool.
 		 */
@@ -111,11 +111,11 @@ declare module 'vscode' {
 
 			/**
 			 * Count the number of tokens in a message using the model specific tokenizer-logic.
-			 * @param text A string or a message instance.
+			 * @param text A string.
 			 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
 			 * @returns A thenable that resolves to the number of tokens.
 			 */
-			countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+			countTokens(text: string, token?: CancellationToken): Thenable<number>;
 		};
 	}
 
@@ -145,7 +145,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelTool {
 		// TODO@API should it be LanguageModelToolResult | string?
-		invoke(options: LanguageModelToolInvokationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		invoke(options: LanguageModelToolInvocationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	export interface ChatLanguageModelToolReference {
