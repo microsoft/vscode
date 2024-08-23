@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./nativeEditContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
@@ -29,7 +28,6 @@ const showControlBounds = true;
 export class NativeEditContext extends Disposable {
 
 	// HTML Elements
-	public readonly domElement = new FastDomNode(document.createElement('div'));
 	private _parent: HTMLElement | undefined;
 
 	// Edit Context API
@@ -61,6 +59,7 @@ export class NativeEditContext extends Disposable {
 	} | undefined;
 
 	constructor(
+		public readonly domElement: FastDomNode<HTMLDivElement>,
 		private readonly _context: ViewContext,
 		private readonly _viewController: ViewController
 	) {

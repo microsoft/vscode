@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./nativeEditContext';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { HorizontalPosition, RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
@@ -17,31 +15,23 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { Position } from 'vs/editor/common/core/position';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { ClipboardEventUtils, ClipboardStoredMetadata, CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
+import { ClipboardEventUtils, ClipboardStoredMetadata, CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-/**
- * without screen reader incorrect focusing behavior, does not focus
- * With screen reader incorrect focusing behavior when changing from editor to editor
-
- * When Entering in the notebook, does not work, also can not add space in a notebook. This seems to be somehow related maybe to the notebooks in general.
- */
-export class ScreenReaderContent extends AbstractEditContext {
+export class ScreenReaderContentHandler extends Disposable {
 
 	// HTML Elements
-	private readonly _nativeEditContext: NativeEditContext;
 	private readonly _domElement: FastDomNode<HTMLDivElement>;
 
 	// Settings
@@ -65,19 +55,20 @@ export class ScreenReaderContent extends AbstractEditContext {
 	private _emptySelectionClipboard: boolean;
 	private _copyWithSyntaxHighlighting: boolean;
 
+	private _context: ViewContext;
+
 	constructor(
+		domElement: FastDomNode<HTMLDivElement>,
 		context: ViewContext,
 		viewController: ViewController,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
-		super(context);
-
 		console.log('screen reader content handler constructor');
-		this._nativeEditContext = new NativeEditContext(context, viewController);
-		this._domElement = this._nativeEditContext.domElement;
 
+		super();
+		this._context = context;
+		this._domElement = domElement;
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
@@ -91,13 +82,11 @@ export class ScreenReaderContent extends AbstractEditContext {
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 
 		this._primarySelection = new Selection(1, 1, 1, 1);
-		this._domElement.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		PartFingerprints.write(this._domElement, PartFingerprint.TextArea);
+		PartFingerprints.write(domElement, PartFingerprint.TextArea);
 		const { tabSize } = this._context.viewModel.model.getOptions();
-		this._domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this._domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
-		this._domElement.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		this._domElement.setAttribute('role', 'textbox');
+		domElement.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
+		domElement.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
+		domElement.setAttribute('role', 'textbox');
 
 		/*
 		// https://issues.chromium.org/issues/40642681
@@ -126,7 +115,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 		unconditionally enabled (such as "copy") are not affected.
 		*/
 
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'copy', (e) => {
+		this._register(dom.addDisposableListener(domElement.domNode, 'copy', (e) => {
 			console.log('copy : ', e);
 
 			const clipboardStoredMetada = this._getDataToCopy();
@@ -148,7 +137,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 			}
 		}));
 		// But I want the current clipboard data because I need it in case
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'keydown', async (e) => {
+		this._register(dom.addDisposableListener(domElement.domNode, 'keydown', async (e) => {
 
 			console.log('inside of keydown of screen reader content');
 
@@ -178,14 +167,14 @@ export class ScreenReaderContent extends AbstractEditContext {
 			// 	viewController.cut();
 			// }
 		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', (e) => {
+		this._register(dom.addDisposableListener(domElement.domNode, 'focus', (e) => {
 			console.log('focus');
-			this._domElement.domNode.style.background = 'yellow';
+			domElement.domNode.style.background = 'yellow';
 			this._setHasFocus(true);
 		}));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', (e) => {
+		this._register(dom.addDisposableListener(domElement.domNode, 'blur', (e) => {
 			console.log('blur');
-			this._domElement.domNode.style.background = 'white';
+			domElement.domNode.style.background = 'white';
 			this._setHasFocus(false);
 		}));
 		this.writeScreenReaderContent('ctor');
@@ -193,13 +182,11 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
 		overflowGuardContainer.appendChild(this._domElement);
-		this._nativeEditContext.setParent(overflowGuardContainer.domNode);
 	}
 
 	public writeScreenReaderContent(reason: string): void {
 		console.log('writeScreenReaderContent');
 		this._writeScreenReaderContent(reason);
-		this._nativeEditContext.writeEditContextContent();
 	}
 
 	private _writeScreenReaderContent(reason: string): void {
@@ -227,7 +214,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 	// --- begin event handlers
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._setAccessibilityOptions(options);
@@ -250,20 +237,18 @@ export class ScreenReaderContent extends AbstractEditContext {
 		return true;
 	}
 
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.selections.slice(0)[0] ?? new Selection(1, 1, 1, 1);
 		this._modelSelections = e.modelSelections.slice(0);
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
 		this._writeScreenReaderContent('selection changed');
-		this._nativeEditContext.onCursorStateChanged(e);
 		return true;
 	}
 
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollLeft = e.scrollLeft;
 		this._scrollTop = e.scrollTop;
-		this._nativeEditContext.onScrollChanged(e);
 		return true;
 	}
 
@@ -273,10 +258,6 @@ export class ScreenReaderContent extends AbstractEditContext {
 
 	public isFocused(): boolean {
 		return this._hasFocus;
-	}
-
-	public get domElement(): HTMLElement {
-		return this._domElement.domNode;
 	}
 
 	public focusScreenReaderContent(): void {
@@ -329,8 +310,6 @@ export class ScreenReaderContent extends AbstractEditContext {
 		console.log('dom.getActiveElement() in end of _setHasFocus: ', dom.getActiveElement());
 	}
 
-	public setAriaOptions(options: IEditorAriaOptions): void { }
-
 	// --- end view API
 
 	private _primaryCursorPosition: Position = new Position(1, 1);
@@ -339,12 +318,10 @@ export class ScreenReaderContent extends AbstractEditContext {
 	public prepareRender(ctx: RenderingContext): void {
 		this._primaryCursorPosition = new Position(this._primarySelection.positionLineNumber, this._primarySelection.positionColumn);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
-		this._nativeEditContext.setRenderingContext(ctx);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
 		this._writeScreenReaderContent('render');
-		this._nativeEditContext.writeEditContextContent();
 		this._render();
 	}
 

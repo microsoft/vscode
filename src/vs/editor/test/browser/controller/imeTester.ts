@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
+import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
 import { ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { mainWindow } from 'vs/base/browser/window';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaState';
+import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextState';
 
 // To run this test, open imeTester.html
 
