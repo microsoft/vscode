@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isESM, canASAR } from 'vs/base/common/amd';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-
 
 class DefineCall {
 	constructor(
@@ -63,6 +62,9 @@ class AMDModuleImporter {
 				createScriptURL(value) {
 					// eslint-disable-next-line no-restricted-globals
 					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					if (value.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`)) {
 						return value;
 					}
 					throw new Error(`[trusted_script_src] Invalid script url: ${value}`);
