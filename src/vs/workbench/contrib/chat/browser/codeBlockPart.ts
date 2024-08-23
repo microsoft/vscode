@@ -10,8 +10,8 @@ import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -24,7 +24,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IDiffEditorViewModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
@@ -67,6 +67,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
+import { assertType } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -483,6 +484,7 @@ export interface ICodeCompareBlockData {
 }
 
 
+// long-lived object that sits in the DiffPool and that gets reused
 export class CodeCompareBlockPart extends Disposable {
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
@@ -494,7 +496,7 @@ export class CodeCompareBlockPart extends Disposable {
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
 
-	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable<IDiffEditorViewModel>());
+	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
 
 	constructor(
@@ -743,7 +745,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this.element.classList.toggle('no-diff', isEditApplied);
 
-		if (data.edit.state?.applied) {
+		if (isEditApplied) {
+			assertType(data.edit.state?.applied);
 
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
@@ -787,8 +790,13 @@ export class CodeCompareBlockPart extends Disposable {
 				return;
 			}
 
+			const listener = Event.any(diffData.original.onWillDispose, diffData.modified.onWillDispose)(() => {
+				// this a bit weird and basically duplicates https://github.com/microsoft/vscode/blob/7cbcafcbcc88298cfdcd0238018fbbba8eb6853e/src/vs/editor/browser/widget/diffEditor/diffEditorWidget.ts#L328
+				// which cannot call `setModel(null)` without first complaining
+				this.diffEditor.setModel(null);
+			});
 			this.diffEditor.setModel(viewModel);
-			this._lastDiffEditorViewModel.value = viewModel;
+			this._lastDiffEditorViewModel.value = combinedDisposable(listener, viewModel);
 
 		} else {
 			this.diffEditor.setModel(null);
@@ -800,10 +808,6 @@ export class CodeCompareBlockPart extends Disposable {
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
-	}
-
-	clearModel() {
-		this.diffEditor.setModel(null);
 	}
 }
 
