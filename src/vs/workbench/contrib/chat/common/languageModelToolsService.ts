@@ -11,7 +11,6 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IToolData {
@@ -30,7 +29,7 @@ interface IToolEntry {
 	impl?: IToolImpl;
 }
 
-export interface IToolInvokation {
+export interface IToolInvocation {
 	callId: string;
 	toolId: string;
 	parameters: any;
@@ -43,7 +42,7 @@ export interface IToolResult {
 }
 
 export interface IToolImpl {
-	invoke(dto: IToolInvokation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invoke(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -53,7 +52,7 @@ export interface IToolDelta {
 	removed?: string;
 }
 
-export type CountTokensCallback = (input: string | IChatMessage, token: CancellationToken) => Promise<number>;
+export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
 
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -63,7 +62,7 @@ export interface ILanguageModelToolsService {
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
-	invokeTool(dto: IToolInvokation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export class LanguageModelToolsService implements ILanguageModelToolsService {
@@ -127,7 +126,7 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return undefined;
 	}
 
-	async invokeTool(dto: IToolInvokation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		let tool = this._tools.get(dto.toolId);
 		if (!tool) {
 			throw new Error(`Tool ${dto.toolId} was not contributed`);
