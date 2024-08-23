@@ -9,7 +9,7 @@ import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, type ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/gpu/raster/glyphRasterizer';
-import { ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
+import { ViewLinesGpu } from 'vs/editor/browser/viewParts/linesGpu/viewLinesGpu';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

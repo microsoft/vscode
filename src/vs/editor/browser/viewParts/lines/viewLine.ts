@@ -17,7 +17,7 @@ import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
-import { ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
+import { ViewLinesGpu } from 'vs/editor/browser/viewParts/linesGpu/viewLinesGpu';
 import { ViewLineOptions } from './viewLineOptions';
 
 const canUseFastRenderedViewLine = (function () {
