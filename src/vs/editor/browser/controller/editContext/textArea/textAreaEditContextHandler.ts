@@ -11,8 +11,8 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
-import { AbstractEditContextHandler, ariaLabelForScreenReaderContent, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
+import { AbstractEditContextHandler, ariaLabelForScreenReaderContent, ClipboardDataToCopy, getDataToCopy, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -152,7 +152,6 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 	) {
 		super(context);
 
-		console.log('text area handler constructor');
 		this._viewController = viewController;
 		this._visibleRangeProvider = visibleRangeProvider;
 		this._scrollLeft = 0;
@@ -207,8 +206,6 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 				return this._context.viewModel.getLineMaxColumn(lineNumber);
 			},
 			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				console.log('getValueInRange');
-				console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
 				return this._context.viewModel.getValueInRange(range, eol);
 			},
 			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
@@ -221,29 +218,7 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
-				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
-				const newLineCharacter = this._context.viewModel.model.getEOL();
-
-				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
-				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
-				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
-
-				let html: string | null | undefined = undefined;
-				let mode: string | null = null;
-				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-					const richText = this._context.viewModel.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
-					if (richText) {
-						html = richText.html;
-						mode = richText.mode;
-					}
-				}
-				return {
-					isFromEmptySelection,
-					multicursorText,
-					text,
-					html,
-					mode
-				};
+				return getDataToCopy(this._context.viewModel, this._selections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
 			},
 			getScreenReaderContent: (): TextAreaState => {
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
@@ -302,7 +277,6 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 
 				const selection = this._selections[0];
 				const textAreaData = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
-				console.log('textAreaData : ', textAreaData);
 				return new TextAreaState(textAreaData.value, textAreaData.selectionStart, textAreaData.selectionEnd, selection, textAreaData.newLineCountBeforeSelection);
 			},
 
@@ -320,7 +294,6 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 		}));
 
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
-			console.log('on key down of text area handler : ', e);
 			this._viewController.emitKeyDown(e);
 		}));
 
@@ -329,7 +302,6 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
-			console.log('on paste of text area handler');
 			let pasteOnNewLine = false;
 			let multicursorText: string[] | null = null;
 			let mode: string | null = null;
@@ -346,7 +318,6 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 		}));
 
 		this._register(this._textAreaInput.onType((e: ITypeData) => {
-			console.log('onType of text area handler : ', e);
 			if (e.replacePrevCharCnt || e.replaceNextCharCnt || e.positionDelta) {
 				// must be handled through the new command
 				if (_debugComposition) {
@@ -477,12 +448,10 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {
-			console.log('on focus of TextAreaHandler');
 			this._context.viewModel.setHasFocus(true);
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
-			console.log('on blur of TextAreaHandler');
 			this._context.viewModel.setHasFocus(false);
 		}));
 
@@ -503,6 +472,7 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 	public override dispose(): void {
 		super.dispose();
 		this.textArea.domNode.remove();
+		this.textAreaCover.domNode.remove();
 	}
 
 	private _getAndroidWordAtPosition(position: Position): [string, number] {

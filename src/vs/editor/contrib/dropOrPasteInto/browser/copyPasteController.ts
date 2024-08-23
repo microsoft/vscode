@@ -13,7 +13,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ClipboardEventUtils } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor, PastePayload } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -37,6 +36,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { PostEditWidgetManager } from './postEditWidget';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
+import { ClipboardEventUtils } from 'vs/editor/browser/controller/editContext/editContext';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -241,11 +241,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private async handlePaste(e: ClipboardEvent) {
-		console.log('handlePaste');
-		console.log('e : ', e);
-		console.log('this._editor.hasTextFocus() : ', this._editor.hasTextFocus());
 		if (!e.clipboardData || !this._editor.hasTextFocus()) {
-			console.log('handlePaste return 1');
 			return;
 		}
 
@@ -256,7 +252,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
 		if (!selections?.length || !model) {
-			console.log('handlePaste return 2');
 			return;
 		}
 
@@ -264,7 +259,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			!this.isPasteAsEnabled()
 			&& !this._pasteAsActionContext // Still enable if paste as was explicitly requested
 		) {
-			console.log('handlePaste return 3');
 			return;
 		}
 

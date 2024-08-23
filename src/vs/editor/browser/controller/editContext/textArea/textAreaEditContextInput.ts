@@ -12,11 +12,10 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { _debugComposition, ITextAreaWrapper, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextState';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
+import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager, ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -30,67 +29,16 @@ export interface ICompositionData {
 	data: string;
 }
 
-export const CopyOptions = {
-	forceCopyWithSyntaxHighlighting: false
-};
 
 export interface IPasteData {
 	text: string;
 	metadata: ClipboardStoredMetadata | null;
 }
 
-export interface ClipboardDataToCopy {
-	isFromEmptySelection: boolean;
-	multicursorText: string[] | null | undefined;
-	text: string;
-	html: string | null | undefined;
-	mode: string | null;
-}
-
-export interface ClipboardStoredMetadata {
-	version: 1;
-	isFromEmptySelection: boolean | undefined;
-	multicursorText: string[] | null | undefined;
-	mode: string | null;
-}
-
 export interface ITextAreaInputHost {
 	getDataToCopy(): ClipboardDataToCopy;
 	getScreenReaderContent(): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
-}
-
-interface InMemoryClipboardMetadata {
-	lastCopiedValue: string;
-	data: ClipboardStoredMetadata;
-}
-
-/**
- * Every time we write to the clipboard, we record a bit of extra metadata here.
- * Every time we read from the cipboard, if the text matches our last written text,
- * we can fetch the previous metadata.
- */
-export class InMemoryClipboardMetadataManager {
-	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
-
-	private _lastState: InMemoryClipboardMetadata | null;
-
-	constructor() {
-		this._lastState = null;
-	}
-
-	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
-		this._lastState = { lastCopiedValue, data };
-	}
-
-	public get(pastedText: string): ClipboardStoredMetadata | null {
-		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
-			// match!
-			return this._lastState.data;
-		}
-		this._lastState = null;
-		return null;
-	}
 }
 
 export interface ICompositionStartEvent {
@@ -238,8 +186,6 @@ export class TextAreaInput extends Disposable {
 		let lastKeyDown: IKeyboardEvent | null = null;
 
 		this._register(this._textArea.onKeyDown((_e) => {
-
-			console.log('on key down of the text area input: ', _e);
 			const e = new StandardKeyboardEvent(_e);
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._currentComposition && e.keyCode === KeyCode.Backspace)) {
@@ -256,6 +202,7 @@ export class TextAreaInput extends Disposable {
 			lastKeyDown = e;
 			this._onKeyDown.fire(e);
 		}));
+
 		this._register(this._textArea.onKeyUp((_e) => {
 			const e = new StandardKeyboardEvent(_e);
 			this._onKeyUp.fire(e);
@@ -362,9 +309,6 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onInput((e) => {
-
-			console.log('oninput with : ', e);
-
 			if (_debugComposition) {
 				console.log(`[input]`, e);
 			}
@@ -409,19 +353,17 @@ export class TextAreaInput extends Disposable {
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
 
-			this._ensureClipboardGetsEditorSelection(e);
+			const dataToCopy = this._host.getDataToCopy();
+			ensureClipboardGetsEditorSelection(e, dataToCopy);
 			this._asyncTriggerCut.schedule();
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
-			console.log('copy of ta input e : ', e);
-			this._ensureClipboardGetsEditorSelection(e);
+			const dataToCopy = this._host.getDataToCopy();
+			ensureClipboardGetsEditorSelection(e, dataToCopy);
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
-
-			console.log('paste of ta input e : ', e);
-
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
@@ -447,9 +389,6 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onFocus(() => {
-
-			console.log('onfocus of textareainput');
-
 			const hadFocus = this._hasFocus;
 
 			this._setHasFocus(true);
@@ -464,9 +403,6 @@ export class TextAreaInput extends Disposable {
 			}
 		}));
 		this._register(this._textArea.onBlur(() => {
-
-			console.log('onblur of textareainput');
-
 			if (this._currentComposition) {
 				// See https://github.com/microsoft/vscode/issues/112621
 				// where compositionend is not triggered when the editor
@@ -599,9 +535,6 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public focusTextArea(): void {
-
-		console.log('focusTextArea of textareainput');
-
 		// Setting this._hasFocus and writing the screen reader content
 		// will result in a focus() and setSelectionRange() in the textarea
 		this._setHasFocus(true);
@@ -615,14 +548,10 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public refreshFocusState(): void {
-		console.log('refreshFocusState of textareainput');
 		this._setHasFocus(this._textArea.hasFocus());
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
-		console.log('_setHasFocus of textareainput');
-		console.log('newHasFocus of textareainput : ', newHasFocus);
-		console.log('this._hasFocus : ', this._hasFocus);
 		if (this._hasFocus === newHasFocus) {
 			// no change
 			return;
@@ -646,19 +575,15 @@ export class TextAreaInput extends Disposable {
 		} else {
 			this._onBlur.fire();
 		}
-
-		console.log('dom.getActiveElement() of textareainput in _setHasFocus: ', dom.getActiveElement());
 	}
 
 	private _setAndWriteTextAreaState(reason: string, textAreaState: TextAreaState): void {
-		console.log('_setAndWriteTextAreaState of textareainput');
 		if (!this._hasFocus) {
 			textAreaState = textAreaState.collapseSelection();
 		}
 
 		textAreaState.writeToTextArea(reason, this._textArea, this._hasFocus);
 		this._textAreaState = textAreaState;
-		console.log('dom.getActiveElement() of textareainput in _setAndWriteTextAreaState: ', dom.getActiveElement());
 	}
 
 	public writeNativeTextAreaContent(reason: string): void {
@@ -670,63 +595,7 @@ export class TextAreaInput extends Disposable {
 		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
-
-	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy();
-		const storedMetadata: ClipboardStoredMetadata = {
-			version: 1,
-			isFromEmptySelection: dataToCopy.isFromEmptySelection,
-			multicursorText: dataToCopy.multicursorText,
-			mode: dataToCopy.mode
-		};
-		InMemoryClipboardMetadataManager.INSTANCE.set(
-			// When writing "LINE\r\n" to the clipboard and then pasting,
-			// Firefox pastes "LINE\n", so let's work around this quirk
-			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
-			storedMetadata
-		);
-
-		e.preventDefault();
-		if (e.clipboardData) {
-			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
-		}
-	}
 }
-
-export const ClipboardEventUtils = {
-
-	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
-		const text = clipboardData.getData(Mimes.text);
-		let metadata: ClipboardStoredMetadata | null = null;
-		const rawmetadata = clipboardData.getData('vscode-editor-data');
-		if (typeof rawmetadata === 'string') {
-			try {
-				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
-				if (metadata.version !== 1) {
-					metadata = null;
-				}
-			} catch (err) {
-				// no problem!
-			}
-		}
-
-		if (text.length === 0 && metadata === null && clipboardData.files.length > 0) {
-			// no textual data pasted, generate text from file names
-			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
-			return [files.map(file => file.name).join('\n'), null];
-		}
-
-		return [text, metadata];
-	},
-
-	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		clipboardData.setData(Mimes.text, text);
-		if (typeof html === 'string') {
-			clipboardData.setData('text/html', html);
-		}
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-	}
-};
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 

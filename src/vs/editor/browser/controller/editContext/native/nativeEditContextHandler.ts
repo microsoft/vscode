@@ -36,19 +36,17 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	// Configuration values
 	private _contentLeft!: number;
 	private _contentWidth!: number;
-	private _contentHeight!: number;
 	private _lineHeight!: number;
 	private _fontInfo!: FontInfo;
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
 
-	private _scrollLeft: number = 0;
 	private _scrollTop: number = 0;
 
 	private _hasFocus: boolean = false;
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private screenReaderContentSelectionOffsetRange: OffsetRange | null = null;
+	private _selectionOffsetRangeWithinDom: OffsetRange | null = null;
 
 	constructor(
 		context: ViewContext,
@@ -78,7 +76,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	public writeScreenReaderContent(reason: string): void {
 		this._writeScreenReaderContent();
-		this._nativeEditContext.writeEditContextContent();
+		this._nativeEditContext._updateEditContext();
 		this._render();
 	}
 
@@ -89,7 +87,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		this._writeScreenReaderContent();
-		this._nativeEditContext.writeEditContextContent();
+		this._nativeEditContext._updateEditContext();
 		this._render();
 	}
 
@@ -103,7 +101,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollTop = e.scrollTop;
-		this._scrollLeft = e.scrollLeft;
 		this._nativeEditContext.onScrollChanged(e);
 		this._render();
 		return true;
@@ -122,7 +119,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
-		this._contentHeight = layoutInfo.height;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
@@ -181,7 +177,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	public setAriaOptions(options: IEditorAriaOptions): void { }
 
 	private _writeScreenReaderContent(): void {
-		console.log('_writeScreenReaderContent : ');
 		const screenReaderContent = this._getScreenReaderContent();
 		if (!screenReaderContent) {
 			return;
@@ -189,7 +184,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		if (this._domElement.domNode.textContent !== screenReaderContent.value) {
 			this._domElement.domNode.textContent = screenReaderContent.value;
 		}
-		console.log('screenReaderContent.value : ', screenReaderContent.value);
 		this._setSelectionOfScreenReaderContent(screenReaderContent.selectionStart, screenReaderContent.selectionEnd);
 	}
 
@@ -228,11 +222,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	private _setSelectionOfScreenReaderContent(selectionStart: number, selectionEnd: number): void {
 
-		console.log('_setSelectionOfScreenReaderContent');
-		console.log('selectionStart : ', selectionStart);
-		console.log('selectionEnd : ', selectionEnd);
-
-		this.screenReaderContentSelectionOffsetRange = new OffsetRange(selectionStart, selectionEnd);
+		this._selectionOffsetRangeWithinDom = new OffsetRange(selectionStart, selectionEnd);
 
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
@@ -248,7 +238,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		range.setEnd(textContent, selectionEnd);
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
-		console.log('activeDocumentSelection updated : ', activeDocumentSelection);
 	}
 
 	private _render(): void {
@@ -256,32 +245,20 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		if (!this._primaryCursorVisibleRange) {
 			return;
 		}
-		const left = this._contentLeft + this._primaryCursorVisibleRange.left - this._scrollLeft;
-		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
-			return;
-		}
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - this._scrollTop;
-		if (top < 0 || top > this._contentHeight) {
-			return;
-		}
 
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domElement, this._fontInfo);
 
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const wrappingColumn = layoutInfo.wrappingColumn;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
-
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - this._scrollTop;
 		this._domElement.setTop(top);
 		this._domElement.setLeft(this._contentLeft);
-		this._domElement.setWidth(textAreaWidth);
+		this._domElement.setWidth(this._contentWidth);
 		this._domElement.setHeight(this._lineHeight);
 
+		// Setting position within the screen reader content
+		const textContent = this._domElement.domNode.textContent ?? '';
+		const textContentBeforeSelection = textContent.substring(0, this._selectionOffsetRangeWithinDom?.start);
+		this._domElement.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
 		this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-		const divValue = this._domElement.domNode.textContent ?? '';
-		const lineCount = newlinecount(divValue.substring(0, this.screenReaderContentSelectionOffsetRange?.start));
-		this._domElement.domNode.scrollTop = lineCount * this._lineHeight;
 	}
 }
