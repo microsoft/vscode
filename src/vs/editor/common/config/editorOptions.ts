@@ -5731,12 +5731,12 @@ export const EditorOptions = {
 	stickyScroll: register(new EditorStickyScroll()),
 	experimentalGpuAcceleration: register(new EditorStringEnumOption(
 		EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration',
-		'on' as 'on' | 'off',
-		['on', 'off'] as const,
+		'off' as 'off' | 'on',
+		['off', 'on'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
 				nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
+				nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
 			],
 			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
 		}

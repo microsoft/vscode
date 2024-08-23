@@ -59,6 +59,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 
+
 export interface IContentWidgetData {
 	widget: IContentWidget;
 	position: IContentWidgetPosition | null;

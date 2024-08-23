@@ -10,7 +10,6 @@ import { EditorAction, registerEditorAction, type ServicesAccessor } from 'vs/ed
 import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
 import { GlyphRasterizer } from 'vs/editor/browser/gpu/raster/glyphRasterizer';
 import { ViewLinesGpu } from 'vs/editor/browser/viewParts/linesGpu/viewLinesGpu';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -19,6 +18,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+const precondition = ContextKeyExpr.equals('config:editor.experimentalGpuAcceleration', 'on');
+
 class LogTextureAtlasStatsAction extends EditorAction {
 
 	constructor() {
@@ -26,7 +27,7 @@ class LogTextureAtlasStatsAction extends EditorAction {
 			id: 'editor.action.logTextureAtlasStats',
 			label: localize('logTextureAtlasStats.label', "Log Texture Atlas States"),
 			alias: 'Log Texture Atlas States',
-			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor),
+			precondition,
 		});
 	}
 
@@ -51,7 +52,7 @@ class SaveTextureAtlasAction extends EditorAction {
 			id: 'editor.action.saveTextureAtlas',
 			label: localize('saveTextureAtlas.label', "Save Texture Atlas"),
 			alias: 'Save Texture Atlas',
-			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor),
+			precondition,
 		});
 	}
 
@@ -86,7 +87,7 @@ class DrawGlyphAction extends EditorAction {
 			id: 'editor.action.drawGlyph',
 			label: localize('drawGlyph.label', "Draw Glyph"),
 			alias: 'Draw Glyph',
-			precondition: ContextKeyExpr.true(),
+			precondition,
 		});
 	}
 
