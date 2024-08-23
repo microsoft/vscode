@@ -28,6 +28,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ErrorNoTelemetry, NotSupportedError } from 'vs/base/common/errors';
+import { asArray } from 'vs/base/common/arrays';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -793,13 +794,3 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 }
 
 export const IExtHostTask = createDecorator<IExtHostTask>('IExtHostTask');
-
-function asArray(value: string | string[] | undefined): string[] {
-	if (value === undefined) {
-		return [];
-	}
-	if (Array.isArray(value)) {
-		return value;
-	}
-	return [value];
-}
