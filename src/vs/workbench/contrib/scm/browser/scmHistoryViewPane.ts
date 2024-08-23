@@ -39,7 +39,7 @@ import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemot
 import { RepositoryActionRunner } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, connectPrimaryMenu, getActionViewItemProvider, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository, isSCMViewService } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMHistoryItem, ISCMHistoryItemGroup, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
-import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
+import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -82,7 +82,10 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 		});
 	}
 
-	async runInView(accessor: ServicesAccessor, view: SCMHistoryViewPane, repository?: ISCMRepository): Promise<void> {
+	async runInView(accessor: ServicesAccessor, view: SCMHistoryViewPane, provider?: ISCMProvider): Promise<void> {
+		const scmService = accessor.get<ISCMService>(ISCMService);
+		const repository = provider ? scmService.getRepository(provider.id) : undefined;
+
 		view.refresh(repository);
 	}
 });
@@ -109,6 +112,7 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 interface RepositoryTemplate {
 	readonly label: IconLabel;
 	readonly labelCustomHover: IManagedHover;
+	readonly stateLabel: HTMLElement;
 	readonly toolBar: WorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
@@ -140,9 +144,10 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 		const element = append(container, $('.scm-provider'));
 		const label = new IconLabel(element);
 		const labelCustomHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), label.element, '', {});
+		const stateLabel = append(element, $('div.state-label.monaco-count-badge.long'));
 		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionViewItemProvider: this.actionViewItemProvider, resetMenu: MenuId.SCMHistoryTitle }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 
-		return { label, labelCustomHover, toolBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(labelCustomHover, toolBar) };
+		return { label, labelCustomHover, stateLabel, toolBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(labelCustomHover, toolBar) };
 	}
 
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -150,9 +155,11 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 
 		templateData.elementDisposables.add(autorun(reader => {
 			const description = this.description(repository).read(reader);
-			templateData.label.setLabel(repository.provider.name, description);
+			templateData.stateLabel.style.display = description !== '' ? '' : 'none';
+			templateData.stateLabel.textContent = description;
 		}));
 
+		templateData.label.setLabel(repository.provider.name);
 		templateData.labelCustomHover.update(repository.provider.rootUri ? `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` : repository.provider.label);
 
 		templateData.elementDisposables.add(autorunWithStore((reader, store) => {
