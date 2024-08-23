@@ -12,12 +12,12 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
-import { AbstractEditContextHandler, ariaLabelForScreenReaderContent, getAccessibilityOptions, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContextHandler, ariaLabelForScreenReaderContent, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { RenderLineNumbersType, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
@@ -576,11 +576,29 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 	}
 
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
-		const { accessibilitySupport, accessibilityPageSize, textAreaWrapping, textAreaWidth } = getAccessibilityOptions(options);
-		this._accessibilitySupport = accessibilitySupport;
-		this._accessibilityPageSize = accessibilityPageSize;
-		this._textAreaWrapping = textAreaWrapping;
-		this._textAreaWidth = textAreaWidth;
+		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
+			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
+			this._accessibilityPageSize = 500;
+		} else {
+			this._accessibilityPageSize = accessibilityPageSize;
+		}
+
+		// When wrapping is enabled and a screen reader might be attached,
+		// we will size the textarea to match the width used for wrapping points computation (see `domLineBreaksComputer.ts`).
+		// This is because screen readers will read the text in the textarea and we'd like that the
+		// wrapping points in the textarea match the wrapping points in the editor.
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const wrappingColumn = layoutInfo.wrappingColumn;
+		if (wrappingColumn !== -1 && this._accessibilitySupport !== AccessibilitySupport.Disabled) {
+			const fontInfo = options.get(EditorOption.fontInfo);
+			this._textAreaWrapping = true;
+			this._textAreaWidth = Math.round(wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
+		} else {
+			this._textAreaWrapping = false;
+			this._textAreaWidth = (canUseZeroSizeTextarea ? 0 : 1);
+		}
 	}
 
 	// --- begin event handlers
