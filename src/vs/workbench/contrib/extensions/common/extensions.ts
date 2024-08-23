@@ -230,7 +230,7 @@ export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', fals
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
 export const INSTALL_ACTIONS_GROUP = '0_install';
-export const UPDATE_ACTIONS_GROUP = '0_update';
+export const UPDATE_ACTIONS_GROUP = '1_update';
 
 export const extensionsSearchActionsMenu = new MenuId('extensionsSearchActionsMenu');
 

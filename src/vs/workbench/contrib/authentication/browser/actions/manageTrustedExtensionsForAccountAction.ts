@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { fromNow } from 'vs/base/common/date';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize, localize2 } from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -45,7 +48,8 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationUsageService private readonly _authenticationUsageService: IAuthenticationUsageService,
-		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService
+		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) { }
 
 	async run(options?: { providerId: string; accountLabel: string }) {
@@ -179,6 +183,10 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			description,
 			tooltip,
 			disabled,
+			buttons: [{
+				tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
+				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+			}],
 			picked: extension.allowed === undefined || extension.allowed
 		};
 	}
@@ -212,6 +220,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		disposableStore.add(quickPick.onDidCustom(() => {
 			quickPick.hide();
 		}));
+		disposableStore.add(quickPick.onDidTriggerItemButton(e => this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id)));
 		return quickPick;
 	}
 }

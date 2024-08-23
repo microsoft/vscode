@@ -1525,7 +1525,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: localize2('workbench.extensions.action.copyExtension', 'Copy'),
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '1_copy'
+				group: '0_copy'
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const clipboardService = accessor.get(IClipboardService);
@@ -1549,14 +1549,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: localize2('workbench.extensions.action.copyExtensionId', 'Copy Extension ID'),
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '1_copy'
+				group: '0_copy'
 			},
 			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IClipboardService).writeText(id)
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
-			title: localize2('workbench.extensions.action.configure', 'Extension Settings'),
+			title: localize2('workbench.extensions.action.configure', 'Settings'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1568,7 +1568,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configureKeybindings',
-			title: localize2('workbench.extensions.action.configureKeybindings', 'Extension Keyboard Shortcuts'),
+			title: localize2('workbench.extensions.action.configureKeybindings', 'Keyboard Shortcuts'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1584,7 +1584,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			toggled: ContextKeyExpr.has('isApplicationScopedExtension'),
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '2_configure',
+				group: UPDATE_ACTIONS_GROUP,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate(), ContextKeyExpr.has('isBuiltinExtension').negate(), ContextKeyExpr.equals('isWorkspaceScopedExtension', false)),
 				order: 3
 			},
@@ -1602,7 +1602,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			title: localize2('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"),
 			menu: {
 				id: MenuId.ExtensionContext,
-				group: '2_configure',
+				group: UPDATE_ACTIONS_GROUP,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.equals('isWorkspaceScopedExtension', false)),
 				order: 4
 			},
@@ -1648,6 +1648,18 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 2
 			},
 			run: (accessor: ServicesAccessor, id: string) => accessor.get(IWorkspaceExtensionsConfigService).toggleRecommendation(id)
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.changeAccountPreference',
+			title: localize2('workbench.extensions.action.changeAccountPreference', "Account Preference"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty')),
+				order: 2,
+			},
+			run: async (accessor: ServicesAccessor, id: string) => accessor.get(ICommandService).executeCommand('_manageAccountPreferencesForExtension', id)
 		});
 
 		this.registerExtensionAction({
