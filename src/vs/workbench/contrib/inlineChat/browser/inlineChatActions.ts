@@ -527,7 +527,12 @@ export class ReportIssueAction extends AbstractInlineChatAction {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 6,
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_SUPPORT_REPORT_ISSUE, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate())
+				when: ContextKeyExpr.and(
+					CTX_INLINE_CHAT_VISIBLE,
+					CTX_INLINE_CHAT_SUPPORT_REPORT_ISSUE,
+					CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.None),
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
+				)
 			}]
 		});
 	}
