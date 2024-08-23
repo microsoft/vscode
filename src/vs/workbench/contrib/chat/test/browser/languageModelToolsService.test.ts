@@ -6,8 +6,9 @@
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IToolData, IToolImpl, IToolInvocation, LanguageModelToolsService } from '../../common/languageModelToolsService';
 
@@ -19,9 +20,8 @@ suite('LanguageModelToolsService', () => {
 	let service: LanguageModelToolsService;
 
 	setup(() => {
-		contextKeyService = new MockContextKeyService();
-		service = new LanguageModelToolsService(extensionService, contextKeyService);
-		store.add(service);
+		contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService));
 	});
 
 	test('registerToolData', () => {

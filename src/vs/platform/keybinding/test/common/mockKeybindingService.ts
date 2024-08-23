@@ -48,14 +48,7 @@ export class MockContextKeyService implements IContextKeyService {
 		return ret;
 	}
 	public contextMatchesRules(rules: ContextKeyExpression): boolean {
-		return rules.evaluate({
-			getValue: (key) => {
-				const value = this._keys.get(key);
-				if (value) {
-					return value.get();
-				}
-			},
-		});
+		return false;
 	}
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return Event.None;
