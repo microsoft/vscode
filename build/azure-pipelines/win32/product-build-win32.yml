@@ -13,6 +13,7 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_AMD
     type: boolean
+    default: false
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
