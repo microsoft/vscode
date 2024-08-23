@@ -179,11 +179,6 @@ class AMDModuleImporter {
 
 const cache = new Map<string, Promise<any>>();
 
-let _paths: Record<string, string> = {};
-if (typeof globalThis.require === 'object') {
-	_paths = (<Record<string, any>>globalThis.require).paths ?? {};
-}
-
 /**
  * Utility for importing an AMD node module. This util supports AMD and ESM contexts and should be used while the ESM adoption
  * is on its way.
@@ -196,10 +191,6 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 		if (isBuilt === undefined) {
 			const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 			isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
-		}
-
-		if (_paths[nodeModuleName]) {
-			nodeModuleName = _paths[nodeModuleName];
 		}
 
 		const nodeModulePath = pathInsideNodeModule ? `${nodeModuleName}/${pathInsideNodeModule}` : nodeModuleName;
