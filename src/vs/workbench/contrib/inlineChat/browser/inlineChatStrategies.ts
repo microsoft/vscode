@@ -479,6 +479,7 @@ export class LiveStrategy extends EditModeStrategy {
 							afterLineNumber: -1,
 							heightInLines: result.heightInLines,
 							domNode,
+							ordinal: 50000 + 1 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
 						};
 
 						const toggleDiff = () => {
@@ -678,7 +679,7 @@ class InlineChangeOverlay implements IOverlayWidget {
 
 		if (_hunkInfo.getState() === HunkState.Pending) {
 
-			this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
+			const menuBar = this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
 				menuOptions: { arg: _hunkInfo },
 				telemetrySource: 'inlineChat-changesZone',
 				buttonConfigProvider: (_action, idx) => {
@@ -689,6 +690,8 @@ class InlineChangeOverlay implements IOverlayWidget {
 					};
 				},
 			}));
+
+			this._store.add(menuBar.onDidChange(() => this._editor.layoutOverlayWidget(this)));
 		}
 
 		this._editor.addOverlayWidget(this);
