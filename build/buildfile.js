@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { isESM } = require('../build/lib/esm');
+const { isESM } = require('./lib/esm');
 
 /**
  * @param {string} name
  * @param {string[]=} exclude
- * @returns {import('../build/lib/bundle').IEntryPoint}
+ * @returns {import('./lib/bundle').IEntryPoint}
  */
 function createModuleDescription(name, exclude) {
 
