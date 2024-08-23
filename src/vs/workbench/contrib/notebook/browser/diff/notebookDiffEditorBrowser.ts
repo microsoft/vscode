@@ -141,14 +141,16 @@ export interface CellDiffViewModelLayoutChangeEvent extends IDiffElementSelfLayo
 }
 
 export const DIFF_CELL_MARGIN = 16;
-export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebookDiffCellInputChanged', false);
-export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY = 'notebookDiffCellIgnoreWhitespace';
+export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebook.diffEditor.cell.inputChanged', false);
+export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY = 'notebook.diffEditor.cell.ignoreWhitespace';
 export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE = new RawContextKey<boolean>(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false);
-export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebookDiffCellPropertyChanged', false);
-export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebookDiffCellPropertyExpanded', false);
-export const NOTEBOOK_DIFF_CELLS_COLLAPSED = new RawContextKey<boolean>('notebookDiffEditorAllCollapsed', undefined, localize('notebookDiffEditorAllCollapsed', "Whether all cells in notebook diff editor are collapsed"));
-export const NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS = new RawContextKey<boolean>('notebookDiffEditorHasUnchangedCells', undefined, localize('notebookDiffEditorHasUnchangedCells', "Whether there are unchanged cells in the notebook diff editor"));
-export const NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN = new RawContextKey<boolean>('notebookDiffEditorHiddenUnchangedCells', undefined, localize('notebookDiffEditorHiddenUnchangedCells', "Whether the unchanged cells in the notebook diff editor are hidden"));
+export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebook.diffEditor.cell.property.changed', false);
+export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebook.diffEditor.cell.property.expanded', false);
+export const NOTEBOOK_DIFF_CELLS_COLLAPSED = new RawContextKey<boolean>('notebook.diffEditor.allCollapsed', undefined, localize('notebook.diffEditor.allCollapsed', "Whether all cells in notebook diff editor are collapsed"));
+export const NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS = new RawContextKey<boolean>('notebook.diffEditor.hasUnchangedCells', undefined, localize('notebook.diffEditor.hasUnchangedCells', "Whether there are unchanged cells in the notebook diff editor"));
+export const NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN = new RawContextKey<boolean>('notebook.diffEditor.unchangedCellsAreHidden', undefined, localize('notebook.diffEditor.unchangedCellsAreHidden', "Whether the unchanged cells in the notebook diff editor are hidden"));
+export const NOTEBOOK_DIFF_ITEM_KIND = new RawContextKey<boolean>('notebook.diffEditor.item.kind', undefined, localize('notebook.diffEditor.item.kind', "The kind of item in the notebook diff editor, Cell, Metadata or Output"));
+export const NOTEBOOK_DIFF_ITEM_DIFF_STATE = new RawContextKey<boolean>('notebook.diffEditor.item.state', undefined, localize('notebook.diffEditor.item.state', "The diff state of item in the notebook diff editor, delete, insert, modified or unchanged"));
 
 export interface INotebookDiffViewModelUpdateEvent {
 	readonly start: number;

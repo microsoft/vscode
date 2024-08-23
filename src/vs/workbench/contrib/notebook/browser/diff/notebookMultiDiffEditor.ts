@@ -20,7 +20,7 @@ import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { INotebookDiffEditorModel, NOTEBOOK_MULTI_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookDiffEditorModel, NOTEBOOK_MULTI_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -35,7 +35,10 @@ import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconCl
 import { NotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { NOTEBOOK_DIFF_CELLS_COLLAPSED, NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS, NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import type { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
+import type { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel';
+import type { URI } from 'vs/base/common/uri';
+import { type IDiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { autorun, transaction } from 'vs/base/common/observable';
 
 export class NotebookMultiTextDiffEditor extends EditorPane {
 	private _multiDiffEditorWidget?: MultiDiffEditorWidget;
@@ -111,9 +114,41 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.instantiationService, this.configurationService, eventDispatcher, this.notebookService, undefined, true));
 		await this.viewModel.computeDiff(this.modelSpecificResources.add(new CancellationTokenSource()).token);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
+		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
 
 		const widgetInput = this.modelSpecificResources.add(NotebookMultiDiffEditorWidgetInput.createInput(this.viewModel, this.instantiationService));
 		this.widgetViewModel = this.modelSpecificResources.add(await widgetInput.getViewModel());
+
+		const itemsWeHaveSeen = new WeakSet<DocumentDiffItemViewModel>();
+		this.modelSpecificResources.add(autorun(reader => {
+			/** @description NotebookDiffEditor => Collapse unmodified items */
+			if (!this.widgetViewModel || !this.viewModel) {
+				return;
+			}
+			const items = this.widgetViewModel.items.read(reader);
+			const diffItems = this.viewModel.value;
+			if (items.length !== diffItems.length) {
+				return;
+			}
+
+			// If cell has not changed, but metadata or output has changed, then collapse the cell & keep output/metadata expanded.
+			// Similarly if the cell has changed, but the metadata or output has not, then expand the cell, but collapse output/metadata.
+			transaction((tx) => {
+				items.forEach(item => {
+					// We do not want to mess with UI state if users change it, hence no need to collapse again.
+					if (itemsWeHaveSeen.has(item)) {
+						return;
+					}
+					itemsWeHaveSeen.add(item);
+					const diffItem = diffItems.find(d => d.modifiedUri?.toString() === item.modifiedUri?.toString() && d.originalUri?.toString() === item.originalUri?.toString());
+					if (diffItem && diffItem.type === 'unchanged') {
+						item.collapsed.set(true, tx);
+					}
+				});
+			});
+		}));
+
+
 		this._multiDiffEditorWidget!.setViewModel(this.widgetViewModel);
 	}
 
@@ -163,11 +198,42 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		}
 	}
 
-	public toggleUnchangedCells() {
+	public hideUnchanged() {
 		if (this.viewModel) {
-			this.viewModel.includeUnchanged = !this.viewModel.includeUnchanged;
-			this.ctxHiddenUnchangedCells.set(this.viewModel.includeUnchanged);
+			this.viewModel.includeUnchanged = false;
+			this.ctxHiddenUnchangedCells.set(true);
 		}
+	}
+
+	public showUnchanged() {
+		if (this.viewModel) {
+			this.viewModel.includeUnchanged = true;
+			this.ctxHiddenUnchangedCells.set(false);
+		}
+	}
+
+	public getDiffElementViewModel(uri: URI): IDiffElementViewModelBase | undefined {
+		if (uri.scheme === Schemas.vscodeNotebookCellOutput || uri.scheme === Schemas.vscodeNotebookCellOutputDiff ||
+			uri.scheme === Schemas.vscodeNotebookCellMetadata || uri.scheme === Schemas.vscodeNotebookCellMetadataDiff
+		) {
+			const data = CellUri.parseCellPropertyUri(uri, uri.scheme);
+			if (data) {
+				uri = CellUri.generate(data.notebook, data.handle);
+			}
+		}
+		return this.viewModel?.items.find(c => {
+			switch (c.type) {
+				case 'delete':
+					return c.original?.uri.toString() === uri.toString();
+				case 'insert':
+					return c.modified?.uri.toString() === uri.toString();
+				case 'modified':
+				case 'unchanged':
+					return c.modified?.uri.toString() === uri.toString() || c.original?.uri.toString() === uri.toString();
+				default:
+					return;
+			}
+		});
 	}
 }
 

@@ -15,7 +15,7 @@ const url_1 = require("url");
 const workerpool = require("workerpool");
 const staticLanguageServiceHost_1 = require("./staticLanguageServiceHost");
 const esm_1 = require("../esm");
-const buildfile = require('../../../src/buildfile');
+const buildfile = require('../../buildfile');
 class ShortIdent {
     prefix;
     static _keywords = new Set(['await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',

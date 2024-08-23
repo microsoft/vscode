@@ -12,9 +12,10 @@ import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsY
 import { asCssVariable, ColorIdentifier, registerColor } from 'vs/platform/theme/common/colorUtils';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
 import { rot } from 'vs/base/common/numbers';
+import { svgElem } from 'vs/base/browser/dom';
 
-const SWIMLANE_HEIGHT = 22;
-const SWIMLANE_WIDTH = 11;
+export const SWIMLANE_HEIGHT = 22;
+export const SWIMLANE_WIDTH = 11;
 const CIRCLE_RADIUS = 4;
 const SWIMLANE_CURVE_RADIUS = 5;
 
@@ -226,6 +227,20 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	svg.style.width = `${SWIMLANE_WIDTH * (Math.max(inputSwimlanes.length, outputSwimlanes.length, 1) + 1)}px`;
 
 	return svg;
+}
+
+export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[]): HTMLElement {
+	const elements = svgElem('svg', {
+		style: { height: `${SWIMLANE_HEIGHT}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
+	});
+
+	// Draw |
+	for (let index = 0; index < columns.length; index++) {
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color);
+		elements.root.append(path);
+	}
+
+	return elements.root;
 }
 
 export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, string>()): ISCMHistoryItemViewModel[] {

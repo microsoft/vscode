@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isESM, canASAR } from 'vs/base/common/amd';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-
 
 class DefineCall {
 	constructor(
@@ -63,6 +62,9 @@ class AMDModuleImporter {
 				createScriptURL(value) {
 					// eslint-disable-next-line no-restricted-globals
 					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					if (value.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`)) {
 						return value;
 					}
 					throw new Error(`[trusted_script_src] Invalid script url: ${value}`);
@@ -177,11 +179,6 @@ class AMDModuleImporter {
 
 const cache = new Map<string, Promise<any>>();
 
-let _paths: Record<string, string> = {};
-if (typeof globalThis.require === 'object') {
-	_paths = (<Record<string, any>>globalThis.require).paths ?? {};
-}
-
 /**
  * Utility for importing an AMD node module. This util supports AMD and ESM contexts and should be used while the ESM adoption
  * is on its way.
@@ -194,10 +191,6 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 		if (isBuilt === undefined) {
 			const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 			isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
-		}
-
-		if (_paths[nodeModuleName]) {
-			nodeModuleName = _paths[nodeModuleName];
 		}
 
 		const nodeModulePath = pathInsideNodeModule ? `${nodeModuleName}/${pathInsideNodeModule}` : nodeModuleName;

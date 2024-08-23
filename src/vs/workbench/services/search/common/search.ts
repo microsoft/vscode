@@ -853,3 +853,8 @@ export function excludeToGlobPattern(excludesForFolder: { baseUri?: URI | undefi
 			} : pattern;
 	}));
 }
+
+export const DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS = {
+	matchLines: 100,
+	charsPerLine: 10000
+};

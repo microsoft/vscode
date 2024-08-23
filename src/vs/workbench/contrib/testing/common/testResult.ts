@@ -607,7 +607,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 	private readonly doSerialize = new Lazy((): ISerializedTestResults => ({
 		id: this.id,
 		completedAt: this.completedAt!,
-		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, ctrlId: t.ctrlId })),
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, ctrlId: t.ctrlId, hasCoverage: !!t.coverage.get() })),
 		name: this.name,
 		request: this.request,
 		items: [...this.testById.values()].map(TestResultItem.serializeWithoutMessages),
@@ -616,7 +616,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 	private readonly doSerializeWithMessages = new Lazy((): ISerializedTestResults => ({
 		id: this.id,
 		completedAt: this.completedAt!,
-		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, ctrlId: t.ctrlId })),
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, ctrlId: t.ctrlId, hasCoverage: !!t.coverage.get() })),
 		name: this.name,
 		request: this.request,
 		items: [...this.testById.values()].map(TestResultItem.serialize),

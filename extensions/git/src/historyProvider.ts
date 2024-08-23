@@ -165,7 +165,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				const newLineIndex = commit.message.indexOf('\n');
 				const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
-				const labels = this.resolveHistoryItemLabels(commit, refNames);
+				const labels = this.resolveHistoryItemLabels(commit);
 
 				return {
 					id: commit.hash,
@@ -292,14 +292,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private resolveHistoryItemLabels(commit: Commit, refNames: string[]): SourceControlHistoryItemLabel[] {
+	private resolveHistoryItemLabels(commit: Commit): SourceControlHistoryItemLabel[] {
 		const labels: SourceControlHistoryItemLabel[] = [];
 
 		for (const label of commit.refNames) {
-			if (!label.startsWith('HEAD -> ') && !refNames.includes(label)) {
-				continue;
-			}
-
 			for (const [key, value] of this.historyItemLabels) {
 				if (label.startsWith(key)) {
 					labels.push({
