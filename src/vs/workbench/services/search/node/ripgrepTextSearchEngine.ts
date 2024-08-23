@@ -209,7 +209,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private root: URI, private previewOptions?: ITextSearchPreviewOptions) {
+	constructor(private maxResults: number, private root: URI, private previewOptions: ITextSearchPreviewOptions) {
 		super();
 		this.stringDecoder = new StringDecoder();
 	}

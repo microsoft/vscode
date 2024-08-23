@@ -412,6 +412,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		this.editorEventDispatcher.emit([{ type: NotebookDiffViewEventType.CellLayoutChanged, source: this._layoutInfo }]);
 	}
 
+	abstract checkIfInputModified(): false | { reason: string | undefined };
 	abstract checkIfOutputsModified(): false | { reason: string | undefined };
 	abstract checkMetadataIfModified(): false | { reason: string | undefined };
 	abstract isOutputEmpty(): boolean;
@@ -529,6 +530,14 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		}));
 	}
 
+	override checkIfInputModified(): false | { reason: string | undefined } {
+		if (this.original.textModel.getTextBufferHash() === this.modified.textModel.getTextBufferHash()) {
+			return false;
+		}
+		return {
+			reason: 'Cell content has changed',
+		};
+	}
 	checkIfOutputsModified() {
 		if (this.mainDocumentTextModel.transientOptions.transientOutputs) {
 			return false;
@@ -658,6 +667,12 @@ export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase
 		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {
 			this._layout({ recomputeOutput: true });
 		}));
+	}
+
+	override checkIfInputModified(): false | { reason: string | undefined } {
+		return {
+			reason: 'Cell content has changed',
+		};
 	}
 
 	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {

@@ -370,9 +370,18 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override performHunkAction(hunk: HunkInformation | undefined, action: HunkAction) {
 		const displayData = this._findDisplayData(hunk);
+
 		if (!displayData) {
+			// no hunks (left or not yet) found, make sure to
+			// finish the sessions
+			if (action === HunkAction.Accept) {
+				this._onDidAccept.fire();
+			} else if (action === HunkAction.Discard) {
+				this._onDidDiscard.fire();
+			}
 			return;
 		}
+
 		if (action === HunkAction.Accept) {
 			displayData.acceptHunk();
 		} else if (action === HunkAction.Discard) {
@@ -479,6 +488,7 @@ export class LiveStrategy extends EditModeStrategy {
 							afterLineNumber: -1,
 							heightInLines: result.heightInLines,
 							domNode,
+							ordinal: 50000 + 1 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
 						};
 
 						const toggleDiff = () => {
@@ -660,7 +670,7 @@ function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor:
 
 class InlineChangeOverlay implements IOverlayWidget {
 
-	readonly allowEditorOverflow: boolean = true;
+	readonly allowEditorOverflow: boolean = false;
 
 	private readonly _id: string = `inline-chat-diff-overlay-` + generateUuid();
 	private readonly _domNode: HTMLElement = document.createElement('div');
@@ -678,7 +688,7 @@ class InlineChangeOverlay implements IOverlayWidget {
 
 		if (_hunkInfo.getState() === HunkState.Pending) {
 
-			this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
+			const menuBar = this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
 				menuOptions: { arg: _hunkInfo },
 				telemetrySource: 'inlineChat-changesZone',
 				buttonConfigProvider: (_action, idx) => {
@@ -689,6 +699,8 @@ class InlineChangeOverlay implements IOverlayWidget {
 					};
 				},
 			}));
+
+			this._store.add(menuBar.onDidChange(() => this._editor.layoutOverlayWidget(this)));
 		}
 
 		this._editor.addOverlayWidget(this);

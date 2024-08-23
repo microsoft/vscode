@@ -61,7 +61,7 @@ class NativeIssueContribution extends BaseIssueContribution {
 			properties: {
 				'issueReporter.experimental.auxWindow': {
 					type: 'boolean',
-					default: productService.quality !== 'stable',
+					default: true,
 					description: 'Enable the new experimental issue reporter in electron.',
 				},
 			}

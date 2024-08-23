@@ -29,13 +29,20 @@ interface IToolEntry {
 	impl?: IToolImpl;
 }
 
+export interface IToolInvocation {
+	callId: string;
+	toolId: string;
+	parameters: any;
+	tokenBudget?: number;
+}
+
 export interface IToolResult {
 	[contentType: string]: any;
 	string: string;
 }
 
 export interface IToolImpl {
-	invoke(parameters: any, token: CancellationToken): Promise<IToolResult>;
+	invoke(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -45,6 +52,8 @@ export interface IToolDelta {
 	removed?: string;
 }
 
+export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
+
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<IToolDelta>;
@@ -53,7 +62,7 @@ export interface ILanguageModelToolsService {
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
-	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export class LanguageModelToolsService implements ILanguageModelToolsService {
@@ -117,22 +126,22 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return undefined;
 	}
 
-	async invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
-		let tool = this._tools.get(id);
+	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+		let tool = this._tools.get(dto.toolId);
 		if (!tool) {
-			throw new Error(`Tool ${id} was not contributed`);
+			throw new Error(`Tool ${dto.toolId} was not contributed`);
 		}
 
 		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${id}`);
+			await this._extensionService.activateByEvent(`onLanguageModelTool:${dto.toolId}`);
 
 			// Extension should activate and register the tool implementation
-			tool = this._tools.get(id);
+			tool = this._tools.get(dto.toolId);
 			if (!tool?.impl) {
-				throw new Error(`Tool ${id} does not have an implementation registered.`);
+				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
 			}
 		}
 
-		return tool.impl.invoke(parameters, token);
+		return tool.impl.invoke(dto, countTokens, token);
 	}
 }

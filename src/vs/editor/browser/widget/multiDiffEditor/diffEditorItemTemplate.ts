@@ -179,7 +179,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}
 	}
 
-	private readonly _dataStore = new DisposableStore();
+	private readonly _dataStore = this._register(new DisposableStore());
 
 	private _data: TemplateData | undefined;
 

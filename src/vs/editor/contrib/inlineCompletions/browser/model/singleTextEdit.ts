@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextLength } from 'vs/editor/common/core/textLength';
 import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/model/ghostText';
 
 export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextModel, validModelRange?: Range): SingleTextEdit {
 	const modelRange = validModelRange ? edit.range.intersectRanges(validModelRange) : edit.range;
