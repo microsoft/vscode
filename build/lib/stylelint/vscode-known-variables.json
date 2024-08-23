@@ -552,7 +552,6 @@
 		"--vscode-scm-historyGraph-yellow",
 		"--vscode-scm-historyItemAdditionsForeground",
 		"--vscode-scm-historyItemDeletionsForeground",
-		"--vscode-scm-historyItemSelectedStatisticsBorder",
 		"--vscode-scm-historyItemStatisticsBorder",
 		"--vscode-scrollbar-shadow",
 		"--vscode-scrollbarSlider-activeBackground",

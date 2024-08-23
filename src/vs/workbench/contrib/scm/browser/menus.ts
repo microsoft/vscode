@@ -14,7 +14,7 @@ import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/c
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISCMHistoryProviderMenus, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProviderMenus, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 
 function actionEquals(a: IAction, b: IAction): boolean {
@@ -255,7 +255,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
 
-	private readonly historyItemMenus = new Map<SCMHistoryItemTreeElement, IMenu>();
 	private readonly historyItemMenus2 = new Map<SCMHistoryItemViewModelTreeElement, IMenu>();
 	private readonly disposables = new DisposableStore();
 
@@ -273,38 +272,8 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		return this.menuService.createMenu(MenuId.SCMHistoryTitle, contextKeyService);
 	}
 
-	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
-		return this.getOrCreateHistoryItemMenu(historyItem);
-	}
-
 	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
 		return this.getOrCreateHistoryItemMenu2(historyItem);
-	}
-
-	private getOrCreateHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
-		let result = this.historyItemMenus.get(historyItem);
-
-		if (!result) {
-			let menuId: MenuId;
-			if (historyItem.historyItemGroup.direction === 'incoming') {
-				menuId = historyItem.type === 'allChanges' ?
-					MenuId.SCMIncomingChangesAllChangesContext :
-					MenuId.SCMIncomingChangesHistoryItemContext;
-			} else {
-				menuId = historyItem.type === 'allChanges' ?
-					MenuId.SCMOutgoingChangesAllChangesContext :
-					MenuId.SCMOutgoingChangesHistoryItemContext;
-			}
-
-			const contextKeyService = this.contextKeyService.createOverlay([
-				['scmHistoryItemFileCount', historyItem.statistics?.files ?? 0],
-			]);
-
-			result = this.menuService.createMenu(menuId, contextKeyService);
-			this.historyItemMenus.set(historyItem, result);
-		}
-
-		return result;
 	}
 
 	private getOrCreateHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
