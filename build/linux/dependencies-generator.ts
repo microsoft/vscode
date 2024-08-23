@@ -15,7 +15,7 @@ import { referenceGeneratedDepsByArch as rpmGeneratedDeps } from './rpm/dep-list
 import { DebianArchString, isDebianArchString } from './debian/types';
 import { isRpmArchString, RpmArchString } from './rpm/types';
 import product = require('../../product.json');
-import { isESM } from '../lib/esm';
+import { isAMD } from '../lib/amd';
 
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
@@ -48,7 +48,7 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	}
 
 	// Get the files for which we want to find dependencies.
-	const canAsar = !isESM('ASAR disabled in Linux builds'); // TODO@esm ASAR disabled in ESM
+	const canAsar = isAMD(); // TODO@esm ASAR disabled in ESM
 	const nativeModulesPath = path.join(buildDir, 'resources', 'app', canAsar ? 'node_modules.asar.unpacked' : 'node_modules');
 	const findResult = spawnSync('find', [nativeModulesPath, '-name', '*.node']);
 	if (findResult.status) {

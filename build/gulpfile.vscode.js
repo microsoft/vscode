@@ -33,12 +33,12 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
-const { isESM } = require('./lib/esm');
+const { isAMD } = require('./lib/amd');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
 // Build
-const vscodeEntryPoints = isESM() ? [
+const vscodeEntryPoints = !isAMD() ? [
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -61,7 +61,7 @@ const vscodeEntryPoints = isESM() ? [
 	buildfile.code
 ].flat();
 
-const vscodeResourceIncludes = isESM() ? [
+const vscodeResourceIncludes = !isAMD() ? [
 
 	// NLS
 	'out-build/nls.messages.json',
@@ -163,7 +163,7 @@ const vscodeResources = [
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
 const windowBootstrapFiles = [];
-if (!isESM('Skipping loader.js in window bootstrap files')) {
+if (isAMD()) {
 	windowBootstrapFiles.push('out-build/vs/loader.js');
 }
 windowBootstrapFiles.push('out-build/bootstrap-window.js');
@@ -296,7 +296,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			isESM() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
+			!isAMD() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
 			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
@@ -325,13 +325,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			version += '-' + quality;
 		}
 
-		if (isESM() && typeof quality === 'string' && quality !== 'exploration') {
-			// TODO@esm remove this safeguard
-			throw new Error('Refuse to build ESM on quality other than exploration');
-		}
-
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version, ...(isESM(`Setting 'type: module' and 'main: out/main.js' in top level package.json`) ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
+		const packageJsonUpdates = { name, version, ...(!isAMD() ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
 
 		// for linux url handling
 		if (platform === 'linux') {
@@ -374,7 +369,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore);
 
-		if (!isESM('ASAR disabled in VS Code builds')) { // TODO@esm: ASAR disabled in ESM
+		if (isAMD()) { // TODO@esm: ASAR disabled in ESM
 			deps = deps.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',

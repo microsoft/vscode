@@ -9,12 +9,12 @@
 const gulp = require('gulp');
 const util = require('./lib/util');
 const date = require('./lib/date');
-const esm = require('./lib/esm');
+const amd = require('./lib/amd');
 const task = require('./lib/task');
 const compilation = require('./lib/compilation');
 const optimize = require('./lib/optimize');
 
-const isESMBuild = typeof process.env.VSCODE_BUILD_ESM === 'string' && process.env.VSCODE_BUILD_ESM.toLowerCase() === 'true';
+const isAMDBuild = typeof process.env.VSCODE_BUILD_AMD === 'string' && process.env.VSCODE_BUILD_AMD.toLowerCase() === 'true';
 
 /**
  * @param {boolean} disableMangle
@@ -24,9 +24,9 @@ function makeCompileBuildTask(disableMangle) {
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
 		date.writeISODate('out-build'),
-		esm.setESM(isESMBuild),
+		amd.setAMD(isAMDBuild),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask(isESMBuild ? 'src2' : 'src', 'out-build', true, { disableMangle }),
+		compilation.compileTask(isAMDBuild ? 'src2' : 'src', 'out-build', true, { disableMangle }),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)
 	);
 }

@@ -25,7 +25,7 @@ const util = require("./util");
 const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
-const esm_1 = require("./esm");
+const amd_1 = require("./amd");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
@@ -344,7 +344,7 @@ function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', exte
 function optimizeTask(opts) {
     return function () {
         const optimizers = [];
-        if ((0, esm_1.isESM)('Running optimizer in ESM mode')) {
+        if (!(0, amd_1.isAMD)()) {
             optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
         }
         else {

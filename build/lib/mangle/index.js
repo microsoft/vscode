@@ -14,7 +14,7 @@ const ts = require("typescript");
 const url_1 = require("url");
 const workerpool = require("workerpool");
 const staticLanguageServiceHost_1 = require("./staticLanguageServiceHost");
-const esm_1 = require("../esm");
+const amd_1 = require("../amd");
 const buildfile = require('../../buildfile');
 class ShortIdent {
     prefix;
@@ -264,7 +264,7 @@ const skippedExportMangledFiles = function () {
         // Module passed around as type
         'pfs',
         // entry points
-        ...(0, esm_1.isESM)() ? [
+        ...!(0, amd_1.isAMD)() ? [
             buildfile.entrypoint('vs/server/node/server.main'),
             buildfile.base,
             buildfile.workerExtensionHost,

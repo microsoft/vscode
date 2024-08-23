@@ -9,29 +9,29 @@ import * as fs from 'fs';
 // TODO@esm remove this
 
 const outDirectory = path.join(__dirname, '..', '..', 'out-build');
-const esmMarkerFile = path.join(outDirectory, 'esm');
+const amdMarkerFile = path.join(outDirectory, 'amd');
 
-export function setESM(enabled: boolean) {
+export function setAMD(enabled: boolean) {
 	const result = () => new Promise<void>((resolve, _) => {
 		if (enabled) {
 			fs.mkdirSync(outDirectory, { recursive: true });
-			fs.writeFileSync(esmMarkerFile, 'true', 'utf8');
-			console.warn(`Setting build to ESM: true`);
+			fs.writeFileSync(amdMarkerFile, 'true', 'utf8');
+			console.warn(`Setting build to AMD: true`);
 		} else {
-			console.warn(`Setting build to ESM: false`);
+			console.warn(`Setting build to AMD: false`);
 		}
 
 		resolve();
 	});
-	result.taskName = 'set-esm';
+	result.taskName = 'set-amd';
 	return result;
 }
 
-export function isESM(logWarning?: string): boolean {
+export function isAMD(logWarning?: string): boolean {
 	try {
-		const res = (typeof process.env.VSCODE_BUILD_ESM === 'string' && process.env.VSCODE_BUILD_ESM.toLowerCase() === 'true') || (fs.readFileSync(esmMarkerFile, 'utf8') === 'true');
+		const res = (typeof process.env.VSCODE_BUILD_AMD === 'string' && process.env.VSCODE_BUILD_AMD.toLowerCase() === 'true') || (fs.readFileSync(amdMarkerFile, 'utf8') === 'true');
 		if (res && logWarning) {
-			console.warn(`[esm] ${logWarning}`);
+			console.warn(`[amd] ${logWarning}`);
 		}
 		return res;
 	} catch (error) {

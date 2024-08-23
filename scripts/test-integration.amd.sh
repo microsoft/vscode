@@ -39,7 +39,7 @@ echo "Storing log files into '$VSCODELOGSDIR'."
 echo
 echo "### node.js integration tests"
 echo
-./scripts/test-esm.sh --runGlob **/*.integrationTest.js "$@"
+./scripts/test-amd.sh --runGlob **/*.integrationTest.js "$@"
 
 
 # Tests in the extension host

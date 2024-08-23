@@ -34,10 +34,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
 		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/unit/electron/index.esm.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
+		test/unit/electron/index.amd.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
 else
 	cd $ROOT ; \
 		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/unit/electron/index.esm.js --crash-reporter-directory=$VSCODECRASHDIR $LINUX_EXTRA_ARGS "$@"
+		test/unit/electron/index.amd.js --crash-reporter-directory=$VSCODECRASHDIR $LINUX_EXTRA_ARGS "$@"
 fi
