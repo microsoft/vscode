@@ -573,10 +573,19 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	findTextInFilesNew(query: vscode.TextSearchQueryNew, extensionId: ExtensionIdentifier, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {
 		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
-		const queryOptionsRaw: (QueryOptions<ITextQueryBuilderOptions> | undefined)[] = ((options?.include?.map((include) => {
-			const parsedInclude = parseSearchExcludeInclude(GlobPattern.from(include));
 
-			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
+
+		const getOptions = (include: vscode.GlobPattern | undefined): QueryOptions<ITextQueryBuilderOptions> => {
+			if (!options) {
+				return {
+					folder: undefined,
+					options: {}
+				};
+			}
+			const parsedInclude = include ? parseSearchExcludeInclude(GlobPattern.from(include)) : undefined;
+
+			const excludePatterns = include ? globsToISearchPatternBuilder(options.exclude) : undefined;
+
 			return {
 				options: {
 
@@ -599,7 +608,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				} satisfies ITextQueryBuilderOptions,
 				folder: parsedInclude?.folder
 			} satisfies QueryOptions<ITextQueryBuilderOptions>;
-		}))) ?? [];
+		};
+
+		const queryOptionsRaw: (QueryOptions<ITextQueryBuilderOptions> | undefined)[] = ((options?.include?.map((include) =>
+			getOptions(include)))) ?? [getOptions(undefined)];
 
 		const queryOptions = queryOptionsRaw.filter((queryOps): queryOps is QueryOptions<ITextQueryBuilderOptions> => !!queryOps);
 

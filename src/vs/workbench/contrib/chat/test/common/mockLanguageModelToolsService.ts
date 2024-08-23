@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ILanguageModelToolsService, IToolData, IToolDelta, IToolImpl, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolDelta, IToolImpl, IToolInvokation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -35,7 +35,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return undefined;
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
+	async invokeTool(dto: IToolInvokation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		return {
 			string: ''
 		};

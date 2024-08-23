@@ -255,6 +255,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
 			image.parentNode!.replaceChild(textDescription, image);
 		}
+		while ((renderedComment.element.children.length > 1) && (renderedComment.element.firstElementChild?.tagName === 'HR')) {
+			renderedComment.element.removeChild(renderedComment.element.firstElementChild);
+		}
 		return renderedComment;
 	}
 

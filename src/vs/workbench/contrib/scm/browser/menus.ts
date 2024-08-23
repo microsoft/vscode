@@ -177,7 +177,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private _historyProviderMenu: SCMHistoryProviderMenus | undefined;
 	get historyProviderMenu(): SCMHistoryProviderMenus | undefined {
 		if (this.provider.historyProvider.get() && !this._historyProviderMenu) {
-			this._historyProviderMenu = new SCMHistoryProviderMenus(this.provider, this.contextKeyService, this.menuService);
+			this._historyProviderMenu = new SCMHistoryProviderMenus(this.contextKeyService, this.menuService);
 			this.disposables.add(this._historyProviderMenu);
 		}
 
@@ -260,17 +260,8 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		private readonly _provider: ISCMProvider,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService) { }
-
-	getHistoryTitleMenu(): IMenu {
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmHistoryItemGroupHasRemote', !!this._provider.historyProvider.get()?.currentHistoryItemGroup.get()?.remote],
-		]);
-
-		return this.menuService.createMenu(MenuId.SCMHistoryTitle, contextKeyService);
-	}
 
 	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
 		return this.getOrCreateHistoryItemMenu(historyItem);
