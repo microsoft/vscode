@@ -148,7 +148,7 @@ export class InlineChatWidget {
 						// filter welcome messages
 						return false;
 					}
-					if (isResponseVM(item) && item.isComplete) {
+					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
 						// filter responses that
 						// - are just text edits(prevents the "Made Edits")
 						// - are all empty
