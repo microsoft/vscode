@@ -6,7 +6,7 @@
 import { IObservable, autorun } from 'vs/base/common/observable';
 import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';

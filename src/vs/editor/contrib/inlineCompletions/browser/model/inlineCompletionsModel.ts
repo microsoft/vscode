@@ -24,10 +24,10 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
-import { computeGhostText, singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
-import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
+import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from 'vs/editor/contrib/inlineCompletions/browser/model/ghostText';
+import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource';
+import { computeGhostText, singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/model/singleTextEdit';
+import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/model/suggestWidgetAdaptor';
 import { addPositions, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';

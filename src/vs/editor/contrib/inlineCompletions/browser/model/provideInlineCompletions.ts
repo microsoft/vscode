@@ -18,7 +18,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { ITextModel } from 'vs/editor/common/model';
 import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
 import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { getReadonlyEmptyArray } from './utils';
+import { getReadonlyEmptyArray } from '../utils';
 import { SnippetParser, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 export async function provideInlineCompletions(

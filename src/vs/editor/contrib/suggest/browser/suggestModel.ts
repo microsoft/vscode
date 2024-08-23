@@ -29,7 +29,7 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { FuzzyScoreOptions } from 'vs/base/common/filters';
 import { assertType } from 'vs/base/common/types';
-import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 

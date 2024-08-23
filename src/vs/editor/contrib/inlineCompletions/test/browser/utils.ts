@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel';
 import { autorun } from 'vs/base/common/observable';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {

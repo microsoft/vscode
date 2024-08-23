@@ -13,8 +13,8 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { AdditionalLinesWidget, LineData } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
-import { GhostText } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { AdditionalLinesWidget, LineData } from 'vs/editor/contrib/inlineCompletions/browser/view/ghostTextView';
+import { GhostText } from 'vs/editor/contrib/inlineCompletions/browser/model/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { diffDeleteDecoration, diffLineDeleteDecorationBackgroundWithIndicator } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
 

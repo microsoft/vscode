@@ -31,7 +31,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';

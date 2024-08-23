@@ -81,7 +81,7 @@ import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/c
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { Schemas } from 'vs/base/common/network';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
