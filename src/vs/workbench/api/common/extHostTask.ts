@@ -279,7 +279,7 @@ export namespace TaskDTO {
 			isBackground: value.isBackground,
 			group: TaskGroupDTO.from(value.group as vscode.TaskGroup),
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
-			problemMatchers: value.problemMatchers,
+			problemMatchers: asArray(value.problemMatchers),
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
 			detail: value.detail
@@ -793,3 +793,13 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 }
 
 export const IExtHostTask = createDecorator<IExtHostTask>('IExtHostTask');
+
+function asArray(value: string | string[] | undefined): string[] {
+	if (value === undefined) {
+		return [];
+	}
+	if (Array.isArray(value)) {
+		return value;
+	}
+	return [value];
+}
