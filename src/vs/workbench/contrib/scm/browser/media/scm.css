@@ -557,8 +557,21 @@
 }
 
 .scm-history-view .scm-provider .monaco-icon-label {
-	flex-grow: 1;
 	align-items: center;
+}
+
+.scm-history-view .scm-provider .state-label.monaco-count-badge.long {
+	display: flex;
+	font-size: 0.8em;
+	margin: 0 10px;
+	color: var(--vscode-debugView-stateLabelForeground);
+	background: var(--vscode-debugView-stateLabelBackground);
+	border-radius: 2px;
+}
+
+.scm-history-view .scm-provider .actions {
+	display: flex;
+	flex-grow: 1;
 }
 
 .scm-history-view .history-item-load-more {
