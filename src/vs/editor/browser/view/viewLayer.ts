@@ -254,14 +254,9 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	public readonly domNode: FastDomNode<HTMLElement> = this._createDomNode();
 	private readonly _linesCollection: RenderedLinesCollection<T> = new RenderedLinesCollection<T>(this._lineFactory);
 
-	private readonly _canvas: HTMLCanvasElement;
-
 	constructor(
 		private readonly _lineFactory: ILineFactory<T>
 	) {
-		this._canvas = document.createElement('canvas');
-		this._canvas.style.height = '100%';
-		this._canvas.style.width = '100%';
 	}
 
 	private _createDomNode(): FastDomNode<HTMLElement> {
@@ -344,24 +339,11 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 		return this._linesCollection.getLine(lineNumber);
 	}
 
-	public renderLines(viewportData: ViewportData, viewOverlays?: boolean): void {
+	public renderLines(viewportData: ViewportData): void {
+
 		const inp = this._linesCollection._get();
 
-		// let renderer;
-		// if (viewOverlays) {
 		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
-		// } else {
-		// 	// If not yet attached, listen for device pixel size and attach
-		// 	if (!this._canvas.parentElement) {
-		// 		this.domNode.domNode.appendChild(this._canvas);
-		// 	}
-
-		// 	if (!this._gpuRenderer) {
-		// 		this._gpuRenderer = this._register(this._instantiationService.createInstance(GpuViewLayerRenderer<T>, this._canvas, this._context, this._lineFactory, viewportData));
-		// 	}
-		// 	renderer = this._gpuRenderer;
-		// 	renderer.update(viewportData);
-		// }
 
 		const ctx: IRendererContext<T> = {
 			rendLineNumberStart: inp.rendLineNumberStart,
@@ -624,4 +606,3 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 }
-

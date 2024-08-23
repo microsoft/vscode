@@ -152,7 +152,7 @@ export class View extends ViewEventHandler {
 		this._viewParts.push(this._scrollbar);
 
 		// View Lines
-		this._viewLines = this._instantiationService.createInstance(ViewLines, this._context, this._linesContent);
+		this._viewLines = new ViewLines(this._context, this._linesContent);
 		this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
 
 		// View Zones
