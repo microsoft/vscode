@@ -100,8 +100,7 @@ export interface SCMHistoryItemViewModelTreeElement {
 
 export interface SCMHistoryItemLoadMoreTreeElement {
 	readonly repository: ISCMRepository;
-	readonly cursor: string;
-	readonly graphColumnCount: number;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
 	readonly type: 'historyItemLoadMore';
 }
 

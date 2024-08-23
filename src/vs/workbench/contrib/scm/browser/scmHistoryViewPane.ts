@@ -18,7 +18,7 @@ import { fromNow } from 'vs/base/common/date';
 import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore } from 'vs/base/common/observable';
+import { autorun, autorunWithStore, IObservable, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,7 +35,7 @@ import { ColorIdentifier, registerColor } from 'vs/platform/theme/common/colorRe
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder } from 'vs/workbench/contrib/scm/browser/scmHistory';
 import { RepositoryActionRunner } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, connectPrimaryMenu, getActionViewItemProvider, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository, isSCMViewService } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMHistoryItem, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
@@ -338,7 +338,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 interface LoadMoreTemplate {
 	readonly element: HTMLElement;
 	readonly graphPlaceholder: HTMLElement;
-	readonly historyItemPlaceholder: HTMLElement;
+	readonly historyItemPlaceholderContainer: HTMLElement;
+	readonly historyItemPlaceholderLabel: IconLabel;
+	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
 
@@ -347,7 +349,11 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 	static readonly TEMPLATE_ID = 'historyItemLoadMore';
 	get templateId(): string { return HistoryItemLoadMoreRenderer.TEMPLATE_ID; }
 
-	constructor(private readonly _loadMoreCallback: (repository: ISCMRepository, cursor: string) => void) { }
+	constructor(
+		private readonly _loadingMore: IObservable<boolean>,
+		private readonly _loadMoreCallback: (repository: ISCMRepository) => void,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService) { }
 
 	renderTemplate(container: HTMLElement): LoadMoreTemplate {
 		// hack
@@ -355,14 +361,33 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 
 		const element = append(container, $('.history-item-load-more'));
 		const graphPlaceholder = append(element, $('.graph-placeholder'));
-		const historyItemPlaceholder = append(element, $('.history-item-placeholder'));
+		const historyItemPlaceholderContainer = append(element, $('.history-item-placeholder'));
+		const historyItemPlaceholderLabel = new IconLabel(historyItemPlaceholderContainer, { supportIcons: true });
 
-		return { element, graphPlaceholder, historyItemPlaceholder, disposables: new DisposableStore() };
+		return { element, graphPlaceholder, historyItemPlaceholderContainer, historyItemPlaceholderLabel, elementDisposables: new DisposableStore(), disposables: new DisposableStore() };
 	}
 
 	renderElement(element: ITreeNode<SCMHistoryItemLoadMoreTreeElement, void>, index: number, templateData: LoadMoreTemplate, height: number | undefined): void {
-		templateData.graphPlaceholder.style.width = `${11 * (element.element.graphColumnCount + 1) - 4}px`;
-		this._loadMoreCallback(element.element.repository, element.element.cursor);
+		const repositoryCount = this._scmViewService.visibleRepositories.length;
+		const alwaysShowRepositories = this._configurationService.getValue<boolean>('scm.alwaysShowRepositories') === true;
+
+		templateData.graphPlaceholder.textContent = '';
+		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (element.element.graphColumns.length + 1)}px`;
+		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(element.element.graphColumns));
+
+		templateData.historyItemPlaceholderContainer.classList.toggle('shimmer', repositoryCount === 1 && !alwaysShowRepositories);
+
+		if (repositoryCount > 1 || alwaysShowRepositories) {
+			templateData.elementDisposables.add(autorun(reader => {
+				const loadingMore = this._loadingMore.read(reader);
+				const icon = `$(${loadingMore ? 'loading~spin' : 'fold-down'})`;
+
+				templateData.historyItemPlaceholderLabel.setLabel(localize('loadMore', "{0} Load More...", icon));
+			}));
+		} else {
+			templateData.historyItemPlaceholderLabel.setLabel('');
+			this._loadMoreCallback(element.element.repository);
+		}
 	}
 
 	disposeTemplate(templateData: LoadMoreTemplate): void {
@@ -500,21 +525,21 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 	private readonly _historyItems = new Map<ISCMRepository, HistoryItemCacheEntry>();
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) {
 		super();
 	}
 
 	async getChildren(inputOrElement: ISCMViewService | TreeElement): Promise<Iterable<TreeElement>> {
-		const repositoryCount = this.scmViewService.visibleRepositories.length;
-		const alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories') === true;
+		const repositoryCount = this._scmViewService.visibleRepositories.length;
+		const alwaysShowRepositories = this._configurationService.getValue<boolean>('scm.alwaysShowRepositories') === true;
 
 		if (isSCMViewService(inputOrElement) && (repositoryCount > 1 || alwaysShowRepositories)) {
-			return this.scmViewService.visibleRepositories;
+			return this._scmViewService.visibleRepositories;
 		} else if ((isSCMViewService(inputOrElement) && repositoryCount === 1 && !alwaysShowRepositories) || isSCMRepository(inputOrElement)) {
 			const children: TreeElement[] = [];
-			inputOrElement = isSCMRepository(inputOrElement) ? inputOrElement : this.scmViewService.visibleRepositories[0];
+			inputOrElement = isSCMRepository(inputOrElement) ? inputOrElement : this._scmViewService.visibleRepositories[0];
 
 			const historyItems = await this._getHistoryItems(inputOrElement);
 			children.push(...historyItems);
@@ -523,8 +548,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			if (lastHistoryItem && lastHistoryItem.historyItemViewModel.historyItem.parentIds.length !== 0) {
 				children.push({
 					repository: inputOrElement,
-					cursor: lastHistoryItem.historyItemViewModel.historyItem.parentIds[0],
-					graphColumnCount: lastHistoryItem.historyItemViewModel.outputSwimlanes.length,
+					graphColumns: lastHistoryItem.historyItemViewModel.outputSwimlanes,
 					type: 'historyItemLoadMore'
 				} satisfies SCMHistoryItemLoadMoreTreeElement);
 			}
@@ -536,7 +560,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 
 	hasChildren(inputOrElement: ISCMViewService | TreeElement): boolean {
 		if (isSCMViewService(inputOrElement)) {
-			return this.scmViewService.visibleRepositories.length !== 0;
+			return this._scmViewService.visibleRepositories.length !== 0;
 		} else if (isSCMRepository(inputOrElement)) {
 			return true;
 		} else if (isSCMHistoryItemViewModelTreeElement(inputOrElement)) {
@@ -622,7 +646,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 	private _treeDataSource!: SCMHistoryTreeDataSource;
 	private _treeIdentityProvider!: SCMHistoryTreeIdentityProvider;
-	private _isLoadMoreInProgress = false;
+	private _isLoadMore = observableValue(this, false);
 
 	private readonly _repositories = new DisposableMap<ISCMRepository>();
 	private readonly _visibilityDisposables = new DisposableStore();
@@ -636,8 +660,8 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ICommandService private readonly commandService: ICommandService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -679,7 +703,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				this._treeOperationSequencer.queue(async () => {
-					await this._tree.setInput(this.scmViewService);
+					await this._tree.setInput(this._scmViewService);
 
 					Event.filter(this.configurationService.onDidChangeConfiguration,
 						e =>
@@ -691,8 +715,8 @@ export class SCMHistoryViewPane extends ViewPane {
 						}, this, this._visibilityDisposables);
 
 					// Add visible repositories
-					this.scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this._visibilityDisposables);
-					this._onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
+					this._scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this._visibilityDisposables);
+					this._onDidChangeVisibleRepositories({ added: this._scmViewService.visibleRepositories, removed: Iterable.empty() });
 
 					this._tree.scrollTop = 0;
 				});
@@ -728,7 +752,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			[
 				this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
-				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, (repository, cursor) => this._loadMoreCallback(repository, cursor)),
+				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, this._isLoadMore, repository => this._loadMoreCallback(repository)),
 			],
 			this._treeDataSource,
 			{
@@ -750,8 +774,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		if (!e.element) {
 			return;
 		} else if (isSCMRepository(e.element)) {
-			this.scmViewService.focus(e.element);
-			return;
+			this._scmViewService.focus(e.element);
 		} else if (isSCMHistoryItemViewModelTreeElement(e.element)) {
 			const historyItem = e.element.historyItemViewModel.historyItem;
 			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
@@ -765,11 +788,17 @@ export class SCMHistoryViewPane extends ViewPane {
 				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
 				const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
 
-				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+				await this._commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 			}
 
-			this.scmViewService.focus(e.element.repository);
-			return;
+			this._scmViewService.focus(e.element.repository);
+		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
+			const repositoryCount = this._scmViewService.visibleRepositories.length;
+			const alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories') === true;
+
+			if (repositoryCount > 1 || alwaysShowRepositories) {
+				this._loadMoreCallback(e.element.repository);
+			}
 		}
 	}
 
@@ -785,14 +814,14 @@ export class SCMHistoryViewPane extends ViewPane {
 		let actionRunner: IActionRunner = new HistoryItemActionRunner(() => this._getSelectedHistoryItems());
 
 		if (isSCMRepository(element)) {
-			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
+			const menus = this._scmViewService.menus.getRepositoryMenus(element.provider);
 			const menu = menus.repositoryContextMenu;
 
 			actions = collectContextMenuActions(menu);
 			actionRunner = new RepositoryActionRunner(() => this._getSelectedRepositories());
 			context = element.provider;
 		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
-			const menus = this.scmViewService.menus.getRepositoryMenus(element.repository.provider);
+			const menus = this._scmViewService.menus.getRepositoryMenus(element.repository.provider);
 			const menu = menus.historyProviderMenu?.getHistoryItemMenu2(element);
 
 			actions = menu ? collectContextMenuActions(menu) : [];
@@ -821,7 +850,7 @@ export class SCMHistoryViewPane extends ViewPane {
 					return;
 				}
 
-				if (this.scmViewService.visibleRepositories.length === 1) {
+				if (this._scmViewService.visibleRepositories.length === 1) {
 					this._scmHistoryItemGroupHasRemoteContextKey.set(!!currentHistoryItemGroup?.remote);
 				} else {
 					this._scmHistoryItemGroupHasRemoteContextKey.reset();
@@ -856,16 +885,16 @@ export class SCMHistoryViewPane extends ViewPane {
 			.filter(r => !!r && isSCMHistoryItemViewModelTreeElement(r))!;
 	}
 
-	private _loadMoreCallback(repository: ISCMRepository, cursor: string): void {
-		if (this._isLoadMoreInProgress) {
+	private _loadMoreCallback(repository: ISCMRepository): void {
+		if (this._isLoadMore.get()) {
 			return;
 		}
 
-		this._isLoadMoreInProgress = true;
+		this._isLoadMore.set(true, undefined);
 		this._treeDataSource.loadMore(repository);
 
 		this._updateChildren(repository)
-			.finally(() => this._isLoadMoreInProgress = false);
+			.finally(() => this._isLoadMore.set(false, undefined));
 	}
 
 	private _updateChildren(element?: ISCMRepository): Promise<void> {
