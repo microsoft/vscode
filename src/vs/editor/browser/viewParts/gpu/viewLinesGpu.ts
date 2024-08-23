@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
-import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/view/gpu/gpu';
+import { TextureAtlas } from 'vs/editor/browser/gpu/atlas/textureAtlas';
+import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/gpu/gpu';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewLinesChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { ViewLineOptions } from '../lines/viewLineOptions';
-import { observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/gpu/gpuUtils';
 import { getActiveWindow } from 'vs/base/browser/dom';
-import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
+import { GPULifecycle } from 'vs/editor/browser/gpu/gpuDisposable';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FullFileRenderStrategy } from 'vs/editor/browser/view/gpu/fullFileRenderStrategy';
-import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasPage';
+import { FullFileRenderStrategy } from 'vs/editor/browser/gpu/fullFileRenderStrategy';
+import { TextureAtlasPage } from 'vs/editor/browser/gpu/atlas/textureAtlasPage';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import type { ViewGpuContext } from 'vs/editor/browser/view/gpu/viewGpuContext';
+import type { ViewGpuContext } from 'vs/editor/browser/gpu/viewGpuContext';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,

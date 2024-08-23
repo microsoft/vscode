@@ -5,9 +5,9 @@
 
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { TwoKeyMap } from 'vs/base/common/map';
-import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
+import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
+import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
+import type { IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
 
 export interface TextureAtlasSlabAllocatorOptions {
 	slabW?: number;

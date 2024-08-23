@@ -5,11 +5,11 @@
 
 import { deepStrictEqual, strictEqual, throws } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import type { ITextureAtlasAllocator } from 'vs/editor/browser/view/gpu/atlas/atlas';
-import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
-import { TextureAtlasSlabAllocator, TextureAtlasSlabAllocatorOptions } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import type { IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
+import type { ITextureAtlasAllocator } from 'vs/editor/browser/gpu/atlas/atlas';
+import { TextureAtlasShelfAllocator } from 'vs/editor/browser/gpu/atlas/textureAtlasShelfAllocator';
+import { TextureAtlasSlabAllocator, TextureAtlasSlabAllocatorOptions } from 'vs/editor/browser/gpu/atlas/textureAtlasSlabAllocator';
+import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
+import type { IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
 import { assertIsValidGlyph } from 'vs/editor/test/browser/view/gpu/atlas/testUtil';
 
 const blackArr = [0x00, 0x00, 0x00, 0xFF];

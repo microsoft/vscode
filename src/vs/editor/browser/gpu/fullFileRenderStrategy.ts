@@ -5,12 +5,12 @@
 
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
-import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
-import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/view/gpu/gpu';
-import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
-import { quadVertices } from 'vs/editor/browser/view/gpu/gpuUtils';
-import { GlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/glyphRasterizer';
+import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
+import { TextureAtlas } from 'vs/editor/browser/gpu/atlas/textureAtlas';
+import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/gpu/gpu';
+import { GPULifecycle } from 'vs/editor/browser/gpu/gpuDisposable';
+import { quadVertices } from 'vs/editor/browser/gpu/gpuUtils';
+import { GlyphRasterizer } from 'vs/editor/browser/gpu/raster/glyphRasterizer';
 import type { ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLineOptions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';

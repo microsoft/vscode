@@ -5,9 +5,9 @@
 
 import { fail, ok } from 'assert';
 import { isNumber } from 'vs/base/common/types';
-import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
-import { TextureAtlas } from 'vs/editor/browser/view/gpu/atlas/textureAtlas';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
+import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
+import { TextureAtlas } from 'vs/editor/browser/gpu/atlas/textureAtlas';
+import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
 
 export function assertIsValidGlyph(glyph: Readonly<ITextureAtlasPageGlyph> | undefined, atlasOrSource: TextureAtlas | OffscreenCanvas) {
 	if (glyph === undefined) {

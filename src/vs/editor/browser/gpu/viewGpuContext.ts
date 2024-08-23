@@ -7,8 +7,8 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 import { createFastDomNode, type FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { GPULifecycle } from 'vs/editor/browser/view/gpu/gpuDisposable';
-import { ensureNonNullable, observeDevicePixelDimensions } from 'vs/editor/browser/view/gpu/gpuUtils';
+import { GPULifecycle } from 'vs/editor/browser/gpu/gpuDisposable';
+import { ensureNonNullable, observeDevicePixelDimensions } from 'vs/editor/browser/gpu/gpuUtils';
 
 export class ViewGpuContext extends Disposable {
 	readonly canvas: FastDomNode<HTMLCanvasElement>;

@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, strictEqual, throws } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { createObjectCollectionBuffer, type IObjectCollectionBuffer } from 'vs/editor/browser/view/gpu/objectCollectionBuffer';
+import { createObjectCollectionBuffer, type IObjectCollectionBuffer } from 'vs/editor/browser/gpu/objectCollectionBuffer';
 
 suite('ObjectCollectionBuffer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

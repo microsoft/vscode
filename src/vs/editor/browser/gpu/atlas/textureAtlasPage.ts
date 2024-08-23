@@ -6,10 +6,10 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TwoKeyMap } from 'vs/base/common/map';
-import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from 'vs/editor/browser/view/gpu/atlas/atlas';
-import { TextureAtlasShelfAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasShelfAllocator';
-import { TextureAtlasSlabAllocator } from 'vs/editor/browser/view/gpu/atlas/textureAtlasSlabAllocator';
-import type { IBoundingBox, IGlyphRasterizer } from 'vs/editor/browser/view/gpu/raster/raster';
+import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
+import { TextureAtlasShelfAllocator } from 'vs/editor/browser/gpu/atlas/textureAtlasShelfAllocator';
+import { TextureAtlasSlabAllocator } from 'vs/editor/browser/gpu/atlas/textureAtlasSlabAllocator';
+import type { IBoundingBox, IGlyphRasterizer } from 'vs/editor/browser/gpu/raster/raster';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 

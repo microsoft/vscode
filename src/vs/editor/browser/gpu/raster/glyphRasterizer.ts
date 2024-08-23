@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ensureNonNullable } from 'vs/editor/browser/view/gpu/gpuUtils';
-import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor/browser/view/gpu/raster/raster';
+import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
+import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 
