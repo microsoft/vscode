@@ -98,8 +98,7 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
-		// TODO: Only do this if the experimentalGpuAcceleration setting is 'on'.
-		if (ViewLinesGpu.canRender(this._options, viewportData, lineNumber)) {
+		if (this._options.useGpu && ViewLinesGpu.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
 			return false;
