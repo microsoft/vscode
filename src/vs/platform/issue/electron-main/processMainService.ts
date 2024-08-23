@@ -10,11 +10,12 @@ import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { listProcesses } from 'vs/base/node/ps';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { localize } from 'vs/nls';
+import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
 import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
@@ -25,6 +26,7 @@ import { IStateService } from 'vs/platform/state/node/state';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowState } from 'vs/platform/window/electron-main/window';
+import { isESM } from 'vs/base/common/amd';
 
 const processExplorerWindowState = 'issue.processExplorerWindowState';
 
@@ -57,6 +59,7 @@ export class ProcessMainService implements IProcessMainService {
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IProductService private readonly productService: IProductService,
 		@IStateService private readonly stateService: IStateService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		this.registerListeners();
 	}
@@ -155,14 +158,14 @@ export class ProcessMainService implements IProcessMainService {
 					data,
 					product,
 					nls: {
-						// VSCODE_GLOBALS: NLS
-						messages: globalThis._VSCODE_NLS_MESSAGES,
-						language: globalThis._VSCODE_NLS_LANGUAGE
-					}
+						messages: getNLSMessages(),
+						language: getNLSLanguage()
+					},
+					cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 				});
 
 				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true)
 				);
 
 				this.processExplorerWindow.on('close', () => {

@@ -121,6 +121,8 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 import { normalizeNFC } from 'vs/base/common/normalization';
+import { ICSSDevelopmentService, CSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
+
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
@@ -826,34 +828,38 @@ export class CodeApplication extends Disposable {
 			//   To: vscode-remote://wsl+ubuntu/mnt/c/GitDevelopment/monaco
 
 			const secondSlash = uri.path.indexOf(posix.sep, 1 /* skip over the leading slash */);
+			let authority: string;
+			let path: string;
 			if (secondSlash !== -1) {
-				const authority = uri.path.substring(1, secondSlash);
-				const path = uri.path.substring(secondSlash);
-
-				let query = uri.query;
-				const params = new URLSearchParams(uri.query);
-				if (params.get('windowId') === '_blank') {
-					// Make sure to unset any `windowId=_blank` here
-					// https://github.com/microsoft/vscode/issues/191902
-					params.delete('windowId');
-					query = params.toString();
-				}
-
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
-
-				if (hasWorkspaceFileExtension(path)) {
-					return { workspaceUri: remoteUri };
-				}
-
-				if (/:[\d]+$/.test(path)) {
-					// path with :line:column syntax
-					return { fileUri: remoteUri };
-				}
-
-				return { folderUri: remoteUri };
+				authority = uri.path.substring(1, secondSlash);
+				path = uri.path.substring(secondSlash);
+			} else {
+				authority = uri.path.substring(1);
+				path = '/';
 			}
-		}
 
+			let query = uri.query;
+			const params = new URLSearchParams(uri.query);
+			if (params.get('windowId') === '_blank') {
+				// Make sure to unset any `windowId=_blank` here
+				// https://github.com/microsoft/vscode/issues/191902
+				params.delete('windowId');
+				query = params.toString();
+			}
+
+			const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
+
+			if (hasWorkspaceFileExtension(path)) {
+				return { workspaceUri: remoteUri };
+			}
+
+			if (/:[\d]+$/.test(path)) {
+				// path with :line:column syntax
+				return { fileUri: remoteUri };
+			}
+
+			return { folderUri: remoteUri };
+		}
 		return undefined;
 	}
 
@@ -911,7 +917,7 @@ export class CodeApplication extends Disposable {
 				this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
 				const window = firstOrDefault(await windowsMainService.open({
-					context: OpenContext.API,
+					context: OpenContext.LINK,
 					cli: { ...this.environmentMainService.args },
 					urisToOpen: [windowOpenableFromProtocolUrl],
 					forceNewWindow: shouldOpenInNewWindow,
@@ -930,7 +936,7 @@ export class CodeApplication extends Disposable {
 			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
 			const window = firstOrDefault(await windowsMainService.open({
-				context: OpenContext.API,
+				context: OpenContext.LINK,
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,
@@ -1096,6 +1102,9 @@ export class CodeApplication extends Disposable {
 
 		// Proxy Auth
 		services.set(IProxyAuthService, new SyncDescriptor(ProxyAuthService));
+
+		// Dev Only: CSS service (for ESM)
+		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
 		// Init services that require it
 		await Promises.settled([

@@ -27,6 +27,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { CustomStackFrame } from 'vs/workbench/contrib/debug/browser/callStackWidget';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestResultStackWidget } from 'vs/workbench/contrib/testing/browser/testResultsView/testMessageStack';
@@ -74,6 +75,7 @@ class MessageStackFrame extends CustomStackFrame {
 	}
 
 	public override render(container: HTMLElement): IDisposable {
+		this.message.style.visibility = 'visible';
 		container.appendChild(this.message);
 		return toDisposable(() => this.message.remove());
 	}
@@ -217,6 +219,7 @@ export class TestResultsViewContent extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
@@ -310,7 +313,7 @@ export class TestResultsViewContent extends Disposable {
 		this.current = opts.subject;
 		return this.contentProvidersUpdateLimiter.queue(async () => {
 			this.currentSubjectStore.clear();
-			const callFrames = (opts.subject instanceof MessageSubject && opts.subject.stack) || [];
+			const callFrames = this.getCallFrames(opts.subject) || [];
 			const topFrame = await this.prepareTopFrame(opts.subject, callFrames);
 			this.callStackWidget.update(topFrame, callFrames);
 
@@ -319,20 +322,49 @@ export class TestResultsViewContent extends Disposable {
 		});
 	}
 
+	private getCallFrames(subject: InspectSubject) {
+		if (!(subject instanceof MessageSubject)) {
+			return undefined;
+		}
+		const frames = subject.stack;
+		if (!frames?.length || !this.editor) {
+			return frames;
+		}
+
+		// If the test extension just sets the top frame as the same location
+		// where the message is displayed, in the case of a peek in an editor,
+		// don't show it again because it's just a duplicate
+		const topFrame = frames[0];
+		const peekLocation = subject.revealLocation;
+		const isTopFrameSame = peekLocation && topFrame.position && topFrame.uri
+			&& topFrame.position.lineNumber === peekLocation.range.startLineNumber
+			&& topFrame.position.column === peekLocation.range.startColumn
+			&& this.uriIdentityService.extUri.isEqual(topFrame.uri, peekLocation.uri);
+
+		return isTopFrameSame ? frames.slice(1) : frames;
+	}
+
 	private async prepareTopFrame(subject: InspectSubject, callFrames: ITestMessageStackFrame[]) {
+		// ensure the messageContainer is in the DOM so renderers can calculate the
+		// dimensions before it's rendered in the list.
+		this.messageContainer.style.visibility = 'hidden';
+		this.stackContainer.appendChild(this.messageContainer);
+
 		const topFrame = this.currentTopFrame = this.instantiationService.createInstance(MessageStackFrame, this.messageContainer, this.followupWidget, subject);
-		topFrame.showHeader.set(callFrames.length > 0, undefined);
+
+		const hasMultipleFrames = callFrames.length > 0;
+		topFrame.showHeader.set(hasMultipleFrames, undefined);
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));
 		if (provider) {
 			if (this.dimension) {
-				topFrame.height.set(provider.layout(this.dimension)!, undefined);
+				topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
 			}
 			if (provider.onDidContentSizeChange) {
 				this.currentSubjectStore.add(provider.onDidContentSizeChange(() => {
 					if (this.dimension && !this.isDoingLayoutUpdate) {
 						this.isDoingLayoutUpdate = true;
-						topFrame.height.set(provider.layout(this.dimension)!, undefined);
+						topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
 						this.isDoingLayoutUpdate = false;
 					}
 				}));
@@ -345,7 +377,7 @@ export class TestResultsViewContent extends Disposable {
 	private layoutContentWidgets(dimension: dom.Dimension, width = this.splitView.getViewSize(SubView.Diff)) {
 		this.isDoingLayoutUpdate = true;
 		for (const provider of this.contentProviders) {
-			const frameHeight = provider.layout({ height: dimension.height, width });
+			const frameHeight = provider.layout({ height: dimension.height, width }, !!this.currentTopFrame?.showHeader.get());
 			if (frameHeight) {
 				this.currentTopFrame?.height.set(frameHeight, undefined);
 			}

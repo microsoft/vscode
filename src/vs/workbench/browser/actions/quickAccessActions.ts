@@ -163,12 +163,13 @@ registerAction2(class QuickAccessAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const quickInputService = accessor.get(IQuickInputService);
+		const providerOptions: AnythingQuickAccessProviderRunOptions = {
+			includeHelp: true,
+			from: 'commandCenter',
+		};
 		quickInputService.quickAccess.show(undefined, {
 			preserveValue: true,
-			providerOptions: {
-				includeHelp: true,
-				from: 'commandCenter',
-			} as AnythingQuickAccessProviderRunOptions
+			providerOptions
 		});
 	}
 });

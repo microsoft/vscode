@@ -33,6 +33,7 @@ suite('Terminal Initial Hint Addon', () => {
 		extensionDisplayName: 'test',
 		metadata: {},
 		slashCommands: [{ name: 'test', description: 'test' }],
+		disambiguation: [],
 		locations: [ChatAgentLocation.fromRaw('terminal')],
 		invoke: async () => { return {}; }
 	};
@@ -45,6 +46,7 @@ suite('Terminal Initial Hint Addon', () => {
 		metadata: {},
 		slashCommands: [{ name: 'test', description: 'test' }],
 		locations: [ChatAgentLocation.fromRaw('editor')],
+		disambiguation: [],
 		invoke: async () => { return {}; }
 	};
 	setup(async () => {

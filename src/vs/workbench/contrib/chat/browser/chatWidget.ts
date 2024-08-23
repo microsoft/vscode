@@ -9,7 +9,7 @@ import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { matchesScheme, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { extUri, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -77,6 +77,10 @@ export interface IChatWidgetContrib extends IDisposable {
 export interface IChatWidgetLocationOptions {
 	location: ChatAgentLocation;
 	resolveData?(): IChatLocationData | undefined;
+}
+
+export function isQuickChat(widget: IChatWidget): boolean {
+	return 'viewContext' in widget && 'isQuickChat' in widget.viewContext && Boolean(widget.viewContext.isQuickChat);
 }
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -187,9 +191,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._location.location;
 	}
 
+	readonly viewContext: IChatWidgetViewContext;
+
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
-		readonly viewContext: IChatWidgetViewContext,
+		_viewContext: IChatWidgetViewContext | undefined,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -206,6 +212,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 
+		this.viewContext = _viewContext ?? {};
+
 		if (typeof location === 'object') {
 			this._location = location;
 		} else {
@@ -214,7 +222,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
 		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(this._location.location);
-		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set('resource' in viewContext);
+		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
@@ -223,13 +231,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
-			let resource = input.resource;
-
-			// if trying to open backing documents, actually open the real chat code block doc
-			if (matchesScheme(resource, Schemas.vscodeCopilotBackingChatCodeBlock)) {
-				resource = resource.with({ scheme: Schemas.vscodeChatCodeBlock });
-			}
-
+			const resource = input.resource;
 			if (resource.scheme !== Schemas.vscodeChatCodeBlock) {
 				return null;
 			}
@@ -250,18 +252,35 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			await timeout(0); // wait for list to actually render
 
-			for (const editor of this.renderer.editorsInUse() ?? []) {
-				if (extUri.isEqual(editor.uri, resource, true)) {
-					const inner = editor.editor;
+			for (const codeBlockPart of this.renderer.editorsInUse()) {
+				if (extUri.isEqual(codeBlockPart.uri, resource, true)) {
+					const editor = codeBlockPart.editor;
+
+					let relativeTop = 0;
+					const editorDomNode = editor.getDomNode();
+					if (editorDomNode) {
+						const row = dom.findParentWithClass(editorDomNode, 'monaco-list-row');
+						if (row) {
+							relativeTop = dom.getTopLeftOffset(editorDomNode).top - dom.getTopLeftOffset(row).top;
+						}
+					}
+
 					if (input.options?.selection) {
-						inner.setSelection({
+						const editorSelectionTopOffset = editor.getTopForPosition(input.options.selection.startLineNumber, input.options.selection.startColumn);
+						relativeTop += editorSelectionTopOffset;
+
+						editor.focus();
+						editor.setSelection({
 							startLineNumber: input.options.selection.startLineNumber,
 							startColumn: input.options.selection.startColumn,
 							endLineNumber: input.options.selection.endLineNumber ?? input.options.selection.startLineNumber,
 							endColumn: input.options.selection.endColumn ?? input.options.selection.startColumn
 						});
 					}
-					return inner;
+
+					this.reveal(item, relativeTop);
+
+					return editor;
 				}
 			}
 			return null;
@@ -480,7 +499,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.renderer.onDidClickRerunWithAgentOrCommandDetection(item => {
 			const request = this.chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
 			if (request) {
-				this.chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: this.location }).catch(e => this.logService.error('FAILED to rerun request', e));
+				this.chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: this.location }).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
 		}));
 
@@ -700,8 +719,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.tree.getFocus()[0] ?? undefined;
 	}
 
-	reveal(item: ChatTreeItem): void {
-		this.tree.reveal(item);
+	reveal(item: ChatTreeItem, relativeTop?: number): void {
+		this.tree.reveal(item, relativeTop);
 	}
 
 	focus(item: ChatTreeItem): void {

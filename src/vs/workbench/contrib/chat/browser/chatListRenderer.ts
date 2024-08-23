@@ -58,7 +58,7 @@ import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMark
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatAgentVoteDirection, IChatConfirmation, IChatContentReference, IChatFollowup, IChatTask, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
@@ -347,13 +347,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = element;
 		}
 
+		CONTEXT_RESPONSE_ERROR.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		CONTEXT_RESPONSE_FILTERED.bindTo(templateData.contextKeyService).set(isFiltered);
 
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
-		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length);
 		templateData.username.textContent = element.username;
 		if (!this.rendererOptions.noHeader) {
@@ -484,30 +484,37 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
+		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
+
 		const parts: IChatContentPart[] = [];
-		value.forEach((data, index) => {
-			const context: IChatContentPartRenderContext = {
-				element,
-				index,
-				content: value,
-				preceedingContentParts: parts,
-			};
-			const newPart = this.renderChatContentPart(data, templateData, context);
-			if (newPart) {
-				templateData.value.appendChild(newPart.domNode);
-				parts.push(newPart);
-			}
-		});
+		if (!isFiltered) {
+			value.forEach((data, index) => {
+				const context: IChatContentPartRenderContext = {
+					element,
+					index,
+					content: value,
+					preceedingContentParts: parts,
+				};
+				const newPart = this.renderChatContentPart(data, templateData, context);
+				if (newPart) {
+					templateData.value.appendChild(newPart.domNode);
+					parts.push(newPart);
+				}
+			});
+		}
+
 		if (templateData.renderedParts) {
 			dispose(templateData.renderedParts);
 		}
 		templateData.renderedParts = parts;
 
-		if (isRequestVM(element) && element.variables.length) {
-			const newPart = this.renderAttachments(element.variables, element.contentReferences, templateData);
-			if (newPart) {
-				templateData.value.appendChild(newPart.domNode);
-				templateData.elementDisposables.add(newPart);
+		if (!isFiltered) {
+			if (isRequestVM(element) && element.variables.length) {
+				const newPart = this.renderAttachments(element.variables, element.contentReferences, templateData);
+				if (newPart) {
+					templateData.value.appendChild(newPart.domNode);
+					templateData.elementDisposables.add(newPart);
+				}
 			}
 		}
 

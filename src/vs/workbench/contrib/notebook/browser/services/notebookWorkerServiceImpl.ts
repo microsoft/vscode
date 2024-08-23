@@ -5,13 +5,12 @@
 
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/browser/defaultWorkerFactory';
+import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
-import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
@@ -58,15 +57,10 @@ class WorkerManager extends Disposable {
 	withWorker(): Promise<NotebookWorkerClient> {
 		// this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService, 'notebookEditorWorkerService');
+			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
-}
-
-interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
-	dispose(): void;
 }
 
 class NotebookEditorModelManager extends Disposable {
@@ -74,7 +68,7 @@ class NotebookEditorModelManager extends Disposable {
 	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
 	constructor(
-		private readonly _proxy: NotebookEditorSimpleWorker,
+		private readonly _proxy: Proxied<NotebookEditorSimpleWorker>,
 		private readonly _notebookService: INotebookService
 	) {
 		super();
@@ -101,7 +95,7 @@ class NotebookEditorModelManager extends Disposable {
 
 		const modelUrl = resource.toString();
 
-		this._proxy.acceptNewModel(
+		this._proxy.$acceptNewModel(
 			model.uri.toString(),
 			{
 				cells: model.cells.map(cell => ({
@@ -161,7 +155,7 @@ class NotebookEditorModelManager extends Disposable {
 				return data;
 			});
 
-			this._proxy.acceptModelChanged(modelUrl.toString(), {
+			this._proxy.$acceptModelChanged(modelUrl.toString(), {
 				rawEvents: dto,
 				versionId: event.versionId
 			});
@@ -171,7 +165,7 @@ class NotebookEditorModelManager extends Disposable {
 			this._stopModelSync(modelUrl);
 		}));
 		toDispose.add(toDisposable(() => {
-			this._proxy.acceptRemovedModel(modelUrl);
+			this._proxy.$acceptRemovedModel(modelUrl);
 		}));
 
 		this._syncedModels[modelUrl] = toDispose;
@@ -185,72 +179,47 @@ class NotebookEditorModelManager extends Disposable {
 	}
 }
 
-class NotebookWorkerHost implements INotebookWorkerHost {
-
-	private readonly _workerClient: NotebookWorkerClient;
-
-	constructor(workerClient: NotebookWorkerClient) {
-		this._workerClient = workerClient;
-	}
-
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		return this._workerClient.fhr(method, args);
-	}
-}
-
 class NotebookWorkerClient extends Disposable {
 	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: NotebookEditorModelManager | null;
 
 
-	constructor(private readonly _notebookService: INotebookService, label: string) {
+	constructor(private readonly _notebookService: INotebookService) {
 		super();
-		this._workerFactory = new DefaultWorkerFactory(label);
 		this._worker = null;
 		this._modelManager = null;
 
 	}
 
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		throw new Error(`Not implemented!`);
-	}
-
 	computeDiff(original: URI, modified: URI) {
-		return this._withSyncedResources([original, modified]).then(proxy => {
-			return proxy.computeDiff(original.toString(), modified.toString());
-		});
+		const proxy = this._ensureSyncedResources([original, modified]);
+		return proxy.$computeDiff(original.toString(), modified.toString());
 	}
 
 	canPromptRecommendation(modelUri: URI) {
-		return this._withSyncedResources([modelUri]).then(proxy => {
-			return proxy.canPromptRecommendation(modelUri.toString());
-		});
+		const proxy = this._ensureSyncedResources([modelUri]);
+		return proxy.$canPromptRecommendation(modelUri.toString());
 	}
 
-	private _getOrCreateModelManager(proxy: NotebookEditorSimpleWorker): NotebookEditorModelManager {
+	private _getOrCreateModelManager(proxy: Proxied<NotebookEditorSimpleWorker>): NotebookEditorModelManager {
 		if (!this._modelManager) {
 			this._modelManager = this._register(new NotebookEditorModelManager(proxy, this._notebookService));
 		}
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<NotebookEditorSimpleWorker> {
-		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
-			return proxy;
-		});
+	protected _ensureSyncedResources(resources: URI[]): Proxied<NotebookEditorSimpleWorker> {
+		const proxy = this._getOrCreateWorker().proxy;
+		this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
+		return proxy;
 	}
 
 	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
 		if (!this._worker) {
 			try {
-				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker, NotebookWorkerHost>(
-					this._workerFactory,
+				this._worker = this._register(createWebWorker<NotebookEditorSimpleWorker>(
 					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
-					new NotebookWorkerHost(this)
+					'NotebookEditorWorker'
 				));
 			} catch (err) {
 				// logOnceWebWorkerWarning(err);
@@ -260,15 +229,4 @@ class NotebookWorkerClient extends Disposable {
 		}
 		return this._worker;
 	}
-
-	protected _getProxy(): Promise<NotebookEditorSimpleWorker> {
-		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
-			// logOnceWebWorkerWarning(err);
-			// this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
-			// return this._getOrCreateWorker().getProxyObject();
-			throw (err);
-		});
-	}
-
-
 }

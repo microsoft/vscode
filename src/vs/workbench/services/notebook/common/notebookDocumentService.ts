@@ -51,6 +51,21 @@ export function generate(notebook: URI, handle: number): URI {
 	return notebook.with({ scheme: Schemas.vscodeNotebookCell, fragment });
 }
 
+export function parseMetadataUri(metadata: URI): URI | undefined {
+	if (metadata.scheme !== Schemas.vscodeNotebookMetadata) {
+		return undefined;
+	}
+
+	const _scheme = decodeBase64(metadata.fragment).toString();
+
+	return metadata.with({ scheme: _scheme, fragment: null });
+}
+
+export function generateMetadataUri(notebook: URI): URI {
+	const fragment = `${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
+	return notebook.with({ scheme: Schemas.vscodeNotebookMetadata, fragment });
+}
+
 export interface INotebookDocumentService {
 	readonly _serviceBrand: undefined;
 

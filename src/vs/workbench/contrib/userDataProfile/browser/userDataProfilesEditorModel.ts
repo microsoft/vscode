@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IProfileResourceChildTreeItem, IProfileTemplateInfo, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResourceChildTreeItem, IProfileTemplateInfo, isProfileURL, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/objects';
@@ -36,6 +36,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CONFIG_NEW_WINDOW_PROFILE } from 'vs/workbench/common/configuration';
 import { ResourceMap } from 'vs/base/common/map';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { isWeb } from 'vs/base/common/platform';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -378,6 +381,14 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		}
 	}
 
+	public async toggleCurrentWindowProfile(): Promise<void> {
+		if (this.userDataProfileService.currentProfile.id === this.profile.id) {
+			await this.userDataProfileManagementService.switchProfile(this.userDataProfilesService.defaultProfile);
+		} else {
+			await this.userDataProfileManagementService.switchProfile(this.profile);
+		}
+	}
+
 	protected override async doSave(): Promise<void> {
 		await this.saveProfile(this.profile);
 	}
@@ -707,6 +718,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService private readonly hostService: IHostService,
+		@IProductService private readonly productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -856,6 +869,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = new CancellationTokenSource();
 			disposables.add(toDisposable(() => cancellationTokenSource.dispose(true)));
+			const primaryActions: Action[] = [];
+			const secondaryActions: Action[] = [];
 			const createAction = disposables.add(new Action(
 				'userDataProfile.create',
 				localize('create', "Create"),
@@ -863,6 +878,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.saveNewProfile(false, cancellationTokenSource.token)
 			));
+			primaryActions.push(createAction);
+			if (isWeb && copyFrom instanceof URI && isProfileURL(copyFrom)) {
+				primaryActions.push(new Action(
+					'userDataProfile.createInDesktop',
+					localize('import in desktop', "Create in {0}", this.productService.nameLong),
+					undefined,
+					true,
+					() => this.openerService.open(copyFrom, { openExternal: true })
+				));
+			}
 			const cancelAction = disposables.add(new Action(
 				'userDataProfile.cancel',
 				localize('cancel', "Cancel"),
@@ -870,6 +895,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.discardNewProfile()
 			));
+			secondaryActions.push(cancelAction);
 			const previewProfileAction = disposables.add(new Action(
 				'userDataProfile.preview',
 				localize('preview', "Preview"),
@@ -877,17 +903,22 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.previewNewProfile(cancellationTokenSource.token)
 			));
+			if (!isWeb) {
+				secondaryActions.push(previewProfileAction);
+			}
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
-				[[createAction], [cancelAction, previewProfileAction]],
+				[primaryActions, [cancelAction, previewProfileAction]],
 				[[cancelAction], []],
 			));
 			const updateCreateActionLabel = () => {
-				if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
-					createAction.label = localize('replace', "Replace");
-				} else {
-					createAction.label = localize('create', "Create");
+				if (createAction.enabled) {
+					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+						createAction.label = localize('replace', "Replace");
+					} else {
+						createAction.label = localize('create', "Create");
+					}
 				}
 			};
 			updateCreateActionLabel();

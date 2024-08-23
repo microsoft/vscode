@@ -823,7 +823,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		if (target && side) {
 			const index = group.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
-			group.moveInstance(source, index);
+			group.moveInstance(source, index, side);
 		}
 
 		// Fire events

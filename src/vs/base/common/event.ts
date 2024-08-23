@@ -112,6 +112,15 @@ export namespace Event {
 	}
 
 	/**
+	 * Given an event, returns another event which only fires once, and only when the condition is met.
+	 *
+	 * @param event The event source for the new event.
+	 */
+	export function onceIf<T>(event: Event<T>, condition: (e: T) => boolean): Event<T> {
+		return Event.once(Event.filter(event, condition));
+	}
+
+	/**
 	 * Maps an event of one type into an event of another type using a mapping function, similar to how
 	 * `Array.prototype.map` works.
 	 *
@@ -661,6 +670,9 @@ export namespace Event {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
+
+					// Communicate to the observable that we received its current value and would like to be notified about future changes.
+					this._observable.reportChanges();
 				},
 				onDidRemoveLastListener: () => {
 					_observable.removeObserver(this);
