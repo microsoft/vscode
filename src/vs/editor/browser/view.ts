@@ -27,7 +27,7 @@ import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from '
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { disableNonGpuRendering, ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
+import { ViewLinesGpu } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
@@ -438,17 +438,11 @@ export class View extends ViewEventHandler {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
 					}
-					if (disableNonGpuRendering) {
-						return;
-					}
 					return rendering.prepareRender(viewParts, ctx);
 				},
 				render: (viewParts: ViewPart[], ctx: RestrictedRenderingContext) => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
-					}
-					if (disableNonGpuRendering) {
-						return;
 					}
 					return rendering.render(viewParts, ctx);
 				}

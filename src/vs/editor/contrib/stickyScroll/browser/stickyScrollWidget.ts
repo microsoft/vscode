@@ -10,7 +10,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { disableNonGpuRendering } from 'vs/editor/browser/viewParts/gpu/viewLinesGpu';
 import { getColumnOfNodeOffset } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -80,10 +79,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		this._rootDomNode.className = 'sticky-widget';
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
-		if (!disableNonGpuRendering) {
-			this._rootDomNode.appendChild(this._lineNumbersDomNode);
-			this._rootDomNode.appendChild(this._linesDomNodeScrollable);
-		}
+		this._rootDomNode.appendChild(this._lineNumbersDomNode);
+		this._rootDomNode.appendChild(this._linesDomNodeScrollable);
 
 		const updateScrollLeftPosition = () => {
 			this._linesDomNode.style.left = this._editor.getOption(EditorOption.stickyScroll).scrollWithEditor ? `-${this._editor.getScrollLeft()}px` : '0px';
@@ -143,9 +140,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const state = isWidgetHeightZero ? undefined : _state;
 		const rebuildFromLine = isWidgetHeightZero ? 0 : this._findLineToRebuildWidgetFrom(_state, _rebuildFromLine);
 
-		if (!disableNonGpuRendering) {
-			this._renderRootNode(state, foldingModel, rebuildFromLine);
-		}
+		this._renderRootNode(state, foldingModel, rebuildFromLine);
 		this._previousState = _state;
 	}
 

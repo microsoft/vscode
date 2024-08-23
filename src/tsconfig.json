@@ -10,13 +10,13 @@
 		"isolatedModules": true,
 		"outDir": "../out/vs",
 		"types": [
+			"@webgpu/types",
 			"mocha",
 			"semver",
 			"sinon",
-			"winreg",
 			"trusted-types",
-			"wicg-file-system-access",
-			"@webgpu/types"
+			"winreg",
+			"wicg-file-system-access"
 		],
 		"plugins": [
 			{

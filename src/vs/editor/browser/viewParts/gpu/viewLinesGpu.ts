@@ -22,8 +22,6 @@ import { TextureAtlasPage } from 'vs/editor/browser/view/gpu/atlas/textureAtlasP
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import type { ViewGpuContext } from 'vs/editor/browser/view/gpu/viewGpuContext';
 
-export const disableNonGpuRendering = false;
-
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
 	BytesPerEntry = GlyphStorageBufferInfo.FloatsPerEntry * 4,
