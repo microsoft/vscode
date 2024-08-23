@@ -172,7 +172,7 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 			}));
 		}));
 
-		templateData.toolBar.context = repository;
+		templateData.toolBar.context = repository.provider;
 	}
 
 	disposeElement(group: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
@@ -557,7 +557,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			children.push(...historyItems);
 
 			const lastHistoryItem = tail(historyItems);
-			if (lastHistoryItem && lastHistoryItem.historyItemViewModel.historyItem.parentIds.length !== 0) {
+			if (lastHistoryItem && lastHistoryItem.historyItemViewModel.outputSwimlanes.length > 0) {
 				children.push({
 					repository: inputOrElement,
 					graphColumns: lastHistoryItem.historyItemViewModel.outputSwimlanes,
@@ -591,10 +591,6 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 		}
 
 		this._state.delete(repository);
-	}
-
-	getState(repository: ISCMRepository): HistoryItemState | undefined {
-		return this._state.get(repository);
 	}
 
 	loadMore(repository: ISCMRepository): void {
