@@ -102,14 +102,17 @@ function filePathToResourceUri(filepath: string): URI | undefined {
 	return URI.from({ scheme, authority, path: (path ? '/' + path : path) });
 }
 
-export function mapUri(uri: URI, mappedScheme: string): URI {
+export function mapUri(uri: URI, _mappedScheme: string): URI {
 	if (uri.scheme === 'vscode-global-typings') {
 		throw new Error('can\'t map vscode-global-typings');
 	}
 	if (!uri.authority) {
 		uri = uri.with({ authority: 'ts-nul-authority' });
 	}
-	uri = uri.with({ scheme: mappedScheme, path: `/${uri.scheme}/${uri.authority || 'ts-nul-authority'}${uri.path}` });
-
-	return uri;
+	// MEMBRANE: make all request to memfs instead of vscode-* fs
+	return uri.with({
+		scheme: 'memfs',
+		authority: '',
+		path: `/${uri.authority}${uri.path}`,
+	});
 }
