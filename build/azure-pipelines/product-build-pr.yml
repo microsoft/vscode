@@ -22,8 +22,7 @@ variables:
   - name: VSCODE_STEP_ON_IT
     value: false
   - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
+    value: false
 
 jobs:
   - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
