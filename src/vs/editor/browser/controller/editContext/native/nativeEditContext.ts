@@ -21,15 +21,10 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { DebugEditContext } from 'vs/editor/browser/controller/editContext/native/debugEditContext';
 
-/*
- * 2. Need to cut down as much code as possible and only after testing simplify. See if can simplify the existing classes that I am using too.
- * 3. Why does notebook loose focus?
- * 4. Why can't use space in notebook
- */
-
-// Boolean which determines whether to show the selection, control and character bounding boxes for debugging purposes
-const showBoundingBoxes: boolean = false;
+// Boolean which controls whether we should show the control, selection and character bounds
+const showControlBounds = true;
 
 export class NativeEditContext extends Disposable {
 
@@ -38,7 +33,7 @@ export class NativeEditContext extends Disposable {
 	private _parent: HTMLElement | undefined;
 
 	// Edit Context API
-	private readonly _editContext: EditContext = this.domElement.domNode.editContext = new EditContext();
+	private readonly _editContext: EditContext;
 	private _selectionOfEditContextText: Range | undefined;
 
 	// Composition
@@ -65,17 +60,13 @@ export class NativeEditContext extends Disposable {
 		selectionOfContent: Selection;
 	} | undefined;
 
-	// Bounds
-	private _selectionBounds: IDisposable = Disposable.None;
-	private _controlBounds: IDisposable = Disposable.None;
-	private _characterBounds: IDisposable = Disposable.None;
-
 	constructor(
 		private readonly _context: ViewContext,
 		private readonly _viewController: ViewController
 	) {
 		super();
 		const domNode = this.domElement.domNode;
+		this._editContext = this.domElement.domNode.editContext = showControlBounds ? new DebugEditContext() : new EditContext();
 
 		this._register(dom.addDisposableListener(domNode, 'keydown', (e) => {
 
@@ -220,6 +211,10 @@ export class NativeEditContext extends Disposable {
 		console.log('this._selectionOfEditContextText : ', this._selectionOfEditContextText);
 	}
 
+	public setRenderingContext(renderingContext: RenderingContext): void {
+		this._renderingContext = renderingContext;
+	}
+
 	// -- need to use this in composition
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		console.log('onCursorStateChanged');
@@ -342,11 +337,6 @@ export class NativeEditContext extends Disposable {
 
 		console.log('characterBounds[0] : ', characterBounds[0]);
 		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
-
-		if (showBoundingBoxes) {
-			this._characterBounds.dispose();
-			this._characterBounds = createRect(characterBounds[0], 'green');
-		}
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
@@ -464,13 +454,6 @@ export class NativeEditContext extends Disposable {
 
 		this._editContext.updateControlBounds(controlBounds);
 		this._editContext.updateSelectionBounds(selectionBounds);
-
-		if (showBoundingBoxes) {
-			this._selectionBounds.dispose();
-			this._controlBounds.dispose();
-			this._selectionBounds = createRect(selectionBounds, 'red');
-			this._controlBounds = createRect(controlBounds, 'blue');
-		}
 	}
 
 	private _updateCompositionEndPosition(): void {
@@ -487,29 +470,6 @@ function editContextAddDisposableListener<K extends keyof EditContextEventHandle
 	return {
 		dispose() {
 			target.removeEventListener(type, listener as any);
-		}
-	};
-}
-
-function createRect(rect: DOMRect, color: 'red' | 'blue' | 'green'): IDisposable {
-	const ret = document.createElement('div');
-	ret.style.position = 'absolute';
-	ret.style.zIndex = '999999999';
-	ret.style.outline = `2px solid ${color}`;
-	ret.className = 'debug-rect-marker';
-	ret.style.pointerEvents = 'none';
-
-	ret.style.top = rect.top + 'px';
-	ret.style.left = rect.left + 'px';
-	ret.style.width = rect.width + 'px';
-	ret.style.height = rect.height + 'px';
-
-	// eslint-disable-next-line no-restricted-syntax
-	document.body.appendChild(ret);
-
-	return {
-		dispose: () => {
-			ret.remove();
 		}
 	};
 }

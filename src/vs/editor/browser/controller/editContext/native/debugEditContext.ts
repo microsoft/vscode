@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const COLOR_FOR_CONTROL_BOUNDS = 'blue';
+const COLOR_FOR_SELECTION_BOUNDS = 'red';
+const COLOR_FOR_CHARACTER_BOUNDS = 'green';
+
 export class DebugEditContext extends EditContext {
 	private _isDebugging = true;
 	private _controlBounds: DOMRect | null = null;
@@ -123,14 +127,14 @@ export class DebugEditContext extends EditContext {
 		}
 
 		if (this._controlBounds) {
-			this._disposables.push(createRect(this._controlBounds));
+			this._disposables.push(createRect(this._controlBounds, COLOR_FOR_CONTROL_BOUNDS));
 		}
 		if (this._selectionBounds) {
-			this._disposables.push(createRect(this._selectionBounds));
+			this._disposables.push(createRect(this._selectionBounds, COLOR_FOR_SELECTION_BOUNDS));
 		}
 		if (this._characterBounds) {
 			for (const rect of this._characterBounds.characterBounds) {
-				this._disposables.push(createRect(rect));
+				this._disposables.push(createRect(rect, COLOR_FOR_CHARACTER_BOUNDS));
 			}
 		}
 
@@ -140,6 +144,7 @@ export class DebugEditContext extends EditContext {
 
 function createDiv(text: string, selectionStart: number, selectionEnd: number) {
 	const ret = document.createElement('div');
+	ret.className = 'debug-rect-marker';
 	ret.style.position = 'absolute';
 	ret.style.zIndex = '999999999';
 	ret.style.bottom = '50px';
@@ -148,7 +153,6 @@ function createDiv(text: string, selectionStart: number, selectionEnd: number) {
 	ret.style.border = '1px solid black';
 	ret.style.padding = '5px';
 	ret.style.whiteSpace = 'pre';
-	ret.className = 'debug-rect-marker';
 	ret.style.font = '12px monospace';
 	ret.style.pointerEvents = 'none';
 
@@ -170,7 +174,6 @@ function createDiv(text: string, selectionStart: number, selectionEnd: number) {
 	const afterNode = document.createTextNode(after);
 	ret.appendChild(afterNode);
 
-
 	// eslint-disable-next-line no-restricted-syntax
 	document.body.appendChild(ret);
 
@@ -181,12 +184,12 @@ function createDiv(text: string, selectionStart: number, selectionEnd: number) {
 	};
 }
 
-function createRect(rect: DOMRect) {
+function createRect(rect: DOMRect, color: 'green' | 'blue' | 'red') {
 	const ret = document.createElement('div');
+	ret.className = 'debug-rect-marker';
 	ret.style.position = 'absolute';
 	ret.style.zIndex = '999999999';
-	ret.style.outline = '2px solid red';
-	ret.className = 'debug-rect-marker';
+	ret.style.outline = `2px solid ${color}`;
 	ret.style.pointerEvents = 'none';
 
 	ret.style.top = rect.top + 'px';

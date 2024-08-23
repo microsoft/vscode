@@ -339,6 +339,7 @@ export class ScreenReaderContent extends AbstractEditContext {
 	public prepareRender(ctx: RenderingContext): void {
 		this._primaryCursorPosition = new Position(this._primarySelection.positionLineNumber, this._primarySelection.positionColumn);
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primaryCursorPosition);
+		this._nativeEditContext.setRenderingContext(ctx);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
