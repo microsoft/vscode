@@ -279,7 +279,7 @@ export namespace TaskDTO {
 			isBackground: value.isBackground,
 			group: TaskGroupDTO.from(value.group as vscode.TaskGroup),
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
-			problemMatchers: value.problemMatchers ? Array.isArray(value.problemMatchers) ? value.problemMatchers : [value.problemMatchers] : [],
+			problemMatchers: value.problemMatchers && Array.isArray(value.problemMatchers) ? value.problemMatchers : value.problemMatchers ? [value.problemMatchers] : [],
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
 			detail: value.detail
