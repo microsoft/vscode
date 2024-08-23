@@ -60,6 +60,7 @@ suite('Buffer Content Tracker', () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		instantiationService = store.add(new TestInstantiationService());
 		themeService = new TestThemeService();
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ITerminalConfigurationService, store.add(instantiationService.createInstance(TerminalConfigurationService)));
 		instantiationService.stub(IThemeService, themeService);

@@ -11,7 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/editorOptions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITerminalConfigurationService, LinuxDistro } from '../../browser/terminal.js';
 import { TestTerminalConfigurationService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -56,6 +58,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 
 	function createTerminalConfigationService(config: any, linuxDistro?: LinuxDistro): ITerminalConfigurationService {
 		const instantiationService = new TestInstantiationService();
+		instantiationService.set(IContextKeyService, new MockContextKeyService());
 		instantiationService.set(IConfigurationService, new TestConfigurationService(config));
 		const terminalConfigurationService = store.add(instantiationService.createInstance(TestTerminalConfigurationService));
 		instantiationService.set(ITerminalConfigurationService, terminalConfigurationService);
