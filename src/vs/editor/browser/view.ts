@@ -27,11 +27,11 @@ import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from '
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { ViewLinesGpu } from 'vs/editor/browser/viewParts/linesGpu/viewLinesGpu';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
 import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
+import { ViewLinesGpu } from 'vs/editor/browser/viewParts/linesGpu/viewLinesGpu';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
@@ -78,12 +78,12 @@ export class View extends ViewEventHandler {
 
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
-	private readonly _viewGpuContext: ViewGpuContext;
+	private readonly _viewGpuContext?: ViewGpuContext;
 	private _selections: Selection[];
 
 	// The view lines
 	private readonly _viewLines: ViewLines;
-	private readonly _viewLinesGpu: ViewLinesGpu;
+	private readonly _viewLinesGpu?: ViewLinesGpu;
 
 	// These are parts, but we must do some API related calls on them, so we keep a reference
 	private readonly _viewZones: ViewZones;
@@ -142,7 +142,9 @@ export class View extends ViewEventHandler {
 		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
 		this.domNode.setAttribute('role', 'code');
 
-		this._viewGpuContext = new ViewGpuContext();
+		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
+			this._viewGpuContext = new ViewGpuContext();
+		}
 
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
@@ -153,7 +155,10 @@ export class View extends ViewEventHandler {
 
 		// View Lines
 		this._viewLines = new ViewLines(this._context, this._linesContent);
-		this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
+		this._viewParts.push(this._viewLines);
+		if (this._viewGpuContext) {
+			this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
+		}
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
@@ -227,7 +232,9 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
-		this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
+		if (this._viewGpuContext) {
+			this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
+		}
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
 		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
@@ -397,10 +404,10 @@ export class View extends ViewEventHandler {
 		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
 
 		this._context.removeEventHandler(this);
-		this._viewGpuContext.dispose();
+		this._viewGpuContext?.dispose();
 
 		this._viewLines.dispose();
-		this._viewLinesGpu.dispose();
+		this._viewLinesGpu?.dispose();
 
 		// Destroy view parts
 		for (const viewPart of this._viewParts) {
@@ -514,7 +521,7 @@ export class View extends ViewEventHandler {
 					viewPartsToRender = this._getViewPartsToRender();
 				}
 
-				if (this._viewLinesGpu.shouldRender()) {
+				if (this._viewLinesGpu?.shouldRender()) {
 					this._viewLinesGpu.renderText(viewportData);
 					this._viewLinesGpu.onDidRender();
 				}

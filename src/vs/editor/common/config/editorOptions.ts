@@ -635,6 +635,11 @@ export interface IEditorOptions {
 	 */
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
+	 * Enable experimental rendering using WebGPU.
+	 * Defaults to 'off'.
+	 */
+	experimentalGpuAcceleration?: 'on' | 'off';
+	/**
 	 * Enable experimental whitespace rendering.
 	 * Defaults to 'svg'.
 	 */
@@ -5353,6 +5358,7 @@ export const enum EditorOption {
 	dragAndDrop,
 	dropIntoEditor,
 	emptySelectionClipboard,
+	experimentalGpuAcceleration,
 	experimentalWhitespaceRendering,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -5723,6 +5729,18 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	stickyScroll: register(new EditorStickyScroll()),
+	experimentalGpuAcceleration: register(new EditorStringEnumOption(
+		EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration',
+		'on' as 'on' | 'off',
+		['on', 'off'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
+				nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
+			],
+			description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
+		}
+	)),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
 		'svg' as 'svg' | 'font' | 'off',
