@@ -41,6 +41,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
@@ -1243,6 +1244,39 @@ for (let i = 1; i <= 7; i++) {
 		})
 	);
 }
+
+CommandsRegistry.registerCommand('_getFoldedRanges', async function (accessor, ...args) {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const editor = codeEditorService.getFocusedCodeEditor();
+	if (!editor) {
+		return undefined;
+	}
+
+
+	const foldingController = FoldingController.get(editor);
+	if (!foldingController) {
+		return undefined;
+	}
+
+	const foldingModelPromise = foldingController.getFoldingModel();
+	if (!foldingModelPromise) {
+		return undefined;
+
+	}
+
+	const foldingModel = await foldingModelPromise;
+	if (!foldingModel) {
+		return undefined;
+	}
+
+	const ranges = foldingModel.regions.getCollapsedRanges();
+	const result: FoldingRange[] = [];
+	ranges.forEach((range) => {
+		result.push({ start: range[0], end: range[1] });
+	});
+	return result;
+});
+
 
 CommandsRegistry.registerCommand('_executeFoldingRangeProvider', async function (accessor, ...args) {
 	const [resource] = args;
