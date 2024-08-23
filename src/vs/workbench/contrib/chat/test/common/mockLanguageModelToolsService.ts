@@ -6,14 +6,14 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolDelta, IToolImpl, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 
 	constructor() { }
 
-	onDidChangeTools: Event<IToolDelta> = Event.None;
+	onDidChangeTools: Event<void> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;

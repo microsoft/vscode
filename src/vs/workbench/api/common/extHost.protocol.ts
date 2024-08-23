@@ -56,7 +56,7 @@ import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/c
 import { ChatAgentVoteDirection, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, IToolDelta, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -1311,8 +1311,10 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
+export type IToolDataDto = Omit<IToolData, 'when'>;
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
-	$getTools(): Promise<Dto<IToolData>[]>;
+	$getTools(): Promise<Dto<IToolDataDto>[]>;
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string): void;
@@ -1326,7 +1328,7 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface ExtHostLanguageModelToolsShape {
-	$acceptToolDelta(delta: IToolDelta): Promise<void>;
+	$onDidChangeTools(tools: IToolDataDto[]): void;
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 }
