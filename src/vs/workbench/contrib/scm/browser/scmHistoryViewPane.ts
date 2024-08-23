@@ -119,6 +119,7 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private readonly description: (repository: ISCMRepository) => IObservable<string>,
 		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -146,13 +147,12 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
-		if (repository.provider.rootUri) {
-			templateData.labelCustomHover.update(`${repository.provider.label}: ${repository.provider.rootUri.fsPath}`);
-			templateData.label.setLabel(repository.provider.name, repository.provider.label);
-		} else {
-			templateData.labelCustomHover.update(repository.provider.label);
-			templateData.label.setLabel(repository.provider.name);
-		}
+		templateData.elementDisposables.add(autorun(reader => {
+			const description = this.description(repository).read(reader);
+			templateData.label.setLabel(repository.provider.name, description);
+		}));
+
+		templateData.labelCustomHover.update(repository.provider.rootUri ? `${repository.provider.label}: ${repository.provider.rootUri.fsPath}` : repository.provider.label);
 
 		templateData.elementDisposables.add(autorunWithStore((reader, store) => {
 			const currentHistoryItemGroup = repository.provider.historyProvider.read(reader)?.currentHistoryItemGroup.read(reader);
@@ -172,7 +172,7 @@ class RepositoryRenderer implements ITreeRenderer<ISCMRepository, FuzzyScore, Re
 			}));
 		}));
 
-		templateData.toolBar.context = repository;
+		templateData.toolBar.context = repository.provider;
 	}
 
 	disposeElement(group: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
@@ -557,7 +557,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			children.push(...historyItems);
 
 			const lastHistoryItem = tail(historyItems);
-			if (lastHistoryItem && lastHistoryItem.historyItemViewModel.historyItem.parentIds.length !== 0) {
+			if (lastHistoryItem && lastHistoryItem.historyItemViewModel.outputSwimlanes.length > 0) {
 				children.push({
 					repository: inputOrElement,
 					graphColumns: lastHistoryItem.historyItemViewModel.outputSwimlanes,
@@ -591,10 +591,6 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 		}
 
 		this._state.delete(repository);
-	}
-
-	getState(repository: ISCMRepository): HistoryItemState | undefined {
-		return this._state.get(repository);
 	}
 
 	loadMore(repository: ISCMRepository): void {
@@ -667,6 +663,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _tree!: WorkbenchAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 	private _treeDataSource!: SCMHistoryTreeDataSource;
 	private _treeIdentityProvider!: SCMHistoryTreeIdentityProvider;
+	private _repositoryDescription = new Map<ISCMRepository, ISettableObservable<string>>();
 	private _repositoryLoadMore = new Map<ISCMRepository, ISettableObservable<boolean>>();
 
 	private readonly _repositories = new DisposableMap<ISCMRepository>();
@@ -751,8 +748,9 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	async refresh(repository?: ISCMRepository): Promise<void> {
 		this._treeDataSource.clearState(repository);
-		this._updateChildren(repository);
+		await this._updateChildren(repository);
 
+		this._setRepositoryDescription(repository, '');
 		this._tree.scrollTop = 0;
 	}
 
@@ -771,7 +769,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			container,
 			new ListDelegate(),
 			[
-				this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(RepositoryRenderer, repository => this._getRepositoryDescription(repository), getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
 				this.instantiationService.createInstance(HistoryItemLoadMoreRenderer, repository => this._getLoadMore(repository), repository => this._loadMoreCallback(repository)),
 			],
@@ -865,21 +863,43 @@ export class SCMHistoryViewPane extends ViewPane {
 
 			repositoryDisposables.add(autorun(reader => {
 				const historyProvider = repository.provider.historyProvider.read(reader);
-				const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+				const currentHistoryItemGroupId = historyProvider?.currentHistoryItemGroupId.read(reader);
+				const currentHistoryItemGroupRevision = historyProvider?.currentHistoryItemGroupRevision.read(reader);
+				const currentHistoryItemGroupRemoteId = historyProvider?.currentHistoryItemGroupRemoteId.read(reader);
 
-				if (!historyProvider || !currentHistoryItemGroup) {
-					return;
-				}
-
+				// Update scmHistoryItemGroupHasRemote context key
 				if (this._scmViewService.visibleRepositories.length === 1) {
-					this._scmHistoryItemGroupHasRemoteContextKey.set(!!currentHistoryItemGroup?.remote);
+					this._scmHistoryItemGroupHasRemoteContextKey.set(!!currentHistoryItemGroupRemoteId);
 				} else {
 					this._scmHistoryItemGroupHasRemoteContextKey.reset();
 				}
 
-				this._tree.scrollTop = 0;
-				this._treeDataSource.clearState(repository);
-				this._updateChildren(repository);
+				if (!currentHistoryItemGroupId && !currentHistoryItemGroupRevision && !currentHistoryItemGroupRemoteId) {
+					return;
+				}
+
+				this.refresh(repository);
+			}));
+
+			repositoryDisposables.add(autorun(reader => {
+				const historyProvider = repository.provider.historyProvider.read(reader);
+				const currentHistoryItemGroupRemoteRevision = historyProvider?.currentHistoryItemGroupRemoteRevision.read(reader);
+
+				if (!currentHistoryItemGroupRemoteRevision) {
+					return;
+				}
+
+				// Remote revision changes can occur as a result of a user action (Fetch, Push) but
+				// it can also occur as a result of background action (Auto Fetch). If the tree is
+				// scrolled to the top, we can safely refresh the tree.
+				if (this._tree.scrollTop === 0) {
+					this.refresh(repository);
+					return;
+				}
+
+				// Set the "OUTDATED" description
+				const description = localize('outdated', "OUTDATED");
+				this._setRepositoryDescription(this._isRepositoryNodeVisible() ? repository : undefined, description);
 			}));
 
 			this._repositories.set(repository, repositoryDisposables);
@@ -888,6 +908,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		// Removed repositories
 		for (const repository of removed) {
 			this._treeDataSource.clearState(repository);
+			this._repositoryDescription.delete(repository);
 			this._repositoryLoadMore.delete(repository);
 			this._repositories.deleteAndDispose(repository);
 		}
@@ -928,6 +949,31 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this._updateChildren(repository)
 			.finally(() => loadMore.set(false, undefined));
+	}
+
+	private _getRepositoryDescription(repository: ISCMRepository): ISettableObservable<string> {
+		let description = this._repositoryDescription.get(repository);
+		if (!description) {
+			description = observableValue<string>(this, '');
+			this._repositoryDescription.set(repository, description);
+		}
+
+		return description;
+	}
+
+	private _setRepositoryDescription(repository: ISCMRepository | undefined, description: string): void {
+		if (!repository) {
+			this.updateTitleDescription(description);
+		} else {
+			this._getRepositoryDescription(repository).set(description, undefined);
+		}
+	}
+
+	private _isRepositoryNodeVisible(): boolean {
+		const repositoryCount = this._scmViewService.visibleRepositories.length;
+		const alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories') === true;
+
+		return alwaysShowRepositories || repositoryCount > 1;
 	}
 
 	private _updateChildren(element?: ISCMRepository): Promise<void> {
