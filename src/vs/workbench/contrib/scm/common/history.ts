@@ -11,7 +11,6 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorUtils';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
-	getHistoryTitleMenu(): IMenu;
 	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
 
@@ -30,14 +29,6 @@ export interface ISCMHistoryProvider {
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 	resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined>;
-}
-
-export interface ISCMHistoryProviderCacheEntry {
-	readonly incomingHistoryItemGroup: SCMHistoryItemGroupTreeElement | undefined;
-	readonly outgoingHistoryItemGroup: SCMHistoryItemGroupTreeElement | undefined;
-	readonly historyItems: Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>;
-	readonly historyItems2: Map<string, ISCMHistoryItem[]>;
-	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
 }
 
 export interface ISCMHistoryOptions {
@@ -109,8 +100,7 @@ export interface SCMHistoryItemViewModelTreeElement {
 
 export interface SCMHistoryItemLoadMoreTreeElement {
 	readonly repository: ISCMRepository;
-	readonly cursor: string;
-	readonly graphColumnCount: number;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
 	readonly type: 'historyItemLoadMore';
 }
 

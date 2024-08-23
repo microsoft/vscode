@@ -5,9 +5,8 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ExtHostLanguageModelToolsShape, ExtHostContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, ILanguageModelToolsService, IToolResult, IToolInvokation, CountTokensCallback } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
@@ -31,18 +30,18 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(dto: IToolInvokation, token: CancellationToken): Promise<IToolResult> {
+	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
 		return this._languageModelToolsService.invokeTool(
 			dto,
-			(input, token) => this._proxy.$countTokensForInvokation(dto.callId, input, token),
+			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
 			token,
 		);
 	}
 
-	$countTokensForInvokation(callId: string, input: string | IChatMessage, token: CancellationToken): Promise<number> {
+	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
 		const fn = this._countTokenCallbacks.get(callId);
 		if (!fn) {
-			throw new Error(`Tool invokation call ${callId} not found`);
+			throw new Error(`Tool invocation call ${callId} not found`);
 		}
 
 		return fn(input, token);

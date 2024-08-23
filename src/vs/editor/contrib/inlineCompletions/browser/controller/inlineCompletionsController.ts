@@ -22,12 +22,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
-import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
-import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
+import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/controller/commandIds';
+import { GhostTextView } from 'vs/editor/contrib/inlineCompletions/browser/view/ghostTextView';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys';
+import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel';
+import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/model/suggestWidgetAdaptor';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
@@ -105,7 +105,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
 
 	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) =>
-		store.add(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
+		store.add(this._instantiationService.createInstance(GhostTextView, this.editor, {
 			ghostText: ghostText,
 			minReservedLineCount: constObservable(0),
 			targetTextModel: this.model.map(v => v?.textModel),

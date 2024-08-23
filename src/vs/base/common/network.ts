@@ -66,6 +66,7 @@ export namespace Schemas {
 	export const vscodeNotebookCellMetadataDiff = 'vscode-notebook-cell-metadata-diff';
 	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
 	export const vscodeNotebookCellOutputDiff = 'vscode-notebook-cell-output-diff';
+	export const vscodeNotebookMetadata = 'vscode-notebook-metadata';
 	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
 	export const vscodeSettings = 'vscode-settings';

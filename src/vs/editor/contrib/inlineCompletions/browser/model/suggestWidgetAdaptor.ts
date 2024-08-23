@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
-import { singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/model/singleTextEdit';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
