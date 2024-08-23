@@ -1030,6 +1030,22 @@
           "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
           "scope": "resource"
         },
+        "typescript.preferences.autoImportSpecifierExcludeRegexes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportSpecifierExcludeRegexes%",
+          "scope": "resource"
+        },
+        "javascript.preferences.autoImportSpecifierExcludeRegexes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportSpecifierExcludeRegexes%",
+          "scope": "resource"
+        },
         "typescript.preferences.preferTypeOnlyAutoImports": {
           "type": "boolean",
           "default": false,
