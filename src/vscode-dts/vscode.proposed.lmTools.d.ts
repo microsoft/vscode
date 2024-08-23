@@ -52,12 +52,11 @@ declare module 'vscode' {
 
 	// USER -> LM: the result of a function call
 	export class LanguageModelChatMessageToolResultPart {
-		name: string;
 		toolCallId: string;
 		content: string;
 		isError: boolean;
 
-		constructor(name: string, toolCallId: string, content: string, isError?: boolean);
+		constructor(toolCallId: string, content: string, isError?: boolean);
 	}
 
 	export interface LanguageModelChatMessage {
@@ -74,7 +73,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolResult {
 		/**
-		 * The result can contain arbitrary representations of the content. An example might be 'prompt-tsx' to indicate an element that can be rendered with the @vscode/prompt-tsx library.
+		 * The result can contain arbitrary representations of the content. An example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
 		 */
 		[contentType: string]: any;
 
