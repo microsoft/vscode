@@ -300,7 +300,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private updateInputContextKeys(ownerDocument: Document): void {
 
 		function activeElementIsInput(): boolean {
-			return !!ownerDocument.activeElement && (ownerDocument.activeElement.tagName === 'INPUT' || ownerDocument.activeElement.tagName === 'TEXTAREA');
+			return !!ownerDocument.activeElement && (ownerDocument.activeElement.tagName === 'INPUT' || ownerDocument.activeElement.tagName === 'TEXTAREA' || ownerDocument.activeElement.classList.contains('native-edit-context'));
 		}
 
 		const isInputFocused = activeElementIsInput();
