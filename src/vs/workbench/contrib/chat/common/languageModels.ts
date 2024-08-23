@@ -29,7 +29,6 @@ export interface IChatMessageTextPart {
 
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
-	name: string;
 	toolCallId: string;
 	value: any;
 	isError?: boolean;
