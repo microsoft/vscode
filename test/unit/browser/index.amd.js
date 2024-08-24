@@ -231,7 +231,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = new URL(server.url + '/test/unit/browser/renderer.amd.html');
-	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
+	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src2')).toString());
 	if (args.build) {
 		target.searchParams.set('build', 'true');
 	}
