@@ -76,6 +76,8 @@
 
 	// Elements
 	const container = document.body;
+	const transparencyGrid = document.createElement('div');
+	transparencyGrid.classList.add('transparency-grid');
 	const image = document.createElement('img');
 
 	function updateScale(newScale) {
@@ -85,7 +87,7 @@
 
 		if (newScale === 'fit') {
 			scale = 'fit';
-			image.classList.add('scale-to-fit');
+			transparencyGrid.classList.add('scale-to-fit');
 			image.classList.remove('pixelated');
 			// @ts-ignore Non-standard CSS property
 			image.style.zoom = 'normal';
@@ -292,7 +294,9 @@
 
 		document.body.classList.remove('loading');
 		document.body.classList.add('ready');
-		document.body.append(image);
+
+		document.body.append(transparencyGrid);
+		transparencyGrid.appendChild(image);
 
 		updateScale(scale);
 

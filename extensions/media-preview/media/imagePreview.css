@@ -12,6 +12,7 @@ html, body {
 body img {
 	max-width: none;
 	max-height: none;
+	vertical-align: middle;
 }
 
 .container:focus {
@@ -31,20 +32,20 @@ body img {
 	box-sizing: border-box;
 }
 
-.container.image img {
+.container.image .transparency-grid {
 	padding: 0;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
 	border: 1px solid var(--vscode-imagePreview-border);
 }
 
-.container.image img {
+.container.image .transparency-grid {
 	background-image:
 		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230)),
 		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230));
 }
 
-.vscode-dark.container.image img {
+.vscode-dark.container.image .transparency-grid {
 	background-image:
 		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20)),
 		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20));
@@ -54,13 +55,13 @@ body img {
 	image-rendering: pixelated;
 }
 
-.container img.scale-to-fit {
+.container .transparency-grid.scale-to-fit {
 	max-width: calc(100% - 20px);
 	max-height: calc(100% - 20px);
 	object-fit: contain;
 }
 
-.container img {
+.container .transparency-grid {
 	margin: auto;
 }
 
