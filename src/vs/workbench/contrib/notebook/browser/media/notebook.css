@@ -446,6 +446,13 @@
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
 
+/** Cell Multi-Selection highlight */
+.nb-multicursor-selection {
+	min-width: 2px;
+	background-color: fuchsia;
+}
+
+
 /** Cell Search Range selection highlight */
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-multiCellHighlight .cell-focus-indicator,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-multiCellHighlight {

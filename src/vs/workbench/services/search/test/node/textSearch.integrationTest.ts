@@ -292,9 +292,9 @@ flakySuite('TextSearch-integration', function () {
 			type: QueryType.Text,
 			folderQueries: [
 				{
-					folder: URI.file(EXAMPLES_FIXTURES), excludePattern: {
+					folder: URI.file(EXAMPLES_FIXTURES), excludePattern: [{
 						pattern: makeExpression('**/e*.js')
-					}
+					}]
 				},
 				{ folder: URI.file(MORE_FIXTURES) }
 			],

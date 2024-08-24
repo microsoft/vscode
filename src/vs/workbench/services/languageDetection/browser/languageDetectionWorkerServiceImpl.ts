@@ -12,12 +12,9 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { LanguageDetectionSimpleWorker } from 'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker';
 import { IModelService } from 'vs/editor/common/services/model';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { IWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/browser/services/editorWorkerService';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,6 +22,9 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { LRUCache } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 import { canASAR } from 'vs/base/common/amd';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
 
 const TOP_LANG_COUNTS = 12;
 
@@ -62,8 +62,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
-		@ILogService private readonly _logService: ILogService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -85,7 +84,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			useAsar
 				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`).toString(true),
-			languageConfigurationService
 		));
 
 		this.initEditorOpenedListeners(storageService);
@@ -179,80 +177,45 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	}
 }
 
-export interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
-	dispose(): void;
-}
-
-export class LanguageDetectionWorkerHost {
-	constructor(
-		private _indexJsUri: string,
-		private _modelJsonUri: string,
-		private _weightsUri: string,
-		private _telemetryService: ITelemetryService,
-	) {
-	}
-
-	async getIndexJsUri() {
-		return this._indexJsUri;
-	}
-
-	async getModelJsonUri() {
-		return this._modelJsonUri;
-	}
-
-	async getWeightsUri() {
-		return this._weightsUri;
-	}
-
-	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
-		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
-		type LanguageDetectionStatsClassification = {
-			owner: 'TylerLeonhardt';
-			comment: 'Helps understand how effective language detection is via confidences and how long it takes to run';
-			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The languages that are guessed' };
-			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The confidences of each language guessed' };
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
-		};
-
-		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {
-			languages: languages.join(','),
-			confidences: confidences.join(','),
-			timeSpent
-		});
-	}
-}
-
-export class LanguageDetectionWorkerClient extends EditorWorkerClient {
-	private workerPromise: Promise<IWorkerClient<LanguageDetectionSimpleWorker>> | undefined;
+export class LanguageDetectionWorkerClient extends Disposable {
+	private worker: {
+		workerClient: IWorkerClient<ILanguageDetectionWorker>;
+		workerTextModelSyncClient: WorkerTextModelSyncClient;
+	} | undefined;
 
 	constructor(
-		modelService: IModelService,
+		private readonly _modelService: IModelService,
 		private readonly _languageService: ILanguageService,
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _indexJsUri: string,
 		private readonly _modelJsonUri: string,
 		private readonly _weightsUri: string,
 		private readonly _regexpModelUri: string,
-		languageConfigurationService: ILanguageConfigurationService,
 	) {
-		super(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, true, 'languageDetectionWorkerService', languageConfigurationService);
+		super();
 	}
 
-	private _getOrCreateLanguageDetectionWorker(): Promise<IWorkerClient<LanguageDetectionSimpleWorker>> {
-		if (this.workerPromise) {
-			return this.workerPromise;
-		}
-
-		this.workerPromise = new Promise((resolve, reject) => {
-			resolve(this._register(new SimpleWorkerClient<LanguageDetectionSimpleWorker, EditorWorkerHost>(
-				this._workerFactory,
+	private _getOrCreateLanguageDetectionWorker(): {
+		workerClient: IWorkerClient<ILanguageDetectionWorker>;
+		workerTextModelSyncClient: WorkerTextModelSyncClient;
+	} {
+		if (!this.worker) {
+			const workerClient = this._register(createWebWorker<ILanguageDetectionWorker>(
 				'vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker',
-				new EditorWorkerHost(this)
-			)));
-		});
-
-		return this.workerPromise;
+				'LanguageDetectionWorker'
+			));
+			LanguageDetectionWorkerHost.setChannel(workerClient, {
+				$getIndexJsUri: async () => this.getIndexJsUri(),
+				$getLanguageId: async (languageIdOrExt) => this.getLanguageId(languageIdOrExt),
+				$sendTelemetryEvent: async (languages, confidences, timeSpent) => this.sendTelemetryEvent(languages, confidences, timeSpent),
+				$getRegexpModelUri: async () => this.getRegexpModelUri(),
+				$getModelJsonUri: async () => this.getModelJsonUri(),
+				$getWeightsUri: async () => this.getWeightsUri(),
+			});
+			const workerTextModelSyncClient = WorkerTextModelSyncClient.create(workerClient, this._modelService);
+			this.worker = { workerClient, workerTextModelSyncClient };
+		}
+		return this.worker;
 	}
 
 	private _guessLanguageIdByUri(uri: URI): string | undefined {
@@ -261,30 +224,6 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 			return guess;
 		}
 		return undefined;
-	}
-
-	protected override async _getProxy(): Promise<LanguageDetectionSimpleWorker> {
-		return (await this._getOrCreateLanguageDetectionWorker()).getProxyObject();
-	}
-
-	// foreign host request
-	public override async fhr(method: string, args: any[]): Promise<any> {
-		switch (method) {
-			case 'getIndexJsUri':
-				return this.getIndexJsUri();
-			case 'getModelJsonUri':
-				return this.getModelJsonUri();
-			case 'getWeightsUri':
-				return this.getWeightsUri();
-			case 'getRegexpModelUri':
-				return this.getRegexpModelUri();
-			case 'getLanguageId':
-				return this.getLanguageId(args[0]);
-			case 'sendTelemetryEvent':
-				return this.sendTelemetryEvent(args[0], args[1], args[2]);
-			default:
-				return super.fhr(method, args);
-		}
 	}
 
 	async getIndexJsUri() {
@@ -332,8 +271,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 			return quickGuess;
 		}
 
-		await this._withSyncedResources([resource]);
-		const modelId = await (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
+		const { workerClient, workerTextModelSyncClient } = this._getOrCreateLanguageDetectionWorker();
+		await workerTextModelSyncClient.ensureSyncedResources([resource]);
+		const modelId = await workerClient.proxy.$detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
 		const languageId = this.getLanguageId(modelId);
 
 		const LanguageDetectionStatsId = 'automaticlanguagedetection.perf';

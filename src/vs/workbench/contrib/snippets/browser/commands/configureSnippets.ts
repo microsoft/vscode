@@ -8,7 +8,7 @@ import { extname } from 'vs/base/common/path';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { getIconClassesForLanguageId } from 'vs/editor/browser/services/getIconClasses';
+import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';

@@ -304,6 +304,8 @@ export interface IChatCompleteResponse {
 export interface IChatDetail {
 	sessionId: string;
 	title: string;
+	lastMessageDate: number;
+	isActive: boolean;
 }
 
 export interface IChatProviderInfo {
@@ -389,6 +391,7 @@ export interface IChatService {
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	getHistory(): IChatDetail[];
+	setChatSessionTitle(sessionId: string, title: string): void;
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
 

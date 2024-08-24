@@ -34,11 +34,12 @@ import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebo
 import { INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { generate as generateUri, parse as parseUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { generateMetadataUri, generate as generateUri, parseMetadataUri, parse as parseUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+export const NOTEBOOK_MULTI_DIFF_EDITOR_ID = 'workbench.editor.notebookMultiTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 export const REPL_EDITOR_ID = 'workbench.editor.repl';
 
@@ -560,6 +561,15 @@ export interface INotebookContributionData {
 	priority?: RegisteredEditorPriority;
 }
 
+export namespace NotebookUri {
+	export const scheme = Schemas.vscodeNotebookMetadata;
+	export function generate(notebook: URI): URI {
+		return generateMetadataUri(notebook);
+	}
+	export function parse(metadata: URI): URI | undefined {
+		return parseMetadataUri(metadata);
+	}
+}
 
 export namespace CellUri {
 	export const scheme = Schemas.vscodeNotebookCell;

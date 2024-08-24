@@ -6,13 +6,14 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { isEqual } from 'vs/base/common/resources';
 import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentContextItem, IWorkspaceFileEdit, IWorkspaceTextEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -42,6 +43,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { coalesce } from 'vs/base/common/arrays';
+import { AsyncIterableObject } from 'vs/base/common/async';
 
 export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
@@ -86,7 +90,7 @@ abstract class ChatCodeBlockAction extends Action2 {
 }
 
 interface IComputeEditsResult {
-	readonly edits: ResourceEdit[] | WorkspaceEdit;
+	readonly edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
 	readonly codeMapper?: string;
 }
 
@@ -165,13 +169,40 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const chatService = accessor.get(IChatService);
 
-		const activeModel = codeEditor.getModel();
-
 		const result = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
 		this.notifyUserAction(chatService, codeBlockActionContext, result);
 
-		await bulkEditService.apply(result.edits);
-		codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+		const showWithPreview = await this.applyWithInlinePreview(codeEditorService, result.edits, codeEditor);
+		if (!showWithPreview) {
+			await bulkEditService.apply(result.edits, { showPreview: true });
+			const activeModel = codeEditor.getModel();
+			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+		}
+	}
+
+	private async applyWithInlinePreview(codeEditorService: ICodeEditorService, edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, codeEditor: IActiveCodeEditor) {
+		const firstEdit = edits[0];
+		if (!ResourceTextEdit.is(firstEdit)) {
+			return false;
+		}
+		const resource = firstEdit.resource;
+		const textEdits = coalesce(edits.map(edit => ResourceTextEdit.is(edit) && isEqual(resource, edit.resource) ? edit.textEdit : undefined));
+		if (textEdits.length !== edits.length) { // more than one file has changed
+			return false;
+		}
+		const editorToApply = await codeEditorService.openCodeEditor({ resource }, codeEditor);
+		if (editorToApply) {
+			const inlineChatController = InlineChatController.get(editorToApply);
+			if (inlineChatController) {
+				const cancellationTokenSource = new CancellationTokenSource();
+				try {
+					return await inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), cancellationTokenSource.token);
+				} finally {
+					cancellationTokenSource.dispose();
+				}
+			}
+		}
+		return false;
 	}
 
 	private notifyUserAction(chatService: IChatService, context: ICodeBlockActionContext, result?: IComputeEditsResult) {
@@ -425,7 +456,7 @@ export function registerChatCodeBlockActions() {
 									cancellationTokenSource.token
 								);
 								if (mappedEdits) {
-									return { edits: mappedEdits, codeMapper: provider.displayName };
+									return { edits: mappedEdits.edits, codeMapper: provider.displayName };
 								}
 							}
 							return undefined;
