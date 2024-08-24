@@ -107,8 +107,8 @@ steps:
           displayName: Run integration tests (Electron)
           timeoutInMinutes: 20
 
-      - powershell: .\scripts\test-web-integration.bat --browser firefox
-        displayName: Run integration tests (Browser, Firefox)
+      - powershell: .\scripts\test-web-integration.bat --browser chromium
+        displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
       - powershell: .\scripts\test-remote-integration.bat
