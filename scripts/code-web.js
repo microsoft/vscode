@@ -74,7 +74,7 @@ async function main() {
 		openSystemBrowser = true;
 	}
 
-	if (fs.existsSync(path.join(APP_ROOT, 'src2')) || fs.existsSync(path.join(APP_ROOT, 'out-build', 'esm'))) {
+	if (!fs.existsSync(path.join(APP_ROOT, 'src2')) && !fs.existsSync(path.join(APP_ROOT, 'out-build', 'amd'))) {
 		serverArgs.push('--esm');
 	}
 
