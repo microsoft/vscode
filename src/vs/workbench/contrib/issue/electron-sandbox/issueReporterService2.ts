@@ -169,9 +169,6 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
-		if (this.data.githubAccessToken && gitHubDetails) {
-			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
-		}
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
@@ -183,6 +180,8 @@ export class IssueReporter2 extends BaseIssueReporterService {
 				console.error('Writing to clipboard failed');
 				return false;
 			}
+		} else if (this.data.githubAccessToken && gitHubDetails) {
+			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
 		await this.nativeHostService.openExternal(url);

@@ -752,17 +752,14 @@ export class InlineChatController implements IEditorContribution {
 
 		let newPosition: Position | undefined;
 
-		if (response.response.value.length === 0) {
+		if (response.result?.errorDetails) {
+			//
+			await this._session.undoChangesUntil(response.requestId);
+
+		} else if (response.response.value.length === 0) {
 			// empty -> show message
 			const status = localize('empty', "No results, please refine your input and try again");
 			this._ui.value.zone.widget.updateStatus(status, { classes: ['warn'] });
-
-		} else if (response.result?.errorDetails) {
-			// error -> show error
-			if (!response.isCanceled) {
-				this._ui.value.zone.widget.updateStatus(response.result.errorDetails.message, { classes: ['error'] });
-			}
-			this._strategy?.cancel();
 
 		} else {
 			// real response -> complex...

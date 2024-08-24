@@ -23,7 +23,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageModelTools);
 
-		this._register(this._languageModelToolsService.onDidChangeTools(e => this._proxy.$acceptToolDelta(e)));
+		this._register(this._languageModelToolsService.onDidChangeTools(e => this._proxy.$onDidChangeTools([...this._languageModelToolsService.getTools()])));
 	}
 
 	async $getTools(): Promise<IToolData[]> {

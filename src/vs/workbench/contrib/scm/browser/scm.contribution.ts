@@ -122,7 +122,7 @@ viewsRegistry.registerViews([{
 	canToggleVisibility: true,
 	canMoveView: true,
 	weight: 40,
-	order: -998,
+	order: 2, /* https://github.com/microsoft/vscode/issues/226447 */
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	containerIcon: sourceControlViewIcon
 }], viewContainer);

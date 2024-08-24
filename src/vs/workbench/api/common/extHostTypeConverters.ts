@@ -2313,18 +2313,19 @@ export namespace LanguageModelChatMessageRole {
 export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		let content: string = '';
-		let content2: vscode.LanguageModelChatMessageFunctionResultPart | undefined;
-		if (message.content.type === 'text') {
-			content = message.content.value;
-		} else {
-			content2 = new types.LanguageModelFunctionResultPart(message.content.name, message.content.value, message.content.isError);
-		}
+		const content2 = message.content.map(c => {
+			if (c.type === 'text') {
+				return c.value;
+			} else if (c.type === 'tool_result') {
+				return new types.LanguageModelToolResultPart(c.toolCallId, c.value, c.isError);
+			} else {
+				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
+			}
+		});
+		const content = content2.find(c => typeof c === 'string') ?? '';
 		const role = LanguageModelChatMessageRole.to(message.role);
 		const result = new types.LanguageModelChatMessage(role, content, message.name);
-		if (content2 !== undefined) {
-			result.content2 = content2;
-		}
+		result.content2 = content2;
 		return result;
 	}
 
@@ -2333,21 +2334,32 @@ export namespace LanguageModelChatMessage {
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
-		let content: chatProvider.IChatMessagePart;
+		const content = message.content2.map((c): chatProvider.IChatMessagePart => {
+			if (c instanceof types.LanguageModelToolResultPart) {
+				return {
+					type: 'tool_result',
+					toolCallId: c.toolCallId,
+					value: c.content,
+					isError: c.isError
+				};
+			} else if (c instanceof types.LanguageModelToolCallPart) {
+				return {
+					type: 'tool_use',
+					toolCallId: c.toolCallId,
+					name: c.name,
+					parameters: c.parameters
+				};
+			} else {
+				if (typeof c !== 'string') {
+					throw new Error('Unexpected chat message content type');
+				}
 
-		if (message.content2 instanceof types.LanguageModelFunctionResultPart) {
-			content = {
-				type: 'function_result',
-				name: message.content2.name,
-				value: message.content2.content,
-				isError: message.content2.isError
-			};
-		} else {
-			content = {
-				type: 'text',
-				value: message.content
-			};
-		}
+				return {
+					type: 'text',
+					value: c
+				};
+			}
+		});
 
 		return {
 			role,
