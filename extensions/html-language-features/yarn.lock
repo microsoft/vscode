@@ -139,16 +139,6 @@
   resolved "https://registry.yarnpkg.com/@volar/source-map/-/source-map-2.4.0.tgz#b6690f06c600eaf587bbc81b0153203e4f6db72a"
   integrity sha512-2ceY8/NEZvN6F44TXw2qRP6AQsvCYhV2bxaBPWxV9HqIfkbRydSksTFObCF1DBDNBfKiZTS8G/4vqV6cvjdOIQ==
 
-"@volar/test-utils@~2.4.0":
-  version "2.4.0"
-  resolved "https://registry.yarnpkg.com/@volar/test-utils/-/test-utils-2.4.0.tgz#d7062da46aef1c58ff4b9d99ab78236b0f6099fb"
-  integrity sha512-hCXPEY/JrH7ooFvMIUu5V3xaqnCLEwqkKoeMT1UHC6DvsQOGsuyaFsJu2k59aCtE8mxAyq7qww7S4k8kRH8hFw==
-  dependencies:
-    "@volar/language-core" "2.4.0"
-    "@volar/language-server" "2.4.0"
-    vscode-languageserver-textdocument "^1.0.11"
-    vscode-uri "^3.0.8"
-
 "@volar/typescript@2.4.0":
   version "2.4.0"
   resolved "https://registry.yarnpkg.com/@volar/typescript/-/typescript-2.4.0.tgz#f909d20dfe43dd846d30695f6e5467276ff4418e"
