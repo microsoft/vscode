@@ -35,7 +35,7 @@ declare module 'vscode' {
 		toolCallId: string;
 		parameters: any;
 
-		constructor(name: string, parameters: any, toolCallId: string);
+		constructor(name: string, toolCallId: string, parameters: any);
 	}
 
 	// LM -> USER: text chunk
