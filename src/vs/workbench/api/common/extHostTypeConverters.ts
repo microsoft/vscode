@@ -2316,8 +2316,10 @@ export namespace LanguageModelChatMessage {
 		const content2 = message.content.map(c => {
 			if (c.type === 'text') {
 				return c.value;
-			} else {
+			} else if (c.type === 'tool_result') {
 				return new types.LanguageModelToolResultPart(c.toolCallId, c.value, c.isError);
+			} else {
+				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
 			}
 		});
 		const content = content2.find(c => typeof c === 'string') ?? '';
@@ -2333,17 +2335,28 @@ export namespace LanguageModelChatMessage {
 		const name = message.name;
 
 		const content = message.content2.map((c): chatProvider.IChatMessagePart => {
-			if (message.content2 instanceof types.LanguageModelToolResultPart) {
+			if (c instanceof types.LanguageModelToolResultPart) {
 				return {
 					type: 'tool_result',
-					toolCallId: message.content2.toolCallId,
-					value: message.content2.content,
-					isError: message.content2.isError
+					toolCallId: c.toolCallId,
+					value: c.content,
+					isError: c.isError
+				};
+			} else if (c instanceof types.LanguageModelToolCallPart) {
+				return {
+					type: 'tool_use',
+					toolCallId: c.toolCallId,
+					name: c.name,
+					parameters: c.parameters
 				};
 			} else {
+				if (typeof c !== 'string') {
+					throw new Error('Unexpected chat message content type');
+				}
+
 				return {
 					type: 'text',
-					value: message.content
+					value: c
 				};
 			}
 		});

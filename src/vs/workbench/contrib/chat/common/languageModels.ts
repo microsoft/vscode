@@ -34,7 +34,7 @@ export interface IChatMessageToolResultPart {
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
