@@ -20,7 +20,6 @@ const legend: SemanticTokensLegend = {
 	tokenTypes: languageServicePlugins.map(plugin => plugin.capabilities.semanticTokensProvider?.legend.tokenTypes ?? []).flat(),
 	tokenModifiers: languageServicePlugins.map(plugin => plugin.capabilities.semanticTokensProvider?.legend.tokenModifiers ?? []).flat(),
 };
-legend.tokenModifiers.push('local');
 
 async function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range, message?: string): Promise<void> {
 	const { document, languageService } = await getTestService({ content: lines.join('\n') });
