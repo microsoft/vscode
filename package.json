@@ -15,7 +15,7 @@
     "test-browser-no-install": "node test/unit/browser/index.js",
     "test-browser-amd-no-install": "node test/unit/browser/index.amd.js",
     "test-node": "mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --exit",
-    "test-node-amd": "mocha test/unit/node/index-amd.js --delay --ui=tdd --timeout=5000 --exit",
+    "test-node-amd": "mocha test/unit/node/index.amd.js --delay --ui=tdd --timeout=5000 --exit",
     "test-extension": "vscode-test",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
