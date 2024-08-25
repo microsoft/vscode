@@ -9,6 +9,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { EditorConfiguration } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { Position } from 'vs/editor/common/core/position';
@@ -31,6 +32,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IPastFutureElements, IUndoRedoElement, IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
+import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -55,6 +58,7 @@ interface TrackedMatch {
 	selections: Selection[];
 	config: IEditorConfiguration;
 	decorationIds: string[];
+	undoRedoHistory: IPastFutureElements;
 }
 
 export class NotebookMultiCursorController extends Disposable implements INotebookEditorContribution {
@@ -72,7 +76,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 	private readonly anchorDisposables = this._register(new DisposableStore());
 	private readonly cursorsDisposables = this._register(new DisposableStore());
-	private cursorsControllers: ResourceMap<CursorsController> = new ResourceMap<CursorsController>();
+	private cursorsControllers: ResourceMap<[ITextModel, CursorsController]> = new ResourceMap<[ITextModel, CursorsController]>();
 
 	private _nbIsMultiSelectSession = NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect.bindTo(this.contextKeyService);
 
@@ -83,6 +87,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
 		super();
 
@@ -126,7 +131,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
 			));
 			controller.setSelections(new ViewModelEventsCollector(), undefined, match.selections, CursorChangeReason.Explicit);
-			this.cursorsControllers.set(match.cellViewModel.uri, controller);
+			this.cursorsControllers.set(match.cellViewModel.uri, [textModel, controller]);
 		});
 	}
 
@@ -202,7 +207,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		this.anchorDisposables.add(this.anchorCell[1].onWillType((input) => {
 			this.state = NotebookMultiCursorState.Editing; // typing will continue to work as normal across ranges, just preps for another cmd+d
 			this.cursorsControllers.forEach(cursorController => {
-				cursorController.type(new ViewModelEventsCollector(), input, 'keyboard');
+				cursorController[1].type(new ViewModelEventsCollector(), input, 'keyboard');
 
 			});
 		}));
@@ -226,9 +231,73 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		}));
 	}
 
+	private updateFinalUndoRedo() {
+		const anchorCellModel = this.anchorCell?.[1].getModel();
+		if (!anchorCellModel) {
+			// should not happen
+			return;
+		}
+
+		const textModels = [anchorCellModel];
+		this.cursorsControllers.forEach(controller => {
+			const model = controller[0];
+			textModels.push(model);
+		});
+
+		const newElementsMap: ResourceMap<IUndoRedoElement[]> = new ResourceMap<IUndoRedoElement[]>();
+
+		textModels.forEach(model => {
+			const trackedMatch = this.trackedMatches.find(match => match.cellViewModel.uri.toString() === model.uri.toString());
+			if (!trackedMatch) {
+				return;
+			}
+			const undoRedoState = trackedMatch.undoRedoHistory;
+			if (!undoRedoState) {
+				return;
+			}
+
+			const currentPastElements = this.undoRedoService.getElements(model.uri).past.slice();
+			const oldPastElements = trackedMatch.undoRedoHistory.past.slice();
+			const newElements = currentPastElements.slice(oldPastElements.length);
+			if (newElements.length === 0) {
+				return;
+			}
+
+			newElementsMap.set(model.uri, newElements);
+
+			this.undoRedoService.removeElements(model.uri);
+			oldPastElements.forEach(element => {
+				this.undoRedoService.pushElement(element);
+			});
+		});
+
+		this.undoRedoService.pushElement({
+			type: UndoRedoElementType.Workspace,
+			resources: textModels.map(model => model.uri),
+			label: 'Multi Cursor Edit',
+			code: 'multiCursorEdit',
+			confirmBeforeUndo: false,
+			undo: async () => {
+				newElementsMap.forEach(async value => {
+					value.reverse().forEach(async element => {
+						await element.undo();
+					});
+				});
+			},
+			redo: async () => {
+				newElementsMap.forEach(async value => {
+					value.forEach(async element => {
+						await element.redo();
+					});
+				});
+			}
+		});
+	}
+
 	public resetToIdleState() {
 		this.state = NotebookMultiCursorState.Idle;
 		this._nbIsMultiSelectSession.set(false);
+		this.updateFinalUndoRedo();
 
 		this.trackedMatches.forEach(match => {
 			this.clearDecorations(match);
@@ -273,13 +342,16 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				throw new Error('Active cell is not an instance of CodeEditorWidget');
 			}
 
+			textModel.pushStackElement();
+
 			this.trackedMatches = [];
 			const editorConfig = this.constructCellEditorOptions(this.anchorCell[0]);
 			const newMatch: TrackedMatch = {
 				cellViewModel: cell,
 				selections: [newSelection],
 				config: editorConfig, // cache this in the match so we can create new cursors controllers with the correct language config
-				decorationIds: []
+				decorationIds: [],
+				undoRedoHistory: this.undoRedoService.getElements(cell.uri)
 			};
 			this.trackedMatches.push(newMatch);
 
@@ -328,11 +400,15 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					throw new Error('Active cell is not an instance of CodeEditorWidget');
 				}
 
+				const textModel = await resultCellViewModel.resolveTextModel();
+				textModel.pushStackElement();
+
 				newMatch = {
 					cellViewModel: resultCellViewModel,
 					selections: [newSelection],
 					config: this.constructCellEditorOptions(this.anchorCell[0]),
-					decorationIds: []
+					decorationIds: [],
+					undoRedoHistory: this.undoRedoService.getElements(resultCellViewModel.uri)
 				} satisfies TrackedMatch;
 				this.trackedMatches.push(newMatch);
 
@@ -393,7 +469,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			if (!controller) { // active cell doesn't get a stored controller from us
 				selections = this.notebookEditor.activeCodeEditor?.getSelections();
 			} else {
-				selections = controller.getSelections();
+				selections = controller[1].getSelections();
 			}
 
 			const newDecorations = selections?.map(selection => {
@@ -418,6 +494,38 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			match.decorationIds,
 			[]
 		);
+	}
+
+	async undo() {
+		const anchorCellModel = this.anchorCell?.[1].getModel();
+		if (!anchorCellModel) {
+			// should not happen
+			return;
+		}
+
+		const models = [anchorCellModel];
+		this.cursorsControllers.forEach(controller => {
+			const model = controller[0];
+			models.push(model);
+		});
+
+		await Promise.all(models.map(model => model.undo()));
+	}
+
+	async redo() {
+		const anchorCellModel = this.anchorCell?.[1].getModel();
+		if (!anchorCellModel) {
+			// should not happen
+			return;
+		}
+
+		const models = [anchorCellModel];
+		this.cursorsControllers.forEach(controller => {
+			const model = controller[0];
+			models.push(model);
+		});
+
+		await Promise.all(models.map(model => model.redo()));
 	}
 
 	private getWord(selection: Selection, model: ITextModel): IWordAtPosition | null {
@@ -511,6 +619,54 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 	}
 }
 
+class NotebookMultiCursorUndoRedoContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.notebook.multiCursorUndoRedo';
+
+	constructor(@IEditorService private readonly _editorService: IEditorService) {
+		super();
+
+		const PRIORITY = 10005;
+		this._register(UndoCommand.addImplementation(PRIORITY, 'notebook-multicursor-undo-redo', () => {
+			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+			if (!editor) {
+				return false;
+			}
+
+			if (!editor.hasModel()) {
+				return false;
+			}
+
+			const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+
+			return controller.undo();
+		}, ContextKeyExpr.and(
+			ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+			NOTEBOOK_IS_ACTIVE_EDITOR,
+			NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
+		)));
+
+		this._register(RedoCommand.addImplementation(PRIORITY, 'notebook-multicursor-undo-redo', () => {
+			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+			if (!editor) {
+				return false;
+			}
+
+			if (!editor.hasModel()) {
+				return false;
+			}
+
+			const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+			return controller.redo();
+		}, ContextKeyExpr.and(
+			ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+			NOTEBOOK_IS_ACTIVE_EDITOR,
+			NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
+		)));
+	}
+}
+
 registerNotebookContribution(NotebookMultiCursorController.id, NotebookMultiCursorController);
 registerAction2(NotebookAddMatchToMultiSelectionAction);
 registerAction2(NotebookExitMultiSelectionAction);
+registerWorkbenchContribution2(NotebookMultiCursorUndoRedoContribution.ID, NotebookMultiCursorUndoRedoContribution, WorkbenchPhase.BlockRestore);
