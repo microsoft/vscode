@@ -10,11 +10,10 @@ Get an API key from your favourite LLM provider. To obtain an OpenAI API key go 
 
 ## Features
 * **Knows your code** - Pear has context on your database so you can ask questions about your code.
-* **Auto-implement features** - Ask for a feature and receive a PR implementing it.
 * **UI/UX focused** - Pear puts the user experience first, making developing as seamless as possible.
-* **Never start from scratch** - Pear comes with high-quality templates and boilerplate code for any type of project.
-* **Batteries included** - Pear comes fully setup with shortcuts and terminal plugins used to supercharge development productivity.
 * **Familiar feel** - Pear is a fork of VSCode, so you can pick up exactly where you left off.
+
+See all features [here](https://trypear.ai/docs).
 
 ## Master Doc
 
