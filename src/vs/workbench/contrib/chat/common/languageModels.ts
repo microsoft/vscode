@@ -27,19 +27,19 @@ export interface IChatMessageTextPart {
 	value: string;
 }
 
-export interface IChatMessageFunctionResultPart {
-	type: 'function_result';
-	name: string;
+export interface IChatMessageToolResultPart {
+	type: 'tool_result';
+	toolCallId: string;
 	value: any;
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageFunctionResultPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
 	readonly role: ChatMessageRole;
-	readonly content: IChatMessagePart;
+	readonly content: IChatMessagePart[];
 }
 
 export interface IChatResponseTextPart {
@@ -47,13 +47,14 @@ export interface IChatResponseTextPart {
 	value: string;
 }
 
-export interface IChatResponceFunctionUsePart {
-	type: 'function_use';
+export interface IChatResponseToolUsePart {
+	type: 'tool_use';
 	name: string;
+	toolCallId: string;
 	parameters: any;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponceFunctionUsePart;
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart;
 
 export interface IChatResponseFragment {
 	index: number;

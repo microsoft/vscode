@@ -131,7 +131,7 @@ declare module 'vscode' {
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
 		 */
-		maxFileSize: number;
+		maxFileSize: number | undefined;
 
 		/**
 		 * Number of lines of context to include before and after each match.

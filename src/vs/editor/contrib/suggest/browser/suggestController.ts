@@ -1025,13 +1025,13 @@ registerEditorCommand(new SuggestCommand({
 		group: 'right',
 		order: 1,
 		when: ContextKeyExpr.and(SuggestContext.DetailsVisible, SuggestContext.CanResolve),
-		title: nls.localize('detail.more', "show less")
+		title: nls.localize('detail.more', "Show Less")
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'right',
 		order: 1,
 		when: ContextKeyExpr.and(SuggestContext.DetailsVisible.toNegated(), SuggestContext.CanResolve),
-		title: nls.localize('detail.less', "show more")
+		title: nls.localize('detail.less', "Show More")
 	}]
 }));
 

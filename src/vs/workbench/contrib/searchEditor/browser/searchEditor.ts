@@ -484,6 +484,15 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
+		const focusResults = this.searchConfig.searchEditor.focusResultsOnSearch;
+
+		// If _options don't define focusResult field, then use the setting
+		if (_options === undefined) {
+			_options = { focusResults: focusResults };
+		} else if (_options.focusResults === undefined) {
+			_options.focusResults = focusResults;
+		}
+
 		const options = { resetCursor: true, delay: 0, ..._options };
 
 		if (!(this.queryEditorWidget.searchInput?.inputBox.isInputValid())) {
@@ -555,7 +564,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			excludePattern: config.filesToExclude,
+			excludePattern: [{ pattern: config.filesToExclude }],
 			includePattern: config.filesToInclude,
 			onlyOpenEditors: config.onlyOpenEditors,
 			previewOptions: {

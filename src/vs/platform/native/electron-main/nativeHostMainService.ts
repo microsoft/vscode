@@ -515,7 +515,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return true;
 	}
 
-	private async openExternalBrowser(url: string, defaultApplication?: string) {
+	private async openExternalBrowser(url: string, defaultApplication?: string): Promise<void> {
 		const configuredBrowser = defaultApplication ?? this.configurationService.getValue<string>('workbench.externalBrowser');
 		if (!configuredBrowser) {
 			return shell.openExternal(url);
@@ -540,8 +540,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			});
 
-			res.stderr?.on('data', (data: Buffer) => {
+			res.stderr?.once('data', (data: Buffer) => {
 				this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
+				return shell.openExternal(url);
 			});
 		} catch (error) {
 			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);

@@ -52,5 +52,5 @@ export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFin
 					new Range(0, rawMatch.searchPreviewInfo.range.start, 0, rawMatch.searchPreviewInfo.range.end),
 					undefined,
 					rawMatch.index) : undefined
-		).filter((e): e is ITextSearchMatch => !!e);
+		).filter((e): e is TextSearchMatch => !!e);
 }

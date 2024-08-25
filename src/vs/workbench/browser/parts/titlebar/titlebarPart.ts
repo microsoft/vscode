@@ -21,7 +21,7 @@ import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from
 import { Color } from 'vs/base/common/color';
 import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from 'vs/workbench/services/layout/browser/layoutService';
@@ -55,6 +55,7 @@ import { IView } from 'vs/base/browser/ui/grid/grid';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -101,6 +102,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		this._register(this.registerPart(this.mainPart));
 
 		this.registerActions();
+		this.registerAPICommands();
 	}
 
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
@@ -128,6 +130,22 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		}));
 	}
 
+	private registerAPICommands(): void {
+		this._register(CommandsRegistry.registerCommand({
+			id: 'registerWindowTitleVariable',
+			handler: (accessor: ServicesAccessor, name: string, contextKey: string) => {
+				this.registerVariables([{ name, contextKey }]);
+			},
+			metadata: {
+				description: 'Registers a new title variable',
+				args: [
+					{ name: 'name', schema: { type: 'string' }, description: 'The name of the variable to register' },
+					{ name: 'contextKey', schema: { type: 'string' }, description: 'The context key to use for the value of the variable' }
+				]
+			}
+		}));
+	}
+
 	//#region Auxiliary Titlebar Parts
 
 	createAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart {
@@ -149,8 +167,8 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 			titlebarPart.updateProperties(this.properties);
 		}
 
-		if (this.variables.length) {
-			titlebarPart.registerVariables(this.variables);
+		if (this.variables.size) {
+			titlebarPart.registerVariables(Array.from(this.variables.values()));
 		}
 
 		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
@@ -179,13 +197,20 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		}
 	}
 
-	private variables: ITitleVariable[] = [];
+	private readonly variables = new Map<string, ITitleVariable>();
 
 	registerVariables(variables: ITitleVariable[]): void {
-		this.variables.push(...variables);
+		const newVariables: ITitleVariable[] = [];
+
+		for (const variable of variables) {
+			if (!this.variables.has(variable.name)) {
+				this.variables.set(variable.name, variable);
+				newVariables.push(variable);
+			}
+		}
 
 		for (const part of this.parts) {
-			part.registerVariables(variables);
+			part.registerVariables(newVariables);
 		}
 	}
 

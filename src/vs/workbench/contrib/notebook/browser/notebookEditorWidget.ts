@@ -102,6 +102,7 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
 import { NotebookHorizontalTracker } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookHorizontalTracker';
+import { NotebookCellEditorPool } from 'vs/workbench/contrib/notebook/browser/view/notebookCellEditorPool';
 
 const $ = DOM.$;
 
@@ -202,6 +203,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _dndController: CellDragAndDropController | null = null;
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
 	private _renderedEditors: Map<ICellViewModel, ICodeEditor> = new Map();
+	private _editorPool!: NotebookCellEditorPool;
 	private _viewContext: ViewContext;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private readonly _localStore: DisposableStore = this._register(new DisposableStore());
@@ -260,6 +262,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const [focused] = this._list.getFocusedElements();
 		return this._renderedEditors.get(focused);
+	}
+
+	get activeCellAndCodeEditor(): [ICellViewModel, ICodeEditor] | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
+		const [focused] = this._list.getFocusedElements();
+		const editor = this._renderedEditors.get(focused);
+		if (!editor) {
+			return;
+		}
+		return [focused, editor];
 	}
 
 	get codeEditors(): [ICellViewModel, ICodeEditor][] {
@@ -904,11 +919,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _createCellList(): void {
 		this._body.classList.add('cell-list-container');
-
 		this._dndController = this._register(new CellDragAndDropController(this, this._body));
 		const getScopedContextKeyService = (container: HTMLElement) => this._list.contextKeyService.createScoped(container);
+		this._editorPool = this._register(this.instantiationService.createInstance(NotebookCellEditorPool, this, getScopedContextKeyService));
 		const renderers = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._dndController, getScopedContextKeyService),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._editorPool, this._dndController, getScopedContextKeyService),
 			this.instantiationService.createInstance(MarkupCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService),
 		];
 

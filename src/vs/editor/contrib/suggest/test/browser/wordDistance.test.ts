@@ -13,9 +13,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
@@ -63,20 +62,20 @@ suite('suggest, word distance', function () {
 
 		const service = new class extends EditorWorkerService {
 
-			private _worker = new EditorSimpleWorker(new class extends mock<IEditorWorkerHost>() { }, null);
+			private _worker = new BaseEditorSimpleWorker();
 
 			constructor() {
-				super(modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService(), new LanguageFeaturesService());
-				this._worker.acceptNewModel({
+				super(null!, modelService, new class extends mock<ITextResourceConfigurationService>() { }, new NullLogService(), new TestLanguageConfigurationService(), new LanguageFeaturesService());
+				this._worker.$acceptNewModel({
 					url: model.uri.toString(),
 					lines: model.getLinesContent(),
 					EOL: model.getEOL(),
 					versionId: model.getVersionId()
 				});
-				model.onDidChangeContent(e => this._worker.acceptModelChanged(model.uri.toString(), e));
+				model.onDidChangeContent(e => this._worker.$acceptModelChanged(model.uri.toString(), e));
 			}
 			override computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
-				return this._worker.computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
+				return this._worker.$computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
 			}
 		};
 
