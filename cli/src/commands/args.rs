@@ -222,6 +222,10 @@ pub struct ServeWebArgs {
 	/// Set the root path for extensions.
 	#[clap(long)]
 	pub extensions_dir: Option<String>,
+	/// Set update check interval in seconds, defaults to 3600 seconds. Set to 0 to disable update checks
+	#[clap(long)]
+	pub update_check_interval: Option<u64>,
+
 }
 
 #[derive(Args, Debug, Clone)]

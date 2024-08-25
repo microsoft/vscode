@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::pin;
+use tokio::{pin,time};
 
 use crate::async_pipe::{
 	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
@@ -86,7 +86,15 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		}
 	}
 
-	let cm = ConnectionManager::new(&ctx, platform, args.clone());
+	let cm: Arc<ConnectionManager> = ConnectionManager::new(&ctx, platform, args.clone());
+
+	let update_check_interval =  args.update_check_interval.unwrap_or(3600);
+
+	if update_check_interval > 0 {
+		// Start the update checker
+		cm.clone().start_update_checker(Duration::from_secs(update_check_interval));
+	}
+
 	let key = get_server_key_half(&ctx.paths);
 	let make_svc = move || {
 		let ctx = HandleContext {
@@ -175,7 +183,7 @@ async fn handle_proxied(ctx: &HandleContext, req: Request<Body>) -> Response<Bod
 	let release = if let Some((r, _)) = get_release_from_path(req.uri().path(), ctx.cm.platform) {
 		r
 	} else {
-		match ctx.cm.get_latest_release().await {
+		match ctx.cm.get_release_from_cache().await {
 			Ok(r) => r,
 			Err(e) => {
 				error!(ctx.log, "error getting latest version: {}", e);
@@ -582,6 +590,33 @@ impl ConnectionManager {
 		})
 	}
 
+	// spawns a task that checks for updates every n seconds duration
+	pub fn start_update_checker(self: Arc<Self>, duration: Duration) {
+		debug!(self.log, "starting update checker");
+		tokio::spawn(async move {
+			let mut interval = time::interval(duration);
+			loop {
+				interval.tick().await;
+				debug!(self.log, "checking for updates");
+				match self.get_latest_release().await {
+					Ok(_) => {},
+					Err(e) => {
+						error!(self.log, "error getting latest version: {}", e);
+					}
+				};
+			}
+		});
+	}
+
+	// Returns the latest release, available on the cache
+	pub async fn get_release_from_cache(&self) -> Result<Release, CodeError> {
+		let latest = self.latest_version.lock().await;
+		if let Some((_, release)) = &*latest {
+			return Ok(release.clone());
+		}
+		Err(CodeError::ServerNotYetDownloaded)
+	}
+
 	/// Gets a connection to a server version
 	pub async fn get_connection(
 		&self,
@@ -601,11 +636,6 @@ impl ConnectionManager {
 		let mut latest = self.latest_version.lock().await;
 		let now = Instant::now();
 		let target_kind = TargetKind::Web;
-		if let Some((checked_at, release)) = &*latest {
-			if checked_at.elapsed() < Duration::from_secs(RELEASE_CACHE_SECS) {
-				return Ok(release.clone());
-			}
-		}
 
 		let quality = VSCODE_CLI_QUALITY
 			.ok_or_else(|| CodeError::UpdatesNotConfigured("no configured quality"))
@@ -624,6 +654,32 @@ impl ConnectionManager {
 			warning!(self.log, "error getting latest release, using stale: {}", e);
 			*latest = Some((now, previous.clone()));
 			return Ok(previous.clone());
+		}
+
+		// If the new release and previous release are different, download the new version
+		if let Ok(new_release) = &release {
+			let (_, previous_release) = latest.clone().unwrap_or((Instant::now(), Release {
+				name: String::from("0.0.0"),
+				commit: String::from("0.0.0"),
+				platform:self.platform,
+				target: target_kind,
+				quality
+			}));
+			if new_release.commit != previous_release.commit {
+				match self.get_version_data_inner(new_release.clone()) {
+					Ok(mut r) => {
+						match r.wait().await {
+							Ok(_) => {},
+							Err(e) => {
+								info!(self.log, "{}", e);
+							}
+						};
+					},
+					Err(e) => {
+						info!(self.log, "{}", e);
+					}
+				}
+			}
 		}
 
 		let release = release?;
