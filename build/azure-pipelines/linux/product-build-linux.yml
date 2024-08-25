@@ -13,7 +13,7 @@ parameters:
     type: string
   - name: VSCODE_BUILD_AMD
     type: boolean
-    default: false
+    default: true
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -258,9 +258,15 @@ steps:
         displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
+    - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+      - script: node migrate.mjs --disable-watch --enable-in-place
+        displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
+      - script: node migrate.mjs --disable-watch --enable-esm-to-amd
+        displayName: Migrate ESM -> AMD
     - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
       - script: node migrate.mjs --disable-watch --enable-in-place
         displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
+
     - script: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"

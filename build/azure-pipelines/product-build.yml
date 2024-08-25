@@ -103,7 +103,7 @@ parameters:
   - name: VSCODE_BUILD_AMD # TODO@bpasero TODO@esm remove me once AMD is removed
     displayName: "️❗ Build as AMD (!FOR EMERGENCY ONLY!) ️❗"
     type: boolean
-    default: false
+    default: true
 
 variables:
   - name: VSCODE_PRIVATE_BUILD

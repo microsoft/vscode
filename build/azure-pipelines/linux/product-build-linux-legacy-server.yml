@@ -7,7 +7,7 @@ parameters:
     type: string
   - name: VSCODE_BUILD_AMD
     type: boolean
-    default: false
+    default: true
 
 steps:
   - task: NodeTool@0

@@ -9,7 +9,7 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_AMD
     type: boolean
-    default: false
+    default: true
 
 steps:
   - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"

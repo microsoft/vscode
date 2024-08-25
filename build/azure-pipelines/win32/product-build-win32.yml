@@ -13,7 +13,7 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_AMD
     type: boolean
-    default: false
+    default: true
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -132,8 +132,14 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - powershell: node migrate.mjs --disable-watch --enable-in-place
-      displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
+    - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+      - powershell: : node migrate.mjs --disable-watch --enable-in-place
+        displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
+      - powershell: : node migrate.mjs --disable-watch --enable-esm-to-amd
+        displayName: Migrate ESM -> AMD
+    - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
+      - powershell: : node migrate.mjs --disable-watch --enable-in-place
+        displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
 
     - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:

@@ -3,7 +3,7 @@ parameters:
     type: string
   - name: VSCODE_BUILD_AMD
     type: boolean
-    default: false
+    default: true
 
 steps:
   - task: NodeTool@0
@@ -102,6 +102,8 @@ steps:
       displayName: Mixin distro quality
 
   - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+    - script: node migrate.mjs --disable-watch --enable-in-place
+      displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
     - script: node migrate.mjs --disable-watch --enable-esm-to-amd
       displayName: Migrate ESM -> AMD
   - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
