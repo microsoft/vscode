@@ -105,7 +105,7 @@ function main() {
 		console.error(e.stack || e);
 	});
 
-	const bootstrapNode = require(`../../../${outdir}/bootstrap-node`);
+	const bootstrapNode = require(`../../../${out}/bootstrap-node`);
 
 	const loaderConfig = {
 		nodeRequire: require,
