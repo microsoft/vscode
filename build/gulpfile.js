@@ -20,11 +20,11 @@ gulp.task(compileApiProposalNamesTask);
 gulp.task(watchApiProposalNamesTask);
 
 // SWC Client Transpile
-const transpileClientSWCTask = task.define('transpile-client-swc', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src', 'out', true)));
+const transpileClientSWCTask = task.define('transpile-client-swc', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src2', 'out', true)));
 gulp.task(transpileClientSWCTask);
 
 // Transpile only
-const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src', 'out')));
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), transpileTask('src2', 'out')));
 gulp.task(transpileClientTask);
 
 // Fast compile for development time
