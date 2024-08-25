@@ -66,7 +66,7 @@ const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
 const util = require('util');
-const bootstrapNode = require('../../../src/bootstrap-node');
+const bootstrapNode = require('../../../src2/bootstrap-node');
 const coverage = require('../coverage');
 const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 
@@ -115,7 +115,7 @@ function initLoader(opts) {
 	const loaderConfig = {
 		nodeRequire: require,
 		catchError: true,
-		baseUrl: bootstrapNode.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
+		baseUrl: bootstrapNode.fileUriFromPath(path.join(__dirname, '../../../src2'), { isWindows: process.platform === 'win32' }),
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,
