@@ -660,7 +660,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const currentViewModels = this.notebookDiffViewModel.items;
 		while (prevChangeIndex >= 0) {
 			const vm = currentViewModels[prevChangeIndex];
-			if (vm.type !== 'unchanged') {
+			if (vm.type !== 'unchanged' && vm.type !== 'placeholder') {
 				break;
 			}
 
@@ -672,7 +672,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(prevChangeIndex);
 		} else {
 			// go to the last one
-			const index = findLastIdx(currentViewModels, vm => vm.type !== 'unchanged');
+			const index = findLastIdx(currentViewModels, vm => vm.type !== 'unchanged' && vm.type !== 'placeholder');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
@@ -695,7 +695,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const currentViewModels = this.notebookDiffViewModel.items;
 		while (nextChangeIndex < currentViewModels.length) {
 			const vm = currentViewModels[nextChangeIndex];
-			if (vm.type !== 'unchanged') {
+			if (vm.type !== 'unchanged' && vm.type !== 'placeholder') {
 				break;
 			}
 
@@ -707,7 +707,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(nextChangeIndex);
 		} else {
 			// go to the first one
-			const index = currentViewModels.findIndex(vm => vm.type !== 'unchanged');
+			const index = currentViewModels.findIndex(vm => vm.type !== 'unchanged' && vm.type !== 'placeholder');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
