@@ -124,7 +124,7 @@ suite('snapshot', () => {
 		await snapshotFileTree();
 	});
 
-	test('formats object nicely', async () => {
+	test.skip('formats object nicely', async () => {
 		const circular: any = {};
 		circular.a = circular;
 

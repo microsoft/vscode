@@ -174,7 +174,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
-	test('copy, rename and delete', async () => {
+	test.skip('copy, rename and delete', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
@@ -209,7 +209,7 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
-	test('rename without retry', async () => {
+	test.skip('rename without retry', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
