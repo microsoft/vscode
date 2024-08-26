@@ -12,7 +12,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
@@ -36,26 +35,15 @@ interface EditContextState {
 
 export class NativeEditContext extends Disposable {
 
-	// Edit Context API
+	// Edit Context
 	private readonly _editContext: EditContext;
-
-	private _parent: HTMLElement | undefined;
-
-	// Composition
-	private _compositionRange: Range | undefined;
-	private _renderingContext: RenderingContext | undefined;
-
-	private _modelSelections: Selection[];
-
-	// Editor options
-	private _emptySelectionClipboard: boolean;
-	private _copyWithSyntaxHighlighting: boolean;
-
-	// Decorations
-	private _decorations: string[] = [];
-
 	private _previousEditContextState: EditContextState | undefined;
 	private _currentEditContextState: EditContextState | undefined;
+
+	private _decorations: string[] = [];
+	private _parent: HTMLElement | undefined;
+	private _compositionRange: Range | undefined;
+	private _renderingContext: RenderingContext | undefined;
 
 	constructor(
 		domElement: FastDomNode<HTMLDivElement>,
@@ -67,11 +55,6 @@ export class NativeEditContext extends Disposable {
 
 		this._editContext = showControlBounds ? new DebugEditContext() : new EditContext();
 		domElement.domNode.editContext = this._editContext;
-
-		const options = this._context.configuration.options;
-		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-		this._modelSelections = [new Selection(1, 1, 1, 1)];
 
 		this._register(dom.addDisposableListener(domElement.domNode, 'copy', async (e) => {
 			this._ensureClipboardGetsEditorSelection();
@@ -205,15 +188,7 @@ export class NativeEditContext extends Disposable {
 		this._renderingContext = renderingContext;
 	}
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-		return true;
-	}
-
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._modelSelections = e.modelSelections;
 		this.updateEditContext();
 		this._updateBounds();
 		return true;
@@ -396,7 +371,11 @@ export class NativeEditContext extends Disposable {
 	}
 
 	private _ensureClipboardGetsEditorSelection(): void {
-		const dataToCopy = getDataToCopy(this._context.viewModel, this._modelSelections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
+		const options = this._context.configuration.options;
+		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
+		const selections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
+		const dataToCopy = getDataToCopy(this._context.viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
