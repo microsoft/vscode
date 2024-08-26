@@ -362,7 +362,7 @@ export class View extends ViewEventHandler {
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
-	private _instantiateEditContext(editContextType: 'native' | 'textarea') {
+	private _instantiateEditContext(editContextType: 'native' | 'textarea'): AbstractEditContextHandler {
 		let editContextHandler: AbstractEditContextHandler;
 		if (editContextType === 'native') {
 			editContextHandler = this._instantiationService.createInstance(NativeEditContextHandler, this._context, this._viewController);
@@ -372,23 +372,27 @@ export class View extends ViewEventHandler {
 		return editContextHandler;
 	}
 
+	private _updateEditContext(): void {
+		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
+		if (this._editContextType !== editContextType) {
+			this._editContextHandler.dispose();
+			this._editContextHandler = this._instantiateEditContext(editContextType);
+			this._viewParts.splice(this._editContextHandlerIndex, 1);
+			this._viewParts.splice(this._editContextHandlerIndex, 0, this._editContextHandler);
+			this._editContextHandler.appendTo(this._overflowGuardContainer);
+			this._editContextType = editContextType;
+		}
+	}
+
 	// --- begin event handlers
 	public override handleEvents(events: viewEvents.ViewEvent[]): void {
 		super.handleEvents(events);
 		this._scheduleRender();
 	}
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._updateEditContext();
 		this.domNode.setClassName(this._getEditorClassName());
 		this._applyLayout();
-		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
-		if (this._editContextType !== editContextType) {
-			this._editContextHandler.dispose();
-			this._editContextHandler = this._instantiateEditContext(editContextType);
-			this._editContextType = editContextType;
-			this._viewParts.splice(this._editContextHandlerIndex, 1);
-			this._viewParts.splice(this._editContextHandlerIndex, 0, this._editContextHandler);
-			this._editContextHandler.appendTo(this._overflowGuardContainer);
-		}
 		return false;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {

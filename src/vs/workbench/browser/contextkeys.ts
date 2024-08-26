@@ -25,6 +25,7 @@ import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { mainWindow } from 'vs/base/browser/window';
 import { isFullscreen, onDidChangeFullscreen } from 'vs/base/browser/browser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { NativeEditContextHandler } from 'vs/editor/browser/controller/editContext/native/nativeEditContextHandler';
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -300,7 +301,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private updateInputContextKeys(ownerDocument: Document): void {
 
 		function activeElementIsInput(): boolean {
-			return !!ownerDocument.activeElement && (ownerDocument.activeElement.tagName === 'INPUT' || ownerDocument.activeElement.tagName === 'TEXTAREA' || ownerDocument.activeElement.classList.contains('native-edit-context'));
+			return !!ownerDocument.activeElement && (ownerDocument.activeElement.tagName === 'INPUT' || ownerDocument.activeElement.tagName === 'TEXTAREA' || ownerDocument.activeElement.classList.contains(NativeEditContextHandler.NATIVE_EDIT_CONTEXT_CLASS_NAME));
 		}
 
 		const isInputFocused = activeElementIsInput();

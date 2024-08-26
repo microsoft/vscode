@@ -220,17 +220,13 @@ registerExecCommandImpl(CopyAction, 'copy');
 if (PasteAction) {
 	// 1. Paste: handle case when focus is in editor.
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
-		console.log('paste action of add implementation 1');
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
-		console.log('focusedEditor : ', focusedEditor);
-		console.log('focusedEditor.hasTextFocus() : ', focusedEditor?.hasTextFocus());
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			const result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-			console.log('result : ', result);
 			if (result) {
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 			} else if (platform.isWeb) {
@@ -247,7 +243,6 @@ if (PasteAction) {
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
 						}
-						console.log('before keyboard handler paste');
 						focusedEditor.trigger('keyboard', Handler.Paste, {
 							text: clipboardText,
 							pasteOnNewLine,
@@ -264,8 +259,6 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
-		console.log('paste action of add implementation 2');
-		console.log('getActiveDocument() : ', getActiveDocument());
 		getActiveDocument().execCommand('paste');
 		return true;
 	});
