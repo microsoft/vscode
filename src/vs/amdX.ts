@@ -242,7 +242,7 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 	}
 }
 
-export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
+export function resolveAmdNodeModuleAppResourcePath(nodeModuleName: string, pathInsideNodeModule: string): AppResourcePath {
 	assertType(isESM);
 
 	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
@@ -252,5 +252,10 @@ export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeM
 	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;
 	const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
 	const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
+	return resourcePath;
+}
+
+export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
+	const resourcePath: AppResourcePath = resolveAmdNodeModuleAppResourcePath(nodeModuleName, pathInsideNodeModule);
 	return FileAccess.asBrowserUri(resourcePath).toString(true);
 }
