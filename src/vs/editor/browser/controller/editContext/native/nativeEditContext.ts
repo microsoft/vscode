@@ -57,8 +57,6 @@ export class NativeEditContext extends Disposable {
 	private _previousEditContextState: EditContextState | undefined;
 	private _currentEditContextState: EditContextState | undefined;
 
-	private _rangeStartOfCharacterBounds: number = 0;
-
 	constructor(
 		domElement: FastDomNode<HTMLDivElement>,
 		private readonly _context: ViewContext,
@@ -147,8 +145,7 @@ export class NativeEditContext extends Disposable {
 			this._handleTextFormatUpdate(e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', e => {
-			this._rangeStartOfCharacterBounds = e.rangeStart;
-			this._updateCharacterBounds(e.rangeStart);
+			this._updateCharacterBounds();
 		}));
 	}
 
@@ -315,7 +312,7 @@ export class NativeEditContext extends Disposable {
 
 	private _updateBounds() {
 		this._updateSelectionAndControlBounds();
-		this._updateCharacterBounds(this._rangeStartOfCharacterBounds);
+		this._updateCharacterBounds();
 	}
 
 	private _updateSelectionAndControlBounds() {
@@ -360,8 +357,8 @@ export class NativeEditContext extends Disposable {
 		this._editContext.updateSelectionBounds(selectionBounds);
 	}
 
-	private _updateCharacterBounds(rangeStart: number) {
-		if (!this._parent || !this._compositionRange) {
+	private _updateCharacterBounds() {
+		if (!this._parent || !this._compositionRange || !this._currentEditContextState) {
 			return;
 		}
 		const options = this._context.configuration.options;
@@ -390,7 +387,12 @@ export class NativeEditContext extends Disposable {
 			}
 		}
 		const characterBounds = [new DOMRect(left, top, width, lineHeight)];
-		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
+
+		const textModel = this._context.viewModel.model;
+		const offsetOfEditContextStart = textModel.getOffsetAt(this._currentEditContextState.rangeOfContent.getStartPosition());
+		const offsetOfCompositionStart = textModel.getOffsetAt(this._compositionRange.getStartPosition());
+		const offsetOfCompositionStartInEditContext = offsetOfCompositionStart - offsetOfEditContextStart;
+		this._editContext.updateCharacterBounds(offsetOfCompositionStartInEditContext, characterBounds);
 	}
 
 	private _ensureClipboardGetsEditorSelection(): void {
