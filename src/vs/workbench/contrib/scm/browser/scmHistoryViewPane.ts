@@ -754,7 +754,7 @@ export class SCMHistoryViewPane extends ViewPane {
 						this._visibilityDisposables)
 						(() => {
 							this.updateActions();
-							this._updateChildren();
+							this.refresh();
 						}, this, this._visibilityDisposables);
 
 					// Add visible repositories
