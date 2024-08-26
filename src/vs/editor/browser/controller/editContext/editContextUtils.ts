@@ -56,8 +56,6 @@ export class PagedScreenReaderStrategy {
 		selectionEnd: number;
 		newLineCountBeforeSelection: number;
 	} {
-		console.log('fromEditorSelection');
-
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;

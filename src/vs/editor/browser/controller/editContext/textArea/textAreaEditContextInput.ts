@@ -15,12 +15,13 @@ import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifec
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { _debugComposition, ITextAreaWrapper, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextState';
-import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
+import { ClipboardDataToCopy, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { Mimes } from 'vs/base/common/mime';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -354,12 +355,12 @@ export class TextAreaInput extends Disposable {
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
 
-			ensureClipboardGetsEditorSelection(e, this._host.getDataToCopy());
+			this._ensureClipboardGetsEditorSelection(e);
 			this._asyncTriggerCut.schedule();
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
-			ensureClipboardGetsEditorSelection(e, this._host.getDataToCopy());
+			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
@@ -594,7 +595,62 @@ export class TextAreaInput extends Disposable {
 		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
+
+	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
+		const dataToCopy = this._host.getDataToCopy();
+		const storedMetadata: ClipboardStoredMetadata = {
+			version: 1,
+			isFromEmptySelection: dataToCopy.isFromEmptySelection,
+			multicursorText: dataToCopy.multicursorText,
+			mode: dataToCopy.mode
+		};
+		InMemoryClipboardMetadataManager.INSTANCE.set(
+			// When writing "LINE\r\n" to the clipboard and then pasting,
+			// Firefox pastes "LINE\n", so let's work around this quirk
+			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
+			storedMetadata
+		);
+		e.preventDefault();
+		if (e.clipboardData) {
+			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
+		}
+	}
 }
+
+export const ClipboardEventUtils = {
+
+	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
+		const text = clipboardData.getData(Mimes.text);
+		let metadata: ClipboardStoredMetadata | null = null;
+		const rawmetadata = clipboardData.getData('vscode-editor-data');
+		if (typeof rawmetadata === 'string') {
+			try {
+				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
+				if (metadata.version !== 1) {
+					metadata = null;
+				}
+			} catch (err) {
+				// no problem!
+			}
+		}
+
+		if (text.length === 0 && metadata === null && clipboardData.files.length > 0) {
+			// no textual data pasted, generate text from file names
+			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
+			return [files.map(file => file.name).join('\n'), null];
+		}
+
+		return [text, metadata];
+	},
+
+	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
+		clipboardData.setData(Mimes.text, text);
+		if (typeof html === 'string') {
+			clipboardData.setData('text/html', html);
+		}
+		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
+	}
+};
 
 export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrapper {
 

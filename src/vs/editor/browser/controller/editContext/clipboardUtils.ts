@@ -2,30 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as browser from 'vs/base/browser/browser';
-import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import { IViewModel } from 'vs/editor/common/viewModel';
 import { Range } from 'vs/editor/common/core/range';
-
-export function ensureClipboardGetsEditorSelection(e: ClipboardEvent, dataToCopy: ClipboardDataToCopy): void {
-	const storedMetadata: ClipboardStoredMetadata = {
-		version: 1,
-		isFromEmptySelection: dataToCopy.isFromEmptySelection,
-		multicursorText: dataToCopy.multicursorText,
-		mode: dataToCopy.mode
-	};
-	InMemoryClipboardMetadataManager.INSTANCE.set(
-		// When writing "LINE\r\n" to the clipboard and then pasting,
-		// Firefox pastes "LINE\n", so let's work around this quirk
-		(browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
-		storedMetadata
-	);
-	e.preventDefault();
-	if (e.clipboardData) {
-		ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
-	}
-}
 
 export function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
 	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, platform.isWindows);
@@ -81,39 +60,6 @@ export class InMemoryClipboardMetadataManager {
 		return null;
 	}
 }
-
-export const ClipboardEventUtils = {
-
-	getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
-		const text = clipboardData.getData(Mimes.text);
-		let metadata: ClipboardStoredMetadata | null = null;
-		const rawmetadata = clipboardData.getData('vscode-editor-data');
-		if (typeof rawmetadata === 'string') {
-			try {
-				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
-				if (metadata.version !== 1) {
-					metadata = null;
-				}
-			} catch (err) {
-				// no problem!
-			}
-		}
-		if (text.length === 0 && metadata === null && clipboardData.files.length > 0) {
-			// no textual data pasted, generate text from file names
-			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
-			return [files.map(file => file.name).join('\n'), null];
-		}
-		return [text, metadata];
-	},
-
-	setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		clipboardData.setData(Mimes.text, text);
-		if (typeof html === 'string') {
-			clipboardData.setData('text/html', html);
-		}
-		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-	}
-};
 
 export interface ClipboardDataToCopy {
 	isFromEmptySelection: boolean;

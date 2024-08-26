@@ -21,7 +21,8 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DebugEditContext } from 'vs/editor/browser/controller/editContext/native/debugEditContext';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ensureClipboardGetsEditorSelection, getDataToCopy, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
+import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
+import * as browser from 'vs/base/browser/browser';
 
 // Boolean which controls whether we should show the control, selection and character bounds
 const showControlBounds = true;
@@ -39,9 +40,12 @@ export class NativeEditContext extends Disposable {
 	private _renderingContext: RenderingContext | undefined;
 
 	private _modelSelections: Selection[];
+
+	// Editor options
 	private _emptySelectionClipboard: boolean;
 	private _copyWithSyntaxHighlighting: boolean;
 
+	// Decorations
 	private _decorations: string[] = [];
 
 	private _previousState: {
@@ -63,7 +67,7 @@ export class NativeEditContext extends Disposable {
 		domElement: FastDomNode<HTMLDivElement>,
 		private readonly _context: ViewContext,
 		private readonly _viewController: ViewController,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 
@@ -75,36 +79,28 @@ export class NativeEditContext extends Disposable {
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this._modelSelections = [new Selection(1, 1, 1, 1)];
 
-		this._register(dom.addDisposableListener(domElement.domNode, 'cut', async (e) => {
-			const dataToCopy = getDataToCopy(this._context.viewModel, this._modelSelections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
-			ensureClipboardGetsEditorSelection(e, dataToCopy);
-			this._viewController.cut();
-		}));
 		this._register(dom.addDisposableListener(domElement.domNode, 'copy', async (e) => {
-			const dataToCopy = getDataToCopy(this._context.viewModel, this._modelSelections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
-			ensureClipboardGetsEditorSelection(e, dataToCopy);
+			this._ensureClipboardGetsEditorSelection();
 		}));
 		this._register(dom.addDisposableListener(domElement.domNode, 'keydown', async (e) => {
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 
 			// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
-			// Seems like can't do more specific than that because when in composition, left and right are not in keycode
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
 				standardKeyboardEvent.stopPropagation();
 			}
-			// Enter key presses are not sent as text update events, hence we need to handle them outsdie of the text update event
-			// The beforeInput and input events send `insertParagraph` and `insertLineBreak` events but only on input elements
+			// Enter key presses are not sent as text update events, hence we need to handle them outside of the text update event
+			// The beforeinput and input events send `insertParagraph` and `insertLineBreak` events but only on input elements
+			// Hence we handle the enter key press in the keydown event
 			if (standardKeyboardEvent.keyCode === KeyCode.Enter) {
 				this._emitAddNewLineEvent();
 			}
-			// Copy is done elsewhere in the code base - do we need to handle copy here?
-			// Does this paste have to be handled here or in the handlePaste method?
-			// The dom node on which edit context is set does not allow text modifications directly (as it should be done programmatically)
-			// hence paste and cute requests are blocked and the events are not emitted. These are handled here.
+			// The dom node on which edit context is set does not allow text modifications directly, as modifications should be done programmatically,
+			// hence paste and cut requests are blocked and the events are not emitted. The paste and cut events are handled in the keydown event.
 			if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyV) {
 				e.preventDefault();
-				const clipboardText = await clipboardService.readText();
+				const clipboardText = await this._clipboardService.readText();
 				if (clipboardText !== '') {
 					const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
 					let pasteOnNewLine = false;
@@ -115,8 +111,12 @@ export class NativeEditContext extends Disposable {
 						multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 						mode = metadata.mode;
 					}
-					_viewController.paste(clipboardText, pasteOnNewLine, multicursorText, mode);
+					this._viewController.paste(clipboardText, pasteOnNewLine, multicursorText, mode);
 				}
+			}
+			if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyX) {
+				this._ensureClipboardGetsEditorSelection();
+				this._viewController.cut();
 			}
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
@@ -404,6 +404,23 @@ export class NativeEditContext extends Disposable {
 		}
 		this._editContext.updateControlBounds(controlBounds);
 		this._editContext.updateSelectionBounds(selectionBounds);
+	}
+
+	private _ensureClipboardGetsEditorSelection(): void {
+		const dataToCopy = getDataToCopy(this._context.viewModel, this._modelSelections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
+		const storedMetadata: ClipboardStoredMetadata = {
+			version: 1,
+			isFromEmptySelection: dataToCopy.isFromEmptySelection,
+			multicursorText: dataToCopy.multicursorText,
+			mode: dataToCopy.mode
+		};
+		InMemoryClipboardMetadataManager.INSTANCE.set(
+			// When writing "LINE\r\n" to the clipboard and then pasting,
+			// Firefox pastes "LINE\n", so let's work around this quirk
+			(browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
+			storedMetadata
+		);
+		this._clipboardService.writeText(dataToCopy.text);
 	}
 }
 
