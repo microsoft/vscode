@@ -1004,7 +1004,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			},
 			this.userDataProfilesService.defaultProfile
 		);
-		this.userDataProfileImportExportService.exportProfile(profile, this.newProfileElement.copyFlags);
+		await this.userDataProfileImportExportService.exportProfile(profile, this.newProfileElement.copyFlags);
 	}
 
 	async saveNewProfile(transient?: boolean, token?: CancellationToken): Promise<IUserDataProfile | undefined> {
