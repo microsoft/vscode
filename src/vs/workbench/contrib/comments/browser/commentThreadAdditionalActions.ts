@@ -16,6 +16,7 @@ import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commen
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class CommentThreadAdditionalActions<T extends IRange | ICellRange> extends Disposable {
 	private _container: HTMLElement | null;
@@ -29,6 +30,7 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 		private _commentMenus: CommentMenus,
 		private _actionRunDelegate: (() => void) | null,
 		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IContextMenuService private _contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -80,7 +82,7 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 			this._enableDisableMenu(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(this._keybindingService, this._contextKeyService, container, async (action: IAction) => {
+		this._commentFormActions = new CommentFormActions(this._keybindingService, this._contextKeyService, this._contextMenuService, container, async (action: IAction) => {
 			this._actionRunDelegate?.();
 
 			action.run({
