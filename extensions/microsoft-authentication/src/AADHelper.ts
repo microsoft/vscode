@@ -184,13 +184,13 @@ export class AzureActiveDirectoryService {
 				"login" : {
 					"owner": "TylerLeonhardt",
 					"comment": "Used to determine the usage of the Microsoft Auth Provider.",
-					"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },
+					"scopes": { "classification": "OrgIdentifiableInformation", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },
 					"accountType": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what account types are being used." }
 				}
 			*/
 			this._telemetryReporter.sendTelemetryEvent('account', {
 				// Get rid of guids from telemetry.
-				scopes: JSON.stringify(token.scope.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}').split(' ')),
+				scopes: JSON.stringify(token.scope.split(' ')),
 				accountType: token.account.type
 			});
 		}

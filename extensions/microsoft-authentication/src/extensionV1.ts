@@ -65,12 +65,12 @@ async function initMicrosoftSovereignCloudAuthProvider(context: vscode.Extension
 					"login" : {
 						"owner": "TylerLeonhardt",
 						"comment": "Used to determine the usage of the Microsoft Sovereign Cloud Auth Provider.",
-						"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
+						"scopes": { "classification": "OrgIdentifiableInformation", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
 					}
 				*/
 				telemetryReporter.sendTelemetryEvent('loginMicrosoftSovereignCloud', {
 					// Get rid of guids from telemetry.
-					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
+					scopes: JSON.stringify(scopes),
 				});
 
 				return await aadService.createSession(scopes);
@@ -132,7 +132,7 @@ export async function activate(context: vscode.ExtensionContext, telemetryReport
 				*/
 				telemetryReporter.sendTelemetryEvent('login', {
 					// Get rid of guids from telemetry.
-					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
+					scopes: JSON.stringify(scopes),
 				});
 
 				return await loginService.createSession(scopes, options?.account);
