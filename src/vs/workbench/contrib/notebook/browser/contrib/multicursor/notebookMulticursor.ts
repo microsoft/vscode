@@ -40,6 +40,8 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
 
@@ -475,6 +477,30 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		});
 	}
 
+	async undo() {
+		const models: ITextModel[] = [];
+		for (const match of this.trackedMatches) {
+			const model = await match.cellViewModel.resolveTextModel();
+			if (model) {
+				models.push(model);
+			}
+		}
+
+		await Promise.all(models.map(model => model.undo()));
+	}
+
+	async redo() {
+		const models: ITextModel[] = [];
+		for (const match of this.trackedMatches) {
+			const model = await match.cellViewModel.resolveTextModel();
+			if (model) {
+				models.push(model);
+			}
+		}
+
+		await Promise.all(models.map(model => model.redo()));
+	}
+
 	private constructCellEditorOptions(cell: ICellViewModel): EditorConfiguration {
 		const cellEditorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(cell.language), this.notebookEditor.notebookOptions, this.configurationService);
 		const options = cellEditorOptions.getUpdatedValue(cell.internalMetadata, cell.uri);
@@ -670,7 +696,59 @@ class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
 	}
 }
 
+class NotebookMultiCursorUndoRedoContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.notebook.multiCursorUndoRedo';
+
+	constructor(@IEditorService private readonly _editorService: IEditorService, @IConfigurationService private readonly configurationService: IConfigurationService) {
+		super();
+
+		if (!this.configurationService.getValue<boolean>('notebook.multiSelect.enabled')) {
+			return;
+		}
+
+		const PRIORITY = 10005;
+		this._register(UndoCommand.addImplementation(PRIORITY, 'notebook-multicursor-undo-redo', () => {
+			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+			if (!editor) {
+				return false;
+			}
+
+			if (!editor.hasModel()) {
+				return false;
+			}
+
+			const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+
+			return controller.undo();
+		}, ContextKeyExpr.and(
+			ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+			NOTEBOOK_IS_ACTIVE_EDITOR,
+			NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
+		)));
+
+		this._register(RedoCommand.addImplementation(PRIORITY, 'notebook-multicursor-undo-redo', () => {
+			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+			if (!editor) {
+				return false;
+			}
+
+			if (!editor.hasModel()) {
+				return false;
+			}
+
+			const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+			return controller.redo();
+		}, ContextKeyExpr.and(
+			ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+			NOTEBOOK_IS_ACTIVE_EDITOR,
+			NOTEBOOK_MULTI_SELECTION_CONTEXT.IsNotebookMultiSelect,
+		)));
+	}
+}
+
 registerNotebookContribution(NotebookMultiCursorController.id, NotebookMultiCursorController);
 registerAction2(NotebookAddMatchToMultiSelectionAction);
 registerAction2(NotebookExitMultiSelectionAction);
 registerAction2(NotebookDeleteLeftMultiSelectionAction);
+registerWorkbenchContribution2(NotebookMultiCursorUndoRedoContribution.ID, NotebookMultiCursorUndoRedoContribution, WorkbenchPhase.BlockRestore);
