@@ -236,7 +236,8 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domElement, this._fontInfo);
 
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber) - this._scrollTop;
+		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
+		const top = verticalOffsetForPrimaryLineNumber - this._scrollTop;
 		this._domElement.setTop(top);
 		this._domElement.setLeft(this._contentLeft);
 		this._domElement.setWidth(this._contentWidth);
