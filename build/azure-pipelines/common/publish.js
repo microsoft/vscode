@@ -422,6 +422,9 @@ function getPlatform(product, os, arch, type, isLegacy) {
                             if (arch === 'standalone') {
                                 return 'web-standalone';
                             }
+                            else if (arch === 'standalone-amd') {
+                                return 'web-standalone-amd';
+                            }
                             return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
                         default:
                             throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);

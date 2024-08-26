@@ -582,6 +582,8 @@ function getPlatform(product: string, os: string, arch: string, type: string, is
 						case 'web':
 							if (arch === 'standalone') {
 								return 'web-standalone';
+							} else if (arch === 'standalone-amd') {
+								return 'web-standalone-amd';
 							}
 							return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
 						default:
