@@ -77,7 +77,6 @@ export class DebugEditContext extends EditContext {
 				this.renderDebug();
 				console.log(`DebugEditContex.on_${type}`, event);
 			}
-
 			if (typeof listener === 'function') {
 				listener.call(this, event);
 			} else if (typeof listener === 'object' && 'handleEvent' in listener) {
@@ -86,19 +85,16 @@ export class DebugEditContext extends EditContext {
 		};
 		this._listenerMap.set(listener, debugListener);
 		super.addEventListener(type, debugListener, options);
-
 		this.renderDebug();
 	}
 
 	override removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions | undefined): void {
 		if (!listener) { return; }
-
 		const debugListener = this._listenerMap.get(listener);
 		if (debugListener) {
 			super.removeEventListener(type, debugListener, options);
 			this._listenerMap.delete(listener);
 		}
-
 		this.renderDebug();
 	}
 
@@ -121,11 +117,9 @@ export class DebugEditContext extends EditContext {
 	public renderDebug() {
 		this._disposables.forEach(d => d.dispose());
 		this._disposables = [];
-
 		if (!this._isDebugging || this._listenerMap.size === 0) {
 			return;
 		}
-
 		if (this._controlBounds) {
 			this._disposables.push(createRect(this._controlBounds, COLOR_FOR_CONTROL_BOUNDS));
 		}
@@ -137,7 +131,6 @@ export class DebugEditContext extends EditContext {
 				this._disposables.push(createRect(rect, COLOR_FOR_CHARACTER_BOUNDS));
 			}
 		}
-
 		this._disposables.push(createDiv(this.text, this.selectionStart, this.selectionEnd));
 	}
 }
@@ -230,5 +223,3 @@ class EventListenerWrapper {
 		}
 	}
 }
-
-

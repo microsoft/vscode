@@ -6,7 +6,7 @@
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
-import { LineVisibleRanges, RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
@@ -17,7 +17,6 @@ import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DebugEditContext } from 'vs/editor/browser/controller/editContext/native/debugEditContext';
@@ -29,21 +28,15 @@ const showControlBounds = true;
 
 export class NativeEditContext extends Disposable {
 
-	// HTML Elements
-	private _parent: HTMLElement | undefined;
-
 	// Edit Context API
 	private readonly _editContext: EditContext;
+
+	private _parent: HTMLElement | undefined;
 	private _selectionOfEditContextText: Range | undefined;
 
 	// Composition
-	private _compositionStartPosition: Position | undefined;
-	private _compositionEndPosition: Position | undefined;
-
+	private _compositionRange: Range | undefined;
 	private _renderingContext: RenderingContext | undefined;
-	private _rangeStart: number = 0;
-
-	private _linesVisibleRanges: LineVisibleRanges[] | null = null;
 
 	private _modelSelections: Selection[];
 	private _emptySelectionClipboard: boolean;
@@ -63,6 +56,8 @@ export class NativeEditContext extends Disposable {
 		selectionEnd: number;
 		selectionOfContent: Selection;
 	} | undefined;
+
+	private _rangeStartOfCharacterBounds: number = 0;
 
 	constructor(
 		domElement: FastDomNode<HTMLDivElement>,
@@ -129,15 +124,20 @@ export class NativeEditContext extends Disposable {
 			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
+			if (this._compositionRange) {
+				const position = this._context.viewModel.getCursorStates()[0].viewState.position;
+				this._compositionRange = this._compositionRange.setEndPosition(position.lineNumber, position.column);
+			}
 			this._emitTypeEvent(e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
-			this._updateCompositionStartPosition();
+			const position = this._context.viewModel.getCursorStates()[0].viewState.position;
+			this._compositionRange = Range.fromPositions(position, position);
 			this._viewController.compositionStart();
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
-			this._updateCompositionEndPosition();
+			this._compositionRange = undefined;
 			this._viewController.compositionEnd();
 			this._context.viewModel.onCompositionEnd();
 		}));
@@ -145,7 +145,7 @@ export class NativeEditContext extends Disposable {
 			this._handleTextFormatUpdate(e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', e => {
-			this._rangeStart = e.rangeStart;
+			this._rangeStartOfCharacterBounds = e.rangeStart;
 			this._updateCharacterBounds(e.rangeStart);
 		}));
 	}
@@ -161,7 +161,6 @@ export class NativeEditContext extends Disposable {
 		const textAfterAddingNewLine = textBeforeSelection + '\n' + textAfterSelection;
 
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
-		this._updateCompositionEndPosition();
 		this._onType({
 			text: '\n',
 			replacePrevCharCnt: 0,
@@ -196,7 +195,6 @@ export class NativeEditContext extends Disposable {
 			positionDelta: 0,
 		};
 
-		this._updateCompositionEndPosition();
 		this._onType(typeInput);
 	}
 
@@ -288,7 +286,7 @@ export class NativeEditContext extends Disposable {
 	}
 
 	private _updateCharacterBounds(rangeStart: number) {
-		if (!this._parent || !this._compositionStartPosition || !this._compositionEndPosition) {
+		if (!this._parent || !this._compositionRange) {
 			return;
 		}
 		const options = this._context.configuration.options;
@@ -296,16 +294,15 @@ export class NativeEditContext extends Disposable {
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const parentBounds = this._parent.getBoundingClientRect();
-		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(this._compositionStartPosition.lineNumber);
+		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(this._compositionRange.startLineNumber);
 		let left: number = parentBounds.left + contentLeft;
 		let width: number = typicalHalfwidthCharacterWidth / 2;
 
 		if (this._renderingContext) {
-			const range = Range.fromPositions(this._compositionStartPosition, this._compositionEndPosition);
-			this._linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(range, true, true) ?? this._linesVisibleRanges;
-			if (!this._linesVisibleRanges || this._linesVisibleRanges.length === 0) { return; }
-			const minLeft = Math.min(...this._linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
-			const maxLeft = Math.max(...this._linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
+			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(this._compositionRange, true, true) ?? [];
+			if (linesVisibleRanges.length === 0) { return; }
+			const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
+			const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
 			left += minLeft;
 			width = maxLeft - minLeft;
 		}
@@ -362,7 +359,7 @@ export class NativeEditContext extends Disposable {
 
 	private _updateBounds() {
 		this._updateSelectionAndControlBounds();
-		this._updateCharacterBounds(this._rangeStart);
+		this._updateCharacterBounds(this._rangeStartOfCharacterBounds);
 	}
 
 	private _updateSelectionAndControlBounds() {
@@ -407,14 +404,6 @@ export class NativeEditContext extends Disposable {
 		}
 		this._editContext.updateControlBounds(controlBounds);
 		this._editContext.updateSelectionBounds(selectionBounds);
-	}
-
-	private _updateCompositionEndPosition(): void {
-		this._compositionEndPosition = this._context.viewModel.getCursorStates()[0].viewState.position;
-	}
-
-	private _updateCompositionStartPosition(): void {
-		this._compositionStartPosition = this._context.viewModel.getCursorStates()[0].viewState.position;
 	}
 }
 

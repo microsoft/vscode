@@ -38,9 +38,3 @@
 	text-wrap: nowrap;
 }
 */
-
-.monaco-editor .native-edit-context.ime-input {
-	z-index: 10;
-	caret-color: var(--vscode-editorCursor-foreground);
-	color: var(--vscode-editor-foreground);
-}
