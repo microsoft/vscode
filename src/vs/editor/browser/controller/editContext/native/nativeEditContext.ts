@@ -170,7 +170,11 @@ export class NativeEditContext extends Disposable {
 		this._onType(typeInput);
 	}
 
-	public updateEditContext(): void {
+	public onRender(): void {
+		this._updateEditContext();
+	}
+
+	private _updateEditContext(): void {
 		if (this._previousEditContextState) {
 			this._previousEditContextState = this._currentEditContextState;
 		}
@@ -187,7 +191,7 @@ export class NativeEditContext extends Disposable {
 	}
 
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this.updateEditContext();
+		this._updateEditContext();
 		this._updateBounds();
 		return true;
 	}
@@ -210,7 +214,7 @@ export class NativeEditContext extends Disposable {
 	}
 
 	private _getEditContextState(): EditContextState {
-		const selection = this._context.viewModel.getPrimaryCursorState().modelState.selection;
+		const selection = this._context.viewModel.getPrimaryCursorState().viewState.selection;
 		const selectionStartIndex = selection.startColumn - 1;
 		let selectionEndIndex: number = 0;
 		for (let i = selection.startLineNumber; i <= selection.endLineNumber; i++) {

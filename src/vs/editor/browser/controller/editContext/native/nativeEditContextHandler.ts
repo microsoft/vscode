@@ -12,7 +12,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as viewEvents from 'vs/editor/common/viewEvents';
@@ -21,16 +20,27 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+
+interface ScreenReaderContentInfo {
+	content: string;
+	selectionOffsetStart: number;
+	selectionOffsetEnd: number;
+}
 
 export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	static NATIVE_EDIT_CONTEXT_CLASS_NAME = 'native-edit-context';
 
+	// Dom element which holds screen reader content and handles key presses
 	private readonly _domElement: FastDomNode<HTMLDivElement>;
+
+	// Field indicating whether dom element is focused
+	private _hasFocus: boolean = false;
+
+	// Class which handles the native edit context API
 	private readonly _nativeEditContext: NativeEditContext;
 
 	// Configuration values
@@ -41,12 +51,11 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
 
+	// Fields used for rendering
 	private _scrollTop: number = 0;
-
-	private _hasFocus: boolean = false;
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private _selectionOffsetRangeWithinDom: OffsetRange | null = null;
+	private _screenReaderContentInfo: ScreenReaderContentInfo | null = null;
 
 	constructor(
 		context: ViewContext,
@@ -61,23 +70,16 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 		this._nativeEditContext = new NativeEditContext(this._domElement, context, viewController, clipboardService);
 
-		this._updateConfigurationSettings();
-		this._writeScreenReaderContent();
-
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', () => this._setHasFocus(true)));
 		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', () => this._setHasFocus(false)));
 
+		this._updateConfigurationSettings();
+		this._updateDomAttributes();
 	}
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
 		overflowGuardContainer.appendChild(this._domElement);
 		this._nativeEditContext.setParent(overflowGuardContainer.domNode);
-	}
-
-	public writeScreenReaderContent(reason: string): void {
-		this._writeScreenReaderContent();
-		this._nativeEditContext.updateEditContext();
-		this._render();
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
@@ -86,14 +88,14 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this._writeScreenReaderContent();
-		this._nativeEditContext.updateEditContext();
+		this.writeScreenReaderContent();
+		this._nativeEditContext.onRender();
 		this._render();
 	}
 
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
-		this._writeScreenReaderContent();
+		this.writeScreenReaderContent();
 		this._nativeEditContext.onCursorStateChanged(e);
 		this._render();
 		return true;
@@ -108,8 +110,9 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._updateConfigurationSettings();
+		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this._writeScreenReaderContent();
+			this.writeScreenReaderContent();
 		}
 		return true;
 	}
@@ -123,7 +126,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
-		this._updateDomAttributes();
 	}
 
 	private _updateDomAttributes(): void {
@@ -132,8 +134,9 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		this._domElement.domNode.setAttribute('wrap', layoutInfo.wrappingColumn !== -1 ? 'on' : 'off');
 		this._domElement.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this._domElement.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
-		const modelOptions = this._context.viewModel.model.getOptions();
-		this._domElement.domNode.style.tabSize = `${modelOptions.tabSize * this._fontInfo.spaceWidth}px`;
+		const tabSize = this._context.viewModel.model.getOptions().tabSize;
+		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
+		this._domElement.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 	}
 
 	public isFocused(): boolean {
@@ -174,24 +177,21 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		}
 	}
 
-	public setAriaOptions(options: IEditorAriaOptions): void { }
+	public setAriaOptions(): void { }
 
-	private _writeScreenReaderContent(): void {
-		const screenReaderContent = this._getScreenReaderContent();
-		if (!screenReaderContent) {
+	public writeScreenReaderContent(): void {
+		const screenReaderContentInfo = this._getScreenReaderContentInfo();
+		if (!screenReaderContentInfo) {
 			return;
 		}
-		if (this._domElement.domNode.textContent !== screenReaderContent.value) {
-			this._domElement.domNode.textContent = screenReaderContent.value;
+		if (this._domElement.domNode.textContent !== screenReaderContentInfo.content) {
+			this._domElement.domNode.textContent = screenReaderContentInfo.content;
 		}
-		this._setSelectionOfScreenReaderContent(screenReaderContent.selectionStart, screenReaderContent.selectionEnd);
+		this._setSelectionOfScreenReaderContent(screenReaderContentInfo.selectionOffsetStart, screenReaderContentInfo.selectionOffsetEnd);
+		this._screenReaderContentInfo = screenReaderContentInfo;
 	}
 
-	private _getScreenReaderContent(): {
-		value: string;
-		selectionStart: number;
-		selectionEnd: number;
-	} | undefined {
+	private _getScreenReaderContentInfo(): ScreenReaderContentInfo | undefined {
 		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 			return;
 		}
@@ -214,16 +214,13 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		};
 		const screenReaderContent = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 		return {
-			value: screenReaderContent.value,
-			selectionStart: screenReaderContent.selectionStart,
-			selectionEnd: screenReaderContent.selectionEnd
+			content: screenReaderContent.value,
+			selectionOffsetStart: screenReaderContent.selectionStart,
+			selectionOffsetEnd: screenReaderContent.selectionEnd
 		};
 	}
 
-	private _setSelectionOfScreenReaderContent(selectionStart: number, selectionEnd: number): void {
-
-		this._selectionOffsetRangeWithinDom = new OffsetRange(selectionStart, selectionEnd);
-
+	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
 		const activeDocument = dom.getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
@@ -234,18 +231,16 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 			return;
 		}
 		const range = new globalThis.Range();
-		range.setStart(textContent, selectionStart);
-		range.setEnd(textContent, selectionEnd);
+		range.setStart(textContent, selectionOffsetStart);
+		range.setEnd(textContent, selectionOffsetEnd);
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
 	}
 
 	private _render(): void {
-
-		if (!this._primaryCursorVisibleRange) {
+		if (!this._primaryCursorVisibleRange || !this._screenReaderContentInfo) {
 			return;
 		}
-
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domElement, this._fontInfo);
 
@@ -256,8 +251,8 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		this._domElement.setHeight(this._lineHeight);
 
 		// Setting position within the screen reader content
-		const textContent = this._domElement.domNode.textContent ?? '';
-		const textContentBeforeSelection = textContent.substring(0, this._selectionOffsetRangeWithinDom?.start);
+		const textContent = this._screenReaderContentInfo.content;
+		const textContentBeforeSelection = textContent.substring(0, this._screenReaderContentInfo.selectionOffsetStart);
 		this._domElement.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
 		this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 	}
