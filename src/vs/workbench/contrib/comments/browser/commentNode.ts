@@ -633,7 +633,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions?.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, (action: IAction): void => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
@@ -659,7 +659,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions?.setActions(menu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, (action: IAction): void => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({

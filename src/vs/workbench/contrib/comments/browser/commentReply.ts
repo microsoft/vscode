@@ -30,7 +30,6 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 let INMEM_MODEL_ID = 0;
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
@@ -64,7 +63,6 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		@ICommentService private commentService: ICommentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IHoverService private hoverService: IHoverService,
 		@ITextModelService private readonly textModelService: ITextModelService
 	) {
@@ -275,7 +273,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
 			await this._actionRunDelegate?.();
 
 			await action.run({
@@ -298,7 +296,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions.setActions(editorMenu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
 			this._actionRunDelegate?.();
 
 			action.run({
