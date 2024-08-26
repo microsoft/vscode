@@ -149,15 +149,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	}
 
 	public refreshFocusState(): void {
-		const shadowRoot = dom.getShadowRoot(this._domElement.domNode);
-		let hasFocus: boolean;
-		if (shadowRoot) {
-			hasFocus = shadowRoot.activeElement === this._domElement.domNode;
-		} else if (this._domElement.domNode.isConnected) {
-			hasFocus = dom.getActiveElement() === this._domElement.domNode;
-		} else {
-			hasFocus = false;
-		}
+		const hasFocus = dom.getActiveElement() === this._domElement.domNode;
 		this._setHasFocus(hasFocus);
 	}
 

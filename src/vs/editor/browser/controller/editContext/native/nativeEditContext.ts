@@ -22,7 +22,7 @@ import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManage
 import * as browser from 'vs/base/browser/browser';
 
 // Boolean which controls whether we should show the control, selection and character bounds
-const showControlBounds = true;
+const showControlBounds = false;
 
 interface EditContextState {
 	value: string;
