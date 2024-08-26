@@ -798,7 +798,7 @@ extends:
                   - template: build/azure-pipelines/web/product-build-web.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
-        - stage: Web [AMD]
+        - stage: Web AMD
           pool:
             name: 1es-ubuntu-20.04-x64
             os: linux
