@@ -172,6 +172,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const session = this.toAuthenticationSession(result, scopeData.originalScopes);
 		this._telemetryReporter.sendLoginEvent(session.scopes);
 		this._logger.info('[createSession]', scopeData.scopeStr, 'returned session');
+		this._onDidChangeSessionsEmitter.fire({ added: [session], changed: [], removed: [] });
 		return session;
 	}
 

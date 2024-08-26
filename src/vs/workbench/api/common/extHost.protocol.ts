@@ -53,10 +53,10 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { ChatAgentLocation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatAgentVoteDirection, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, IToolDelta, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -1282,7 +1282,7 @@ export type IChatAgentHistoryEntryDto = {
 export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
-	$acceptFeedback(handle: number, result: IChatAgentResult, vote: ChatAgentVoteDirection, reportIssue?: boolean): void;
+	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	$provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined>;
@@ -1311,8 +1311,10 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
+export type IToolDataDto = Omit<IToolData, 'when'>;
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
-	$getTools(): Promise<Dto<IToolData>[]>;
+	$getTools(): Promise<Dto<IToolDataDto>[]>;
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string): void;
@@ -1326,7 +1328,7 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface ExtHostLanguageModelToolsShape {
-	$acceptToolDelta(delta: IToolDelta): Promise<void>;
+	$onDidChangeTools(tools: IToolDataDto[]): void;
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 }

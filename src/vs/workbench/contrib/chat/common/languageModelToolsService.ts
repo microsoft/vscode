@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
+import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -17,6 +19,7 @@ export interface IToolData {
 	id: string;
 	name?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
+	when?: ContextKeyExpression;
 	displayName?: string;
 	userDescription?: string;
 	modelDescription: string;
@@ -47,16 +50,11 @@ export interface IToolImpl {
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
-export interface IToolDelta {
-	added?: IToolData;
-	removed?: string;
-}
-
 export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
 
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	onDidChangeTools: Event<IToolDelta>;
+	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
@@ -65,17 +63,31 @@ export interface ILanguageModelToolsService {
 	invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
-export class LanguageModelToolsService implements ILanguageModelToolsService {
+export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 
-	private _onDidChangeTools = new Emitter<IToolDelta>();
+	private _onDidChangeTools = new Emitter<void>();
 	readonly onDidChangeTools = this._onDidChangeTools.event;
 
+	/** Throttle tools updates because it sends all tools and runs on context key updates */
+	private _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
+
 	private _tools = new Map<string, IToolEntry>();
+	private _toolContextKeys = new Set<string>();
 
 	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService
-	) { }
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		this._register(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this._toolContextKeys)) {
+				// Not worth it to compute a delta here unless we have many tools changing often
+				this._onDidChangeToolsScheduler.schedule();
+			}
+		}));
+	}
 
 	registerToolData(toolData: IToolData): IDisposable {
 		if (this._tools.has(toolData.id)) {
@@ -83,13 +95,22 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		}
 
 		this._tools.set(toolData.id, { data: toolData });
-		this._onDidChangeTools.fire({ added: toolData });
+		this._onDidChangeToolsScheduler.schedule();
+
+		toolData.when?.keys().forEach(key => this._toolContextKeys.add(key));
 
 		return toDisposable(() => {
 			this._tools.delete(toolData.id);
-			this._onDidChangeTools.fire({ removed: toolData.id });
+			this._refreshAllToolContextKeys();
+			this._onDidChangeToolsScheduler.schedule();
 		});
+	}
 
+	private _refreshAllToolContextKeys() {
+		this._toolContextKeys.clear();
+		for (const tool of this._tools.values()) {
+			tool.data.when?.keys().forEach(key => this._toolContextKeys.add(key));
+		}
 	}
 
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
@@ -109,24 +130,34 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 	}
 
 	getTools(): Iterable<Readonly<IToolData>> {
-		return Iterable.map(this._tools.values(), i => i.data);
+		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
+		return Iterable.filter(toolDatas, toolData => !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when));
 	}
 
 	getTool(id: string): IToolData | undefined {
+		return this._getToolEntry(id)?.data;
+	}
+
+	private _getToolEntry(id: string): IToolEntry | undefined {
 		const entry = this._tools.get(id);
-		return entry?.data;
+		if (entry && (!entry.data.when || this._contextKeyService.contextMatchesRules(entry.data.when))) {
+			return entry;
+		} else {
+			return undefined;
+		}
 	}
 
 	getToolByName(name: string): IToolData | undefined {
-		for (const entry of this._tools.values()) {
-			if (entry.data.name === name) {
-				return entry.data;
+		for (const toolData of this.getTools()) {
+			if (toolData.name === name) {
+				return toolData;
 			}
 		}
 		return undefined;
 	}
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+		// When invoking a tool, don't validate the "when" clause. An extension may have invoked a tool just as it was becoming disabled, and just let it go through rather than throw and break the chat.
 		let tool = this._tools.get(dto.toolId);
 		if (!tool) {
 			throw new Error(`Tool ${dto.toolId} was not contributed`);

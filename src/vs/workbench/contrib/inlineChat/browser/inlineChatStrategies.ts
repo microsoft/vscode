@@ -21,7 +21,6 @@ import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOpera
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
-import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -592,9 +591,6 @@ export class LiveStrategy extends EditModeStrategy {
 			if (widgetData) {
 				this._zone.updatePositionAndHeight(widgetData.position);
 
-				const remainingHunks = this._session.hunkData.pending;
-				this._updateSummaryMessage(remainingHunks, this._session.hunkData.size);
-
 
 				const mode = this._configService.getValue<'on' | 'off' | 'auto'>(InlineChatConfigKeys.AccessibleDiffView);
 				if (mode === 'on' || mode === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
@@ -623,30 +619,6 @@ export class LiveStrategy extends EditModeStrategy {
 		};
 
 		return renderHunks()?.position;
-	}
-
-	private _updateSummaryMessage(remaining: number, total: number) {
-
-		const needsReview = this._configService.getValue<boolean>(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave);
-		let message: string;
-		if (total === 0) {
-			message = localize('change.0', "Nothing changed.");
-		} else if (remaining === 1) {
-			message = needsReview
-				? localize('review.1', "$(info) Accept or Discard change")
-				: localize('change.1', "1 change");
-		} else {
-			message = needsReview
-				? localize('review.N', "$(info) Accept or Discard {0} changes", remaining)
-				: localize('change.N', "{0} changes", total);
-		}
-
-		let title: string | undefined;
-		if (needsReview) {
-			title = localize('review', "Review (accept or discard) all changes before continuing");
-		}
-
-		this._zone.widget.updateStatus(message, { title });
 	}
 
 	hasFocus(): boolean {

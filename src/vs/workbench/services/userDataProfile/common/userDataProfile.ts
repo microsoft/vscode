@@ -104,7 +104,7 @@ export interface IUserDataProfileImportExportService {
 	unregisterProfileContentHandler(id: string): void;
 
 	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
-	exportProfile(profile: IUserDataProfile): Promise<void>;
+	exportProfile(profile: IUserDataProfile, exportFlags?: ProfileResourceTypeFlags): Promise<void>;
 	createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createProfileFromTemplate(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createTroubleshootProfile(): Promise<void>;

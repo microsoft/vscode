@@ -24,7 +24,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
@@ -478,7 +478,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			.map(f => typeConvert.ChatFollowup.from(f, request));
 	}
 
-	$acceptFeedback(handle: number, result: IChatAgentResult, vote: ChatAgentVoteDirection, reportIssue?: boolean): void {
+	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
@@ -486,7 +486,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const ehResult = typeConvert.ChatAgentResult.to(result);
 		let kind: extHostTypes.ChatResultFeedbackKind;
-		switch (vote) {
+		switch (voteAction.direction) {
 			case ChatAgentVoteDirection.Down:
 				kind = extHostTypes.ChatResultFeedbackKind.Unhelpful;
 				break;
@@ -494,9 +494,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				kind = extHostTypes.ChatResultFeedbackKind.Helpful;
 				break;
 		}
-		agent.acceptFeedback(reportIssue ?
-			Object.freeze({ result: ehResult, kind, reportIssue }) :
-			Object.freeze({ result: ehResult, kind }));
+
+		const feedback: vscode.ChatResultFeedback = {
+			result: ehResult,
+			kind,
+			unhelpfulReason: isProposedApiEnabled(agent.extension, 'chatParticipantAdditions') ? voteAction.reason : undefined,
+		};
+		agent.acceptFeedback(Object.freeze(feedback));
 	}
 
 	$acceptAction(handle: number, result: IChatAgentResult, event: IChatUserActionEvent): void {

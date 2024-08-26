@@ -217,10 +217,22 @@ export enum ChatAgentVoteDirection {
 	Up = 1
 }
 
+export enum ChatAgentVoteDownReason {
+	IncorrectCode = 'incorrectCode',
+	DidNotFollowInstructions = 'didNotFollowInstructions',
+	IncompleteCode = 'incompleteCode',
+	MissingContext = 'missingContext',
+	PoorlyWrittenOrFormatted = 'poorlyWrittenOrFormatted',
+	RefusedAValidRequest = 'refusedAValidRequest',
+	OffensiveOrUnsafe = 'offensiveOrUnsafe',
+	Other = 'other',
+	WillReportIssue = 'willReportIssue'
+}
+
 export interface IChatVoteAction {
 	kind: 'vote';
 	direction: ChatAgentVoteDirection;
-	reportIssue?: boolean;
+	reason: ChatAgentVoteDownReason | undefined;
 }
 
 export enum ChatCopyKind {
