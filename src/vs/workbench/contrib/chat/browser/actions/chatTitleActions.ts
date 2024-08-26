@@ -39,7 +39,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 1,
-					// when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
 				}
 			});
 		}
