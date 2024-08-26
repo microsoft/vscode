@@ -8,7 +8,7 @@
 		],
 		"paths": {},
 		"module": "amd",
-		"moduleResolution": "classic",
+		"moduleResolution": "node",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "ES2022",

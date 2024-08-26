@@ -562,9 +562,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return { exitCode: 0 };
 			});
 		}).finally(() => {
-			if (this._activeTasks[mapKey] === activeTask) {
-				delete this._activeTasks[mapKey];
-			}
+			delete this._activeTasks[mapKey];
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };

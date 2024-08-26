@@ -80,7 +80,6 @@ type ExtensionsLoadClassification = {
 export class Extension implements IExtension {
 
 	public enablementState: EnablementState = EnablementState.EnabledGlobally;
-	public readonly resourceExtension: IResourceExtension | undefined;
 
 	private galleryResourcesCache = new Map<string, any>();
 
@@ -97,7 +96,23 @@ export class Extension implements IExtension {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService
 	) {
-		this.resourceExtension = resourceExtensionInfo?.resourceExtension;
+	}
+
+	get resourceExtension(): IResourceExtension | undefined {
+		if (this.resourceExtensionInfo) {
+			return this.resourceExtensionInfo.resourceExtension;
+		}
+		if (this.local?.isWorkspaceScoped) {
+			return {
+				type: 'resource',
+				identifier: this.local.identifier,
+				location: this.local.location,
+				manifest: this.local.manifest,
+				changelogUri: this.local.changelogUrl,
+				readmeUri: this.local.readmeUrl,
+			};
+		}
+		return undefined;
 	}
 
 	get gallery(): IGalleryExtension | undefined {
@@ -1037,7 +1052,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					this.setEnabledAutoUpdateExtensions([]);
 					this.setDisabledAutoUpdateExtensions([]);
 					this._onChange.fire(undefined);
-					this.extensionManagementService.resetPinnedStateForAllUserExtensions(!isAutoUpdateEnabled);
+					this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
 				}
 				if (isAutoUpdateEnabled) {
 					this.eventuallyAutoUpdateExtensions();
@@ -1057,7 +1072,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0)));
 		this._register(this.updateService.onStateChange(e => {
 			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloaded) {
-				this.eventuallyCheckForUpdates(true);
+				this.telemetryService.publicLog2<{}, {
+					owner: 'sandy081';
+					comment: 'Report when update check is triggered on product update';
+				}>('extensions:updatecheckonproductupdate');
+				if (this.isAutoCheckUpdatesEnabled()) {
+					this.checkForUpdates();
+				}
 			}
 		}));
 
@@ -1164,6 +1185,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		for (const changedExtension of changedExtensions) {
 			this._onChange.fire(changedExtension);
 		}
+	}
+
+	private updateExtensionsPinnedState(pinned: boolean): Promise<void> {
+		return this.progressService.withProgress({
+			location: ProgressLocation.Extensions,
+			title: nls.localize('updatingExtensions', "Updating Extensions Auto Update State"),
+		}, () => this.extensionManagementService.resetPinnedStateForAllUserExtensions(pinned));
 	}
 
 	private reset(): void {
@@ -2301,26 +2329,34 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];
+		for (const packExtension of this.getAllPackExtensionsToUninstall(extension.local, this.local)) {
+			if (!extensionsToUninstall.some(e => areSameExtensions(e.extension.identifier, packExtension.identifier))) {
+				extensionsToUninstall.push({ extension: packExtension });
+			}
+		}
+
 		const dependents: IExtension[] = [];
-		for (const local of this.local) {
-			if (local === extension) {
-				continue;
-			}
-			if (!local.local) {
-				continue;
-			}
-			if (local.dependencies.length === 0) {
-				continue;
-			}
-			if (extension.extensionPack.some(id => areSameExtensions({ id }, local.identifier))) {
-				continue;
-			}
-			if (dependents.some(d => d.extensionPack.some(id => areSameExtensions({ id }, local.identifier)))) {
-				continue;
-			}
-			if (local.dependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
-				dependents.push(local);
-				extensionsToUninstall.push({ extension: local.local });
+		for (const { extension } of extensionsToUninstall) {
+			for (const local of this.local) {
+				if (!local.local) {
+					continue;
+				}
+				if (areSameExtensions(local.identifier, extension.identifier)) {
+					continue;
+				}
+				if (local.dependencies.length === 0) {
+					continue;
+				}
+				if (extension.manifest.extensionPack?.some(id => areSameExtensions({ id }, local.identifier))) {
+					continue;
+				}
+				if (dependents.some(d => d.extensionPack.some(id => areSameExtensions({ id }, local.identifier)))) {
+					continue;
+				}
+				if (local.dependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
+					dependents.push(local);
+					extensionsToUninstall.push({ extension: local.local });
+				}
 			}
 		}
 
@@ -2347,6 +2383,28 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
 			source: `${extension.identifier.id}`
 		}, () => this.extensionManagementService.uninstallExtensions(extensionsToUninstall).then(() => undefined));
+	}
+
+	private getAllPackExtensionsToUninstall(extension: ILocalExtension, installed: IExtension[], checked: ILocalExtension[] = []): ILocalExtension[] {
+		if (checked.some(e => areSameExtensions(e.identifier, extension.identifier))) {
+			return [];
+		}
+		checked.push(extension);
+		const extensionsPack = extension.manifest.extensionPack ?? [];
+		if (extensionsPack.length) {
+			const packedExtensions: ILocalExtension[] = [];
+			for (const i of installed) {
+				if (i.local && !i.isBuiltin && extensionsPack.some(id => areSameExtensions({ id }, i.identifier))) {
+					packedExtensions.push(i.local);
+				}
+			}
+			const packOfPackedExtensions: ILocalExtension[] = [];
+			for (const packedExtension of packedExtensions) {
+				packOfPackedExtensions.push(...this.getAllPackExtensionsToUninstall(packedExtension, installed, checked));
+			}
+			return [...packedExtensions, ...packOfPackedExtensions];
+		}
+		return [];
 	}
 
 	private getErrorMessageForUninstallingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {

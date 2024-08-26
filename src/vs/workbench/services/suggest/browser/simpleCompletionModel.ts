@@ -182,8 +182,16 @@ export class SimpleCompletionModel {
 		}
 
 		this._filteredItems = target.sort((a, b) => {
-			// Sort first by the score
-			let score = b.score[0] - a.score[0];
+			// Keywords should always appear at the bottom when they are not an exact match
+			let score = 0;
+			if (a.completion.isKeyword && a.labelLow !== wordLow || b.completion.isKeyword && b.labelLow !== wordLow) {
+				score = (a.completion.isKeyword ? 1 : 0) - (b.completion.isKeyword ? 1 : 0);
+				if (score !== 0) {
+					return score;
+				}
+			}
+			// Sort by the score
+			score = b.score[0] - a.score[0];
 			if (score !== 0) {
 				return score;
 			}
@@ -219,11 +227,12 @@ export class SimpleCompletionModel {
 // File score boosts for specific file extensions on Windows. This only applies when the file is the
 // _first_ part of the command line.
 const fileExtScores = new Map<string, number>(isWindows ? [
-	// Pwsh
+	// Windows - .ps1 > .exe > .bat > .cmd. This is the command precedence when running the files
+	//           without an extension, tested manually in pwsh v7.4.4
 	['ps1', 0.09],
-	// Windows
-	['bat', 0.05],
-	['cmd', 0.05],
+	['exe', 0.08],
+	['bat', 0.07],
+	['cmd', 0.07],
 	// Non-Windows
 	['sh', -0.05],
 	['bash', -0.05],
@@ -239,6 +248,7 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	// Windows
 	['bat', -0.05],
 	['cmd', -0.05],
+	['exe', -0.05],
 	// Non-Windows
 	['sh', 0.05],
 	['bash', 0.05],

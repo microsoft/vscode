@@ -107,7 +107,7 @@ export default (): string => `
 			</label>
 			<div class="block-info hidden">
 				<!-- To be dynamically filled -->
-			</div>
+		</div>
 		</div>
 		<div class="block block-process">
 			<input class="sendData" aria-label="${sendProcessInfoLabel}" type="checkbox" id="includeProcessInfo" checked/>

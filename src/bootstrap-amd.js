@@ -11,22 +11,38 @@
  * @import { IProductConfiguration } from './vs/base/common/product'
  */
 
-// ESM-comment-begin
-const isESM = false;
-// ESM-comment-end
 // ESM-uncomment-begin
 // import * as path from 'path';
 // import * as fs from 'fs';
 // import { fileURLToPath } from 'url';
-// import { createRequire } from 'node:module';
+// import { createRequire, register } from 'node:module';
 // import { product, pkg } from './bootstrap-meta.js';
-// import * as bootstrap from './bootstrap.js';
+// import './bootstrap-node.js';
 // import * as performance from './vs/base/common/performance.js';
 //
 // const require = createRequire(import.meta.url);
-// const isESM = true;
+// /** @type any */
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
+//
+// // Install a hook to module resolution to map 'fs' to 'original-fs'
+// if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+// 	const jsCode = `
+// 	export async function resolve(specifier, context, nextResolve) {
+// 		if (specifier === 'fs') {
+// 			return {
+// 				format: 'builtin',
+// 				shortCircuit: true,
+// 				url: 'node:original-fs'
+// 			};
+// 		}
+
+// 		// Defer to the next hook in the chain, which would be the
+// 		// Node.js default resolve if this is the last user-specified loader.
+// 		return nextResolve(specifier, context);
+// 	}`;
+// 	register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url);
+// }
 // ESM-uncomment-end
 
 // Store the node.js require function in a variable
@@ -64,7 +80,7 @@ globalThis._VSCODE_PACKAGE_JSON = require('./bootstrap-meta').pkg;
 globalThis._VSCODE_FILE_ROOT = __dirname;
 
 // ESM-comment-begin
-const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
 const performance = require(`./vs/base/common/performance`);
 const fs = require('fs');
 // ESM-comment-end
@@ -106,7 +122,6 @@ async function doSetupNLS() {
 				messagesFile = nlsConfig.defaultMessagesFile;
 			}
 
-			// VSCODE_GLOBALS: NLS
 			globalThis._VSCODE_NLS_LANGUAGE = nlsConfig?.resolvedLanguage;
 		} catch (e) {
 			console.error(`Error reading VSCODE_NLS_CONFIG from environment: ${e}`);
@@ -121,7 +136,6 @@ async function doSetupNLS() {
 	}
 
 	try {
-		// VSCODE_GLOBALS: NLS
 		globalThis._VSCODE_NLS_MESSAGES = JSON.parse((await fs.promises.readFile(messagesFile)).toString());
 	} catch (error) {
 		console.error(`Error reading NLS messages file ${messagesFile}: ${error}`);
@@ -138,7 +152,6 @@ async function doSetupNLS() {
 		// Fallback to the default message file to ensure english translation at least
 		if (nlsConfig?.defaultMessagesFile && nlsConfig.defaultMessagesFile !== messagesFile) {
 			try {
-				// VSCODE_GLOBALS: NLS
 				globalThis._VSCODE_NLS_MESSAGES = JSON.parse((await fs.promises.readFile(nlsConfig.defaultMessagesFile)).toString());
 			} catch (error) {
 				console.error(`Error reading default NLS messages file ${nlsConfig.defaultMessagesFile}: ${error}`);
@@ -155,77 +168,77 @@ async function doSetupNLS() {
 
 //#region Loader Config
 
-if (isESM) {
+// ESM-uncomment-begin
+// /**
+//  * @param {string=} entrypoint
+//  * @param {(value: any) => void} [onLoad]
+//  * @param {(err: Error) => void} [onError]
+//  */
+// module.exports.load = function (entrypoint, onLoad, onError) {
+// 	if (!entrypoint) {
+// 		return;
+// 	}
 
-	/**
-	 * @param {string=} entrypoint
-	 * @param {(value: any) => void} [onLoad]
-	 * @param {(err: Error) => void} [onError]
-	 */
-	module.exports.load = function (entrypoint, onLoad, onError) {
-		if (!entrypoint) {
-			return;
-		}
+// 	entrypoint = `./${entrypoint}.js`;
 
-		entrypoint = `./${entrypoint}.js`;
+// 	onLoad = onLoad || function () { };
+// 	onError = onError || function (err) { console.error(err); };
 
-		onLoad = onLoad || function () { };
-		onError = onError || function (err) { console.error(err); };
+// 	setupNLS().then(() => {
+// 		performance.mark(`code/fork/willLoadCode`);
+// 		import(entrypoint).then(onLoad, onError);
+// 	});
+// };
+// ESM-uncomment-end
 
-		setupNLS().then(() => {
-			performance.mark(`code/fork/willLoadCode`);
-			import(entrypoint).then(onLoad, onError);
-		});
-	};
-} else {
+// ESM-comment-begin
+// @ts-ignore
+const loader = require('./vs/loader');
 
-	// @ts-ignore
-	const loader = require('./vs/loader');
+loader.config({
+	baseUrl: bootstrapNode.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
+	catchError: true,
+	nodeRequire,
+	amdModulesPattern: /^vs\//,
+	recordStats: true
+});
 
-	loader.config({
-		baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
-		catchError: true,
-		nodeRequire,
-		amdModulesPattern: /^vs\//,
-		recordStats: true
+// Running in Electron
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+	loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
+		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
 	});
+}
 
-	// Running in Electron
-	if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-		loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
-			return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
+/**
+ * @param {string=} entrypoint
+ * @param {(value: any) => void} [onLoad]
+ * @param {(err: Error) => void} [onError]
+ */
+module.exports.load = function (entrypoint, onLoad, onError) {
+	if (!entrypoint) {
+		return;
+	}
+
+	// code cache config
+	if (process.env['VSCODE_CODE_CACHE_PATH']) {
+		loader.config({
+			nodeCachedData: {
+				path: process.env['VSCODE_CODE_CACHE_PATH'],
+				seed: entrypoint
+			}
 		});
 	}
 
-	/**
-	 * @param {string=} entrypoint
-	 * @param {(value: any) => void} [onLoad]
-	 * @param {(err: Error) => void} [onError]
-	 */
-	module.exports.load = function (entrypoint, onLoad, onError) {
-		if (!entrypoint) {
-			return;
-		}
+	onLoad = onLoad || function () { };
+	onError = onError || function (err) { console.error(err); };
 
-		// code cache config
-		if (process.env['VSCODE_CODE_CACHE_PATH']) {
-			loader.config({
-				nodeCachedData: {
-					path: process.env['VSCODE_CODE_CACHE_PATH'],
-					seed: entrypoint
-				}
-			});
-		}
-
-		onLoad = onLoad || function () { };
-		onError = onError || function (err) { console.error(err); };
-
-		setupNLS().then(() => {
-			performance.mark('code/fork/willLoadCode');
-			loader([entrypoint], onLoad, onError);
-		});
-	};
-}
+	setupNLS().then(() => {
+		performance.mark('code/fork/willLoadCode');
+		loader([entrypoint], onLoad, onError);
+	});
+};
+// ESM-comment-end
 
 //#endregion
 

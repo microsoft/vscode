@@ -18,7 +18,7 @@ import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -45,7 +45,7 @@ export interface ISanitizerOptions {
 }
 
 const defaultMarkedRenderers = Object.freeze({
-	image: (href: string | null, title: string | null, text: string): string => {
+	image: ({ href, title, text }: marked.Tokens.Image): string => {
 		let dimensions: string[] = [];
 		let attributes: string[] = [];
 		if (href) {
@@ -64,11 +64,12 @@ const defaultMarkedRenderers = Object.freeze({
 		return '<img ' + attributes.join(' ') + '>';
 	},
 
-	paragraph: (text: string): string => {
-		return `<p>${text}</p>`;
+	paragraph(this: marked.Renderer, { tokens }: marked.Tokens.Paragraph): string {
+		return `<p>${this.parser.parseInline(tokens)}</p>`;
 	},
 
-	link: (href: string | null, title: string | null, text: string): string => {
+	link(this: marked.Renderer, { href, title, tokens }: marked.Tokens.Link): string {
+		let text = this.parser.parseInline(tokens);
 		if (typeof href !== 'string') {
 			return '';
 		}
@@ -162,18 +163,18 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const syncCodeBlocks: [string, HTMLElement][] = [];
 
 	if (options.codeBlockRendererSync) {
-		renderer.code = (code, lang) => {
+		renderer.code = ({ text, lang }: marked.Tokens.Code) => {
 			const id = defaultGenerator.nextId();
-			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), code);
+			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), text);
 			syncCodeBlocks.push([id, value]);
-			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
+			return `<div class="code" data-code="${id}">${escape(text)}</div>`;
 		};
 	} else if (options.codeBlockRenderer) {
-		renderer.code = (code, lang) => {
+		renderer.code = ({ text, lang }: marked.Tokens.Code) => {
 			const id = defaultGenerator.nextId();
-			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), code);
+			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), text);
 			codeBlocks.push(value.then(element => [id, element]));
-			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
+			return `<div class="code" data-code="${id}">${escape(text)}</div>`;
 		};
 	}
 
@@ -219,23 +220,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	if (!markdown.supportHtml) {
-		// TODO: Can we deprecated this in favor of 'supportHtml'?
-
-		// Use our own sanitizer so that we can let through only spans.
-		// Otherwise, we'd be letting all html be rendered.
-		// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
-		// We always pass the output through dompurify after this so that we don't rely on
-		// marked for sanitization.
-		markedOptions.sanitizer = (html: string): string => {
+		// Note: we always pass the output through dompurify after this so that we don't rely on
+		// marked for real sanitization.
+		renderer.html = ({ text }) => {
 			if (options.sanitizerOptions?.replaceWithPlaintext) {
-				return escape(html);
+				return escape(text);
 			}
 
-			const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
-			return match ? html : '';
+			const match = markdown.isTrusted ? text.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
+			return match ? text : '';
 		};
-		markedOptions.sanitize = true;
-		markedOptions.silent = true;
 	}
 
 	markedOptions.renderer = renderer;
@@ -261,7 +255,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const newTokens = fillInIncompleteTokens(tokens);
 		renderedMarkdown = marked.parser(newTokens, opts);
 	} else {
-		renderedMarkdown = marked.parse(value, markedOptions);
+		renderedMarkdown = marked.parse(value, { ...markedOptions, async: false });
 	}
 
 	// Rewrite theme icons
@@ -553,7 +547,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlo
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
 	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
 }
@@ -570,64 +564,61 @@ const unescapeInfo = new Map<string, string>([
 function createRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
-	renderer.code = (code: string): string => {
-		return code;
+	renderer.code = ({ text }: marked.Tokens.Code): string => {
+		return text;
 	};
-	renderer.blockquote = (quote: string): string => {
-		return quote;
+	renderer.blockquote = ({ text }: marked.Tokens.Blockquote): string => {
+		return text + '\n';
 	};
-	renderer.html = (_html: string): string => {
+	renderer.html = (_: marked.Tokens.HTML): string => {
 		return '';
 	};
-	renderer.heading = (text: string, _level: 1 | 2 | 3 | 4 | 5 | 6, _raw: string): string => {
-		return text + '\n';
+	renderer.heading = function ({ tokens }: marked.Tokens.Heading): string {
+		return this.parser.parseInline(tokens) + '\n';
 	};
 	renderer.hr = (): string => {
 		return '';
 	};
-	renderer.list = (body: string, _ordered: boolean): string => {
-		return body;
+	renderer.list = function ({ items }: marked.Tokens.List): string {
+		return items.map(x => this.listitem(x)).join('\n') + '\n';
 	};
-	renderer.listitem = (text: string): string => {
+	renderer.listitem = ({ text }: marked.Tokens.ListItem): string => {
 		return text + '\n';
 	};
-	renderer.paragraph = (text: string): string => {
-		return text + '\n';
+	renderer.paragraph = function ({ tokens }: marked.Tokens.Paragraph): string {
+		return this.parser.parseInline(tokens) + '\n';
 	};
-	renderer.table = (header: string, body: string): string => {
-		return header + body + '\n';
+	renderer.table = function ({ header, rows }: marked.Tokens.Table): string {
+		return header.map(cell => this.tablecell(cell)).join(' ') + '\n' + rows.map(cells => cells.map(cell => this.tablecell(cell)).join(' ')).join('\n') + '\n';
 	};
-	renderer.tablerow = (content: string): string => {
-		return content;
-	};
-	renderer.tablecell = (content: string, _flags: {
-		header: boolean;
-		align: 'center' | 'left' | 'right' | null;
-	}): string => {
-		return content + ' ';
-	};
-	renderer.strong = (text: string): string => {
+	renderer.tablerow = ({ text }: marked.Tokens.TableRow): string => {
 		return text;
 	};
-	renderer.em = (text: string): string => {
+	renderer.tablecell = function ({ tokens }: marked.Tokens.TableCell): string {
+		return this.parser.parseInline(tokens);
+	};
+	renderer.strong = ({ text }: marked.Tokens.Strong): string => {
 		return text;
 	};
-	renderer.codespan = (code: string): string => {
-		return code;
+	renderer.em = ({ text }: marked.Tokens.Em): string => {
+		return text;
 	};
-	renderer.br = (): string => {
+	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
+		return text;
+	};
+	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
 	};
-	renderer.del = (text: string): string => {
+	renderer.del = ({ text }: marked.Tokens.Del): string => {
 		return text;
 	};
-	renderer.image = (_href: string, _title: string, _text: string): string => {
+	renderer.image = (_: marked.Tokens.Image): string => {
 		return '';
 	};
-	renderer.text = (text: string): string => {
+	renderer.text = ({ text }: marked.Tokens.Text): string => {
 		return text;
 	};
-	renderer.link = (_href: string, _title: string, text: string): string => {
+	renderer.link = ({ text }: marked.Tokens.Link): string => {
 		return text;
 	};
 	return renderer;
@@ -635,8 +626,8 @@ function createRenderer(): marked.Renderer {
 const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) => createRenderer());
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createRenderer();
-	renderer.code = (code: string): string => {
-		return `\n\`\`\`\n${code}\n\`\`\`\n`;
+	renderer.code = ({ text }: marked.Tokens.Code): string => {
+		return `\n\`\`\`\n${text}\n\`\`\`\n`;
 	};
 	return renderer;
 });
@@ -807,13 +798,6 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 	let newTokens: marked.Token[] | undefined;
 	for (i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
-		let codeblockStart: RegExpMatchArray | null;
-		if (token.type === 'paragraph' && (codeblockStart = token.raw.match(/(\n|^)(````*)/))) {
-			const codeblockLead = codeblockStart[2];
-			// If the code block was complete, it would be in a type='code'
-			newTokens = completeCodeBlock(tokens.slice(i), codeblockLead);
-			break;
-		}
 
 		if (token.type === 'paragraph' && token.raw.match(/(\n|^)\|/)) {
 			newTokens = completeTable(tokens.slice(i));
@@ -821,7 +805,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		}
 
 		if (i === tokens.length - 1 && token.type === 'list') {
-			const newListToken = completeListItemPattern(token);
+			const newListToken = completeListItemPattern(token as marked.Tokens.List);
 			if (newListToken) {
 				newTokens = [newListToken];
 				break;
@@ -830,7 +814,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 
 		if (i === tokens.length - 1 && token.type === 'paragraph') {
 			// Only operates on a single token, because any newline that follows this should break these patterns
-			const newToken = completeSingleLinePattern(token);
+			const newToken = completeSingleLinePattern(token as marked.Tokens.Paragraph);
 			if (newToken) {
 				newTokens = [newToken];
 				break;
@@ -850,10 +834,6 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 	return null;
 }
 
-function completeCodeBlock(tokens: marked.Token[], leader: string): marked.Token[] {
-	const mergedRawText = mergeRawTokenText(tokens);
-	return marked.lexer(mergedRawText + `\n${leader}`);
-}
 
 function completeCodespan(token: marked.Token): marked.Token {
 	return completeWithString(token, '`');

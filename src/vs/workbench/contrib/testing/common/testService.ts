@@ -311,7 +311,7 @@ export interface ITestService {
 	 * Fires when the user requests to cancel a test run -- or all runs, if no
 	 * runId is given.
 	 */
-	readonly onDidCancelTestRun: Event<{ runId: string | undefined }>;
+	readonly onDidCancelTestRun: Event<{ runId: string | undefined; taskId: string | undefined }>;
 
 	/**
 	 * Event that fires when the excluded tests change.
@@ -392,7 +392,7 @@ export interface ITestService {
 	/**
 	 * Cancels an ongoing test run by its ID, or all runs if no ID is given.
 	 */
-	cancelTestRun(runId?: string): void;
+	cancelTestRun(runId?: string, taskId?: string): void;
 
 	/**
 	 * Publishes a test diff for a controller.

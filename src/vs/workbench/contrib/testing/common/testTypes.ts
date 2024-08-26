@@ -332,7 +332,7 @@ export namespace ITestTaskState {
 
 export interface ITestRunTask {
 	id: string;
-	name: string | undefined;
+	name: string;
 	running: boolean;
 	ctrlId: string;
 }
@@ -585,7 +585,7 @@ export interface ISerializedTestResults {
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];
 	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined; ctrlId: string }[];
+	tasks: { id: string; name: string | undefined; ctrlId: string; hasCoverage: boolean }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */

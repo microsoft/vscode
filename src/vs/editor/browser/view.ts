@@ -97,7 +97,6 @@ export class View extends ViewEventHandler {
 	private readonly _linesContent: FastDomNode<HTMLElement>;
 	public readonly domNode: FastDomNode<HTMLElement>;
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
-	private readonly _overflowWidgetsDomNode: HTMLElement | null;
 
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
@@ -115,7 +114,6 @@ export class View extends ViewEventHandler {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
-		this._overflowWidgetsDomNode = overflowWidgetsDomNode ?? null;
 
 		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
@@ -280,7 +278,6 @@ export class View extends ViewEventHandler {
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
 		return {
 			viewDomNode: this.domNode.domNode,
-			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 
@@ -411,7 +408,7 @@ export class View extends ViewEventHandler {
 		if (this._renderAnimationFrame === null) {
 			const rendering = this._createCoordinatedRendering();
 			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
-				window: dom.getWindow(this.domNode.domNode),
+				window: dom.getWindow(this.domNode?.domNode),
 				prepareRenderText: () => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();

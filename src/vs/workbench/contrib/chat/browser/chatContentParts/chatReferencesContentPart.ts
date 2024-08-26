@@ -92,7 +92,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		this.domNode.appendChild(list.getHTMLElement().parentElement!);
 
 		this._register(list.onDidOpen((e) => {
-			if (e.element && 'reference' in e.element) {
+			if (e.element && 'reference' in e.element && typeof e.element.reference === 'object') {
 				const uriOrLocation = 'variableName' in e.element.reference ? e.element.reference.value : e.element.reference;
 				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
 					uriOrLocation?.uri;
@@ -174,7 +174,9 @@ export class CollapsibleListPool extends Disposable {
 							return element.content.value;
 						}
 						const reference = element.reference;
-						if ('variableName' in reference) {
+						if (typeof reference === 'string') {
+							return reference;
+						} else if ('variableName' in reference) {
 							return reference.variableName;
 						} else if (URI.isUri(reference)) {
 							return basename(reference.path);
@@ -191,7 +193,7 @@ export class CollapsibleListPool extends Disposable {
 							return null;
 						}
 						const { reference } = element;
-						if ('variableName' in reference) {
+						if (typeof reference === 'string' || 'variableName' in reference) {
 							return null;
 						} else if (URI.isUri(reference)) {
 							return reference.toString();
@@ -250,7 +252,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
 		const templateDisposables = new DisposableStore();
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
 		return { templateDisposables, label };
 	}
 
@@ -274,7 +276,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		const reference = data.reference;
 		const icon = this.getReferenceIcon(data);
 		templateData.label.element.style.display = 'flex';
-		if ('variableName' in reference) {
+		if (typeof reference === 'object' && 'variableName' in reference) {
 			if (reference.value) {
 				const uri = URI.isUri(reference.value) ? reference.value : reference.value.uri;
 				templateData.label.setResource(
@@ -286,8 +288,15 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					}, { icon, title: data.options?.status?.description ?? data.title });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
-				templateData.label.setLabel(`#${reference.variableName}`, undefined, { title: data.options?.status?.description ?? variable?.description });
+				// This is a hack to get chat attachment ThemeIcons to render for resource labels
+				const asThemeIcon = variable?.icon ? `$(${variable.icon.id}) ` : '';
+				const asVariableName = `#${reference.variableName}`; // Fallback, shouldn't really happen
+				const label = `${asThemeIcon}${variable?.fullName ?? asVariableName}`;
+				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description ?? variable?.description });
 			}
+		} else if (typeof reference === 'string') {
+			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });
+
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
 			if (uri.scheme === 'https' && isEqualAuthority(uri.authority, 'github.com') && uri.path.includes('/tree/')) {
@@ -300,7 +309,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				const settingId = uri.path.substring(1);
 				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId) });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
 			} else {
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
@@ -312,11 +321,13 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			}
 		}
 
-		if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
-			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-				const element = templateData.label.element.querySelector(selector);
-				if (element) {
+		for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
+			const element = templateData.label.element.querySelector(selector);
+			if (element) {
+				if (data.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted || data.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial) {
 					element.classList.add('warning');
+				} else {
+					element.classList.remove('warning');
 				}
 			}
 		}

@@ -29,6 +29,8 @@ import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import type { IMenu } from 'vs/platform/actions/common/actions';
+import type { Barrier } from 'vs/base/common/async';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -137,7 +139,7 @@ export interface ITerminalGroup {
 	attachToElement(element: HTMLElement): void;
 	addInstance(instance: ITerminalInstance): void;
 	removeInstance(instance: ITerminalInstance): void;
-	moveInstance(instance: ITerminalInstance, index: number): void;
+	moveInstance(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
@@ -485,8 +487,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 * @param source The source instance to move.
 	 * @param target The target instance to move the source instance to.
 	 */
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
-	moveGroupToEnd(source: ITerminalInstance): void;
+	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void;
+	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void;
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;
@@ -1040,6 +1042,21 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Update the parent context key service to use for this terminal instance.
 	 */
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
+
+	/**
+	 * Handles a mouse event for the terminal, this may happen on an anscestor of the terminal
+	 * instance's element.
+	 * @param event The mouse event.
+	 * @param contextMenu The context menu to show if needed.
+	 * @returns Whether the context menu should be suppressed.
+	 */
+	handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void>;
+
+	/**
+	 * Pause input events until the provided barrier is resolved.
+	 * @param barrier The barrier to wait for until input events can continue.
+	 */
+	pauseInputEvents(barrier: Barrier): void;
 }
 
 export const enum XtermTerminalConstants {

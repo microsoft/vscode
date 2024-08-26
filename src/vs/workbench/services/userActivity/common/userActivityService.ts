@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
+import { disposableTimeout, RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { userActivityRegistry } from 'vs/workbench/services/userActivity/common/userActivityRegistry';
+
+export interface IMarkActiveOptions {
+	whenHeldFor?: number;
+}
 
 /**
  * Service that observes user activity in the window.
@@ -31,8 +35,10 @@ export interface IUserActivityService {
 	 * Multiple consumers call this method; the user will only be considered
 	 * inactive once all consumers have disposed of their Disposables.
 	 */
-	markActive(): IDisposable;
+	markActive(opts?: IMarkActiveOptions): IDisposable;
 }
+
+const MARK_INACTIVE_DEBOUNCE = 10_000;
 
 export const IUserActivityService = createDecorator<IUserActivityService>('IUserActivityService');
 
@@ -41,7 +47,7 @@ export class UserActivityService extends Disposable implements IUserActivityServ
 	private readonly markInactive = this._register(new RunOnceScheduler(() => {
 		this.isActive = false;
 		this.changeEmitter.fire(false);
-	}, 10_000));
+	}, MARK_INACTIVE_DEBOUNCE));
 
 	private readonly changeEmitter = this._register(new Emitter<boolean>);
 	private active = 0;
@@ -64,7 +70,13 @@ export class UserActivityService extends Disposable implements IUserActivityServ
 	}
 
 	/** @inheritdoc */
-	markActive(): IDisposable {
+	markActive(opts?: IMarkActiveOptions): IDisposable {
+		if (opts?.whenHeldFor) {
+			const store = new DisposableStore();
+			store.add(disposableTimeout(() => store.add(this.markActive()), opts.whenHeldFor));
+			return store;
+		}
+
 		if (++this.active === 1) {
 			this.isActive = true;
 			this.changeEmitter.fire(true);

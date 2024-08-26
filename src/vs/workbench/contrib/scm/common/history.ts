@@ -21,7 +21,10 @@ export interface ISCMHistoryProviderMenus {
 export interface ISCMHistoryProvider {
 	readonly currentHistoryItemGroupId: IObservable<string | undefined>;
 	readonly currentHistoryItemGroupName: IObservable<string | undefined>;
+	readonly currentHistoryItemGroupRevision: IObservable<string | undefined>;
 	readonly currentHistoryItemGroup: IObservable<ISCMHistoryItemGroup | undefined>;
+	readonly currentHistoryItemGroupRemoteId: IObservable<string | undefined>;
+	readonly currentHistoryItemGroupRemoteRevision: IObservable<string | undefined>;
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
@@ -31,16 +34,9 @@ export interface ISCMHistoryProvider {
 	resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined>;
 }
 
-export interface ISCMHistoryProviderCacheEntry {
-	readonly incomingHistoryItemGroup: SCMHistoryItemGroupTreeElement | undefined;
-	readonly outgoingHistoryItemGroup: SCMHistoryItemGroupTreeElement | undefined;
-	readonly historyItems: Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>;
-	readonly historyItems2: Map<string, ISCMHistoryItem[]>;
-	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
-}
-
 export interface ISCMHistoryOptions {
 	readonly cursor?: string;
+	readonly skip?: number;
 	readonly limit?: number | { id?: string };
 	readonly historyItemGroupIds?: readonly string[];
 }
@@ -103,6 +99,12 @@ export interface SCMHistoryItemViewModelTreeElement {
 	readonly repository: ISCMRepository;
 	readonly historyItemViewModel: ISCMHistoryItemViewModel;
 	readonly type: 'historyItem2';
+}
+
+export interface SCMHistoryItemLoadMoreTreeElement {
+	readonly repository: ISCMRepository;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
+	readonly type: 'historyItemLoadMore';
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {

@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ISettableObservable, observableValue, transaction } from 'vs/base/common/observable';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
@@ -50,8 +50,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			getTestsRelatedToCode: (uri, position, token) => this.proxy.$getTestsRelatedToCode(uri, position, token),
 		}));
 
-		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
-			this.proxy.$cancelExtensionTestRun(runId);
+		this._register(this.testService.onDidCancelTestRun(({ runId, taskId }) => {
+			this.proxy.$cancelExtensionTestRun(runId, taskId);
 		}));
 
 		this._register(Event.debounce(testProfiles.onDidChange, (_last, e) => e)(() => {
@@ -310,9 +310,27 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			diff.map(d => TestsDiffOp.deserialize(this.uriIdentityService, d)));
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	public async $runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string> {
 		const result = await this.testService.runResolvedTests(req, token);
 		return result.id;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public async $getCoverageDetails(resultId: string, taskIndex: number, uri: UriComponents, token: CancellationToken): Promise<CoverageDetails.Serialized[]> {
+		const details = await this.resultService.getResult(resultId)
+			?.tasks[taskIndex]
+			?.coverage.get()
+			?.getUri(URI.from(uri))
+			?.details(token);
+
+		// Return empty if nothing. Some failure is always possible here because
+		// results might be cleared in the meantime.
+		return details || [];
 	}
 
 	public override dispose() {

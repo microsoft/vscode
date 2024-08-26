@@ -29,6 +29,10 @@ export interface ISimpleCompletion {
 	 * Whether the completion is a directory.
 	 */
 	isDirectory?: boolean;
+	/**
+	 * Whether the completion is a keyword.
+	 */
+	isKeyword?: boolean;
 }
 
 export class SimpleCompletionItem {

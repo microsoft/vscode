@@ -14,9 +14,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { DeletedElement, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, ModifiedElement } from 'vs/workbench/contrib/notebook/browser/diff/diffComponents';
+import { DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { CellDiffPlaceholderRenderTemplate, CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { CellDiffPlaceholderElement, CollapsedCellOverlayWidget, DeletedElement, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, ModifiedElement, UnchangedCellOverlayWidget } from 'vs/workbench/contrib/notebook/browser/diff/diffComponents';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -30,8 +30,9 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { localize } from 'vs/nls';
 
-export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
+export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<IDiffElementViewModelBase> {
 	private readonly lineHeight: number;
 
 	constructor(
@@ -42,15 +43,15 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Di
 		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
 	}
 
-	getHeight(element: DiffElementViewModelBase): number {
+	getHeight(element: IDiffElementViewModelBase): number {
 		return element.getHeight(this.lineHeight);
 	}
 
-	hasDynamicHeight(element: DiffElementViewModelBase): boolean {
+	hasDynamicHeight(element: IDiffElementViewModelBase): boolean {
 		return false;
 	}
 
-	getTemplateId(element: DiffElementViewModelBase): string {
+	getTemplateId(element: IDiffElementViewModelBase): string {
 		switch (element.type) {
 			case 'delete':
 			case 'insert':
@@ -58,10 +59,56 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Di
 			case 'modified':
 			case 'unchanged':
 				return CellDiffSideBySideRenderer.TEMPLATE_ID;
+			case 'placeholder':
+				return CellDiffPlaceholderRenderer.TEMPLATE_ID;
 		}
-
 	}
 }
+
+export class CellDiffPlaceholderRenderer implements IListRenderer<DiffElementPlaceholderViewModel, CellDiffPlaceholderRenderTemplate> {
+	static readonly TEMPLATE_ID = 'cell_diff_placeholder';
+
+	constructor(
+		readonly notebookEditor: INotebookTextDiffEditor,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService
+	) { }
+
+	get templateId() {
+		return CellDiffPlaceholderRenderer.TEMPLATE_ID;
+	}
+
+	renderTemplate(container: HTMLElement): CellDiffPlaceholderRenderTemplate {
+		const body = DOM.$('.cell-placeholder-body');
+		DOM.append(container, body);
+
+		const elementDisposables = new DisposableStore();
+		const marginOverlay = new CollapsedCellOverlayWidget(body);
+		const contents = DOM.append(body, DOM.$('.contents'));
+		const placeholder = DOM.append(contents, DOM.$('span.text', { title: localize('notebook.diff.hiddenCells.expandAll', 'Double click to show') }));
+
+		return {
+			body,
+			container,
+			placeholder,
+			marginOverlay,
+			elementDisposables
+		};
+	}
+
+	renderElement(element: DiffElementPlaceholderViewModel, index: number, templateData: CellDiffPlaceholderRenderTemplate, height: number | undefined): void {
+		templateData.body.classList.remove('left', 'right', 'full');
+		templateData.elementDisposables.add(this.instantiationService.createInstance(CellDiffPlaceholderElement, element, templateData));
+	}
+
+	disposeTemplate(templateData: CellDiffPlaceholderRenderTemplate): void {
+		templateData.container.innerText = '';
+	}
+
+	disposeElement(element: DiffElementPlaceholderViewModel, index: number, templateData: CellDiffPlaceholderRenderTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+}
+
 export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffElementViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate> {
 	static readonly TEMPLATE_ID = 'cell_diff_single';
 
@@ -82,8 +129,9 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 
 		const diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
 
+		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.input-header-container'));
 		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
-		const editor = this._buildSourceEditor(sourceContainer);
+		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
 
 		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
 		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
@@ -100,8 +148,10 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 		return {
 			body,
 			container,
+			editorContainer,
 			diffEditorContainer,
 			diagonalFill,
+			cellHeaderContainer,
 			sourceEditor: editor,
 			metadataHeaderContainer,
 			metadataInfoContainer,
@@ -120,6 +170,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...fixedEditorOptions,
+			glyphMargin: false,
 			dimension: {
 				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: 0
@@ -128,7 +179,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
 
-		return editor;
+		return { editor, editorContainer };
 	}
 
 	renderElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
@@ -183,6 +234,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
 		DOM.append(body, diffEditorContainer);
 
+		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.input-header-container'));
 		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
 		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
 
@@ -196,7 +248,8 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 				}
 
 				return undefined;
-			}
+			},
+			highlightToggledItems: true
 		});
 
 		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
@@ -210,12 +263,14 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
 		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
 		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
-
+		const marginOverlay = new UnchangedCellOverlayWidget(body);
+		const elementDisposables = new DisposableStore();
 
 		return {
 			body,
 			container,
 			diffEditorContainer,
+			cellHeaderContainer,
 			sourceEditor: editor,
 			editorContainer,
 			inputToolbarContainer,
@@ -228,7 +283,8 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 			rightBorder,
 			topBorder,
 			bottomBorder,
-			elementDisposables: new DisposableStore()
+			marginOverlay,
+			elementDisposables
 		};
 	}
 
@@ -237,10 +293,6 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 
 		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
 			...fixedDiffEditorOptions,
-			padding: {
-				top: 24,
-				bottom: 12
-			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			originalEditable: false,
 			ignoreTrimWhitespace: false,
@@ -303,7 +355,7 @@ export class NotebookMouseController<T> extends MouseController<T> {
 	}
 }
 
-export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase> implements IDisposable, IStyleController {
+export class NotebookTextDiffList extends WorkbenchList<IDiffElementViewModelBase> implements IDisposable, IStyleController {
 	private styleElement?: HTMLStyleElement;
 
 	get rowsContainer(): HTMLElement {
@@ -313,21 +365,21 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 	constructor(
 		listUser: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<DiffElementViewModelBase>,
-		renderers: IListRenderer<DiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
+		delegate: IListVirtualDelegate<IDiffElementViewModelBase>,
+		renderers: IListRenderer<IDiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate | CellDiffPlaceholderRenderTemplate>[],
 		contextKeyService: IContextKeyService,
-		options: IWorkbenchListOptions<DiffElementViewModelBase>,
+		options: IWorkbenchListOptions<IDiffElementViewModelBase>,
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 	}
 
-	protected override createMouseController(options: IListOptions<DiffElementViewModelBase>): MouseController<DiffElementViewModelBase> {
+	protected override createMouseController(options: IListOptions<IDiffElementViewModelBase>): MouseController<IDiffElementViewModelBase> {
 		return new NotebookMouseController(this);
 	}
 
-	getCellViewScrollTop(element: DiffElementViewModelBase): number {
+	getCellViewScrollTop(element: IDiffElementViewModelBase): number {
 		const index = this.indexOf(element);
 		// if (index === undefined || index < 0 || index >= this.length) {
 		// 	this._getViewIndexUpperBound(element);
@@ -354,7 +406,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 	}
 
 
-	updateElementHeight2(element: DiffElementViewModelBase, size: number) {
+	updateElementHeight2(element: IDiffElementViewModelBase, size: number) {
 		const viewIndex = this.indexOf(element);
 		const focused = this.getFocus();
 

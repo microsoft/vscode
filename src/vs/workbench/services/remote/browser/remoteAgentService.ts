@@ -27,7 +27,7 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService,
-		@ILogService logService: ILogService,
+		@ILogService logService: ILogService
 	) {
 		super(remoteSocketFactoryService, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}

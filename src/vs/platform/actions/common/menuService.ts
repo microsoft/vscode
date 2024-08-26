@@ -166,6 +166,7 @@ type MenuItemGroup = [string, Array<IMenuItem | ISubmenuItem>];
 
 class MenuInfoSnapshot {
 	protected _menuGroups: MenuItemGroup[] = [];
+	private _allMenuIds: Set<MenuId> = new Set();
 	private _structureContextKeys: Set<string> = new Set();
 	private _preconditionContextKeys: Set<string> = new Set();
 	private _toggledContextKeys: Set<string> = new Set();
@@ -175,6 +176,10 @@ class MenuInfoSnapshot {
 		protected readonly _collectContextKeysForSubmenus: boolean,
 	) {
 		this.refresh();
+	}
+
+	get allMenuIds(): ReadonlySet<MenuId> {
+		return this._allMenuIds;
 	}
 
 	get structureContextKeys(): ReadonlySet<string> {
@@ -193,6 +198,7 @@ class MenuInfoSnapshot {
 
 		// reset
 		this._menuGroups.length = 0;
+		this._allMenuIds.clear();
 		this._structureContextKeys.clear();
 		this._preconditionContextKeys.clear();
 		this._toggledContextKeys.clear();
@@ -209,9 +215,10 @@ class MenuInfoSnapshot {
 			}
 			group[1].push(item);
 
-			// keep keys for eventing
-			this._collectContextKeys(item);
+			// keep keys and submenu ids for eventing
+			this._collectContextKeysAndSubmenuIds(item);
 		}
+		this._allMenuIds.add(this._id);
 	}
 
 	protected _sort(menuItems: (IMenuItem | ISubmenuItem)[]) {
@@ -219,7 +226,7 @@ class MenuInfoSnapshot {
 		return menuItems;
 	}
 
-	private _collectContextKeys(item: IMenuItem | ISubmenuItem): void {
+	private _collectContextKeysAndSubmenuIds(item: IMenuItem | ISubmenuItem): void {
 
 		MenuInfoSnapshot._fillInKbExprKeys(item.when, this._structureContextKeys);
 
@@ -237,7 +244,9 @@ class MenuInfoSnapshot {
 		} else if (this._collectContextKeysForSubmenus) {
 			// recursively collect context keys from submenus so that this
 			// menu fires events when context key changes affect submenus
-			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeys, this);
+			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeysAndSubmenuIds, this);
+
+			this._allMenuIds.add(item.submenu);
 		}
 	}
 
@@ -383,8 +392,11 @@ class MenuImpl implements IMenu {
 		}, options.eventDebounceDelay);
 		this._disposables.add(rebuildMenuSoon);
 		this._disposables.add(MenuRegistry.onDidChangeMenu(e => {
-			if (e.has(id)) {
-				rebuildMenuSoon.schedule();
+			for (const id of this._menuInfo.allMenuIds) {
+				if (e.has(id)) {
+					rebuildMenuSoon.schedule();
+					break;
+				}
 			}
 		}));
 

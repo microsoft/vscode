@@ -13,32 +13,17 @@
  * @typedef {any} LoaderConfig
  */
 
-/* eslint-disable no-restricted-globals,  */
+/* eslint-disable no-restricted-globals */
 
-// ESM-comment-begin
-const isESM = false;
-// ESM-comment-end
-// ESM-uncomment-begin
-// const isESM = true;
-// ESM-uncomment-end
-
-// Simple module style to support node.js and browser environments
 (function (factory) {
-
-	// Node.js
-	if (typeof exports === 'object') {
-		module.exports = factory();
-	}
-
-	// Browser
-	else {
-		// @ts-ignore
-		globalThis.MonacoBootstrapWindow = factory();
-	}
+	// @ts-ignore
+	globalThis.MonacoBootstrapWindow = factory();
 }(function () {
-	const bootstrapLib = bootstrap();
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
+
+	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+	Error.stackTraceLimit = 100;
 
 	/**
 	 * @param {string[]} modulePaths
@@ -90,7 +75,6 @@ const isESM = false;
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// VSCODE_GLOBALS: NLS
 		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
 		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
 		let language = configuration.nls.language || 'en';
@@ -104,132 +88,132 @@ const isESM = false;
 
 		window['MonacoEnvironment'] = {};
 
-		if (isESM) {
+		// ESM-uncomment-begin
+		// // Signal before require()
+		// if (typeof options?.beforeRequire === 'function') {
+		// 	options.beforeRequire(configuration);
+		// }
 
-			// Signal before require()
-			if (typeof options?.beforeRequire === 'function') {
-				options.beforeRequire(configuration);
-			}
+		// const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
+		// globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
 
-			const fileRoot = `${configuration.appRoot}/out`;
-			globalThis._VSCODE_FILE_ROOT = fileRoot;
+		// // DEV ---------------------------------------------------------------------------------------
+		// // DEV: This is for development and enables loading CSS via import-statements via import-maps.
+		// // DEV: For each CSS modules that we have we defined an entry in the import map that maps to
+		// // DEV: a blob URL that loads the CSS via a dynamic @import-rule.
+		// // DEV ---------------------------------------------------------------------------------------
+		// if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
+		// 	performance.mark('code/willAddCssLoader');
 
-			// DEV ---------------------------------------------------------------------------------------
-			// DEV: This is for development and enables loading CSS via import-statements via import-maps.
-			// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
-			// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
-			// DEV ---------------------------------------------------------------------------------------
-			if (configuration.cssModules) {
-				performance.mark('code/willAddCssLoader');
+		// 	const style = document.createElement('style');
+		// 	style.type = 'text/css';
+		// 	style.media = 'screen';
+		// 	style.id = 'vscode-css-loading';
+		// 	document.head.appendChild(style);
 
-				const style = document.createElement('style');
-				style.type = 'text/css';
-				style.media = 'screen';
-				style.id = 'vscode-css-loading';
-				document.head.appendChild(style);
+		// 	globalThis._VSCODE_CSS_LOAD = function (url) {
+		// 		style.textContent += `@import url(${url});\n`;
+		// 	};
 
-				globalThis._VSCODE_CSS_LOAD = function (url) {
-					style.textContent += `@import url(${url});\n`;
-				};
+		// 	/**
+		// 	 * @type { { imports: Record<string, string> }}
+		// 	 */
+		// 	const importMap = { imports: {} };
+		// 	for (const cssModule of configuration.cssModules) {
+		// 		const cssUrl = new URL(cssModule, baseUrl).href;
+		// 		const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+		// 		const blob = new Blob([jsSrc], { type: 'application/javascript' });
+		// 		importMap.imports[cssUrl] = URL.createObjectURL(blob);
+		// 	}
 
-				const baseUrl = new URL(`vscode-file://vscode-app${fileRoot}/`);
-				/**
-				 * @type { { imports: Record<string, string> }}
-				 */
-				const importMap = { imports: {} };
-				for (const cssModule of configuration.cssModules) {
-					const cssUrl = new URL(cssModule, baseUrl).href;
-					const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
-					const blob = new Blob([jsSrc], { type: 'application/javascript' });
-					importMap.imports[cssUrl] = URL.createObjectURL(blob);
+		// 	const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
+		// 	const importMapSrc = JSON.stringify(importMap, undefined, 2);
+		// 	const importMapScript = document.createElement('script');
+		// 	importMapScript.type = 'importmap';
+		// 	importMapScript.setAttribute('nonce', '0c6a828f1297');
+		// 	// @ts-ignore
+		// 	importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
+		// 	document.head.appendChild(importMapScript);
+
+		// 	performance.mark('code/didAddCssLoader');
+		// }
+
+		// const result = Promise.all(modulePaths.map(modulePath => {
+		// 	if (modulePath.includes('vs/css!')) {
+		// 		// ESM/CSS when seeing the old `vs/css!` prefix we use that as a signal to
+		// 		// load CSS via a <link> tag
+		// 		const cssModule = modulePath.replace('vs/css!', '');
+		// 		const link = document.createElement('link');
+		// 		link.rel = 'stylesheet';
+		// 		link.href = new URL(`${cssModule}.css`, baseUrl).href;
+		// 		document.head.appendChild(link);
+		// 		return Promise.resolve();
+
+		// 	} else {
+		// 		// ESM/JS module loading
+		// 		return import(new URL(`${modulePath}.js`, baseUrl).href);
+		// 	}
+		// }));
+
+		// result.then((res) => invokeResult(res[0]), onUnexpectedError);
+		// ESM-uncomment-end
+
+		// ESM-comment-begin
+		/** @type {LoaderConfig} */
+		const loaderConfig = {
+			baseUrl: `${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
+			preferScriptTags: true
+		};
+
+		// use a trusted types policy when loading via script tags
+		loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+			createScriptURL(value) {
+				if (value.startsWith(window.location.origin)) {
+					return value;
 				}
-
-				const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
-				const importMapSrc = JSON.stringify(importMap, undefined, 2);
-				const importMapScript = document.createElement('script');
-				importMapScript.type = 'importmap';
-				importMapScript.setAttribute('nonce', '0c6a828f1297');
-				// @ts-ignore
-				importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
-				document.head.appendChild(importMapScript);
-
-				performance.mark('code/didAddCssLoader');
+				throw new Error(`Invalid script url: ${value}`);
 			}
+		});
 
-			const result = Promise.all(modulePaths.map(modulePath => {
-				if (modulePath.includes('vs/css!')) {
-					// ESM/CSS when seeing the old `vs/css!` prefix we use that as a signal to
-					// load CSS via a <link> tag
-					const cssModule = modulePath.replace('vs/css!', '');
-					const link = document.createElement('link');
-					link.rel = 'stylesheet';
-					link.href = `${configuration.appRoot}/out/${cssModule}.css`;
-					document.head.appendChild(link);
-					return Promise.resolve();
+		// Teach the loader the location of the node modules we use in renderers
+		// This will enable to load these modules via <script> tags instead of
+		// using a fallback such as node.js require which does not exist in sandbox
+		const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
+		loaderConfig.paths = {
+			'@vscode/tree-sitter-wasm': `${baseNodeModulesPath}/@vscode/tree-sitter-wasm/wasm/tree-sitter.js`,
+			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
+			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
+			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
+			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
+			'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
+			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
+			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
+			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
+			'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
+			'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
+			'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
+			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
+			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
+			'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
+			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
+		};
 
-				} else {
-					// ESM/JS module loading
-					return import(`${configuration.appRoot}/out/${modulePath}.js`);
-				}
-			}));
-
-			result.then((res) => invokeResult(res[0]), onUnexpectedError);
-		} else {
-
-			/** @type {LoaderConfig} */
-			const loaderConfig = {
-				baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-				preferScriptTags: true
-			};
-
-			// use a trusted types policy when loading via script tags
-			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if (value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`);
-				}
-			});
-
-			// Teach the loader the location of the node modules we use in renderers
-			// This will enable to load these modules via <script> tags instead of
-			// using a fallback such as node.js require which does not exist in sandbox
-			const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
-			loaderConfig.paths = {
-				'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
-				'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-				'vsda': `${baseNodeModulesPath}/vsda/index.js`,
-				'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
-				'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
-				'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
-				'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
-				'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
-				'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
-				'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
-				'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
-				'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
-				'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-				'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
-				'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
-			};
-
-			// Signal before require.config()
-			if (typeof options?.beforeLoaderConfig === 'function') {
-				options.beforeLoaderConfig(loaderConfig);
-			}
-
-			// Configure loader
-			require.config(loaderConfig);
-
-			// Signal before require()
-			if (typeof options?.beforeRequire === 'function') {
-				options.beforeRequire(configuration);
-			}
-
-			// Actually require the main module as specified
-			require(modulePaths, invokeResult, onUnexpectedError);
+		// Signal before require.config()
+		if (typeof options?.beforeLoaderConfig === 'function') {
+			options.beforeLoaderConfig(loaderConfig);
 		}
+
+		// Configure loader
+		require.config(loaderConfig);
+
+		// Signal before require()
+		if (typeof options?.beforeRequire === 'function') {
+			options.beforeRequire(configuration);
+		}
+
+		// Actually require the main module as specified
+		require(modulePaths, invokeResult, onUnexpectedError);
+		// ESM-comment-end
 
 		/**
 		 * @param {any} firstModule
@@ -316,11 +300,35 @@ const isESM = false;
 	}
 
 	/**
-	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 * @param {string} path
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
+	 * @returns {string}
 	 */
-	function bootstrap() {
-		// @ts-ignore (defined in bootstrap.js)
-		return window.MonacoBootstrap;
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backslash
+		// to slashes and we ensure that the path begins with a '/'.
+		let pathName = path.replace(/\\/g, '/');
+		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+			pathName = `/${pathName}`;
+		}
+
+		/** @type {string} */
+		let uri;
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		}
+
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
+		}
+
+		return uri.replace(/#/g, '%23');
 	}
 
 	/**

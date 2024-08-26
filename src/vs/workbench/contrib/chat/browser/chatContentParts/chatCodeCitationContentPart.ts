@@ -48,7 +48,7 @@ export class ChatCodeCitationContentPart extends Disposable implements IChatCont
 		}));
 		button.label = localize('viewMatches', "View matches");
 		this._register(button.onDidClick(() => {
-			const citationText = `# Code Citations\n\n` + citations.citations.map(c => `## [${c.license}]\n${c.value.toString()}\n\n\`\`\`\n${c.snippet}\n\`\`\`\n\n`).join('\n');
+			const citationText = `# Code Citations\n\n` + citations.citations.map(c => `## License: ${c.license}\n${c.value.toString()}\n\n\`\`\`\n${c.snippet}\n\`\`\`\n\n`).join('\n');
 			this.editorService.openEditor({ resource: undefined, contents: citationText, languageId: 'markdown' });
 			this.telemetryService.publicLog2<{}, ChatCodeCitationOpenedClassification>('openedChatCodeCitations');
 		}));
