@@ -17,7 +17,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DebugEditContext } from 'vs/editor/browser/controller/editContext/native/debugEditContext';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -27,13 +27,19 @@ import * as browser from 'vs/base/browser/browser';
 // Boolean which controls whether we should show the control, selection and character bounds
 const showControlBounds = true;
 
+interface EditContextState {
+	value: string;
+	selectionStartIndex: number;
+	selectionEndIndex: number;
+	rangeOfContent: Range;
+}
+
 export class NativeEditContext extends Disposable {
 
 	// Edit Context API
 	private readonly _editContext: EditContext;
 
 	private _parent: HTMLElement | undefined;
-	private _selectionOfEditContextText: Range | undefined;
 
 	// Composition
 	private _compositionRange: Range | undefined;
@@ -48,18 +54,8 @@ export class NativeEditContext extends Disposable {
 	// Decorations
 	private _decorations: string[] = [];
 
-	private _previousState: {
-		value: string;
-		selectionStart: number;
-		selectionEnd: number;
-		selectionOfContent: Selection;
-	} | undefined;
-	private _currentState: {
-		value: string;
-		selectionStart: number;
-		selectionEnd: number;
-		selectionOfContent: Selection;
-	} | undefined;
+	private _previousEditContextState: EditContextState | undefined;
+	private _currentEditContextState: EditContextState | undefined;
 
 	private _rangeStartOfCharacterBounds: number = 0;
 
@@ -133,12 +129,18 @@ export class NativeEditContext extends Disposable {
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', e => {
 			const position = this._context.viewModel.getCursorStates()[0].viewState.position;
 			this._compositionRange = Range.fromPositions(position, position);
+			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
+			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionStart();
+			// Emits ViewCompositionStartEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', e => {
 			this._compositionRange = undefined;
+			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
+			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionEnd();
+			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', e => {
@@ -155,11 +157,9 @@ export class NativeEditContext extends Disposable {
 	}
 
 	private _emitAddNewLineEvent(): void {
-
 		const textBeforeSelection = this._editContext.text.substring(0, this._editContext.selectionStart);
 		const textAfterSelection = this._editContext.text.substring(this._editContext.selectionEnd);
 		const textAfterAddingNewLine = textBeforeSelection + '\n' + textAfterSelection;
-
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, textAfterAddingNewLine);
 		this._onType({
 			text: '\n',
@@ -170,46 +170,38 @@ export class NativeEditContext extends Disposable {
 	}
 
 	private _emitTypeEvent(e: { text: string; updateRangeStart: number; updateRangeEnd: number }) {
-
-		if (!this._previousState) {
+		if (!this._previousEditContextState) {
 			return;
 		}
-
-		const previousSelectionStart = this._previousState.selectionStart;
-		const previousSelectionEnd = this._previousState.selectionEnd;
-
+		const previousSelectionStart = this._previousEditContextState.selectionStartIndex;
+		const previousSelectionEnd = this._previousEditContextState.selectionEndIndex;
 		let replacePrevCharCnt = 0;
 		if (e.updateRangeStart < previousSelectionStart) {
 			replacePrevCharCnt = previousSelectionStart - e.updateRangeStart;
 		}
-
 		let replaceNextCharCnt = 0;
 		if (e.updateRangeEnd > previousSelectionEnd) {
 			replaceNextCharCnt = e.updateRangeEnd - previousSelectionEnd;
 		}
-
 		const typeInput: ITypeData = {
 			text: e.text,
 			replacePrevCharCnt,
 			replaceNextCharCnt,
 			positionDelta: 0,
 		};
-
 		this._onType(typeInput);
 	}
 
-	public _updateEditContext(): void {
-
-		if (this._previousState) {
-			this._previousState = this._currentState;
+	public updateEditContext(): void {
+		if (this._previousEditContextState) {
+			this._previousEditContextState = this._currentEditContextState;
 		}
-		this._currentState = this._getEditContextState();
-		if (!this._previousState) {
-			this._previousState = this._currentState;
+		this._currentEditContextState = this._getEditContextState();
+		if (!this._previousEditContextState) {
+			this._previousEditContextState = this._currentEditContextState;
 		}
-		this._selectionOfEditContextText = this._currentState.selectionOfContent;
-		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._currentState.value);
-		this._editContext.updateSelection(this._currentState.selectionStart, this._currentState.selectionEnd);
+		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._currentEditContextState.value);
+		this._editContext.updateSelection(this._currentEditContextState.selectionStartIndex, this._currentEditContextState.selectionEndIndex);
 	}
 
 	public setRenderingContext(renderingContext: RenderingContext): void {
@@ -224,8 +216,8 @@ export class NativeEditContext extends Disposable {
 	}
 
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._modelSelections = e.modelSelections.slice(0);
-		this._updateEditContext();
+		this._modelSelections = e.modelSelections;
+		this.updateEditContext();
 		this._updateBounds();
 		return true;
 	}
@@ -247,100 +239,64 @@ export class NativeEditContext extends Disposable {
 		}
 	}
 
-	public _getEditContextState(): {
-		value: string;
-		selectionStart: number;
-		selectionEnd: number;
-		selectionOfContent: Selection;
-	} {
-
-		const cursorState = this._context.viewModel.getPrimaryCursorState().modelState;
-		const cursorSelection = cursorState.selection;
-
-		let value = '';
-		let selectionStart: number = 0;
-		let selectionEnd: number = 0;
-		for (let i = cursorSelection.startLineNumber; i <= cursorSelection.endLineNumber; i++) {
-			value += this._context.viewModel.getLineContent(i);
-			if (i === cursorSelection.startLineNumber) {
-				selectionStart = cursorSelection.startColumn - 1;
-			}
-			if (i === cursorSelection.endLineNumber) {
-				selectionEnd += cursorSelection.endColumn - 1;
+	private _getEditContextState(): EditContextState {
+		const selection = this._context.viewModel.getPrimaryCursorState().modelState.selection;
+		const selectionStartIndex = selection.startColumn - 1;
+		let selectionEndIndex: number = 0;
+		for (let i = selection.startLineNumber; i <= selection.endLineNumber; i++) {
+			if (i === selection.endLineNumber) {
+				selectionEndIndex += selection.endColumn - 1;
 			} else {
-				selectionEnd += this._context.viewModel.getLineMaxColumn(i) - 1;
+				selectionEndIndex += this._context.viewModel.getLineMaxColumn(i);
 			}
 		}
-		const selectionOfContent = new Selection(
-			cursorSelection.startLineNumber,
+		const rangeOfContent = new Range(
+			selection.startLineNumber,
 			1,
-			cursorSelection.endLineNumber,
-			this._context.viewModel.getLineMaxColumn(cursorSelection.endLineNumber)
+			selection.endLineNumber,
+			this._context.viewModel.getLineMaxColumn(selection.endLineNumber)
 		);
-		return {
+		const value = this._context.viewModel.getValueInRange(rangeOfContent, EndOfLinePreference.TextDefined);
+		const editContextState: EditContextState = {
 			value,
-			selectionStart,
-			selectionEnd,
-			selectionOfContent
+			selectionStartIndex,
+			selectionEndIndex,
+			rangeOfContent
 		};
-	}
-
-	private _updateCharacterBounds(rangeStart: number) {
-		if (!this._parent || !this._compositionRange) {
-			return;
-		}
-		const options = this._context.configuration.options;
-		const lineHeight = options.get(EditorOption.lineHeight);
-		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
-		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		const parentBounds = this._parent.getBoundingClientRect();
-		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(this._compositionRange.startLineNumber);
-		let left: number = parentBounds.left + contentLeft;
-		let width: number = typicalHalfwidthCharacterWidth / 2;
-
-		if (this._renderingContext) {
-			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(this._compositionRange, true, true) ?? [];
-			if (linesVisibleRanges.length === 0) { return; }
-			const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
-			const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
-			left += minLeft;
-			width = maxLeft - minLeft;
-		}
-		const characterBounds = [new DOMRect(
-			left,
-			parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop(),
-			width,
-			lineHeight,
-		)];
-		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
+		return editContextState;
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
-		const selectionOfEditText = this._selectionOfEditContextText;
-		if (!selectionOfEditText) {
+		if (!this._currentEditContextState) {
 			return;
 		}
 		const formats = e.getTextFormats();
+		const rangeOfContent = this._currentEditContextState.rangeOfContent;
 		const decorations: IModelDeltaDecoration[] = [];
 		formats.forEach(f => {
-			const offsetRange = new OffsetRange(f.rangeStart, f.rangeEnd);
-			const textPositionTransformer = new PositionOffsetTransformer(this._editContext.text);
-			const range = textPositionTransformer.getRange(offsetRange);
-			const startLineNumber = selectionOfEditText.startLineNumber + range.startLineNumber - 1;
-			const endLineNumber = selectionOfEditText.startLineNumber + range.endLineNumber - 1;
-			let startColumn: number;
-			if (startLineNumber === selectionOfEditText.startLineNumber) {
-				startColumn = selectionOfEditText.startColumn + range.startColumn - 1;
+			const editContextPositionTransformer = new PositionOffsetTransformer(this._editContext.text);
+			const offsetRangeWithinEditContext = new OffsetRange(f.rangeStart, f.rangeEnd);
+			const rangeWithinEditContext = editContextPositionTransformer.getRange(offsetRangeWithinEditContext);
+			const startLineNumberWithinEditor = rangeOfContent.startLineNumber + rangeWithinEditContext.startLineNumber - 1;
+			const endLineNumberWithinEditor = rangeOfContent.startLineNumber + rangeWithinEditContext.endLineNumber - 1;
+			let startColumnWithinEditor: number;
+			if (startLineNumberWithinEditor === rangeOfContent.startLineNumber) {
+				startColumnWithinEditor = rangeOfContent.startColumn + rangeWithinEditContext.startColumn - 1;
 			} else {
-				startColumn = range.startColumn;
+				startColumnWithinEditor = rangeWithinEditContext.startColumn;
 			}
-			let endColumn: number;
-			if (endLineNumber === selectionOfEditText.startLineNumber) {
-				endColumn = selectionOfEditText.startColumn + range.endColumn - 1;
+			let endColumnWithinEditor: number;
+			if (endLineNumberWithinEditor === rangeOfContent.startLineNumber) {
+				endColumnWithinEditor = rangeOfContent.startColumn + rangeWithinEditContext.endColumn - 1;
 			} else {
-				endColumn = range.endColumn;
+				endColumnWithinEditor = rangeWithinEditContext.endColumn;
 			}
-			const decorationRange = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			const decorationRange = new Range(
+				startLineNumberWithinEditor,
+				startColumnWithinEditor,
+				endLineNumberWithinEditor,
+				endColumnWithinEditor
+			);
 			const classNames = [
 				'ime',
 				`underline-style-${f.underlineStyle.toLowerCase()}`,
@@ -366,44 +322,75 @@ export class NativeEditContext extends Disposable {
 		if (!this._parent) {
 			return;
 		}
-		const primaryViewState = this._context.viewModel.getCursorStates()[0].viewState;
-		const primarySelection = primaryViewState.selection;
+		const selection = this._context.viewModel.getCursorStates()[0].viewState.selection;
 		const parentBounds = this._parent.getBoundingClientRect();
-		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(primarySelection.startLineNumber);
+		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(selection.startLineNumber);
 		const options = this._context.configuration.options;
 		const lineHeight = options.get(EditorOption.lineHeight);
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 
 		let selectionBounds: DOMRect;
-		let controlBounds: DOMRect;
-		if (primarySelection.isEmpty()) {
-			const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		if (selection.isEmpty()) {
+			const top = parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop();
+			const width = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
 			let left: number = parentBounds.left + contentLeft;
 			if (this._renderingContext) {
-				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(primaryViewState.selection, true, true) ?? [];
-				if (linesVisibleRanges.length === 0) { return; }
-				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
-				left += (minLeft + typicalHalfwidthCharacterWidth / 2);
+				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(selection, true) ?? [];
+				if (linesVisibleRanges.length > 0) {
+					left += Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
+				} else {
+					const characterBounds = this._editContext.characterBounds()[0];
+					if (characterBounds) {
+						left = characterBounds.left;
+					}
+				}
 			}
-			selectionBounds = new DOMRect(
-				left,
-				parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop(),
-				typicalHalfwidthCharacterWidth / 2,
-				lineHeight,
-			);
-			controlBounds = selectionBounds;
+			selectionBounds = new DOMRect(left, top, width, lineHeight);
 		} else {
-			const numberOfLines = primarySelection.endLineNumber - primarySelection.startLineNumber;
+			const numberOfLines = selection.endLineNumber - selection.startLineNumber;
 			selectionBounds = new DOMRect(
 				parentBounds.left + contentLeft,
 				parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop(),
 				parentBounds.width - contentLeft,
 				(numberOfLines + 1) * lineHeight,
 			);
-			controlBounds = selectionBounds;
 		}
+		const controlBounds = selectionBounds;
 		this._editContext.updateControlBounds(controlBounds);
 		this._editContext.updateSelectionBounds(selectionBounds);
+	}
+
+	private _updateCharacterBounds(rangeStart: number) {
+		if (!this._parent || !this._compositionRange) {
+			return;
+		}
+		const options = this._context.configuration.options;
+		const lineHeight = options.get(EditorOption.lineHeight);
+		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
+		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const parentBounds = this._parent.getBoundingClientRect();
+		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(this._compositionRange.startLineNumber);
+		const top = parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop();
+
+		let left: number = parentBounds.left + contentLeft;
+		let width: number = typicalHalfwidthCharacterWidth;
+		if (this._renderingContext) {
+			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(this._compositionRange, true) ?? [];
+			if (linesVisibleRanges.length > 0) {
+				const minLeft = Math.min(...linesVisibleRanges.map(r => Math.min(...r.ranges.map(r => r.left))));
+				const maxLeft = Math.max(...linesVisibleRanges.map(r => Math.max(...r.ranges.map(r => r.left + r.width))));
+				left += minLeft;
+				width = maxLeft - minLeft;
+			} else {
+				const characterBounds = this._editContext.characterBounds()[0];
+				if (characterBounds) {
+					left = characterBounds.left;
+					width = characterBounds.width;
+				}
+			}
+		}
+		const characterBounds = [new DOMRect(left, top, width, lineHeight)];
+		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
 	}
 
 	private _ensureClipboardGetsEditorSelection(): void {

@@ -76,7 +76,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	public writeScreenReaderContent(reason: string): void {
 		this._writeScreenReaderContent();
-		this._nativeEditContext._updateEditContext();
+		this._nativeEditContext.updateEditContext();
 		this._render();
 	}
 
@@ -87,7 +87,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		this._writeScreenReaderContent();
-		this._nativeEditContext._updateEditContext();
+		this._nativeEditContext.updateEditContext();
 		this._render();
 	}
 

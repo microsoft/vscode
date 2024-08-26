@@ -412,8 +412,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		return result;
 	}
 
-	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean, ignoreShouldRender: boolean = false): LineVisibleRanges[] | null {
-		if (!ignoreShouldRender && this.shouldRender()) {
+	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
