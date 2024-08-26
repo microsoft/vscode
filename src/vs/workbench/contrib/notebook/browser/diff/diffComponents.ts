@@ -1825,6 +1825,12 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	override dispose() {
+		// The editor isn't disposed yet, it can be re-used.
+		// However the model can be disposed before the editor & that causes issues.
+		if (this._editor) {
+			this._editor.setModel(null);
+		}
+
 		if (this._editor && this._editorViewStateChanged) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
