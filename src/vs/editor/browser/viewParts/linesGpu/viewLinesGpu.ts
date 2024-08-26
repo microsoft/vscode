@@ -348,29 +348,6 @@ export class ViewLinesGpu extends ViewPart {
 	// subscribe to more events
 
 	public renderText(viewportData: ViewportData): void {
-		// TODO: Remove this simple canvas rendering when webgpu stuff is hooked up
-		// const options = new ViewLineOptions(this._context.configuration, this._context.theme.type);
-
-		// const ctxSimple = this.canvas.getContext('2d')!;
-		// ctxSimple.clearRect(0, 0, this.canvas.width, this.canvas.height);
-		// ctxSimple.strokeStyle = 'black';
-		// const vp = this._context.viewLayout.getCurrentViewport();
-		// const left = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft;
-		// this.canvas.width = vp.width;
-		// this.canvas.height = vp.height;
-		// ctxSimple.font = `${this._context.configuration.options.get(EditorOption.fontSize)}px monospace`;
-
-		// for (let i = viewportData.startLineNumber; i <= viewportData.endLineNumber; i++) {
-		// 	if (!ViewLinesGpu.canRender(options, viewportData, i)) {
-		// 		continue;
-		// 	}
-		// 	const line = viewportData.getViewLineRenderingData(i);
-
-		// 	ctxSimple.strokeText(line.content, left, viewportData.relativeVerticalOffset[i - viewportData.startLineNumber] + viewportData.lineHeight - this._context.viewLayout.getCurrentScrollTop());
-		// }
-
-
-
 		if (this._initialized) {
 			return this._renderText(viewportData);
 		}
