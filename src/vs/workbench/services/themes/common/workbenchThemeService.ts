@@ -147,7 +147,6 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 
-	hasUpdatedDefaultThemes(): boolean;
 	getPreferredColorScheme(): ColorScheme | undefined;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;

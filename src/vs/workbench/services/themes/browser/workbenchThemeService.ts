@@ -143,10 +143,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
 		const colorThemeSetting = this.settings.colorTheme;
-		if (themeData && colorThemeSetting !== themeData.settingsId && this.settings.isDefaultColorTheme()) {
-			this.hasDefaultUpdated = themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_DARK_OLD || themeData.settingsId === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD;
-
-			// the web has different defaults than the desktop, therefore do not restore when the setting is the default theme and the storage doesn't match that.
+		if (themeData && colorThemeSetting !== themeData.settingsId) {
+			// reasons for a settings change
+			// the web has different defaults than the desktop
+			// os has changed mode and we have autodect on
 			themeData = undefined;
 		}
 
@@ -365,10 +365,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				this.restoreColorTheme();
 			}
 		}));
-	}
-
-	public hasUpdatedDefaultThemes(): boolean {
-		return this.hasDefaultUpdated;
 	}
 
 	public getColorTheme(): IWorkbenchColorTheme {
