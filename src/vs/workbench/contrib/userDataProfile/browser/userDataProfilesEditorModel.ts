@@ -909,7 +909,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
-				[primaryActions, [cancelAction, previewProfileAction]],
+				[primaryActions, secondaryActions],
 				[[cancelAction], []],
 			));
 			const updateCreateActionLabel = () => {
