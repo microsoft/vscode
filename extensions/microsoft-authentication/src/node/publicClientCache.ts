@@ -8,7 +8,7 @@ import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { SecretStorage, LogOutputChannel, Disposable, SecretStorageChangeEvent, EventEmitter, Memento, window, ProgressLocation, l10n } from 'vscode';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
-import { Delayer, raceCancellationAndTimeoutError } from '../common/async';
+import { raceCancellationAndTimeoutError } from '../common/async';
 
 export interface IPublicClientApplicationInfo {
 	clientId: string;
@@ -34,7 +34,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	}
 
 	async initialize() {
-		this._logger.debug('Initializing PublicClientApplicationManager');
+		this._logger.debug('[initialize] Initializing PublicClientApplicationManager');
 		const keys = await this._secretStorage.get('publicClientApplications');
 		if (!keys) {
 			this._initialized = true;
@@ -54,13 +54,13 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 			}
 		} catch (e) {
 			// data is corrupted
-			this._logger.error('Error initializing PublicClientApplicationManager:', e);
+			this._logger.error('[initialize] Error initializing PublicClientApplicationManager:', e);
 			await this._secretStorage.delete('publicClientApplications');
 		}
 
 		// TODO: should we do anything for when this fails?
 		await Promise.allSettled(promises);
-		this._logger.debug('PublicClientApplicationManager initialized');
+		this._logger.debug('[initialize] PublicClientApplicationManager initialized');
 		this._initialized = true;
 	}
 
@@ -78,16 +78,16 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		const pcasKey = JSON.stringify({ clientId, authority });
 		let pca = this._pcas.get(pcasKey);
 		if (pca) {
-			this._logger.debug(clientId, authority, 'PublicClientApplicationManager cache hit');
+			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache hit`);
 			return pca;
 		}
 
-		this._logger.debug(clientId, authority, 'PublicClientApplicationManager cache miss, creating new PCA...');
+		this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache miss, creating new PCA...`);
 		pca = new CachedPublicClientApplication(clientId, authority, this._globalMemento, this._secretStorage, this._accountChangeHandler, this._logger);
 		this._pcas.set(pcasKey, pca);
 		await pca.initialize();
 		await this._storePublicClientApplications();
-		this._logger.debug(clientId, authority, 'PublicClientApplicationManager PCA created');
+		this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager PCA created`);
 		return pca;
 	}
 
@@ -103,24 +103,24 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 			return;
 		}
 
-		this._logger.debug('PublicClientApplicationManager secret storage change:', e.key);
+		this._logger.debug(`[handleSecretStorageChange] PublicClientApplicationManager secret storage change: ${e.key}`);
 		const result = await this._secretStorage.get(e.key);
 		const pcasKey = e.key.split(_keyPrefix)[1];
 
 		// If the cache was deleted, or the PCA has zero accounts left, remove the PCA
 		if (!result || this._pcas.get(pcasKey)?.accounts.length === 0) {
-			this._logger.debug('PublicClientApplicationManager removing PCA:', pcasKey);
+			this._logger.debug(`[handleSecretStorageChange] PublicClientApplicationManager removing PCA: ${pcasKey}`);
 			this._pcas.delete(pcasKey);
 			await this._storePublicClientApplications();
-			this._logger.debug('PublicClientApplicationManager PCA removed:', pcasKey);
+			this._logger.debug(`[handleSecretStorageChange] PublicClientApplicationManager PCA removed: ${pcasKey}`);
 			return;
 		}
 
 		// Load the PCA in memory if it's not already loaded
 		const { clientId, authority } = JSON.parse(pcasKey) as IPublicClientApplicationInfo;
-		this._logger.debug('PublicClientApplicationManager loading PCA:', pcasKey);
+		this._logger.debug(`[handleSecretStorageChange] PublicClientApplicationManager loading PCA: ${pcasKey}`);
 		await this.getOrCreate(clientId, authority);
-		this._logger.debug('PublicClientApplicationManager PCA loaded:', pcasKey);
+		this._logger.debug(`[handleSecretStorageChange] PublicClientApplicationManager PCA loaded: ${pcasKey}`);
 	}
 
 	private async _storePublicClientApplications() {
@@ -133,8 +133,6 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 
 class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
-
-	private readonly _refreshDelayer = new DelayerByKey<any>();
 
 	private _accounts: AccountInfo[] = [];
 	private readonly _disposable: Disposable;
@@ -149,6 +147,7 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 		auth: { clientId: this._clientId, authority: this._authority },
 		system: {
 			loggerOptions: {
+				correlationId: `${this._clientId}] [${this._authority}`,
 				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
 			}
 		},
@@ -191,8 +190,8 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	}
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
+		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
 		const result = await this._pca.acquireTokenSilent(request);
-		this._setupRefresh(result);
 		if (result.account && !result.fromCache) {
 			this._accountChangeHandler({ added: [], changed: [result.account], deleted: [] });
 		}
@@ -200,6 +199,7 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	}
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
+		this._logger.debug(`[acquireTokenInteractive] [${this._clientId}] [${this._authority}] [${request.scopes?.join(' ')}] loopbackClientOverride: ${request.loopbackClient ? 'true' : 'false'}`);
 		return await window.withProgress(
 			{
 				location: ProgressLocation.Notification,
@@ -207,11 +207,7 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 				title: l10n.t('Signing in to Microsoft...')
 			},
 			(_process, token) => raceCancellationAndTimeoutError(
-				(async () => {
-					const result = await this._pca.acquireTokenInteractive(request);
-					this._setupRefresh(result);
-					return result;
-				})(),
+				this._pca.acquireTokenInteractive(request),
 				token,
 				1000 * 60 * 5
 			), // 5 minutes
@@ -227,38 +223,20 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 		return this._secretStorageCachePlugin.onDidChange(() => this._update());
 	}
 
-	private _setupRefresh(result: AuthenticationResult) {
-		const on = result.refreshOn || result.expiresOn;
-		if (!result.account || !on) {
-			return;
-		}
-
-		const account = result.account;
-		const scopes = result.scopes;
-		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
-		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
-		this._refreshDelayer.trigger(
-			key,
-			// This may need the redirectUri when we switch to the broker
-			() => this.acquireTokenSilent({ account, scopes, redirectUri: undefined, forceRefresh: true }),
-			timeToRefresh > 0 ? timeToRefresh : 0
-		);
-	}
-
 	private async _update() {
 		const before = this._accounts;
-		this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication update before:', before.length);
+		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update before: ${before.length}`);
 		// Dates are stored as strings in the memento
 		const lastRemovalDate = this._globalMemento.get<string>(`lastRemoval:${this._clientId}:${this._authority}`);
 		if (lastRemovalDate && this._lastCreated && Date.parse(lastRemovalDate) > this._lastCreated.getTime()) {
-			this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication removal detected... recreating PCA...');
+			this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication removal detected... recreating PCA...`);
 			this._pca = new PublicClientApplication(this._config);
 			this._lastCreated = new Date();
 		}
 
 		const after = await this._pca.getAllAccounts();
 		this._accounts = after;
-		this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication update after:', after.length);
+		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update after: ${after.length}`);
 
 		const beforeSet = new Set(before.map(b => b.homeAccountId));
 		const afterSet = new Set(after.map(a => a.homeAccountId));
@@ -267,22 +245,8 @@ class CachedPublicClientApplication implements ICachedPublicClientApplication {
 		const deleted = before.filter(b => !afterSet.has(b.homeAccountId));
 		if (added.length > 0 || deleted.length > 0) {
 			this._accountChangeHandler({ added, changed: [], deleted });
-			this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication accounts changed. added, deleted:', added.length, deleted.length);
+			this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication accounts changed. added: ${added.length}, deleted: ${deleted.length}`);
 		}
-		this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication update complete');
-	}
-}
-
-class DelayerByKey<T> {
-	private _delayers = new Map<string, Delayer<T>>();
-
-	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
-		let delayer = this._delayers.get(key);
-		if (!delayer) {
-			delayer = new Delayer<T>(delay);
-			this._delayers.set(key, delayer);
-		}
-
-		return delayer.trigger(fn, delay);
+		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
 	}
 }
