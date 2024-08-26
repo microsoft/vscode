@@ -277,15 +277,15 @@ export class NativeEditContext extends Disposable {
 		const selection = this._context.viewModel.getCursorStates()[0].viewState.selection;
 		const parentBounds = this._parent.getBoundingClientRect();
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(selection.startLineNumber);
+		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const options = this._context.configuration.options;
 		const lineHeight = options.get(EditorOption.lineHeight);
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 
-		let selectionBounds: DOMRect;
+		let width: number;
+		let height: number;
+		let left = parentBounds.left + contentLeft;
 		if (selection.isEmpty()) {
-			const top = parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop();
-			const width = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
-			let left: number = parentBounds.left + contentLeft;
 			if (this._renderingContext) {
 				const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(selection, true) ?? [];
 				if (linesVisibleRanges.length > 0) {
@@ -297,16 +297,14 @@ export class NativeEditContext extends Disposable {
 					}
 				}
 			}
-			selectionBounds = new DOMRect(left, top, width, lineHeight);
+			width = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
+			height = lineHeight;
 		} else {
-			const numberOfLines = selection.endLineNumber - selection.startLineNumber;
-			selectionBounds = new DOMRect(
-				parentBounds.left + contentLeft,
-				parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop(),
-				parentBounds.width - contentLeft,
-				(numberOfLines + 1) * lineHeight,
-			);
+			width = parentBounds.width - contentLeft;
+			height = (selection.endLineNumber - selection.startLineNumber + 1) * lineHeight;
 		}
+		const top = parentBounds.top + verticalOffsetStart - editorScrollTop;
+		const selectionBounds = new DOMRect(left, top, width, height);
 		const controlBounds = selectionBounds;
 		this._editContext.updateControlBounds(controlBounds);
 		this._editContext.updateSelectionBounds(selectionBounds);
@@ -322,7 +320,8 @@ export class NativeEditContext extends Disposable {
 		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const parentBounds = this._parent.getBoundingClientRect();
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(this._compositionRange.startLineNumber);
-		const top = parentBounds.top + verticalOffsetStart - this._context.viewLayout.getCurrentScrollTop();
+		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const top = parentBounds.top + verticalOffsetStart - editorScrollTop;
 
 		let left: number = parentBounds.left + contentLeft;
 		let width: number = typicalHalfwidthCharacterWidth;
