@@ -230,7 +230,10 @@ export class SuggestModel implements IDisposable {
 				let set = supportsByTriggerCharacter.get(ch);
 				if (!set) {
 					set = new Set();
-					set.add(getSnippetSuggestSupport());
+					const suggestSupport = getSnippetSuggestSupport();
+					if (suggestSupport) {
+						set.add(suggestSupport);
+					}
 					supportsByTriggerCharacter.set(ch, set);
 				}
 				set.add(support);
