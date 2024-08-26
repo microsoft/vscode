@@ -992,7 +992,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				criteria.productVersion)
 			) {
 				if (criteria.compatible && !this.areApiProposalsCompatible(extensionIdentifier, getEnabledApiProposals(rawGalleryExtensionVersion))) {
-					return null;
+					continue;
 				}
 				return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, queryContext);
 			}
