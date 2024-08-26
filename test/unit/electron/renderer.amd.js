@@ -66,7 +66,6 @@ const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
 const util = require('util');
-const bootstrapNode = require('../../../src2/bootstrap-node');
 const coverage = require('../coverage');
 const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 
@@ -109,6 +108,8 @@ function initNls(opts) {
 function initLoader(opts) {
 	const outdir = opts.build ? 'out-build' : 'out';
 	_out = path.join(__dirname, `../../../${outdir}`);
+
+	const bootstrapNode = require(`../../../${outdir}/bootstrap-node`);
 
 	// setup loader
 	loader = require(`${_out}/vs/loader`);
