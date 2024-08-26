@@ -23,7 +23,7 @@ performance.mark('code/fork/start');
 configureCrashReporter();
 
 // Remove global paths from the node module lookup (node.js only)
-bootstrapNode.removeGlobalNodeModuleLookupPaths();
+bootstrapNode.removeGlobalNodeJsModuleLookupPaths();
 
 // Enable ASAR in our forked processes
 bootstrapNode.enableASARSupport();
