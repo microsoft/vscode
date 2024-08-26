@@ -12,6 +12,7 @@
 // import * as os from 'os';
 // import * as path from 'path';
 //
+// /** @type any */
 // const module = { exports: {} };
 // ESM-uncomment-end
 

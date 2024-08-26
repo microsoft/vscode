@@ -499,15 +499,17 @@ flakySuite('FileSearchEngine', () => {
 		const folderQueries: IFolderQuery[] = [
 			{
 				folder: EXAMPLES_FIXTURES,
-				excludePattern: {
-					'**/anotherfile.txt': true
-				}
+				excludePattern: [{
+					pattern: { '**/anotherfile.txt': true }
+				}]
 			},
 			{
 				folder: MORE_FIXTURES,
-				excludePattern: {
-					'**/file.txt': true
-				}
+				excludePattern: [{
+					pattern: {
+						'**/file.txt': true
+					}
+				}]
 			}
 		];
 
@@ -755,7 +757,9 @@ flakySuite('FileWalker', () => {
 		const folderQueries: IFolderQuery[] = [
 			{
 				folder: URI.file(TEST_FIXTURES),
-				excludePattern: { '**/subfolder': true }
+				excludePattern: [{
+					pattern: { '**/subfolder': true }
+				}]
 			}
 		];
 

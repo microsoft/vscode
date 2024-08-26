@@ -1170,6 +1170,10 @@ export class Repository {
 			args.push(`--max-parents=${options.maxParents}`);
 		}
 
+		if (typeof options?.skip === 'number') {
+			args.push(`--skip=${options.skip}`);
+		}
+
 		if (options?.refNames) {
 			args.push('--topo-order');
 			args.push('--decorate=full');

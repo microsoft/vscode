@@ -15,7 +15,7 @@
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
 .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
 	position: absolute;
-	top: -13px;
+	top: -15px;
 	height: 26px;
 	line-height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));

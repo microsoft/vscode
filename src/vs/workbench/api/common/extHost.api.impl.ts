@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -107,7 +106,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExcludeSettingOptions, oldToNewTextSearchResult, TextSearchCompleteMessageType, TextSearchCompleteMessageTypeNew, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
 
 export interface IExtensionRegistries {
@@ -966,18 +965,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			findFiles2New: (filePattern: vscode.GlobPattern[], options?: vscode.FindFiles2OptionsNew, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
 				checkProposedApiEnabled(extension, 'findFiles2New');
-
-				const oldOptions = {
-					exclude: options?.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
-					useDefaultExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
-					useDefaultSearchExcludes: !options?.useExcludeSettings || (options?.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
-					maxResults: options?.maxResults,
-					useIgnoreFiles: options?.useIgnoreFiles?.local,
-					useGlobalIgnoreFiles: options?.useIgnoreFiles?.global,
-					useParentIgnoreFiles: options?.useIgnoreFiles?.parent,
-					followSymlinks: options?.followSymlinks,
-				};
-				return extHostWorkspace.findFiles2(filePattern && filePattern.length > 0 ? filePattern[0] : undefined, oldOptions, extension.identifier, token);
+				return extHostWorkspace.findFiles2New(filePattern, options, extension.identifier, token);
 			},
 			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'findTextInFiles');
@@ -998,56 +986,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			findTextInFilesNew: (query: vscode.TextSearchQueryNew, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
 				checkProposedApiEnabled(extension, 'findTextInFilesNew');
 				checkProposedApiEnabled(extension, 'textSearchProviderNew');
-				let oldOptions = {};
-
-
-				if (options) {
-					oldOptions = {
-						include: options.include && options.include.length > 0 ? options.include[0] : undefined,
-						exclude: options.exclude && options.exclude.length > 0 ? options.exclude[0] : undefined,
-						useDefaultExcludes: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.FilesExclude || options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
-						useSearchExclude: options.useExcludeSettings === undefined || (options.useExcludeSettings === ExcludeSettingOptions.SearchAndFilesExclude),
-						maxResults: options.maxResults,
-						useIgnoreFiles: options.useIgnoreFiles?.local,
-						useGlobalIgnoreFiles: options.useIgnoreFiles?.global,
-						useParentIgnoreFiles: options.useIgnoreFiles?.parent,
-						followSymlinks: options.followSymlinks,
-						encoding: options.encoding,
-						previewOptions: options.previewOptions ? {
-							matchLines: options.previewOptions?.numMatchLines ?? 100,
-							charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
-						} : undefined,
-						beforeContext: options.surroundingContext,
-						afterContext: options.surroundingContext,
-					} satisfies vscode.FindTextInFilesOptions & { useSearchExclude?: boolean };
-				}
-
-				const complete: Promise<undefined | vscode.TextSearchComplete> = Promise.resolve(undefined);
-
-				const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
-					const callback = async (result: vscode.TextSearchResult) => {
-						emitter.emitOne(oldToNewTextSearchResult(result));
-						return result;
-					};
-					await complete.then(e => {
-						return extHostWorkspace.findTextInFiles(
-							query,
-							oldOptions,
-							callback,
-							extension.identifier,
-							token
-						);
-					});
-				});
-
-				return {
-					results: asyncIterable,
-					complete: complete.then((e) => {
-						return {
-							limitHit: e?.limitHit ?? false
-						};
-					}),
-				};
+				return extHostWorkspace.findTextInFilesNew(query, extension.identifier, options || {}, token);
 			},
 			save: (uri) => {
 				return extHostWorkspace.save(uri);
@@ -1186,31 +1125,31 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
 				checkProposedApiEnabled(extension, 'fileSearchProvider');
-				return extHostSearch.registerFileSearchProvider(scheme, provider);
+				return extHostSearch.registerFileSearchProviderOld(scheme, provider);
 			},
 			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider) => {
 				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerTextSearchProvider(scheme, provider);
+				return extHostSearch.registerTextSearchProviderOld(scheme, provider);
 			},
 			registerAITextSearchProvider: (scheme: string, provider: vscode.AITextSearchProvider) => {
 				// there are some dependencies on textSearchProvider, so we need to check for both
 				checkProposedApiEnabled(extension, 'aiTextSearchProvider');
 				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerAITextSearchProvider(scheme, provider);
+				return extHostSearch.registerAITextSearchProviderOld(scheme, provider);
 			},
 			registerFileSearchProviderNew: (scheme: string, provider: vscode.FileSearchProviderNew) => {
 				checkProposedApiEnabled(extension, 'fileSearchProviderNew');
-				return { dispose: () => { } };
+				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			},
 			registerTextSearchProviderNew: (scheme: string, provider: vscode.TextSearchProviderNew) => {
 				checkProposedApiEnabled(extension, 'textSearchProviderNew');
-				return { dispose: () => { } };
+				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			},
 			registerAITextSearchProviderNew: (scheme: string, provider: vscode.AITextSearchProviderNew) => {
 				// there are some dependencies on textSearchProvider, so we need to check for both
 				checkProposedApiEnabled(extension, 'aiTextSearchProviderNew');
 				checkProposedApiEnabled(extension, 'textSearchProviderNew');
-				return { dispose: () => { } };
+				return extHostSearch.registerAITextSearchProvider(scheme, provider);
 			},
 			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
 				checkProposedApiEnabled(extension, 'resolvers');
@@ -1464,8 +1403,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: interactive
 		const interactive: typeof vscode.interactive = {
-			// TODO Can be deleted after another Insiders
-			_version: 1,
 			transferActiveChat(toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChatAgents2.transferActiveChat(toWorkspace);
@@ -1490,10 +1427,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chat
 		const chat: typeof vscode.chat = {
-			// IMPORTANT
-			// this needs to be updated whenever the API proposal changes and breaks backwards compatibility
-			_version: 1,
-
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
@@ -1556,7 +1489,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
 			},
-			invokeTool(toolId: string, parameters: Object, token: vscode.CancellationToken) {
+			invokeTool(toolId: string, parameters: vscode.LanguageModelToolInvocationOptions, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
 			},
@@ -1770,7 +1703,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestMessage2: extHostTypes.TestMessage,
 			TestMessageStackFrame: extHostTypes.TestMessageStackFrame,
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
@@ -1825,6 +1757,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseDetectedParticipantPart: extHostTypes.ChatResponseDetectedParticipantPart,
 			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,
+			ChatResponseMovePart: extHostTypes.ChatResponseMovePart,
 			ChatResponseReferencePartStatusKind: extHostTypes.ChatResponseReferencePartStatusKind,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
@@ -1833,9 +1766,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
-			LanguageModelChatMessageFunctionResultPart: extHostTypes.LanguageModelFunctionResultPart,
+			LanguageModelChatMessageToolResultPart: extHostTypes.LanguageModelToolResultPart,
 			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
-			LanguageModelChatResponseFunctionUsePart: extHostTypes.LanguageModelFunctionUsePart,
+			LanguageModelChatResponseToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
@@ -1845,7 +1778,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExcludeSettingOptions: ExcludeSettingOptions,
 			TextSearchContextNew: TextSearchContextNew,
 			TextSearchMatchNew: TextSearchMatchNew,
-			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageTypeNew,
+			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};
 }

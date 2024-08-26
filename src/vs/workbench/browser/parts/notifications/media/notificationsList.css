@@ -9,7 +9,6 @@
 	color: var(--vscode-notifications-foreground);
 	background: var(--vscode-notifications-background);
 	outline-color: var(--vscode-contrastBorder);
-	border-radius: inherit;
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item {
@@ -19,7 +18,6 @@
 	padding: 10px 5px;
 	height: 100%;
 	box-sizing: border-box;
-	border-radius: 4px;
 }
 
 .monaco-workbench .notifications-list-container .notification-offset-helper {
@@ -27,10 +25,6 @@
 	position: absolute;
 	line-height: 22px;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
-}
-
-.monaco-workbench .notifications-list-container .monaco-scrollable-element {
-	border-radius: 4px;
 }
 
 /** Notification: Main Row */

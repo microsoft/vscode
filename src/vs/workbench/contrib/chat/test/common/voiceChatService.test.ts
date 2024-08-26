@@ -36,6 +36,19 @@ suite('VoiceChat', () => {
 		constructor(readonly id: string, readonly slashCommands: IChatAgentCommand[]) {
 			this.name = id;
 		}
+		fullName?: string | undefined;
+		description?: string | undefined;
+		when?: string | undefined;
+		publisherDisplayName?: string | undefined;
+		isDefault?: boolean | undefined;
+		isDynamic?: boolean | undefined;
+		disambiguation: { categoryName: string; description: string; examples: string[] }[] = [];
+		provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
+			throw new Error('Method not implemented.');
+		}
+		provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined> {
+			throw new Error('Method not implemented.');
+		}
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> { throw new Error('Method not implemented.'); }
 		metadata = {};
@@ -52,6 +65,9 @@ suite('VoiceChat', () => {
 	];
 
 	class TestChatAgentService implements IChatAgentService {
+		hasChatParticipantDetectionProviders(): boolean {
+			throw new Error('Method not implemented.');
+		}
 		registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider): IDisposable {
 			throw new Error('Method not implemented.');
 		}
@@ -77,6 +93,7 @@ suite('VoiceChat', () => {
 		registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>): IDisposable { throw new Error('Method not implemented.'); }
 		getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]> { throw new Error('Method not implemented.'); }
 		agentHasDupeName(id: string): boolean { throw new Error('Method not implemented.'); }
+		getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> { throw new Error('Method not implemented.'); }
 	}
 
 	class TestSpeechService implements ISpeechService {

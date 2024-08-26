@@ -66,10 +66,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/iconv-lite-umd/-/iconv-lite-umd-0.7.0.tgz#d2f1e0664ee6036408f9743fee264ea0699b0e48"
   integrity sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==
 
-"@vscode/proxy-agent@^0.22.0":
-  version "0.22.0"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.22.0.tgz#bf571509d77c02c684be8c8526b7d0ac238c25cb"
-  integrity sha512-TQrv456pbrjmD6G+iOoXE1Mflm+8Ic/Kny4QU7ioiYe2+0HisvqzJM/CUa3Am5SWrNjMbntTHISjgmSaSlorrA==
+"@vscode/proxy-agent@^0.23.0":
+  version "0.23.0"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.23.0.tgz#1cdcf0b72c2180d705d4e304b807d9594845c90f"
+  integrity sha512-6lgxRrzURdWwBkk6TaB0+EYYjIWQXxry6GlVO0toBN8amIyVd3I7hLPKU9Xf+SOrLIrbdU0CLkmTOBHpPJLf/g==
   dependencies:
     "@tootallnate/once" "^3.0.0"
     agent-base "^7.0.1"
@@ -98,10 +98,10 @@
     mkdirp "^1.0.4"
     node-addon-api "7.1.0"
 
-"@vscode/tree-sitter-wasm@^0.0.1":
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/@vscode/tree-sitter-wasm/-/tree-sitter-wasm-0.0.1.tgz#ffb2e295a416698f4c77cbffeca3b28567d6754b"
-  integrity sha512-m0GKnQ3BxWnVd+20KLGwr1+Qvt/RiiaJmKAqHNU35pNydDtduUzyBm7ETz/T0vOVKoeIAaiYsJOA1aKWs7Y1tA==
+"@vscode/tree-sitter-wasm@^0.0.2":
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/@vscode/tree-sitter-wasm/-/tree-sitter-wasm-0.0.2.tgz#da21541d343be69bb263e9380d165e3b164ec1f0"
+  integrity sha512-N57MR/kt4jR0H/TXeDsVYeJmvvUiK7avow0fjy+/EeKcyNBJcM2BFhj4XOAaaMbhGsOcIeSvJFouRWctXI7sKw==
 
 "@vscode/vscode-languagedetection@1.0.21":
   version "1.0.21"
@@ -393,10 +393,10 @@ jsonfile@^6.0.1:
   optionalDependencies:
     graceful-fs "^4.1.6"
 
-kerberos@2.1.1-alpha.0:
-  version "2.1.1-alpha.0"
-  resolved "https://registry.yarnpkg.com/kerberos/-/kerberos-2.1.1-alpha.0.tgz#c6d377b43c8206340fd184167754f2c81dad5ab1"
-  integrity sha512-II8N/ky/Vpd8y7LTxwCuAYoQ8XeV3HYxuK7IDmyoFacIhDljx4sdt/+sOwqgXEweQyCHlbZSKSaK82upqNM4Hw==
+kerberos@2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/kerberos/-/kerberos-2.1.1.tgz#170fc64d1a23e8c6d6ae2736d01189e2a1dbe0f7"
+  integrity sha512-414s1G/qgK2T60cXnZsHbtRj8Ynjg0DBlQWeY99tkyqQ2e8vGgFHvxRdvjTlLHg/SxBA0zLQcGE6Pk6Dfq/BCA==
   dependencies:
     bindings "^1.5.0"
     node-addon-api "^6.1.0"
@@ -484,10 +484,10 @@ node-gyp-build@4.8.1, node-gyp-build@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.8.1.tgz#976d3ad905e71b76086f4f0b0d3637fe79b6cda5"
   integrity sha512-OSs33Z9yWr148JZcbZd5WiAXhh/n9z8TxQcdMhIOlpN9AhWpLfvVFO73+m77bBABQMaY9XSvIa+qk0jlI7Gcaw==
 
-node-pty@1.1.0-beta19:
-  version "1.1.0-beta19"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta19.tgz#a74dc04429903c5ac49ee81a15a24590da67d4f3"
-  integrity sha512-/p4Zu56EYDdXjjaLWzrIlFyrBnND11LQGP0/L6GEVGURfCNkAlHc3Twg/2I4NPxghimHXgvDlwp7Z2GtvDIh8A==
+node-pty@1.1.0-beta21:
+  version "1.1.0-beta21"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-1.1.0-beta21.tgz#d75c1dfe4ff2c173459c974df72e91a4eae6dc52"
+  integrity sha512-FYpnY9g8qMQLTpqyeY9NVli6YfCWwvG6v6gmaDBbPjlc1VMp/+Zivq0SStDrRr1aciGnFCZzpL0BzdMnmbDnAw==
   dependencies:
     node-addon-api "^7.1.0"
 
@@ -688,10 +688,10 @@ vscode-regexpp@^3.1.0:
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
   integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
 
-vscode-textmate@9.0.0:
-  version "9.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-9.0.0.tgz#313c6c8792b0507aef35aeb81b6b370b37c44d6c"
-  integrity sha512-Cl65diFGxz7gpwbav10HqiY/eVYTO1sjQpmRmV991Bj7wAoOAjGQ97PpQcXorDE2Uc4hnGWLY17xme+5t6MlSg==
+vscode-textmate@9.1.0:
+  version "9.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-9.1.0.tgz#656a6aa163a9578397ba810733952bedb2b47202"
+  integrity sha512-lxKSVp2DkFOx9RDAvpiYUrB9/KT1fAfi1aE8CBGstP8N7rLF+Seifj8kDA198X0mYj1CjQUC+81+nQf8CO0nVA==
 
 wrappy@1:
   version "1.0.2"

@@ -1428,6 +1428,8 @@ export interface IReadonlyTextBuffer {
 	getLineCharCode(lineNumber: number, index: number): number;
 	getCharCode(offset: number): number;
 	getLineLength(lineNumber: number): number;
+	getLineMinColumn(lineNumber: number): number;
+	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];

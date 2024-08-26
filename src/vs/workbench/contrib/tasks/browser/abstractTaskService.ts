@@ -2745,34 +2745,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			entries.push(additionalEntries[0]);
 		}
 
-		const picker = this._quickInputService.createQuickPick<ITaskQuickPickEntry>({ useSeparators: true });
-		picker.placeholder = placeHolder;
-		picker.matchOnDescription = true;
-		if (name) {
-			picker.value = name;
-		}
-		picker.onDidTriggerItemButton(context => {
-			const task = context.item.task;
-			this._quickInputService.cancel();
-			if (ContributedTask.is(task)) {
-				this.customize(task, undefined, true);
-			} else if (CustomTask.is(task)) {
-				this.openConfig(task);
-			}
-		});
-		picker.items = entries;
-		picker.show();
-
-		return new Promise<ITaskQuickPickEntry | undefined | null>(resolve => {
-			this._register(picker.onDidAccept(async () => {
-				const selectedEntry = picker.selectedItems ? picker.selectedItems[0] : undefined;
-				picker.dispose();
-				if (!selectedEntry) {
-					resolve(undefined);
-				}
-				resolve(selectedEntry);
-			}));
-		});
+		return this._quickInputService.pick<ITaskQuickPickEntry>(
+			entries,
+			{
+				value: name,
+				placeHolder,
+				matchOnDescription: true,
+				onDidTriggerItemButton: context => {
+					const task = context.item.task;
+					this._quickInputService.cancel();
+					if (ContributedTask.is(task)) {
+						this.customize(task, undefined, true);
+					} else if (CustomTask.is(task)) {
+						this.openConfig(task);
+					}
+				},
+			});
 	}
 
 	private _needsRecentTasksMigration(): boolean {

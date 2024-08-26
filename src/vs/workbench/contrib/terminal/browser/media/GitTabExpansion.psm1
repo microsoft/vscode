@@ -546,11 +546,13 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 
 		# Handles git checkout|switch <ref>
 		"^(?:checkout|switch).* (?<ref>\S*)$" {
-			# Return a dummy value to prevent file path completion from happening
 			if ($lastBlock -match "-b\s[^\s]*$") {
-				'~'
+				$null # Force zero results
 			} else {
 				[System.Management.Automation.CompletionResult]::new('.', '.', 'ParameterName', "Discard changes in working directory")
+				$lastCheckout = [System.Management.Automation.CompletionResult]::new('-', '-', 'ParameterName', "The last branch or commit that was checked out")
+				$lastCheckout | Add-Member -NotePropertyName 'CustomIcon' -NotePropertyValue 'gitBranch'
+				$lastCheckout
 				gitBranches $matches['ref'] $true | ConvertTo-VscodeCompletion -Type 'branch'
 				gitRemoteUniqueBranches $matches['ref'] | ConvertTo-VscodeCompletion -Type 'branch'
 				gitTags $matches['ref'] | ConvertTo-VscodeCompletion -Type 'tag'
@@ -653,7 +655,12 @@ Microsoft.PowerShell.Core\Register-ArgumentCompleter -CommandName $cmdNames -Nat
 	$textToComplete = $commandAst.ToString().PadRight($padLength, ' ').Substring(0, $padLength)
 
 	WriteTabExpLog "Expand: command: '$($commandAst.Extent.Text)', padded: '$textToComplete', padlen: $padLength"
-	Expand-GitCommand $textToComplete
+	$result = Expand-GitCommand $textToComplete
+	if ($null -eq $result) {
+		,@()
+	} else {
+		$result
+	}
 }
 
 

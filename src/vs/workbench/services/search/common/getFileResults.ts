@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchResult } from 'vs/workbench/services/search/common/search';
-import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtTypes';
+import { ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
 
 export const getFileResults = (
 	bytes: Uint8Array,
 	pattern: RegExp,
 	options: {
-		beforeContext: number;
-		afterContext: number;
-		previewOptions: TextSearchPreviewOptions | undefined;
+		surroundingContext: number;
+		previewOptions: ITextSearchPreviewOptions | undefined;
 		remainingResultQuota: number;
 	}
 ): ITextSearchResult[] => {
@@ -71,8 +69,8 @@ export const getFileResults = (
 				endLine++;
 			}
 
-			if (options.beforeContext) {
-				for (let contextLine = Math.max(0, startLine - options.beforeContext); contextLine < startLine; contextLine++) {
+			if (options.surroundingContext) {
+				for (let contextLine = Math.max(0, startLine - options.surroundingContext); contextLine < startLine; contextLine++) {
 					contextLinesNeeded.add(contextLine);
 				}
 			}
@@ -102,14 +100,18 @@ export const getFileResults = (
 				matchStartIndex + matchedText.length - lineRanges[endLine].start - (endLine === startLine ? offset : 0)
 			);
 
-			const match: ITextSearchResult = {
-				ranges: fileRange,
-				preview: { text: previewText, matches: previewRange },
+			const match: ITextSearchMatch = {
+				rangeLocations: [{
+					source: fileRange,
+					preview: previewRange,
+				}],
+				previewText: previewText
 			};
+
 			results.push(match);
 
-			if (options.afterContext) {
-				for (let contextLine = endLine + 1; contextLine <= Math.min(endLine + options.afterContext, lineRanges.length - 1); contextLine++) {
+			if (options.surroundingContext) {
+				for (let contextLine = endLine + 1; contextLine <= Math.min(endLine + options.surroundingContext, lineRanges.length - 1); contextLine++) {
 					contextLinesNeeded.add(contextLine);
 				}
 			}

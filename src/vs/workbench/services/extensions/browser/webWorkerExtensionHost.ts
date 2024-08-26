@@ -12,12 +12,13 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { COI, FileAccess } from 'vs/base/common/network';
+import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { getNLSLanguage, getNLSMessages } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
@@ -86,7 +87,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const suffix = `?${suffixSearchParams.toString()}`;
 
-		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
+		const iframeModulePath: AppResourcePath = `vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.${isESM ? 'esm.' : ''}html`;
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
@@ -189,11 +190,11 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 					type: event.data.type,
 					data: {
 						baseUrl,
-						workerUrl: isESM ? FileAccess.asBrowserUri(factoryModuleId).toString(true) : require.toUrl(factoryModuleId),
+						workerUrl: isESM ? FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorker.esm.js').toString(true) : require.toUrl(factoryModuleId),
 						fileRoot: globalThis._VSCODE_FILE_ROOT,
 						nls: {
-							messages: globalThis._VSCODE_NLS_MESSAGES,
-							language: globalThis._VSCODE_NLS_LANGUAGE
+							messages: getNLSMessages(),
+							language: getNLSLanguage()
 						}
 					}
 				}, '*');

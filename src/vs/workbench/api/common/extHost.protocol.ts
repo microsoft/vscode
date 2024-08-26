@@ -56,7 +56,7 @@ import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/c
 import { ChatAgentVoteDirection, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, IToolDelta, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { IToolData, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -81,6 +81,7 @@ import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/out
 import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import type { TerminalShellExecutionCommandLineConfidence } from 'vscode';
 
@@ -1057,6 +1058,7 @@ export interface INotebookDocumentShowOptions {
 	preserveFocus?: boolean;
 	pinned?: boolean;
 	selections?: ICellRange[];
+	label?: string;
 }
 
 export type INotebookCellStatusBarEntryDto = Dto<notebookCommon.INotebookCellStatusBarItem>;
@@ -1284,6 +1286,7 @@ export interface ExtHostChatAgentsShape2 {
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	$provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined>;
+	$provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined>;
 	$provideSampleQuestions(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$releaseSession(sessionId: string): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
@@ -1291,7 +1294,7 @@ export interface ExtHostChatAgentsShape2 {
 export interface IChatParticipantMetadata {
 	participant: string;
 	command?: string;
-	description?: string;
+	disambiguation: { categoryName: string; description: string; examples: string[] }[];
 }
 
 export interface IChatParticipantDetectionResult {
@@ -1308,9 +1311,12 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
+export type IToolDataDto = Omit<IToolData, 'when'>;
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
-	$getTools(): Promise<Dto<IToolData>[]>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
+	$getTools(): Promise<Dto<IToolDataDto>[]>;
+	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
+	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string): void;
 	$unregisterTool(name: string): void;
 }
@@ -1322,8 +1328,9 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface ExtHostLanguageModelToolsShape {
-	$acceptToolDelta(delta: IToolDelta): Promise<void>;
-	$invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
+	$onDidChangeTools(tools: IToolDataDto[]): void;
+	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
+	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1390,6 +1397,7 @@ export interface ExtHostProfileContentHandlersShape {
 
 export interface ITextSearchComplete {
 	limitHit?: boolean;
+	message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
@@ -2809,6 +2817,8 @@ export interface MainThreadTestingShape {
 	$unsubscribeFromDiffs(): void;
 	/** Publishes that new tests were available on the given source. */
 	$publishDiff(controllerId: string, diff: TestsDiffOp.Serialized[]): void;
+	/** Gets coverage details from a test result. */
+	$getCoverageDetails(resultId: string, taskIndex: number, uri: UriComponents, token: CancellationToken): Promise<CoverageDetails.Serialized[]>;
 
 	// --- test run configurations:
 

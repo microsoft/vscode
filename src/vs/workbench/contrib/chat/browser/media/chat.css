@@ -181,6 +181,16 @@
 	margin-bottom: 8px;
 }
 
+.interactive-item-container .value .rendered-markdown blockquote {
+	margin: 0px;
+	padding: 0px 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+	border-radius: 2px;
+	background: var(--vscode-textBlockQuote-background);
+	border-color: var(--vscode-textBlockQuote-border);
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
@@ -235,6 +245,14 @@
 	margin-bottom: 0px;
 }
 
+.interactive-item-container .value .rendered-markdown hr {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vs-dark .interactive-item-container .value .rendered-markdown hr {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
 .interactive-item-container .value .rendered-markdown h1 {
 	font-size: 20px;
 	font-weight: 600;
@@ -266,13 +284,41 @@
 	margin: 0;
 }
 
+/* #region list indent rules */
 .interactive-item-container .value .rendered-markdown ul {
+	/* Keep this in sync with the values for dedented codeblocks below */
 	padding-inline-start: 24px;
 }
 
 .interactive-item-container .value .rendered-markdown ol {
+	/* Keep this in sync with the values for dedented codeblocks below */
 	padding-inline-start: 28px;
 }
+
+/* NOTE- We want to dedent codeblocks in lists specifically to give them the full width. No more elegant way to do this, these values
+have to be updated for changes to the rules above, or to support more deeply nested lists. */
+.interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
+	margin-left: -24px;
+}
+
+.interactive-item-container .value .rendered-markdown ul ul .interactive-result-code-block {
+	margin-left: -48px;
+}
+
+.interactive-item-container .value .rendered-markdown ol .interactive-result-code-block {
+	margin-left: -28px;
+}
+
+.interactive-item-container .value .rendered-markdown ol ol .interactive-result-code-block {
+	margin-left: -56px;
+}
+
+.interactive-item-container .value .rendered-markdown ol ul .interactive-result-code-block,
+.interactive-item-container .value .rendered-markdown ul ol .interactive-result-code-block {
+	margin-left: -52px;
+}
+
+/* #endregion list indent rules */
 
 .interactive-item-container .value .rendered-markdown li {
 	line-height: 1.3rem;
@@ -565,6 +611,13 @@
 	flex-wrap: wrap;
 }
 
+.interactive-session .interactive-input-part.compact .chat-attached-context {
+	padding-top: 8px;
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context {
 	margin-top: -8px;
 }
@@ -639,12 +692,6 @@
 .interactive-item-container .monaco-toolbar .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 	color: var(--vscode-icon-foreground) !important;
-}
-
-.interactive-item-container.filtered-response .value > .rendered-markdown {
-	pointer-events: none;
-	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
-	mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
 }
 
 /* #region Quick Chat */

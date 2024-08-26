@@ -15,14 +15,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { escape } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/workbench/contrib/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
-import { ThemeIcon } from 'vs/base/common/themables';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -65,7 +66,8 @@ export class BaseIssueReporterService extends Disposable {
 		public product: IProductConfiguration,
 		public readonly window: Window,
 		public readonly isWeb: boolean,
-		@IIssueFormService public readonly issueFormService: IIssueFormService
+		@IIssueFormService public readonly issueFormService: IIssueFormService,
+		@IThemeService public readonly themeService: IThemeService,
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -120,8 +122,7 @@ export class BaseIssueReporterService extends Disposable {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
-		// TODO: Is there a way to use the IThemeService here instead
-		const iconsStyleSheet = this._register(getIconsStyleSheet(undefined));
+		const iconsStyleSheet = this._register(getIconsStyleSheet(this.themeService));
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}

@@ -163,6 +163,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			provideWelcomeMessage: (location: ChatAgentLocation, token: CancellationToken) => {
 				return this._proxy.$provideWelcomeMessage(handle, location, token);
 			},
+			provideChatTitle: (history, token) => {
+				return this._proxy.$provideChatTitle(handle, history, token);
+			},
 			provideSampleQuestions: (location: ChatAgentLocation, token: CancellationToken) => {
 				return this._proxy.$provideSampleQuestions(handle, location, token);
 			}
@@ -183,6 +186,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					fullName: dynamicProps.fullName,
 					metadata: revive(metadata),
 					slashCommands: [],
+					disambiguation: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
 				},
 				impl);

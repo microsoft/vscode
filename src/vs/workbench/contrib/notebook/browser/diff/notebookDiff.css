@@ -25,6 +25,11 @@
 	flex-direction: row;
 }
 
+.notebook-text-diff-editor .cell-placeholder-body {
+	display: flex;
+	flex-direction: row;
+}
+
 .notebook-text-diff-editor .webview-cover {
 	user-select: initial;
 	-webkit-user-select: initial;
@@ -299,7 +304,7 @@
 	width: 15px !important;
 }
 
-.monaco-workbench .notebook-text-diff-editor  > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
 	z-index: var(--z-index-notebook-scrollbar);
 	cursor: default;
 }
@@ -398,4 +403,61 @@
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .margin,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .monaco-editor-background {
 	background: var(--vscode-notebook-cellEditorBackground, var(--vscode-editor-background));
+}
+
+/** Overlay to hide the unchanged cells */
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells {
+	position: absolute;
+	left: 0;
+
+	font-size: 13px;
+	line-height: 14px;
+}
+
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center {
+	color: var(--vscode-diffEditor-unchangedRegionForeground);
+	overflow: hidden;
+	display: block;
+	white-space: nowrap;
+
+	height: 24px;
+}
+
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center span.codicon {
+	vertical-align: middle;
+}
+
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center a:hover .codicon {
+	cursor: pointer;
+}
+
+/** Overlay to unhide the unchanged cells */
+.notebook-text-diff-editor .cell-placeholder-body {
+	background: var(--vscode-diffEditor-unchangedRegionBackground);
+	color: var(--vscode-diffEditor-unchangedRegionForeground);
+	min-height: 24px;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center {
+	overflow: hidden;
+	display: block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+
+	height: 24px;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body .text {
+	/** Add a gap between text and the unfold icon */
+	padding-left: 2px;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center span.codicon,
+.notebook-text-diff-editor .cell-placeholder-body .text {
+	vertical-align: middle;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center a:hover .codicon {
+	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
 }

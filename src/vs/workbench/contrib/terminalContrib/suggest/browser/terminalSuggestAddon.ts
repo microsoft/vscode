@@ -138,6 +138,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
+	private readonly _onDidRequestCompletions = this._register(new Emitter<void>());
+	readonly onDidRequestCompletions = this._onDidRequestCompletions.event;
+	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
+	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
 
 	constructor(
 		private readonly _cachedPwshCommands: Set<SimpleCompletionItem>,
@@ -211,6 +215,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > this._lastAcceptedCompletionTimestamp) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
+			this._onDidRequestCompletions.fire();
 		}
 	}
 
@@ -329,6 +334,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _replacementLength: number = 0;
 
 	private _handleCompletionsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
+		this._onDidReceiveCompletions.fire();
+
 		// Nothing to handle if the terminal is not attached
 		if (!terminal.element || !this._enableWidget || !this._promptInputModel) {
 			return;

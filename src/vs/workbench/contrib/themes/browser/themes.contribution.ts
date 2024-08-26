@@ -168,8 +168,9 @@ class MarketplaceThemesPicker {
 
 	public openQuickPick(value: string, currentTheme: IWorkbenchTheme | undefined, selectTheme: (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => void): Promise<PickerResult> {
 		let result: PickerResult | undefined = undefined;
+		const disposables = new DisposableStore();
 		return new Promise<PickerResult>((s, _) => {
-			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+			const quickpick = disposables.add(this.quickInputService.createQuickPick<ThemeItem>());
 			quickpick.items = [];
 			quickpick.sortByLabel = false;
 			quickpick.matchOnDescription = true;
@@ -177,8 +178,8 @@ class MarketplaceThemesPicker {
 			quickpick.title = 'Marketplace Themes';
 			quickpick.placeholder = localize('themes.selectMarketplaceTheme', "Type to Search More. Select to Install. Up/Down Keys to Preview");
 			quickpick.canSelectMany = false;
-			quickpick.onDidChangeValue(() => this.trigger(quickpick.value));
-			quickpick.onDidAccept(async _ => {
+			disposables.add(quickpick.onDidChangeValue(() => this.trigger(quickpick.value)));
+			disposables.add(quickpick.onDidAccept(async _ => {
 				const themeItem = quickpick.selectedItems[0];
 				if (themeItem?.galleryExtension) {
 					result = 'selected';
@@ -190,9 +191,9 @@ class MarketplaceThemesPicker {
 						selectTheme(currentTheme, true);
 					}
 				}
-			});
+			}));
 
-			quickpick.onDidTriggerItemButton(e => {
+			disposables.add(quickpick.onDidTriggerItemButton(e => {
 				if (isItem(e.item)) {
 					const extensionId = e.item.theme?.extensionData?.extensionId;
 					if (extensionId) {
@@ -201,31 +202,30 @@ class MarketplaceThemesPicker {
 						openExtensionViewlet(this.paneCompositeService, `${this.marketplaceQuery} ${quickpick.value}`);
 					}
 				}
-			});
-			quickpick.onDidChangeActive(themes => {
+			}));
+			disposables.add(quickpick.onDidChangeActive(themes => {
 				if (result === undefined) {
 					selectTheme(themes[0]?.theme, false);
 				}
-			});
+			}));
 
-			quickpick.onDidHide(() => {
+			disposables.add(quickpick.onDidHide(() => {
 				if (result === undefined) {
 					selectTheme(currentTheme, true);
 					result = 'cancelled';
 
 				}
-				quickpick.dispose();
 				s(result);
-			});
+			}));
 
-			quickpick.onDidTriggerButton(e => {
+			disposables.add(quickpick.onDidTriggerButton(e => {
 				if (e === this.quickInputService.backButton) {
 					result = 'back';
 					quickpick.hide();
 				}
-			});
+			}));
 
-			this.onDidChange(() => {
+			disposables.add(this.onDidChange(() => {
 				let items = this.themes;
 				if (this._searchOngoing) {
 					items = items.concat({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
@@ -239,9 +239,11 @@ class MarketplaceThemesPicker {
 				if (newActiveItem) {
 					quickpick.activeItems = [newActiveItem as ThemeItem];
 				}
-			});
+			}));
 			this.trigger(value);
 			quickpick.show();
+		}).finally(() => {
+			disposables.dispose();
 		});
 	}
 
@@ -338,12 +340,11 @@ class InstalledThemesPicker {
 		};
 
 		const pickInstalledThemes = (activeItemId: string | undefined) => {
+			const disposables = new DisposableStore();
 			return new Promise<void>((s, _) => {
 				let isCompleted = false;
-				const disposables = new DisposableStore();
-
 				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === activeItemId);
-				const quickpick = this.quickInputService.createQuickPick<ThemeItem>({ useSeparators: true });
+				const quickpick = disposables.add(this.quickInputService.createQuickPick<ThemeItem>({ useSeparators: true }));
 				quickpick.items = picks;
 				quickpick.title = this.options.title;
 				quickpick.description = this.options.description;
@@ -352,10 +353,10 @@ class InstalledThemesPicker {
 				quickpick.canSelectMany = false;
 				quickpick.toggles = this.options.toggles;
 				quickpick.toggles?.forEach(toggle => {
-					toggle.onChange(() => this.options.onToggle?.(toggle, quickpick), undefined, disposables);
+					disposables.add(toggle.onChange(() => this.options.onToggle?.(toggle, quickpick)));
 				});
 				quickpick.matchOnDescription = true;
-				quickpick.onDidAccept(async _ => {
+				disposables.add(quickpick.onDidAccept(async _ => {
 					isCompleted = true;
 					const theme = quickpick.selectedItems[0];
 					if (!theme || theme.configureItem) { // 'pick in marketplace' entry
@@ -375,17 +376,16 @@ class InstalledThemesPicker {
 
 					quickpick.hide();
 					s();
-				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
-				quickpick.onDidHide(() => {
+				}));
+				disposables.add(quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false)));
+				disposables.add(quickpick.onDidHide(() => {
 					if (!isCompleted) {
 						selectTheme(currentTheme, true);
 						s();
 					}
 					quickpick.dispose();
-					disposables.dispose();
-				});
-				quickpick.onDidTriggerItemButton(e => {
+				}));
+				disposables.add(quickpick.onDidTriggerItemButton(e => {
 					if (isItem(e.item)) {
 						const extensionId = e.item.theme?.extensionData?.extensionId;
 						if (extensionId) {
@@ -394,8 +394,10 @@ class InstalledThemesPicker {
 							openExtensionViewlet(this.paneCompositeService, `${this.options.marketplaceTag} ${quickpick.value}`);
 						}
 					}
-				});
+				}));
 				quickpick.show();
+			}).finally(() => {
+				disposables.dispose();
 			});
 		};
 		await pickInstalledThemes(currentTheme.id);

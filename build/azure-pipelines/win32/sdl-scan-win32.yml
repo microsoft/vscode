@@ -1,0 +1,162 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_QUALITY
+    type: string
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.x"
+      addToPath: true
+
+  - template: ../distro/download-distro.yml@self
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
+
+  - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
+      exec { yarn config set registry "$env:NPM_REGISTRY" }
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - pwsh: |
+      $includes = @'
+        {
+          'target_defaults': {
+            'conditions': [
+              ['OS=="win"', {
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'AdditionalOptions': [
+                      '/Zi',
+                      '/FS'
+                    ],
+                  },
+                  'VCLinkerTool': {
+                    'AdditionalOptions': [
+                      '/profile'
+                    ]
+                  }
+                }
+              }]
+            ]
+          }
+        }
+      '@
+
+      if (!(Test-Path "~/.gyp")) {
+        mkdir "~/.gyp"
+      }
+      echo $includes > "~/.gyp/include.gypi"
+    displayName: Create include.gypi
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      . build/azure-pipelines/win32/retry.ps1
+      $ErrorActionPreference = "Stop"
+      retry { exec { yarn --frozen-lockfile --check-files } }
+    env:
+      npm_config_arch: ${{ parameters.VSCODE_ARCH }}
+      CHILD_CONCURRENCY: 1
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Install dependencies
+
+  - script: node build/azure-pipelines/distro/mixin-npm
+    displayName: Mixin distro node modules
+
+  - script: node build/azure-pipelines/distro/mixin-quality
+    displayName: Mixin distro quality
+    env:
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+
+  - powershell: yarn compile
+    displayName: Compile
+
+  - powershell: |
+      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.exe"
+      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.dll"
+      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.node"
+      Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.pdb"
+    displayName: List files
+
+  - powershell: yarn gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download Symbols
+
+  - powershell: |
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.exe"
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.dll"
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.node"
+      Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.pdb"
+    displayName: List files again
+
+  - task: BinSkim@4
+    inputs:
+      InputType: "Basic"
+      Function: "analyze"
+      TargetPattern: "guardianGlob"
+      AnalyzeIgnorePdbLoadError: true
+      AnalyzeTargetGlob: '$(Agent.BuildDirectory)\scanbin\**.dll;$(Agent.BuildDirectory)\scanbin\**.exe;$(Agent.BuildDirectory)\scanbin\**.node'
+      AnalyzeLocalSymbolDirectories: '$(Agent.BuildDirectory)\scanbin\VSCode-win32-${{ parameters.VSCODE_ARCH }}\pdb'
+
+  - task: CopyFiles@2
+    displayName: 'Collect Symbols for API Scan'
+    inputs:
+      SourceFolder: $(Agent.BuildDirectory)
+      Contents: 'scanbin\**\*.pdb'
+      TargetFolder: '$(Agent.BuildDirectory)\symbols'
+      flattenFolders: true
+    condition: succeeded()
+
+  - task: APIScan@2
+    inputs:
+      softwareFolder: $(Agent.BuildDirectory)\scanbin
+      softwareName: 'vscode-client'
+      softwareVersionNum: '1'
+      symbolsFolder: 'srv*https://symweb.azurefd.net;$(Agent.BuildDirectory)\symbols'
+      isLargeApp: false
+      toolVersion: 'Latest'
+      azureSubscription: 'vscode-apiscan'
+    displayName: Run ApiScan
+    condition: succeeded()
+    env:
+      AzureServicesAuthConnectionString: $(apiscan-connectionstring)
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - task: PublishSecurityAnalysisLogs@3
+    inputs:
+      ArtifactName: CodeAnalysisLogs
+      ArtifactType: Container
+      PublishProcessedResults: false
+      AllTools: true

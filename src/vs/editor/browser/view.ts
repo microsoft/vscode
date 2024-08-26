@@ -408,7 +408,7 @@ export class View extends ViewEventHandler {
 		if (this._renderAnimationFrame === null) {
 			const rendering = this._createCoordinatedRendering();
 			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
-				window: dom.getWindow(this.domNode.domNode),
+				window: dom.getWindow(this.domNode?.domNode),
 				prepareRenderText: () => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();

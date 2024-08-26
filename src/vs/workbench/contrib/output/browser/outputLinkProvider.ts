@@ -9,24 +9,24 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILink } from 'vs/editor/common/languages';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/services/output/common/output';
-import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
-import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
+import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { IWorkerClient } from 'vs/base/common/worker/simpleWorker';
+import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 export class OutputLinkProvider extends Disposable {
 
 	private static readonly DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
 
-	private worker?: MonacoWebWorker<OutputLinkComputer>;
+	private worker?: OutputLinkWorkerClient;
 	private disposeWorkerScheduler: RunOnceScheduler;
 	private linkProviderRegistration: IDisposable | undefined;
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
@@ -65,28 +65,18 @@ export class OutputLinkProvider extends Disposable {
 		this.disposeWorkerScheduler.cancel();
 	}
 
-	private getOrCreateWorker(): MonacoWebWorker<OutputLinkComputer> {
+	private getOrCreateWorker(): OutputLinkWorkerClient {
 		this.disposeWorkerScheduler.schedule();
 
 		if (!this.worker) {
-			const createData: ICreateData = {
-				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.uri.toString())
-			};
-
-			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, this.languageConfigurationService, {
-				moduleId: 'vs/workbench/contrib/output/common/outputLinkComputer',
-				createData,
-				label: 'outputLinkComputer'
-			});
+			this.worker = new OutputLinkWorkerClient(this.contextService, this.modelService);
 		}
 
 		return this.worker;
 	}
 
 	private async provideLinks(modelUri: URI): Promise<ILink[]> {
-		const linkComputer = await this.getOrCreateWorker().withSyncedResources([modelUri]);
-
-		return linkComputer.computeLinks(modelUri.toString());
+		return this.getOrCreateWorker().provideLinks(modelUri);
 	}
 
 	private disposeWorker(): void {
@@ -94,5 +84,34 @@ export class OutputLinkProvider extends Disposable {
 			this.worker.dispose();
 			this.worker = undefined;
 		}
+	}
+}
+
+class OutputLinkWorkerClient extends Disposable {
+	private readonly _workerClient: IWorkerClient<OutputLinkComputer>;
+	private readonly _workerTextModelSyncClient: WorkerTextModelSyncClient;
+	private readonly _initializeBarrier: Promise<void>;
+
+	constructor(
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IModelService modelService: IModelService,
+	) {
+		super();
+		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
+			'vs/workbench/contrib/output/common/outputLinkComputer',
+			'OutputLinkDetectionWorker'
+		));
+		this._workerTextModelSyncClient = WorkerTextModelSyncClient.create(this._workerClient, modelService);
+		this._initializeBarrier = this._ensureWorkspaceFolders();
+	}
+
+	private async _ensureWorkspaceFolders(): Promise<void> {
+		await this._workerClient.proxy.$setWorkspaceFolders(this.contextService.getWorkspace().folders.map(folder => folder.uri.toString()));
+	}
+
+	public async provideLinks(modelUri: URI): Promise<ILink[]> {
+		await this._initializeBarrier;
+		await this._workerTextModelSyncClient.ensureSyncedResources([modelUri]);
+		return this._workerClient.proxy.$computeLinks(modelUri.toString());
 	}
 }
