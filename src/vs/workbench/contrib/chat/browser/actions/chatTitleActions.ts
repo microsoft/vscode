@@ -16,12 +16,14 @@ import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE, CONTEXT_VOTE_UP_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, ChatAgentVoteDirection, ChatAgentVoteDownReason } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 
 export function registerChatTitleActions() {
 	registerAction2(class MarkHelpfulAction extends Action2 {
@@ -37,7 +39,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
+					// when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
 				}
 			});
 		}
@@ -58,16 +60,18 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Up,
+					reason: undefined
 				}
 			});
 			item.setVote(ChatAgentVoteDirection.Up);
+			item.setVoteDownReason(undefined);
 		}
 	});
 
 	registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.markUnhelpful',
+				id: MarkUnhelpfulActionId,
 				title: localize2('interactive.unhelpful.label', "Unhelpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
@@ -88,6 +92,14 @@ export function registerChatTitleActions() {
 				return;
 			}
 
+			const reason = args[1];
+			if (typeof reason !== 'string') {
+				return;
+			}
+
+			item.setVote(ChatAgentVoteDirection.Down);
+			item.setVoteDownReason(reason as ChatAgentVoteDownReason);
+
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
@@ -98,9 +110,9 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Down,
+					reason: item.voteDownReason
 				}
 			});
-			item.setVote(ChatAgentVoteDirection.Down);
 		}
 	});
 
