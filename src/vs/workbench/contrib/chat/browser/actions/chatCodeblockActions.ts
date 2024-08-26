@@ -164,6 +164,10 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		return { edits: [new ResourceTextEdit(activeModel.uri, { range, text })] };
 	}
 
+	protected get showPreview() {
+		return false;
+	}
+
 	private async handleTextEditor(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
 		const bulkEditService = accessor.get(IBulkEditService);
 		const codeEditorService = accessor.get(ICodeEditorService);
@@ -172,9 +176,15 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		const result = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
 		this.notifyUserAction(chatService, codeBlockActionContext, result);
 
-		const showWithPreview = await this.applyWithInlinePreview(codeEditorService, result.edits, codeEditor);
-		if (!showWithPreview) {
-			await bulkEditService.apply(result.edits, { showPreview: true });
+		if (this.showPreview) {
+			const showWithPreview = await this.applyWithInlinePreview(codeEditorService, result.edits, codeEditor);
+			if (!showWithPreview) {
+				await bulkEditService.apply(result.edits, { showPreview: true });
+				const activeModel = codeEditor.getModel();
+				codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+			}
+		} else {
+			await bulkEditService.apply(result.edits);
 			const activeModel = codeEditor.getModel();
 			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
@@ -476,6 +486,11 @@ export function registerChatCodeBlockActions() {
 			// fall back to inserting the code block as is
 			return super.computeEdits(accessor, codeEditor, codeBlockActionContext);
 		}
+
+		protected override get showPreview() {
+			return true;
+		}
+
 	});
 
 	registerAction2(class SmartApplyInEditorAction extends InsertCodeBlockAction {
