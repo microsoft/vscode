@@ -199,54 +199,11 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 					}
 				}
 			}
-			// for (const [i, r] of this._unusedRects.entries()) {
-			// 	if (r.w < r.h) {
-			// 		if (r.w >= glyphWidth && r.h >= glyphHeight) {
-			// 			dx = r.x;
-			// 			dy = r.y;
-			// 			if (glyphWidth < r.w) {
-			// 				this._unusedRects.push({
-			// 					x: r.x + glyphWidth,
-			// 					y: r.y,
-			// 					w: r.w - glyphWidth,
-			// 					h: glyphHeight
-			// 				});
-			// 			}
-			// 			r.y += glyphHeight;
-			// 			r.h -= glyphHeight;
-			// 			if (r.h === 0) {
-			// 				// TODO: This is slow
-			// 				this._unusedRects.splice(i, 1);
-			// 			}
-			// 			break;
-			// 		}
-			// 	} else {
-			// 		if (r.w >= glyphWidth && r.h >= glyphHeight) {
-			// 			dx = r.x;
-			// 			dy = r.y;
-			// 			if (glyphHeight < r.h) {
-			// 				this._unusedRects.push({
-			// 					x: r.x,
-			// 					y: r.y + glyphHeight,
-			// 					w: glyphWidth,
-			// 					h: r.h - glyphHeight
-			// 				});
-			// 			}
-			// 			r.x += glyphWidth;
-			// 			r.w -= glyphWidth;
-			// 			if (r.w === 0) {
-			// 				// TODO: This is slow
-			// 				this._unusedRects.splice(i, 1);
-			// 			}
-			// 		}
-			// 	}
-			// }
 		}
 
 		// Create a new slab
 		if (dx === undefined || dy === undefined) {
 			if (!slab) {
-				// TODO: Return undefined if there isn't any room left
 				if (this._slabs.length >= this._slabsPerRow * this._slabsPerColumn) {
 					return undefined;
 				}
@@ -354,7 +311,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 					x = 0;
 					y += slab.entryH;
 				}
-				// TODO: This doesn't visualize wasted space between entries - draw glyphs on top?
 				ctx.fillStyle = UsagePreviewColors.Wasted;
 				ctx.fillRect(slab.x + x, slab.y + y, slab.entryW, slab.entryH);
 

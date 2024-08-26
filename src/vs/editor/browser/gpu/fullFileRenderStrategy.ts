@@ -84,7 +84,6 @@ struct VSOutput {
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		// TODO: Fix hacky scroll offset which moves the text beside the line numbers
 		(((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / layoutInfo.canvasDims) + (((scrollOffset.offset + layoutInfo.viewportOffset) * 2) / layoutInfo.canvasDims),
 		0.0,
 		1.0
@@ -234,9 +233,6 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
 		let dirtyLineEnd = 0;
 
-		// const theme = this._themeService.getColorTheme() as ColorThemeData;
-		// const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
-
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 			// TODO: Update on dirty lines; is this known by line before rendering?
 			// if (upToDateLines.has(y)) {
@@ -248,13 +244,6 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			lineData = viewportData.getViewLineRenderingData(y);
 			content = lineData.content;
 			xOffset = 0;
-
-			// TODO: Handle colors via viewLineRenderingData.tokens
-			// console.log(lineData.tokens);
-			// console.log('fg');
-			// for (let i = 0; i < lineData.tokens.getCount(); i++) {
-			// 	console.log(`  ${lineData.tokens.getForeground(i)}`);
-			// }
 
 			// See ViewLine#renderLine
 			// const renderLineInput = new RenderLineInput(
@@ -354,19 +343,11 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			this._device.queue.writeBuffer(
 				this._cellBindBuffer,
 				(dirtyLineStart - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
-				// TODO: this cell buffer actually only needs to be the size of the viewport if we are only uploading a range
-				//       at the maximum each frame
 				cellBuffer.buffer,
 				(dirtyLineStart - 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT,
 				(dirtyLineEnd - dirtyLineStart + 1) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
 			);
 		}
-		// HACK: Replace entire buffer for testing purposes
-		// this._device.queue.writeBuffer(
-		// 	this._cellBindBuffer,
-		// 	0,
-		// 	cellBuffer
-		// );
 
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 

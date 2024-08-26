@@ -66,8 +66,6 @@ export class ViewLinesGpu extends ViewPart {
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
 
-		// TODO: It would be nice if the async part of this (requesting device) was done before
-		//       ViewLinesGpu was constructed
 		this.initWebgpu();
 	}
 

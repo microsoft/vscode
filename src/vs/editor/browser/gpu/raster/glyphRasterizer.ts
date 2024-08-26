@@ -47,7 +47,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	}
 
 	// TODO: Support drawing multiple fonts and sizes
-	// TODO: Should pull in the font size from config instead of random dom node
 	/**
 	 * Rasterizes a glyph. Note that the returned object is reused across different glyphs and
 	 * therefore is only safe for synchronous access.
@@ -91,7 +90,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		//       need to be drawn manually to the canvas. See xterm.js for "dodging" the text for
 		//       underlines.
 
-		// TODO: Draw in middle using alphabetical baseline
 		const originX = this._fontSize;
 		const originY = this._fontSize;
 		this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
@@ -154,9 +152,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	}
 
 	// TODO: Does this even need to happen when measure text is used?
-	// TODO: Pass back origin offset
 	private _findGlyphBoundingBox(imageData: ImageData, outBoundingBox: IBoundingBox) {
-		// TODO: This could be optimized to be aware of the font size padding on all sides
 		const height = this._canvas.height;
 		const width = this._canvas.width;
 		let found = false;
