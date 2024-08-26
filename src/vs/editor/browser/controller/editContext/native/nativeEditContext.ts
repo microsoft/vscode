@@ -9,8 +9,6 @@ import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextU
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
 import { Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
@@ -243,32 +241,14 @@ export class NativeEditContext extends Disposable {
 			return;
 		}
 		const formats = e.getTextFormats();
-		const rangeOfContent = this._currentEditContextState.rangeOfContent;
+		const rangeOfEditContextText = this._currentEditContextState.rangeOfContent;
 		const decorations: IModelDeltaDecoration[] = [];
 		formats.forEach(f => {
-			const editContextPositionTransformer = new PositionOffsetTransformer(this._editContext.text);
-			const offsetRangeWithinEditContext = new OffsetRange(f.rangeStart, f.rangeEnd);
-			const rangeWithinEditContext = editContextPositionTransformer.getRange(offsetRangeWithinEditContext);
-			const startLineNumberWithinEditor = rangeOfContent.startLineNumber + rangeWithinEditContext.startLineNumber - 1;
-			const endLineNumberWithinEditor = rangeOfContent.startLineNumber + rangeWithinEditContext.endLineNumber - 1;
-			let startColumnWithinEditor: number;
-			if (startLineNumberWithinEditor === rangeOfContent.startLineNumber) {
-				startColumnWithinEditor = rangeOfContent.startColumn + rangeWithinEditContext.startColumn - 1;
-			} else {
-				startColumnWithinEditor = rangeWithinEditContext.startColumn;
-			}
-			let endColumnWithinEditor: number;
-			if (endLineNumberWithinEditor === rangeOfContent.startLineNumber) {
-				endColumnWithinEditor = rangeOfContent.startColumn + rangeWithinEditContext.endColumn - 1;
-			} else {
-				endColumnWithinEditor = rangeWithinEditContext.endColumn;
-			}
-			const decorationRange = new Range(
-				startLineNumberWithinEditor,
-				startColumnWithinEditor,
-				endLineNumberWithinEditor,
-				endColumnWithinEditor
-			);
+			const textModel = this._context.viewModel.model;
+			const offsetOfEditContextText = textModel.getOffsetAt(rangeOfEditContextText.getStartPosition());
+			const startPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeStart);
+			const endPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeEnd);
+			const decorationRange = Range.fromPositions(startPositionOfDecoration, endPositionOfDecoration);
 			const classNames = [
 				'ime',
 				`underline-style-${f.underlineStyle.toLowerCase()}`,
