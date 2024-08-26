@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import * as dom from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -149,7 +148,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -320,7 +318,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 					const currentElement = template.currentElement;
 					if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId && isResponseVM(currentElement)) {
-						return scopedInstantiationService.createInstance(ChatVoteDownButton, currentElement, action, this.contextMenuService, options as IMenuEntryActionViewItemOptions);
+						return scopedInstantiationService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
 					}
 					return createActionViewItem(scopedInstantiationService, action, options);
 				}
@@ -969,18 +967,18 @@ const voteDownDetailLabels: Record<ChatAgentVoteDownReason, string> = {
 	[ChatAgentVoteDownReason.Other]: localize('other', "Other"),
 };
 
-class ChatVoteDownButton extends DropdownMenuActionViewItem {
+export class ChatVoteDownButton extends DropdownMenuActionViewItem {
 	constructor(
-		private readonly responseVM: IChatResponseViewModel,
 		action: IAction,
-		contextMenuProvider: IContextMenuProvider,
 		options: IDropdownMenuActionViewItemOptions | undefined,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService
+		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService,
+		@ILogService private readonly logService: ILogService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(action,
 			{ getActions: () => this.getActions(), },
-			contextMenuProvider,
+			contextMenuService,
 			{
 				...options,
 				classNames: ThemeIcon.asClassNameArray(Codicon.thumbsdown),
@@ -1003,9 +1001,14 @@ class ChatVoteDownButton extends DropdownMenuActionViewItem {
 				tooltip: '',
 				enabled: true,
 				class: undefined,
-				run: async () => {
-					await this.commandService.executeCommand(MarkUnhelpfulActionId, this.responseVM, ChatAgentVoteDownReason.WillReportIssue);
-					await this.issueService.openReporter({ extensionId: this.responseVM.agent?.extensionId.value });
+				run: async (context: IChatResponseViewModel) => {
+					if (!isResponseVM(context)) {
+						this.logService.error('ChatVoteDownButton#run: invalid context');
+						return;
+					}
+
+					await this.commandService.executeCommand(MarkUnhelpfulActionId, context, ChatAgentVoteDownReason.WillReportIssue);
+					await this.issueService.openReporter({ extensionId: context.agent?.extensionId.value });
 				}
 			}
 		];
@@ -1024,10 +1027,15 @@ class ChatVoteDownButton extends DropdownMenuActionViewItem {
 			label,
 			tooltip: '',
 			enabled: true,
-			checked: this.responseVM.voteDownReason === reason,
+			checked: (this._context as IChatResponseViewModel).voteDownReason === reason,
 			class: undefined,
-			run: async () => {
-				await this.commandService.executeCommand(MarkUnhelpfulActionId, this.responseVM, reason);
+			run: async (context: IChatResponseViewModel) => {
+				if (!isResponseVM(context)) {
+					this.logService.error('ChatVoteDownButton#getVoteDownDetailAction: invalid context');
+					return;
+				}
+
+				await this.commandService.executeCommand(MarkUnhelpfulActionId, context, reason);
 			}
 		};
 	}
