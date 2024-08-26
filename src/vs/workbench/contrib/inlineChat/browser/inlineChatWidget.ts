@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from 'vs/base/browser/dom';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IAction } from 'vs/base/common/actions';
+import { isNonEmptyArray, tail } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, constObservable, derived, observableValue } from 'vs/base/common/observable';
+import { constObservable, derived, ISettableObservable, observableValue } from 'vs/base/common/observable';
 import 'vs/css!./media/inlineChat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
@@ -16,38 +20,39 @@ import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/ed
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
+import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, IMenuEntryActionViewItemOptions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { MarkUnhelpfulActionId } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
+import { IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatVoteDownButton } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatAgentVoteDirection, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { isNonEmptyArray, tail } from 'vs/base/common/arrays';
-import { ChatAgentVoteDirection, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 
 export interface InlineChatWidgetViewState {
@@ -252,6 +257,12 @@ export class InlineChatWidget {
 		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, options.secondaryMenuId ?? MenuId.for(''), {
 			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true, shouldForwardArgs: true },
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
+					return scopedInstaService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
+				}
+				return createActionViewItem(scopedInstaService, action, options);
+			}
 		});
 		this._store.add(toolbar2.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(toolbar2);
