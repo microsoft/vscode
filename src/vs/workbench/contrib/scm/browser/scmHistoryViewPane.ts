@@ -754,7 +754,7 @@ export class SCMHistoryViewPane extends ViewPane {
 						this._visibilityDisposables)
 						(() => {
 							this.updateActions();
-							this._updateChildren();
+							this.refresh();
 						}, this, this._visibilityDisposables);
 
 					// Add visible repositories
@@ -846,6 +846,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 			if (repositoryCount > 1 || alwaysShowRepositories) {
 				this._loadMoreCallback(e.element.repository);
+				this._tree.setSelection([]);
 			}
 		}
 	}
@@ -967,7 +968,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		return loadMore;
 	}
 
-	private _loadMoreCallback(repository: ISCMRepository): void {
+	private async _loadMoreCallback(repository: ISCMRepository): Promise<void> {
 		const loadMore = this._getLoadMore(repository);
 		if (loadMore.get()) {
 			return;
@@ -976,8 +977,8 @@ export class SCMHistoryViewPane extends ViewPane {
 		loadMore.set(true, undefined);
 		this._treeDataSource.loadMore(repository);
 
-		this._updateChildren(repository)
-			.finally(() => loadMore.set(false, undefined));
+		await this._updateChildren(repository);
+		loadMore.set(false, undefined);
 	}
 
 	private _getRepositoryDescription(repository: ISCMRepository): ISettableObservable<string> {

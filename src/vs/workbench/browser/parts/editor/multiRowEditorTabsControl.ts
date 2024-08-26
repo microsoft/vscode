@@ -64,7 +64,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	private didActiveControlChange() {
-		return this.activeControl === (this.model.activeEditor ? this.getEditorTabsController(this.model.activeEditor) : undefined);
+		return this.activeControl !== (this.model.activeEditor ? this.getEditorTabsController(this.model.activeEditor) : undefined);
 	}
 
 	private getEditorTabsController(editor: EditorInput): IEditorTabsControl {

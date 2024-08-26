@@ -705,12 +705,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 		let paddingBottom: number = 0;
 
 		if (!shouldIgnoreScrollOff) {
-			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
-			if (this._stickyScrollEnabled) {
-				paddingTop = Math.max(context, this._maxNumberStickyLines) * this._lineHeight;
-			} else {
-				paddingTop = context * this._lineHeight;
-			}
+			const maxLinesInViewport = (viewportHeight / this._lineHeight);
+			const surroundingLines = Math.max(this._cursorSurroundingLines, this._stickyScrollEnabled ? this._maxNumberStickyLines : 0);
+			const context = Math.min(maxLinesInViewport / 2, surroundingLines);
+			paddingTop = context * this._lineHeight;
 			paddingBottom = Math.max(0, (context - 1)) * this._lineHeight;
 		} else {
 			if (!minimalReveal) {
