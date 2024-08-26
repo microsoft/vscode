@@ -64,3 +64,8 @@ export interface CellMetadata {
 	 */
 	execution_count?: number;
 }
+
+export interface notebookSerializationWorkerData {
+	notebookContent: Partial<nbformat.INotebookContent>;
+	indentAmount: string;
+}

@@ -105,7 +105,7 @@ export function activate(context: vscode.ExtensionContext) {
 		get dropCustomMetadata() {
 			return true;
 		},
-		exportNotebook: (notebook: vscode.NotebookData): string => {
+		exportNotebook: (notebook: vscode.NotebookData): Promise<string> => {
 			return exportNotebook(notebook, serializer);
 		},
 		setNotebookMetadata: async (resource: vscode.Uri, metadata: Partial<NotebookMetadata>): Promise<boolean> => {
@@ -127,7 +127,7 @@ export function activate(context: vscode.ExtensionContext) {
 	};
 }
 
-function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): string {
+function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): Promise<string> {
 	return serializer.serializeNotebookToString(notebook);
 }
 

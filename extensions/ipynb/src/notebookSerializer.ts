@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'node:path';
+import { Worker } from 'node:worker_threads';
 import type * as nbformat from '@jupyterlab/nbformat';
 import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
@@ -10,6 +12,7 @@ import { defaultNotebookFormat } from './constants';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
 import { createJupyterCellFromNotebookCell, pruneCell, sortObjectPropertiesRecursively } from './serializers';
 import * as fnv from '@enonic/fnv-plus';
+import { notebookSerializationWorkerData } from './common';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -70,11 +73,25 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		return data;
 	}
 
-	public serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array {
-		return new TextEncoder().encode(this.serializeNotebookToString(data));
+	public async serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Promise<Uint8Array> {
+		return new TextEncoder().encode(await this.serializeNotebookToString(data));
 	}
 
-	public serializeNotebookToString(data: vscode.NotebookData): string {
+	private serializeViaWorker(workerData: notebookSerializationWorkerData): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const workerFile = path.join(__dirname, 'notebookSerializerWorker.js');
+			const worker = new Worker(workerFile, { workerData });
+			worker.on('message', resolve);
+			worker.on('error', reject);
+			worker.on('exit', (code) => {
+				if (code !== 0) {
+					reject(new Error(`Worker stopped with exit code ${code}`));
+				}
+			});
+		});
+	}
+
+	public serializeNotebookToString(data: vscode.NotebookData): Promise<string> {
 		const notebookContent = getNotebookMetadata(data);
 		// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
 		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === vscode.NotebookCellKind.Code)?.languageId;
@@ -83,11 +100,17 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
 			.map(pruneCell);
 
+		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
+		const sorted = sortObjectPropertiesRecursively(notebookContent);
+
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
 			data.metadata.indentAmount :
 			' ';
-		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
-		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
+
+		return this.serializeViaWorker({
+			notebookContent: sorted,
+			indentAmount
+		});
 	}
 }
 
