@@ -574,6 +574,13 @@ class ProfileWidget extends Disposable {
 	}
 
 	render(profileElement: AbstractUserDataProfileElement): void {
+		if (this._profileElement.value?.element === profileElement) {
+			return;
+		}
+
+		if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+			this._profileElement.value.element.reset();
+		}
 		this.profileTree.setInput(profileElement);
 
 		const disposables = new DisposableStore();
@@ -907,7 +914,6 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				}
 			}
 		));
-		disposables.add(this.userDataProfilesService.onDidChangeProfiles(() => nameInput.validate()));
 		nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
@@ -937,6 +943,9 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				elementDisposables.add(profileElement.root.onDidChange(e => {
 					if (e.name || e.disabled) {
 						renderName(element);
+					}
+					if (e.profile) {
+						nameInput.validate();
 					}
 				}));
 			},
@@ -1720,6 +1729,15 @@ export class UserDataProfilesEditorInput extends EditorInput {
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean { return otherInput instanceof UserDataProfilesEditorInput; }
+
+	override dispose(): void {
+		for (const profile of this.model.profiles) {
+			if (profile instanceof UserDataProfileElement) {
+				profile.reset();
+			}
+		}
+		super.dispose();
+	}
 }
 
 export class UserDataProfilesEditorInputSerializer implements IEditorSerializer {
