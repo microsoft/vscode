@@ -15,11 +15,12 @@ import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifec
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { _debugComposition, ITextAreaWrapper, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextState';
-import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager, ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
+import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -353,14 +354,12 @@ export class TextAreaInput extends Disposable {
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
 
-			const dataToCopy = this._host.getDataToCopy();
-			ensureClipboardGetsEditorSelection(e, dataToCopy);
+			ensureClipboardGetsEditorSelection(e, this._host.getDataToCopy());
 			this._asyncTriggerCut.schedule();
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
-			const dataToCopy = this._host.getDataToCopy();
-			ensureClipboardGetsEditorSelection(e, dataToCopy);
+			ensureClipboardGetsEditorSelection(e, this._host.getDataToCopy());
 		}));
 
 		this._register(this._textArea.onPaste((e) => {

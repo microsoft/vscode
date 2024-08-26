@@ -56,7 +56,7 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { AbstractEditContextHandler } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContextHandler } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { NativeEditContextHandler } from 'vs/editor/browser/controller/editContext/native/nativeEditContextHandler';
 
 
@@ -118,7 +118,6 @@ export class View extends ViewEventHandler {
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
-		console.log('view constructor');
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
@@ -364,7 +363,6 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(editContextType: 'native' | 'textarea') {
-		console.log('_instantiateEditContext');
 		let editContextHandler: AbstractEditContextHandler;
 		if (editContextType === 'native') {
 			editContextHandler = this._instantiationService.createInstance(NativeEditContextHandler, this._context, this._viewController);
@@ -383,9 +381,6 @@ export class View extends ViewEventHandler {
 		this.domNode.setClassName(this._getEditorClassName());
 		this._applyLayout();
 		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
-		console.log('onConfigurationChanged : ');
-		console.log('edit context type : ', editContextType);
-		console.log('this._editContextType : ', this._editContextType);
 		if (this._editContextType !== editContextType) {
 			this._editContextHandler.dispose();
 			this._editContextHandler = this._instantiateEditContext(editContextType);

@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ClipboardDataToCopy } from 'vs/editor/browser/controller/editContext/editContext';
+import { ClipboardDataToCopy } from 'vs/editor/browser/controller/editContext/clipboardUtils';
 import { IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
 import { TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextState';
 import { Position } from 'vs/editor/common/core/position';

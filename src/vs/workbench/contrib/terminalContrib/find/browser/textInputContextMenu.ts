@@ -27,7 +27,6 @@ export function openContextMenu(targetWindow: Window, event: MouseEvent, clipboa
 		new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveWindow().document.execCommand('cut')),
 		new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveWindow().document.execCommand('copy')),
 		new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
-			console.log('paste action of openContextMenu');
 
 			// Native: paste is supported
 			if (isNative) {

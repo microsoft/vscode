@@ -5,7 +5,7 @@
 
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ensureClipboardGetsEditorSelection, getDataToCopy, InMemoryClipboardMetadataManager, ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { LineVisibleRanges, RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -22,6 +22,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DebugEditContext } from 'vs/editor/browser/controller/editContext/native/debugEditContext';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ensureClipboardGetsEditorSelection, getDataToCopy, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
 
 // Boolean which controls whether we should show the control, selection and character bounds
 const showControlBounds = true;

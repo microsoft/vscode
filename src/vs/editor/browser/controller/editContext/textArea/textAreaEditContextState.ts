@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/editContext';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -13,7 +13,6 @@ export const _debugComposition = false;
 export interface ITextAreaWrapper {
 	getValue(): string;
 	setValue(reason: string, value: string): void;
-
 	getSelectionStart(): number;
 	getSelectionEnd(): number;
 	setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void;

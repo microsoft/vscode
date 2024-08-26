@@ -292,7 +292,6 @@ export class ViewController {
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
-		console.log('inside of emit key down');
 		this.userInputEvents.emitKeyDown(e);
 	}
 
