@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
 // ESM-comment-begin
@@ -17,6 +18,7 @@ const Module = require('module');
 // import { createRequire } from 'node:module';
 //
 // const require = createRequire(import.meta.url);
+// /** @type any */
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
