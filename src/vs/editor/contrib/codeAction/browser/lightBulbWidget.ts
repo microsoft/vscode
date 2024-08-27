@@ -212,6 +212,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
+		const hasTextFocus = this._editor.hasTextFocus();
+		if (!hasTextFocus) {
+			this.gutterHide();
+			return this.hide();
+		}
+
 		const options = this._editor.getOptions();
 		if (!options.get(EditorOption.lightbulb).enabled) {
 			this.gutterHide();
@@ -236,6 +242,18 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);
 		};
 
+		// Check for glyph margin decorations of any kind
+		const currLineDecorations = this._editor.getLineDecorations(lineNumber);
+		let hasDecoration = false;
+		if (currLineDecorations) {
+			for (const decoration of currLineDecorations) {
+				if (decoration.options.glyphMarginClassName) {
+					hasDecoration = true;
+					break;
+				}
+			}
+		}
+
 		let effectiveLineNumber = lineNumber;
 		let effectiveColumnNumber = 1;
 		if (!lineHasSpace) {
@@ -253,8 +271,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				const currLineEmptyOrIndented = isLineEmptyOrIndented(lineNumber);
 				const notEmpty = !nextLineEmptyOrIndented && !prevLineEmptyOrIndented;
 
-				const currLineDecorations = this._editor.getLineDecorations(lineNumber);
-				const hasDecoration = !!(currLineDecorations?.length);
 
 				// check above and below. if both are blocked, display lightbulb in the gutter.
 				if (!nextLineEmptyOrIndented && !prevLineEmptyOrIndented && !hasDecoration) {
@@ -275,8 +291,13 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 					position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 					preference: LightBulbWidget._posPref
 				});
-				this.renderGutterLightbub();
-				return this.hide();
+
+				if (hasDecoration) {
+					this.gutterHide();
+				} else {
+					this.renderGutterLightbub();
+					return this.hide();
+				}
 			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
 			} else if (column * fontInfo.spaceWidth < 22) {

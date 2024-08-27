@@ -591,10 +591,12 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	color: var(--vscode-textLink-foreground)
 }
 
 .scm-history-view .history-item-load-more .history-item-placeholder .monaco-highlighted-label .codicon {
 	font-size: 12px;
+	color: var(--vscode-textLink-foreground)
 }
 
 .scm-history-view .history-item-load-more .history-item-placeholder.shimmer {

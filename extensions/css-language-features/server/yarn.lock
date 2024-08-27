@@ -24,13 +24,13 @@ undici-types@~5.26.4:
   resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-5.26.5.tgz#bcd539893d00b56e964fd2657a4866b221a65617"
   integrity sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==
 
-vscode-css-languageservice@^6.3.0:
-  version "6.3.0"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-6.3.0.tgz#51724d193d19b1a9075b1cef5cfeea6a555d2aa4"
-  integrity sha512-nU92imtkgzpCL0xikrIb8WvedV553F2BENzgz23wFuok/HLN5BeQmroMy26pUwFxV2eV8oNRmYCUv8iO7kSMhw==
+vscode-css-languageservice@^6.3.1:
+  version "6.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-6.3.1.tgz#56733c90686db56855ccc156a534a68b8c1f2187"
+  integrity sha512-1BzTBuJfwMc3A0uX4JBdJgoxp74cjj4q2mDJdp49yD/GuAq4X0k5WtK6fNcMYr+FfJ9nqgR6lpfCSZDkARJ5qQ==
   dependencies:
     "@vscode/l10n" "^0.0.18"
-    vscode-languageserver-textdocument "^1.0.11"
+    vscode-languageserver-textdocument "^1.0.12"
     vscode-languageserver-types "3.17.5"
     vscode-uri "^3.0.8"
 
@@ -47,10 +47,10 @@ vscode-languageserver-protocol@3.17.6-next.6:
     vscode-jsonrpc "9.0.0-next.4"
     vscode-languageserver-types "3.17.6-next.4"
 
-vscode-languageserver-textdocument@^1.0.11:
-  version "1.0.11"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.11.tgz#0822a000e7d4dc083312580d7575fe9e3ba2e2bf"
-  integrity sha512-X+8T3GoiwTVlJbicx/sIAF+yuJAqz8VvwJyoMVhwEMoEKE/fkDmrqUgDMyBECcM2A2frVZIUj5HI/ErRXCfOeA==
+vscode-languageserver-textdocument@^1.0.12:
+  version "1.0.12"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.12.tgz#457ee04271ab38998a093c68c2342f53f6e4a631"
+  integrity sha512-cxWNPesCnQCcMPeenjKKsOCKQZ/L6Tv19DTRIGuLWe32lyzWhihGVJ/rcckZXJxfdKCFvRLS3fpBIsV/ZGX4zA==
 
 vscode-languageserver-types@3.17.5:
   version "3.17.5"
@@ -62,7 +62,7 @@ vscode-languageserver-types@3.17.6-next.4:
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.17.6-next.4.tgz#6670939eb98f00aa7b05021dc3dd7fe9aa4453ea"
   integrity sha512-SeJTpH/S14EbxOAVaOUoGVqPToqpRTld5QO5Ghig3AlbFJTFF9Wu7srHMfa85L0SX1RYAuuCSFKJVVCxDIk1/Q==
 
-vscode-languageserver@^10.0.0-next.6:
+vscode-languageserver@10.0.0-next.6:
   version "10.0.0-next.6"
   resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-10.0.0-next.6.tgz#0db118a93fe010c6b40cd04e91a15d09e7b60b60"
   integrity sha512-0Lh1nhQfSxo5Ob+ayYO1QTIsDix2/Lc72Urm1KZrCFxK5zIFYaEh3QFeM9oZih4Rzs0ZkQPXXnoHtpvs5GT+Zw==
