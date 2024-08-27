@@ -784,8 +784,8 @@ extends:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
         - stage: Web
-          dependsOn:
-            - Compile
+          # dependsOn:
+          #   - Compile
           pool:
             name: 1es-ubuntu-20.04-x64
             os: linux
@@ -796,6 +796,19 @@ extends:
                   VSCODE_ARCH: x64
                 steps:
                   - template: build/azure-pipelines/web/product-build-web.yml@self
+
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
+        - stage: Web AMD
+          pool:
+            name: 1es-ubuntu-20.04-x64
+            os: linux
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
+              - job: Web AMD
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: build/azure-pipelines/web/product-build-web-amd.yml@self
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
         - stage: Publish
