@@ -4559,13 +4559,11 @@ export enum LanguageModelChatMessageRole {
 
 export class LanguageModelToolResultPart implements vscode.LanguageModelChatMessageToolResultPart {
 
-	name: string;
 	toolCallId: string;
 	content: string;
 	isError: boolean;
 
-	constructor(name: string, toolCallId: string, content: string, isError?: boolean) {
-		this.name = name;
+	constructor(toolCallId: string, content: string, isError?: boolean) {
 		this.toolCallId = toolCallId;
 		this.content = content;
 		this.isError = isError ?? false;
@@ -4576,7 +4574,7 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	static User(content: string | LanguageModelToolResultPart, name?: string): LanguageModelChatMessage {
 		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		value.content2 = content;
+		value.content2 = [content];
 		return value;
 	}
 
@@ -4586,13 +4584,13 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
-	content2: string | vscode.LanguageModelChatMessageToolResultPart;
+	content2: (string | vscode.LanguageModelChatMessageToolResultPart | vscode.LanguageModelChatResponseToolCallPart)[];
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
 		this.role = role;
 		this.content = content;
-		this.content2 = content;
+		this.content2 = [content];
 		this.name = name;
 	}
 }

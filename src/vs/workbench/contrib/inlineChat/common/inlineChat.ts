@@ -16,7 +16,7 @@ export const enum InlineChatConfigKeys {
 	Mode = 'inlineChat.mode',
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
-	OnlyZoneWidget = 'inlineChat.experimental.onlyZoneWidget',
+	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	ZoneToolbar = 'inlineChat.experimental.enableZoneToolbar',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView'
@@ -67,11 +67,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
-		[InlineChatConfigKeys.OnlyZoneWidget]: {
-			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, instead of the overlay widget which turns into a zone."),
+		[InlineChatConfigKeys.StartWithOverlayWidget]: {
+			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, or as overlay widget which turns into a zone."),
 			default: false,
 			type: 'boolean',
-			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.ZoneToolbar]: {
 			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
@@ -114,8 +113,6 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
-export const CTX_INLINE_CHAT_SUPPORT_REPORT_ISSUE = new RawContextKey<boolean>('inlineChatSupportReportIssue', false, localize('inlineChatSupportReportIssue', "Whether inline chat supports reporting issues"));
-
 // --- (selected) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
@@ -128,6 +125,7 @@ export const ACTION_REPORT_ISSUE = 'inlineChat.reportIssue';
 
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
+export const MENU_INLINE_CHAT_WIDGET_SECONDARY = MenuId.for('inlineChatWidget.secondary');
 export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
 
 // --- colors

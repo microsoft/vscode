@@ -135,19 +135,12 @@ export class LinkDetector {
 		const link = this.createLink(text);
 		this.decorateLink(link, undefined, text, hoverBehavior, async (preserveFocus: boolean) => {
 			const location = await session.resolveLocationReference(locationReference);
-
-			await this.editorService.openEditor({
-				resource: location.source.uri,
-				options: {
-					preserveFocus,
-					selection: {
-						startLineNumber: location.line,
-						startColumn: location.column,
-						endLineNumber: location.endLine,
-						endColumn: location.endColumn,
-					},
-				},
-			});
+			await location.source.openInEditor(this.editorService, {
+				startLineNumber: location.line,
+				startColumn: location.column,
+				endLineNumber: location.endLine ?? location.line,
+				endColumn: location.endColumn ?? location.column,
+			}, preserveFocus);
 		});
 
 		return link;

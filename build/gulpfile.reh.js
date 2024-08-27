@@ -32,7 +32,7 @@ const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require(
 const cp = require('child_process');
 const log = require('fancy-log');
 const { isESM } = require('./lib/esm');
-const buildfile = require('../src/buildfile');
+const buildfile = require('./buildfile');
 
 const REPO_ROOT = path.dirname(__dirname);
 const commit = getVersion(REPO_ROOT);

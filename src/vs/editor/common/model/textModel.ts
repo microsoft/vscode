@@ -1989,7 +1989,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 }
 
-function indentOfLine(line: string): number {
+export function indentOfLine(line: string): number {
 	let indent = 0;
 	for (const c of line) {
 		if (c === ' ' || c === '\t') {

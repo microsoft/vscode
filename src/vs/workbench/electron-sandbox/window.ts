@@ -80,6 +80,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { getWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DynamicWorkbenchSecurityConfiguration } from 'vs/workbench/common/configuration';
 import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { isESM } from 'vs/base/common/amd';
 
 export class NativeWindow extends BaseWindow {
 
@@ -708,7 +709,7 @@ export class NativeWindow extends BaseWindow {
 	private async handleWarnings(): Promise<void> {
 
 		// Check for cyclic dependencies
-		if (typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
+		if (!isESM && typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
 			if (isCI) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog

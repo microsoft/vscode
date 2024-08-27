@@ -2734,10 +2734,10 @@ vscode-gulp-watch@^5.0.3:
     vinyl "^2.2.0"
     vinyl-file "^3.0.0"
 
-vscode-universal-bundler@^0.1.2:
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/vscode-universal-bundler/-/vscode-universal-bundler-0.1.2.tgz#50ba7c637942dae6c0bc9bb37c0fcabf509cbca5"
-  integrity sha512-fboaE0933+r+qW4aRuuMwC8yle4DX6xyRDCM0otYMo5+4POZjEHbsqkPQ8H8xmhScHf1Fa7kZXYo1V2n0d2x/g==
+vscode-universal-bundler@^0.1.3:
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/vscode-universal-bundler/-/vscode-universal-bundler-0.1.3.tgz#bd223e61ca0ed1d8ebb1c023d5ad99aab92c3d35"
+  integrity sha512-USXJqgD+ySROqgjl+KrGjlF7MvNnqsI6my1kUOsAXARmNqBjXk38w8g2BF6PEXVOYOQ+npRcTA7athXNU4Jjog==
   dependencies:
     "@electron/asar" "^3.2.7"
     "@malept/cross-spawn-promise" "^2.0.0"

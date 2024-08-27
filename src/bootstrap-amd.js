@@ -21,6 +21,7 @@
 // import * as performance from './vs/base/common/performance.js';
 //
 // const require = createRequire(import.meta.url);
+// /** @type any */
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 //

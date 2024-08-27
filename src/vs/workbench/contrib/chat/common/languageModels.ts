@@ -29,18 +29,17 @@ export interface IChatMessageTextPart {
 
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
-	name: string;
 	toolCallId: string;
 	value: any;
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
 	readonly role: ChatMessageRole;
-	readonly content: IChatMessagePart;
+	readonly content: IChatMessagePart[];
 }
 
 export interface IChatResponseTextPart {

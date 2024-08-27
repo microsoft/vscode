@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 6
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
@@ -36,7 +36,7 @@ declare module 'vscode' {
 		toolCallId: string;
 		parameters: any;
 
-		constructor(name: string, parameters: any, toolCallId: string);
+		constructor(name: string, toolCallId: string, parameters: any);
 	}
 
 	// LM -> USER: text chunk
@@ -47,32 +47,35 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelChatResponse {
-
 		stream: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseToolCallPart>;
 	}
 
 
 	// USER -> LM: the result of a function call
 	export class LanguageModelChatMessageToolResultPart {
-		name: string;
 		toolCallId: string;
 		content: string;
 		isError: boolean;
 
-		constructor(name: string, toolCallId: string, content: string, isError?: boolean);
+		constructor(toolCallId: string, content: string, isError?: boolean);
 	}
 
 	export interface LanguageModelChatMessage {
-		// A heterogeneous array of other things that a message can contain as content. Some parts would be message-type specific for some models
-		// and wouldn't go together, but it's up to the chat provider to decide what to do about that. Can drop parts that are not valid for the message type.
-		// For OpenAI:
-		// LanguageModelChatMessageToolResultPart: only on User messages
-		// LanguageModelChatResponseToolCallPart: only on Assistant messages
+		/**
+		 * A heterogeneous array of other things that a message can contain as content.
+		 * Some parts would be message-type specific for some models and wouldn't go together,
+		 * but it's up to the chat provider to decide what to do about that.
+		 * Can drop parts that are not valid for the message type.
+		 * LanguageModelChatMessageToolResultPart: only on User messages
+		 * LanguageModelChatResponseToolCallPart: only on Assistant messages
+		 */
 		content2: (string | LanguageModelChatMessageToolResultPart | LanguageModelChatResponseToolCallPart)[];
 	}
 
 	export interface LanguageModelToolResult {
-		// Types determined by LanguageModelToolInvokationOptions#contentTypes
+		/**
+		 * The result can contain arbitrary representations of the content. An example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
+		 */
 		[contentType: string]: any;
 
 		/**
@@ -130,7 +133,32 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		export function invokeTool(id: string, options: LanguageModelToolInvokationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
+	}
+
+	export interface LanguageModelToolInvocationOptions {
+		/**
+		 * Parameters with which to invoke the tool.
+		 */
+		parameters: Object;
+
+		/**
+		 * Options to hint at how many tokens the tool should return in its response.
+		 */
+		tokenOptions?: {
+			/**
+			 * If known, the maximum number of tokens the tool should emit in its result.
+			 */
+			tokenBudget: number;
+
+			/**
+			 * Count the number of tokens in a message using the model specific tokenizer-logic.
+			 * @param text A string.
+			 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+			 * @returns A thenable that resolves to the number of tokens.
+			 */
+			countTokens(text: string, token?: CancellationToken): Thenable<number>;
+		};
 	}
 
 	export type JSONSchema = object;
@@ -179,7 +207,8 @@ declare module 'vscode' {
 	export type LanguageModelToolResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
 
 	export interface LanguageModelTool {
-		invoke(parameters: any, stream: LanguageModelToolResponseStream, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		// TODO@API should it be LanguageModelToolResult | string?
+		invoke(options: LanguageModelToolInvocationOptions, stream: LanguageModelToolResponseStream, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 	}
 
 	export interface ChatLanguageModelToolReference {

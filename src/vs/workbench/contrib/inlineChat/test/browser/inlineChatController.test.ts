@@ -859,4 +859,54 @@ suite('InteractiveChatController', function () {
 		assert.strictEqual(model.getValue(), 'Existing');
 
 	});
+
+	test('Undo on error (2 rounds)', async function () {
+
+		return runWithFakedTimers({}, async () => {
+
+
+			store.add(chatAgentService.registerDynamicAgent({ id: 'testEditorAgent', ...agentData, }, {
+				async invoke(request, progress, history, token) {
+
+					progress({
+						kind: 'textEdit',
+						uri: model.uri,
+						edits: [{
+							range: new Range(1, 1, 1, 1),
+							text: request.message
+						}]
+					});
+
+					if (request.message === 'two') {
+						await timeout(100); // give edit a chance
+						return {
+							errorDetails: { message: 'FAILED' }
+						};
+					}
+					return {};
+				},
+			}));
+
+			model.setValue('');
+
+			// ROUND 1
+
+			ctrl = instaService.createInstance(TestController, editor);
+			const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
+			ctrl.run({ autoSend: true, message: 'one' });
+			assert.strictEqual(await p, undefined);
+			assert.strictEqual(model.getValue(), 'one');
+
+
+			// ROUND 2
+
+			const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
+			const values = new Set<string>();
+			store.add(model.onDidChangeContent(() => values.add(model.getValue())));
+			ctrl.chatWidget.acceptInput('two'); // WILL Trigger a failure
+			assert.strictEqual(await p2, undefined);
+			assert.strictEqual(model.getValue(), 'one'); // undone
+			assert.ok(values.has('twoone')); // we had but the change got undone
+		});
+	});
 });

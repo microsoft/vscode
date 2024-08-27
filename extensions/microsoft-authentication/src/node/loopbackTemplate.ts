@@ -69,7 +69,7 @@ export const loopbackTemplate = `
 		}
 
 		.error-text {
-			color: red;
+			color: salmon;
 			font-size: 1rem;
 		}
 

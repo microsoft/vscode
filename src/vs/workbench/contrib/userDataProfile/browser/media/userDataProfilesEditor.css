@@ -295,7 +295,8 @@
 
 .profiles-editor .contents-container .profile-body .profile-row-container.profile-button-container .monaco-button {
 	margin-right: 10px;
-	max-width: 80px;
+	width: inherit;
+	padding: 4px 10px;
 }
 
 /* Profile Editor Tree Theming */

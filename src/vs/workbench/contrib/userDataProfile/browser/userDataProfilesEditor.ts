@@ -319,6 +319,13 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		await this.model?.createNewProfile(copyFrom);
 	}
 
+	selectProfile(profile: IUserDataProfile): void {
+		const index = this.model?.profiles.findIndex(p => p instanceof UserDataProfileElement && p.profile.id === profile.id);
+		if (index !== undefined && index >= 0) {
+			this.profilesList?.setSelection([index]);
+		}
+	}
+
 	private async getProfileUriFromFileSystem(): Promise<URI | null> {
 		const profileLocation = await this.fileDialogService.showOpenDialog({
 			canSelectFolders: false,
@@ -567,6 +574,13 @@ class ProfileWidget extends Disposable {
 	}
 
 	render(profileElement: AbstractUserDataProfileElement): void {
+		if (this._profileElement.value?.element === profileElement) {
+			return;
+		}
+
+		if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+			this._profileElement.value.element.reset();
+		}
 		this.profileTree.setInput(profileElement);
 
 		const disposables = new DisposableStore();
@@ -889,7 +903,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						}
 						const initialName = profileElement?.root.getInitialName();
 						value = value.trim();
-						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
+						if (initialName !== value && this.userDataProfilesService.profiles.some(p => !p.isTransient && p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
 								type: MessageType.WARNING
@@ -900,7 +914,6 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				}
 			}
 		));
-		disposables.add(this.userDataProfilesService.onDidChangeProfiles(() => nameInput.validate()));
 		nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
@@ -930,6 +943,9 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				elementDisposables.add(profileElement.root.onDidChange(e => {
 					if (e.name || e.disabled) {
 						renderName(element);
+					}
+					if (e.profile) {
+						nameInput.validate();
 					}
 				}));
 			},
@@ -1713,6 +1729,15 @@ export class UserDataProfilesEditorInput extends EditorInput {
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean { return otherInput instanceof UserDataProfilesEditorInput; }
+
+	override dispose(): void {
+		for (const profile of this.model.profiles) {
+			if (profile instanceof UserDataProfileElement) {
+				profile.reset();
+			}
+		}
+		super.dispose();
+	}
 }
 
 export class UserDataProfilesEditorInputSerializer implements IEditorSerializer {

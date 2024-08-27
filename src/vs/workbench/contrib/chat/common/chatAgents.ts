@@ -75,6 +75,7 @@ export interface IChatAgentData {
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
 	disambiguation: { categoryName: string; description: string; examples: string[] }[];
+	supportsToolReferences?: boolean;
 }
 
 export interface IChatAgentImplementation {
@@ -140,6 +141,7 @@ export interface IChatAgentRequest {
 	message: string;
 	attempt?: number;
 	enableCommandDetection?: boolean;
+	isParticipantDetected?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
 	locationData?: IChatLocationData;
