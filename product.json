@@ -13,9 +13,11 @@
 	"serverApplicationName": "code-server-oss",
 	"serverDataFolderName": ".vscode-server-oss",
 	"tunnelApplicationName": "code-tunnel-oss",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
+	"downloadUrl": "https://trypear.ai/",
+	"updateUrl": "https://stingray-app-gb2an.ondigitalocean.app/pearai-server-api2",
+	"win32DirName": "PearAI",
+	"win32NameVersion": "PearAI",
+	"win32RegValueName": "PearAI",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
@@ -32,8 +34,8 @@
 	"urlProtocol": "pearai",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionsGallery": {
-		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
-		"itemUrl": "https://marketplace.visualstudio.com/items"
+		"serviceUrl": "https://stingray-app-gb2an.ondigitalocean.app/pearai-server-api2/gallery",
+		"itemUrl": "https://stingray-app-gb2an.ondigitalocean.app/pearai-server-api2/items"
 	},
 
 	"profileTemplatesUrl": "https://az764295.vo.msecnd.net/profile-templates/profile-templates.json",
