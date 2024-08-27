@@ -16,7 +16,6 @@ import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContr
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextEdit } from 'vs/editor/common/languages';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -582,18 +581,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
 		model.tokenization.forceTokenization(lineNumber);
 		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhitespaceColumn === 0) {
-			return true;
-		}
-		const tokens = model.tokenization.getLineTokens(lineNumber);
-		if (tokens.getCount() > 0) {
-			const firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
-			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
-				return true;
-			}
-		}
-
-		return false;
+		return nonWhitespaceColumn === 0;
 	}
 
 	public dispose(): void {
