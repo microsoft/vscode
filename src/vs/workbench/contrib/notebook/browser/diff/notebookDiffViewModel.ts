@@ -441,12 +441,15 @@ function createDiffViewModels(instantiationService: IInstantiationService, confi
 				);
 			}
 			case 'unchanged': {
+				const originalCell = originalModel.cells[diff.originalCellIndex];
+				const modifiedCell = modifiedModel.cells[diff.modifiedCellIndex];
+				const type = (originalCell.textModel?.getValue() !== modifiedCell.textModel?.getValue()) ? 'modified' : 'unchanged';
 				return new SideBySideDiffElementViewModel(
 					model.modified.notebook,
 					model.original.notebook,
-					originalModel.cells[diff.originalCellIndex],
-					modifiedModel.cells[diff.modifiedCellIndex],
-					'unchanged',
+					originalCell,
+					modifiedCell,
+					type,
 					eventDispatcher,
 					initData,
 					notebookService
