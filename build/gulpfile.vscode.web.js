@@ -282,7 +282,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 
 ['', 'min'].forEach(minified => {
 	const sourceFolderName = `out-vscode-web${dashed(minified)}`;
-	const destinationFolderName = `vscode-web`;
+	const destinationFolderName = `vscode-web-amd`;
 
 	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
 		compileWebExtensionsBuildTask,

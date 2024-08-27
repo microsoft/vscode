@@ -82,7 +82,7 @@ async function main() {
             cacheControl: 'max-age=31536000, public'
         }
     });
-    const all = vfs.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
+    const all = vfs.src('**', { cwd: '../vscode-web-amd', base: '../vscode-web-amd', dot: true })
         .pipe(filter(f => !f.isDirectory()));
     const compressed = all
         .pipe(filter(f => MimeTypesToCompress.has(mime.lookup(f.path))))

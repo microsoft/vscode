@@ -20,13 +20,16 @@ const isESMBuild = typeof process.env.VSCODE_BUILD_ESM === 'string' && process.e
  * @param {boolean} disableMangle
  */
 function makeCompileBuildTask(disableMangle) {
+	if (disableMangle) {
+
+	}
 	return task.series(
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
 		date.writeISODate('out-build'),
 		esm.setESM(isESMBuild),
 		compilation.compileApiProposalNamesTask,
-		compilation.compileTask(isESMBuild ? 'src2' : 'src', 'out-build', true, { disableMangle }),
+		compilation.compileTask(isESMBuild ? 'src2' : 'src', 'out-build', true, { disableMangle: true }),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)
 	);
 }
