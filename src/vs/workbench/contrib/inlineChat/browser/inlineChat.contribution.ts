@@ -107,8 +107,6 @@ registerAction2(InlineChatActions.ViewInChatAction);
 registerAction2(InlineChatActions.ToggleDiffForChange);
 registerAction2(InlineChatActions.AcceptChanges);
 
-registerAction2(InlineChatActions.ReportIssueAction);
-
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
 

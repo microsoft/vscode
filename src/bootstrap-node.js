@@ -18,6 +18,7 @@ const Module = require('module');
 // import { createRequire } from 'node:module';
 //
 // const require = createRequire(import.meta.url);
+// /** @type any */
 // const module = { exports: {} };
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
@@ -109,12 +110,10 @@ module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
 	// ESM-comment-end
 };
 
-module.exports.removeGlobalNodeModuleLookupPaths = function () {
+module.exports.removeGlobalNodeJsModuleLookupPaths = function () {
 	if (typeof process?.versions?.electron === 'string') {
 		return; // Electron disables global search paths in https://github.com/electron/electron/blob/3186c2f0efa92d275dc3d57b5a14a60ed3846b0e/shell/common/node_bindings.cc#L653
 	}
-
-	// TODO@esm this might not work anymore (https://github.com/microsoft/vscode/issues/226042)
 
 	const Module = require('module');
 	// @ts-ignore
@@ -272,7 +271,7 @@ module.exports.fileUriFromPath = function (path, config) {
 
 // ESM-uncomment-begin
 // export const devInjectNodeModuleLookupPath = module.exports.devInjectNodeModuleLookupPath;
-// export const removeGlobalNodeModuleLookupPaths = module.exports.removeGlobalNodeModuleLookupPaths;
+// export const removeGlobalNodeJsModuleLookupPaths = module.exports.removeGlobalNodeJsModuleLookupPaths;
 // export const configurePortable = module.exports.configurePortable;
 // export const enableASARSupport = module.exports.enableASARSupport;
 // export const fileUriFromPath = module.exports.fileUriFromPath;

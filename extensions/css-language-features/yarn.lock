@@ -52,7 +52,7 @@ vscode-jsonrpc@9.0.0-next.4:
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-9.0.0-next.4.tgz#ba403ddb3b82ca578179963dbe08e120a935f50d"
   integrity sha512-zSVIr58lJSMYKIsZ5P7GtBbv1eEx25eNyOf0NmEzxmn1GhUNJAVAb5hkA1poKUwj1FRMwN6CeyWxZypmr8SsQQ==
 
-vscode-languageclient@^10.0.0-next.8:
+vscode-languageclient@10.0.0-next.8:
   version "10.0.0-next.8"
   resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-10.0.0-next.8.tgz#5afa0ced3b2ac68d31cc1c48edc4f289744542a0"
   integrity sha512-D9inIHgqKayO9Tv0MeLb3XIL76yTuWmKdHqcGZKzjtQrMGJgASJDYWTapu+yAjEpDp0gmVOaCYyIlLB86ncDoQ==

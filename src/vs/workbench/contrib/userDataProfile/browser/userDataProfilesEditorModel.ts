@@ -50,6 +50,7 @@ export type ChangeEvent = {
 	readonly copyFromInfo?: boolean;
 	readonly copyFlags?: boolean;
 	readonly preview?: boolean;
+	readonly profile?: boolean;
 	readonly disabled?: boolean;
 	readonly newWindowProfile?: boolean;
 };
@@ -353,15 +354,20 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		}
 		));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.active = this.userDataProfileService.currentProfile.id === this.profile.id));
-		this._register(this.userDataProfilesService.onDidChangeProfiles(() => {
-			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.profile.id);
+		this._register(this.userDataProfilesService.onDidChangeProfiles(({ updated }) => {
+			const profile = updated.find(p => p.id === this.profile.id);
 			if (profile) {
 				this._profile = profile;
-				this.name = profile.name;
-				this.icon = profile.icon;
-				this.flags = profile.useDefaultFlags;
+				this.reset();
+				this._onDidChange.fire({ profile: true });
 			}
 		}));
+	}
+
+	reset(): void {
+		this.name = this._profile.name;
+		this.icon = this._profile.icon;
+		this.flags = this._profile.useDefaultFlags;
 	}
 
 	public async toggleNewWindowProfile(): Promise<void> {
@@ -783,7 +789,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('export', "Export..."),
 			ThemeIcon.asClassName(Codicon.export),
 			true,
-			() => this.exportProfile(profileElement.profile)
+			() => this.userDataProfileImportExportService.exportProfile(profile)
 		));
 
 		const deleteAction = disposables.add(new Action(
@@ -906,11 +912,18 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			if (!isWeb) {
 				secondaryActions.push(previewProfileAction);
 			}
+			const exportAction = disposables.add(new Action(
+				'userDataProfile.export',
+				localize('export', "Export..."),
+				ThemeIcon.asClassName(Codicon.export),
+				isUserDataProfile(copyFrom),
+				() => this.exportNewProfile(cancellationTokenSource.token)
+			));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
-				[primaryActions, [cancelAction, previewProfileAction]],
-				[[cancelAction], []],
+				[primaryActions, secondaryActions],
+				[[cancelAction], [exportAction]],
 			));
 			const updateCreateActionLabel = () => {
 				if (createAction.enabled) {
@@ -931,6 +944,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				}
 				if (e.name || e.copyFrom) {
 					updateCreateActionLabel();
+					exportAction.enabled = isUserDataProfile(this.newProfileElement?.copyFrom);
 				}
 			}));
 			disposables.add(this.userDataProfilesService.onDidChangeProfiles((e) => {
@@ -970,6 +984,27 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			this.newProfileElement.previewProfile = profile;
 			await this.openWindow(profile);
 		}
+	}
+
+	private async exportNewProfile(token: CancellationToken): Promise<void> {
+		if (!this.newProfileElement) {
+			return;
+		}
+		if (!isUserDataProfile(this.newProfileElement.copyFrom)) {
+			return;
+		}
+		const profile = toUserDataProfile(
+			generateUuid(),
+			this.newProfileElement.name,
+			this.newProfileElement.copyFrom.location,
+			this.newProfileElement.copyFrom.cacheHome,
+			{
+				icon: this.newProfileElement.icon,
+				useDefaultFlags: this.newProfileElement.flags,
+			},
+			this.userDataProfilesService.defaultProfile
+		);
+		await this.userDataProfileImportExportService.exportProfile(profile, this.newProfileElement.copyFlags);
 	}
 
 	async saveNewProfile(transient?: boolean, token?: CancellationToken): Promise<IUserDataProfile | undefined> {
@@ -1096,9 +1131,5 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 	private async openWindow(profile: IUserDataProfile): Promise<void> {
 		await this.hostService.openWindow({ forceProfile: profile.name });
-	}
-
-	private async exportProfile(profile: IUserDataProfile): Promise<void> {
-		return this.userDataProfileImportExportService.exportProfile(profile);
 	}
 }

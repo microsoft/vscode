@@ -43,7 +43,7 @@ import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -877,7 +877,7 @@ export class ReadChatResponseAloud extends Action2 {
 			title: localize2('workbench.action.chat.readChatResponseAloud', "Read Aloud"),
 			icon: Codicon.unmute,
 			precondition: CanVoiceChat,
-			menu: {
+			menu: [{
 				id: MenuId.ChatMessageTitle,
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
@@ -886,7 +886,16 @@ export class ReadChatResponseAloud extends Action2 {
 					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
 				),
 				group: 'navigation'
-			}
+			}, {
+				id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+				when: ContextKeyExpr.and(
+					CanVoiceChat,
+					CONTEXT_RESPONSE,						// only for responses
+					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
+					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
+				),
+				group: 'navigation'
+			}]
 		});
 	}
 
@@ -929,6 +938,12 @@ export class StopReadAloud extends Action2 {
 				},
 				{
 					id: TerminalChatExecute,
+					when: ScopedChatSynthesisInProgress,
+					group: 'navigation',
+					order: -1
+				},
+				{
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
