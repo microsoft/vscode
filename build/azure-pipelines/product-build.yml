@@ -797,8 +797,8 @@ extends:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
         - stage: Web
-          # dependsOn:
-          #   - Compile
+          dependsOn:
+            - Compile
           pool:
             name: 1es-ubuntu-20.04-x64
             os: linux
