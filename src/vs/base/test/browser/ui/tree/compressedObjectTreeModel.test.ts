@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { compress, CompressedObjectTreeModel, decompress, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { ISpliceable } from 'vs/base/common/sequence';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
@@ -293,12 +293,11 @@ suite('CompressedObjectTree', function () {
 		});
 	});
 
-	function toList<T>(arr: T[]): IList<T> {
+	function toList<T>(arr: T[]): ISpliceable<T> {
 		return {
 			splice(start: number, deleteCount: number, elements: T[]): void {
 				arr.splice(start, deleteCount, ...elements);
-			},
-			updateElementHeight() { }
+			}
 		};
 	}
 

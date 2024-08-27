@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { IIndexTreeModelSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IIndexTreeModelSpliceOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 // Exported only for test reasons, do not use directly
 export interface ICompressedTreeElement<T> extends IObjectTreeElement<T> {
@@ -134,7 +135,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	constructor(
 		private user: string,
-		list: IList<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
+		list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
 		options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.model = new ObjectTreeModel(user, list, options);
@@ -324,16 +325,6 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		this.model.rerender(compressedNode);
 	}
 
-	updateElementHeight(element: T, height: number): void {
-		const compressedNode = this.getCompressedNode(element);
-
-		if (!compressedNode) {
-			return;
-		}
-
-		this.model.updateElementHeight(compressedNode, height);
-	}
-
 	refilter(): void {
 		this.model.refilter();
 	}
@@ -384,13 +375,10 @@ class CompressedTreeNodeWrapper<T, TFilterData> implements ITreeNode<T | null, T
 	) { }
 }
 
-function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilterData>, list: IList<ITreeNode<T, TFilterData>>): IList<ITreeNode<ICompressedTreeNode<T>, TFilterData>> {
+function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilterData>, list: ISpliceable<ITreeNode<T, TFilterData>>): ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>> {
 	return {
 		splice(start: number, deleteCount: number, toInsert: ITreeNode<ICompressedTreeNode<T>, TFilterData>[]): void {
 			list.splice(start, deleteCount, toInsert.map(node => nodeMapper.map(node)) as ITreeNode<T, TFilterData>[]);
-		},
-		updateElementHeight(index: number, height: number): void {
-			list.updateElementHeight(index, height);
 		}
 	};
 }
@@ -449,7 +437,7 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	constructor(
 		user: string,
-		list: IList<ITreeNode<T, TFilterData>>,
+		list: ISpliceable<ITreeNode<T, TFilterData>>,
 		options: ICompressibleObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.elementMapper = options.elementMapper || DefaultElementMapper;
@@ -541,10 +529,6 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	rerender(location: T | null): void {
 		return this.model.rerender(location);
-	}
-
-	updateElementHeight(element: T, height: number): void {
-		this.model.updateElementHeight(element, height);
 	}
 
 	refilter(): void {

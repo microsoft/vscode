@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
+import { ISpliceable } from 'vs/base/common/sequence';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
-function toList<T>(arr: T[]): IList<T> {
+function toList<T>(arr: T[]): ISpliceable<T> {
 	return {
 		splice(start: number, deleteCount: number, elements: T[]): void {
 			arr.splice(start, deleteCount, ...elements);
-		},
-		updateElementHeight() { }
+		}
 	};
 }
 

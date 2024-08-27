@@ -18,7 +18,6 @@ import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selec
 import { Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
@@ -72,6 +71,7 @@ import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/pr
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { URI } from 'vs/base/common/uri';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 const $ = DOM.$;
 
@@ -2559,7 +2559,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, view: IList<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+	protected override createModel(user: string, view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
 	}
 }

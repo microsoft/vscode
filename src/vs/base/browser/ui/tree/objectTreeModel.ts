@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { IIndexTreeModelOptions, IIndexTreeModelSpliceOptions, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IIndexTreeModelOptions, IIndexTreeModelSpliceOptions, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, ITreeSorter, ObjectTreeElementCollapseState, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
 	setChildren(element: T | null, children: Iterable<IObjectTreeElement<T>> | undefined, options?: IObjectTreeModelSetChildrenOptions<T, TFilterData>): void;
 	resort(element?: T | null, recursive?: boolean): void;
-	updateElementHeight(element: T, height: number | undefined): void;
 }
 
 export interface IObjectTreeModelSetChildrenOptions<T, TFilterData> extends IIndexTreeModelSpliceOptions<T, TFilterData> {
@@ -43,7 +43,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	constructor(
 		private user: string,
-		list: IList<ITreeNode<T, TFilterData>>,
+		list: ISpliceable<ITreeNode<T, TFilterData>>,
 		options: IObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.model = new IndexTreeModel(user, list, null, options);
@@ -185,11 +185,6 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	rerender(element: T | null): void {
 		const location = this.getElementLocation(element);
 		this.model.rerender(location);
-	}
-
-	updateElementHeight(element: T, height: number | undefined): void {
-		const location = this.getElementLocation(element);
-		this.model.updateElementHeight(location, height);
 	}
 
 	resort(element: T | null = null, recursive = true): void {
