@@ -326,6 +326,19 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
+        - stage: WebAMD
+          pool:
+            name: 1es-ubuntu-20.04-x64
+            os: linux
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
+              - job: WebAMD
+                variables:
+                  VSCODE_ARCH: x64
+                steps:
+                  - template: build/azure-pipelines/web/product-build-web-amd.yml@self
+
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
         - stage: CustomSDL
           dependsOn: []
@@ -781,19 +794,6 @@ extends:
                   VSCODE_ARCH: universal
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-sign.yml@self
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
-        - stage: WebAMD
-          pool:
-            name: 1es-ubuntu-20.04-x64
-            os: linux
-          jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
-              - job: WebAMD
-                variables:
-                  VSCODE_ARCH: x64
-                steps:
-                  - template: build/azure-pipelines/web/product-build-web-amd.yml@self
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
         - stage: Web
