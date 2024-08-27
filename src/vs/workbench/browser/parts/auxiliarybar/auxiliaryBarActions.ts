@@ -163,15 +163,15 @@ export class ResizeAuxiliaryBarWidthAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.BracketLeft,
+				primary: KeyMod.CtrlCmd | KeyCode.Backslash,
 				linux: {
-					primary: KeyMod.CtrlCmd | KeyCode.BracketLeft
+					primary: KeyMod.CtrlCmd | KeyCode.Backslash
 				},
 				win: {
-					primary: KeyMod.Alt | KeyCode.BracketLeft
+					primary: KeyMod.CtrlCmd | KeyCode.Backslash
 				},
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyCode.BracketLeft
+					primary: KeyMod.CtrlCmd | KeyCode.Backslash
 				}
 			},
 		});
