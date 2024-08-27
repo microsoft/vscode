@@ -261,7 +261,11 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			return [];
 		}
 
-		return [currentHistoryItemGroup.name, currentHistoryItemGroup.remote?.name ?? '', currentHistoryItemGroup.base?.name ?? ''];
+		return [
+			currentHistoryItemGroup.name,
+			currentHistoryItemGroup.remote?.name,
+			currentHistoryItemGroup.base?.name]
+			.filter(l => l !== undefined);
 	}
 
 	private getTooltip(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
@@ -306,7 +310,11 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			}
 		}
 
-		if (historyItem.labels) {
+		const labels = this.getLabels(element.repository);
+		const historyItemLabels = (historyItem.labels ?? [])
+			.filter(l => labels.includes(l.title));
+
+		if (historyItemLabels) {
 			const historyItemGroupLocalColor = colorTheme.getColor(historyItemGroupLocal);
 			const historyItemGroupRemoteColor = colorTheme.getColor(historyItemGroupRemote);
 			const historyItemGroupBaseColor = colorTheme.getColor(historyItemGroupBase);
@@ -314,7 +322,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			const historyItemGroupHoverLabelForegroundColor = colorTheme.getColor(historyItemGroupHoverLabelForeground);
 
 			markdown.appendMarkdown(`\n\n---\n\n`);
-			markdown.appendMarkdown(historyItem.labels.map(label => {
+			markdown.appendMarkdown(historyItemLabels.map(label => {
 				const historyItemGroupHoverLabelBackgroundColor =
 					label.title === currentHistoryItemGroup?.name ? historyItemGroupLocalColor :
 						label.title === currentHistoryItemGroup?.remote?.name ? historyItemGroupRemoteColor :
