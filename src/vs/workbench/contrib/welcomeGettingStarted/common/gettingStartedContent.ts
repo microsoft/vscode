@@ -188,34 +188,34 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'talk',
-					title: "Talk To Your Codebase Directly",
-					description: "Type in the chat box (CMD+L, CTRL+L on Windows) to ask questions about your code. PearAI uses Retrival Augmented Generation to add context to your prompts, but you can also directly reference code by including other files in the chat by adding  @filename. This also works for folders, docs, terminal content, codebase, and more!",
+					title: 'Talk To Your Codebase Directly',
+					description: 'Type in the chat box (CMD+L, CTRL+L on Windows) to ask questions about your code. PearAI uses Retrival Augmented Generation to add context to your prompts, but you can also directly reference code by including other files in the chat by adding  @filename. This also works for folders, docs, terminal content, codebase, and more!',
 					media: {
-						type: "image",
-						path: "media/light.png", // Todo: Fill in with gif
-						altText: "Empty image"
+						type: 'image',
+						path: 'pearai-explain-codebase.png', // Todo: Fill in with gif
+						altText: 'Empty image'
 					},
 					completionEvents: []
 				},
 				{
 					id: 'change',
-					title: "Make Changes Inline With AI",
-					description: "Directly make changes inline by pressing CMD+I (ALT+L on Windows), and choose what you want to keep.",
+					title: 'Make Changes Inline With AI',
+					description: 'Directly make changes inline by pressing (CMD+I, CTRL+L on Windows), and choose what you want to keep.',
 					media: {
-						type: "image",
-						path: "media/light.png", // Todo: Fill in with gif
-						altText: "Empty image"
+						type: 'image',
+						path: 'pearai-explain-codebase.png', // Todo: Fill in with gif
+						altText: 'Empty image'
 					},
 					completionEvents: []
 				},
 				{
 					id: 'copy',
-					title: "No More Copy Pasting",
-					description: "Directly bring your code to the chat by selecting it and pressing CMD+L (ALT+L on Windows). Prompt it right away",
+					title: 'No More Copy Pasting',
+					description: 'Directly bring your code to the chat by selecting it and pressing (CMD+L, CTRL+L on Windows). Prompt it right away',
 					media: {
-						type: "image",
-						path: "media/light.png", // Todo: Fill in with gif
-						altText: "Empty image"
+						type: 'image',
+						path: 'pearai-explain-codebase.png', // Todo: Fill in with gif
+						altText: 'Empty image'
 					},
 					completionEvents: []
 				}

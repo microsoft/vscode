@@ -15,6 +15,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));
 
@@ -25,6 +26,9 @@ interface WatermarkEntry {
 	readonly when?: ContextKeyExpression;
 }
 
+const openPearAIChat: WatermarkEntry = { text: localize('watermark.openPearAIChat', "Open Chat"), id: 'pearai.focusContinueInput', when: ContextKeyExpr.has('pearAIExtensionLoaded') };	 
+const bigChat: WatermarkEntry = { text: localize('watermark.pearAIBigChat', "Big Chat"), id: 'pearai.resizeAuxiliaryBarWidth', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
+const prevChat: WatermarkEntry = { text: localize('watermark.pearAIPrevChat', "Previous Chat"), id: 'pearai.loadRecentChat', when: ContextKeyExpr.has('pearAIExtensionLoaded') };
 const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
 const quickAccess: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
 const openFileNonMacOnly: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile', mac: false };
@@ -39,6 +43,9 @@ const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.togg
 const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings' };
 
 const noFolderEntries = [
+	openPearAIChat,
+	bigChat,
+	prevChat,
 	showCommands,
 	openFileNonMacOnly,
 	openFolderNonMacOnly,
@@ -48,6 +55,9 @@ const noFolderEntries = [
 ];
 
 const folderEntries = [
+	openPearAIChat,
+	bigChat,
+	prevChat,
 	showCommands,
 	quickAccess,
 	findInFiles,
@@ -69,7 +79,8 @@ export class EditorGroupWatermark extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
@@ -113,7 +124,12 @@ export class EditorGroupWatermark extends Disposable {
 		}));
 	}
 
-	private render(): void {
+	private async render(): Promise<void> {
+		// Wait for the all extensions to be activated
+		await this.extensionService.activateByEvent('onStartupFinished');
+		// TODO: @Himanshu-Singh-Chauhan - this should be set from inside the extension, test it later, if it works, remove this 
+		this.contextKeyService.createKey('pearAIExtensionLoaded', true); // Set a context key when the PearAI extension is loaded
+
 		const enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
 
 		if (enabled === this.enabled) {
