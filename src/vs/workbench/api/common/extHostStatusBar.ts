@@ -14,11 +14,9 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNumber } from 'vs/base/common/types';
-
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
-
-	private static ID_GEN = 0;
 
 	private static ALLOWED_BACKGROUND_COLORS = new Map<string, ThemeColor>(
 		[
@@ -79,7 +77,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				this.accessibilityInformation = item.accessibilityInformation;
 			}
 		} else {
-			this._entryId = String(ExtHostStatusBarEntry.ID_GEN++);
+			this._entryId = generateUuid();
 		}
 		this._extension = extension;
 
