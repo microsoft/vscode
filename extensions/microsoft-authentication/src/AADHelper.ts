@@ -14,6 +14,7 @@ import { base64Decode } from './node/buffer';
 import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Environment } from '@azure/ms-rest-azure-env';
+import { ProxyAgent, RequestInit } from 'undici';
 
 const redirectUrl = 'https://vscode.dev/redirect';
 const defaultActiveDirectoryEndpointUrl = Environment.AzureCloud.activeDirectoryEndpointUrl;
@@ -805,14 +806,18 @@ export class AzureActiveDirectoryService {
 			let result;
 			let errorMessage: string | undefined;
 			try {
-				result = await fetch(endpoint, {
+				const init = {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/x-www-form-urlencoded',
 						'Content-Length': postData.length.toString()
 					},
 					body: postData
-				});
+				};
+				if (process.env.HTTPS_PROXY) {
+					(init as RequestInit).dispatcher = new ProxyAgent(process.env.HTTPS_PROXY);
+				}
+				result = await fetch(endpoint, init);
 			} catch (e) {
 				errorMessage = e.message ?? e;
 			}

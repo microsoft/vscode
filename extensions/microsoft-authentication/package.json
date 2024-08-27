@@ -128,6 +128,7 @@
     "@azure/ms-rest-azure-env": "^2.0.0",
     "@azure/msal-node": "^2.13.0",
     "@vscode/extension-telemetry": "^0.9.0",
+    "undici": "^6.19.8",
     "vscode-tas-client": "^0.1.84"
   },
   "repository": {
