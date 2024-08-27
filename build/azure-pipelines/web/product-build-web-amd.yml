@@ -169,7 +169,7 @@ steps:
       targetPath: $(WEB_PATH)
       artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_standalone-amd_archive-unsigned
       sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web-amd
-      sbomPackageName: "VS Code Web [AMD]"
+      sbomPackageName: "VS Code Web AMD"
       sbomPackageVersion: $(Build.SourceVersion)
     condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     displayName: Publish web archive
