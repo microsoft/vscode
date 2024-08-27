@@ -607,7 +607,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {
 		const pty = this._ptys.get(id);
 		if (!pty) {
-			throw new ErrorNoTelemetry(`Could not find pty on pty host`);
+			throw new ErrorNoTelemetry(`Could not find pty ${id} on pty host`);
 		}
 		return pty;
 	}
