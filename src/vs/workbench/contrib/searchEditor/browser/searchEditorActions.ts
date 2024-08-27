@@ -26,6 +26,11 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { FindStartFocusAction } from 'vs/editor/contrib/find/browser/findController';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -67,10 +72,37 @@ export const modifySearchEditorContextLinesCommand = (accessor: ServicesAccessor
 	}
 };
 
-export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) => {
+export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor, event?: IKeyboardEvent) => {
 	const editorService = accessor.get(IEditorService);
-	const input = editorService.activeEditor;
-	if (input instanceof SearchEditorInput) {
+	const editor = editorService.activeTextEditorControl as ICodeEditor | undefined;
+
+	if (!editor) {
+		return;
+	}
+
+	const controller = CommonFindController.get(editor);
+
+	if (controller && event?.keyCode === KeyCode.KeyL && (event?.ctrlKey || event?.metaKey) && event?.shiftKey) {
+		const selection = editor?.getSelection();
+		if (selection) {
+			const selectedText = editor.getModel()?.getValueInRange(selection);
+
+			if (selectedText) {
+				// Start a new search using the selected text
+				controller.start({
+					forceRevealReplace: false,
+					seedSearchStringFromSelection: 'none',
+					seedSearchStringFromNonEmptySelection: false,
+					seedSearchStringFromGlobalClipboard: false,
+					shouldFocus: FindStartFocusAction.NoFocusChange,
+					shouldAnimate: true,
+					updateSearchScope: false,
+					loop: editor.getOption(EditorOption.find).loop
+				});
+			}
+		}
+	} else {
+		// Perform the default action if the key combination is not cmd/ctrl+shift+l
 		(editorService.activeEditorPane as SearchEditor).focusAllResults();
 	}
 };
