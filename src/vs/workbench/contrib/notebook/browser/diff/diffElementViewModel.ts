@@ -824,7 +824,12 @@ export function getFormattedMetadataJSON(documentTextModel: INotebookTextModel, 
 		language,
 		...filteredMetadata
 	};
-
+	// Give preference to the language we have been given.
+	// Metadata can contain `language` due to round-tripping of cell metadata.
+	// I.e. we add it here, and then from SCM when we revert the cell, we get this same metadata back with the `language` property.
+	if (language) {
+		obj.language = language;
+	}
 	const metadataSource = toFormattedString(obj, {});
 
 	return metadataSource;
