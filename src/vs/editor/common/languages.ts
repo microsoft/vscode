@@ -83,6 +83,15 @@ export class EncodedTokenizationResult {
 }
 
 /**
+ * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
+ * @internal
+ */
+export interface ITreeSitterTokenizationSupport {
+	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): any;
+}
+
+/**
  * @internal
  */
 export interface ITokenizationSupport {
@@ -202,9 +211,9 @@ export interface HoverContext<THover = Hover> {
 
 export interface HoverVerbosityRequest<THover = Hover> {
 	/**
-	 * Whether to increase or decrease the hover's verbosity
+	 * The delta by which to increase/decrease the hover verbosity level
 	 */
-	action: HoverVerbosityAction;
+	verbosityDelta: number;
 	/**
 	 * The previous hover for the same position
 	 */
@@ -687,6 +696,11 @@ export interface InlineCompletionContext {
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
 	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly userPrompt?: string | undefined;
 }
 
 export class SelectedSuggestionInfo {
@@ -766,6 +780,12 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
+	 * @experimental
+	 * @internal
+	*/
+	provideInlineEdits?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+
+	/**
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
@@ -833,6 +853,8 @@ export interface CodeActionList extends IDisposable {
 export interface CodeActionProvider {
 
 	displayName?: string;
+
+	extensionId?: string;
 
 	/**
 	 * Provide commands for the given document and range.
@@ -1845,6 +1867,11 @@ export interface CommentInput {
 	uri: URI;
 }
 
+export interface CommentThreadRevealOptions {
+	preserveFocus: boolean;
+	focusReply: boolean;
+}
+
 /**
  * @internal
  */
@@ -1858,7 +1885,7 @@ export interface CommentThread<T = IRange> {
 	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
-	comments: Comment[] | undefined;
+	comments: ReadonlyArray<Comment> | undefined;
 	onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
@@ -2088,17 +2115,17 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export interface ILazyTokenizationSupport {
-	get tokenizationSupport(): Promise<ITokenizationSupport | null>;
+export interface ILazyTokenizationSupport<TSupport> {
+	get tokenizationSupport(): Promise<TSupport | null>;
 }
 
 /**
  * @internal
  */
-export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport {
-	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
+export class LazyTokenizationSupport<TSupport = ITokenizationSupport> implements IDisposable, ILazyTokenizationSupport<TSupport> {
+	private _tokenizationSupport: Promise<TSupport & IDisposable | null> | null = null;
 
-	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
+	constructor(private readonly createSupport: () => Promise<TSupport & IDisposable | null>) {
 	}
 
 	dispose(): void {
@@ -2111,7 +2138,7 @@ export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSu
 		}
 	}
 
-	get tokenizationSupport(): Promise<ITokenizationSupport | null> {
+	get tokenizationSupport(): Promise<TSupport | null> {
 		if (!this._tokenizationSupport) {
 			this._tokenizationSupport = this.createSupport();
 		}
@@ -2122,7 +2149,7 @@ export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSu
 /**
  * @internal
  */
-export interface ITokenizationRegistry {
+export interface ITokenizationRegistry<TSupport> {
 
 	/**
 	 * An event triggered when:
@@ -2140,24 +2167,24 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support.
 	 */
-	register(languageId: string, support: ITokenizationSupport): IDisposable;
+	register(languageId: string, support: TSupport): IDisposable;
 
 	/**
 	 * Register a tokenization support factory.
 	 */
-	registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable;
+	registerFactory(languageId: string, factory: ILazyTokenizationSupport<TSupport>): IDisposable;
 
 	/**
 	 * Get or create the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	getOrCreate(languageId: string): Promise<ITokenizationSupport | null>;
+	getOrCreate(languageId: string): Promise<TSupport | null>;
 
 	/**
 	 * Get the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	get(languageId: string): ITokenizationSupport | null;
+	get(languageId: string): TSupport | null;
 
 	/**
 	 * Returns false if a factory is still pending.
@@ -2177,8 +2204,12 @@ export interface ITokenizationRegistry {
 /**
  * @internal
  */
-export const TokenizationRegistry: ITokenizationRegistry = new TokenizationRegistryImpl();
+export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> = new TokenizationRegistryImpl();
 
+/**
+ * @internal
+ */
+export const TreeSitterTokenizationRegistry: ITokenizationRegistry<ITreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
 
 /**
  * @internal
@@ -2210,11 +2241,19 @@ export interface DocumentDropEdit {
 /**
  * @internal
  */
+export interface DocumentDropEditsSession {
+	edits: readonly DocumentDropEdit[];
+	dispose(): void;
+}
+
+/**
+ * @internal
+ */
 export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
-	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit[]>;
+	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
 }
 
@@ -2230,13 +2269,17 @@ export interface MappedEditsContext {
 }
 
 export interface MappedEditsProvider {
+	/**
+	 * @internal
+	 */
+	readonly displayName: string; // internal
 
 	/**
 	 * Provider maps code blocks from the chat into a workspace edit.
 	 *
 	 * @param document The document to provide mapped edits for.
 	 * @param codeBlocks Code blocks that come from an LLM's reply.
-	 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+	 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
 	 * @param context The context for providing mapped edits.
 	 * @param token A cancellation token.
 	 * @returns A provider result of text edits.

@@ -465,6 +465,6 @@ function handleParentFolder(key: string, selectors: string[]): string {
 }
 
 function escapeCSS(str: string) {
-	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+	str = str.replace(/[\s]/g, '/'); // HTML class names can not contain certain whitespace characters (https://dom.spec.whatwg.org/#interface-domtokenlist), use / instead, which doesn't exist in file names.
 	return mainWindow.CSS.escape(str);
 }

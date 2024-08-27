@@ -6,7 +6,7 @@
 import { GlobalIdleValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
-import { dispose, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
@@ -70,16 +70,19 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	createChild(services: ServiceCollection): IInstantiationService {
+	createChild(services: ServiceCollection, store?: DisposableStore): IInstantiationService {
 		this._throwIfDisposed();
 
+		const that = this;
 		const result = new class extends InstantiationService {
 			override dispose(): void {
-				this._children.delete(result);
+				that._children.delete(result);
 				super.dispose();
 			}
 		}(services, this._strict, this, this._enableTracing);
 		this._children.add(result);
+
+		store?.add(result);
 		return result;
 	}
 
@@ -213,8 +216,15 @@ export class InstantiationService implements IInstantiationService {
 
 		let cycleCount = 0;
 		const stack = [{ id, desc, _trace }];
+		const seen = new Set<string>();
 		while (stack.length) {
 			const item = stack.pop()!;
+
+			if (seen.has(String(item.id))) {
+				continue;
+			}
+			seen.add(String(item.id));
+
 			graph.lookupOrInsertNode(item);
 
 			// a weak but working heuristic for cycle checks

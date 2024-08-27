@@ -149,7 +149,7 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/accessibilitySignals',
 					label: localize('accessibility.signals', 'Accessibility Signals'),
-					settings: ['accessibility.signals.*', 'accessibility.signalOptions.*']
+					settings: ['accessibility.signal*']
 				},
 				{
 					id: 'features/accessibility',
@@ -235,6 +235,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
 					settings: ['chat.*', 'inlineChat.*']
+				},
+				{
+					id: 'features/issueReporter',
+					label: localize('issueReporter', 'Issue Reporter'),
+					settings: ['issueReporter.*']
 				}
 			]
 		},

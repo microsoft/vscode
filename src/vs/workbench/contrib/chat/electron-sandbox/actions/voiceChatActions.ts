@@ -11,7 +11,6 @@ import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { isNumber } from 'vs/base/common/types';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -36,17 +35,17 @@ import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IVoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
+import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { HasSpeechProvider, ISpeechService, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatContextKeys, TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -56,24 +55,24 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 //#region Speech to Text
 
-const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
-const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
+type VoiceChatSessionContext = 'view' | 'inline' | 'terminal' | 'quick' | 'editor';
+const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'terminal', 'quick', 'editor'];
 
-const CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('quickVoiceChatInProgress', false, { type: 'boolean', description: localize('quickVoiceChatInProgress', "True when voice recording from microphone is in progress for quick chat.") });
-const CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inlineVoiceChatInProgress', false, { type: 'boolean', description: localize('inlineVoiceChatInProgress', "True when voice recording from microphone is in progress for inline chat.") });
-const CONTEXT_VOICE_CHAT_IN_TERMINAL_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInTerminalInProgress', false, { type: 'boolean', description: localize('voiceChatInTerminalInProgress', "True when voice recording from microphone is in progress for terminal chat.") });
-const CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInViewInProgress', false, { type: 'boolean', description: localize('voiceChatInViewInProgress', "True when voice recording from microphone is in progress in the chat view.") });
-const CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInEditorInProgress', false, { type: 'boolean', description: localize('voiceChatInEditorInProgress', "True when voice recording from microphone is in progress in the chat editor.") });
+const TerminalChatExecute = MenuId.for('terminalChatInput'); // unfortunately, terminal decided to go with their own menu (https://github.com/microsoft/vscode/issues/208789)
 
+// Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT);
+const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, TerminalChatContextKeys.requestActive);
 
-const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, TerminalChatContextKeys.requestActive);
-
-type VoiceChatSessionContext = 'inline' | 'terminal' | 'quick' | 'view' | 'editor';
+// Scoped Context Keys (set on per-chat-context scoped context key service)
+const ScopedVoiceChatGettingReady = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
+const ScopedVoiceChatInProgress = new RawContextKey<VoiceChatSessionContext | undefined>('scopedVoiceChatInProgress', undefined, { type: 'string', description: localize('scopedVoiceChatInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat. This key is only defined scoped, per chat context.") });
+const AnyScopedVoiceChatInProgress = ContextKeyExpr.or(...VoiceChatSessionContexts.map(context => ScopedVoiceChatInProgress.isEqualTo(context)));
 
 enum VoiceChatSessionState {
 	Stopped = 1,
@@ -84,9 +83,10 @@ enum VoiceChatSessionState {
 interface IVoiceChatSessionController {
 
 	readonly onDidAcceptInput: Event<unknown>;
-	readonly onDidCancelInput: Event<unknown>;
+	readonly onDidHideInput: Event<unknown>;
 
 	readonly context: VoiceChatSessionContext;
+	readonly scopedContextKeyService: IContextKeyService;
 
 	updateState(state: VoiceChatSessionState): void;
 
@@ -101,214 +101,137 @@ interface IVoiceChatSessionController {
 
 class VoiceChatSessionControllerFactory {
 
-	static create(accessor: ServicesAccessor, context: 'inline'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'quick'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'view'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'terminal'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'focused'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'terminal' | 'focused'): Promise<IVoiceChatSessionController | undefined>;
-	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'terminal' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
+	static async create(accessor: ServicesAccessor, context: 'view' | 'inline' | 'quick' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const viewsService = accessor.get(IViewsService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
 		const terminalService = accessor.get(ITerminalService);
-
-		// Currently Focused Context
-		if (context === 'focused') {
-
-			// Try with the terminal chat
-			const activeInstance = terminalService.activeInstance;
-			if (activeInstance) {
-				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-				if (terminalChat?.hasFocus()) {
-					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
-				}
-			}
-
-			// Try with the chat widget service, which currently
-			// only supports the chat view and quick chat
-			// https://github.com/microsoft/vscode/issues/191191
-			const chatInput = chatWidgetService.lastFocusedWidget;
-			if (chatInput?.hasInputFocus()) {
-				// Unfortunately there does not seem to be a better way
-				// to figure out if the chat widget is in a part or picker
-				if (
-					layoutService.hasFocus(Parts.SIDEBAR_PART) ||
-					layoutService.hasFocus(Parts.PANEL_PART) ||
-					layoutService.hasFocus(Parts.AUXILIARYBAR_PART)
-				) {
-					return VoiceChatSessionControllerFactory.doCreateForChatView(chatInput, viewsService);
-				}
-
-				if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-					return VoiceChatSessionControllerFactory.doCreateForChatEditor(chatInput, viewsService);
-				}
-
-				return VoiceChatSessionControllerFactory.doCreateForQuickChat(chatInput, quickChatService);
-			}
-
-			// Try with the inline chat
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
-			if (activeCodeEditor) {
-				const inlineChat = InlineChatController.get(activeCodeEditor);
-				if (inlineChat?.hasFocus()) {
-					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
-				}
-			}
-		}
-
-		// View Chat
-		if (context === 'view' || context === 'focused' /* fallback in case 'focused' was not successful */) {
-			const chatView = await VoiceChatSessionControllerFactory.revealChatView(accessor);
-			if (chatView) {
-				return VoiceChatSessionControllerFactory.doCreateForChatView(chatView, viewsService);
-			}
-		}
-
-		// Inline Chat
-		if (context === 'inline') {
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
-			if (activeCodeEditor) {
-				const inlineChat = InlineChatController.get(activeCodeEditor);
-				if (inlineChat) {
-					return VoiceChatSessionControllerFactory.doCreateForInlineChat(inlineChat);
-				}
-			}
-		}
-
-		// Terminal Chat
-		if (context === 'terminal') {
-			const activeInstance = terminalService.activeInstance;
-			if (activeInstance) {
-				const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-				if (terminalChat) {
-					return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
-				}
-			}
-		}
-
-		// Quick Chat
-		if (context === 'quick') {
-			quickChatService.open();
-
-			const quickChat = chatWidgetService.lastFocusedWidget;
-			if (quickChat) {
-				return VoiceChatSessionControllerFactory.doCreateForQuickChat(quickChat, quickChatService);
-			}
-		}
-
-		return undefined;
-	}
-
-	static async revealChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
-		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
-		if (chatService.isEnabled(ChatAgentLocation.Panel)) {
-			return showChatView(viewsService);
+
+		switch (context) {
+			case 'focused': {
+				const controller = VoiceChatSessionControllerFactory.doCreateForFocusedChat(terminalService, chatWidgetService, layoutService);
+				return controller ?? VoiceChatSessionControllerFactory.create(accessor, 'view'); // fallback to 'view'
+			}
+			case 'view': {
+				const chatWidget = await showChatView(viewsService);
+				if (chatWidget) {
+					return VoiceChatSessionControllerFactory.doCreateForChatWidget('view', chatWidget);
+				}
+				break;
+			}
+			case 'inline': {
+				const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+				if (activeCodeEditor) {
+					const inlineChat = InlineChatController.get(activeCodeEditor);
+					if (inlineChat) {
+						if (!inlineChat.joinCurrentRun()) {
+							inlineChat.run();
+						}
+						return VoiceChatSessionControllerFactory.doCreateForChatWidget('inline', inlineChat.chatWidget);
+					}
+				}
+				break;
+			}
+			case 'quick': {
+				quickChatService.open(); // this will populate focused chat widget in the chat widget service
+				return VoiceChatSessionControllerFactory.create(accessor, 'focused');
+			}
 		}
 
 		return undefined;
 	}
 
-	private static doCreateForChatView(chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('view', chatView, viewsService);
+	private static doCreateForFocusedChat(terminalService: ITerminalService, chatWidgetService: IChatWidgetService, layoutService: IWorkbenchLayoutService): IVoiceChatSessionController | undefined {
+
+		// 1.) probe terminal chat which is not part of chat widget service
+		const activeInstance = terminalService.activeInstance;
+		if (activeInstance) {
+			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			if (terminalChat?.hasFocus()) {
+				return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
+			}
+		}
+
+		// 2.) otherwise go via chat widget service
+		const chatWidget = chatWidgetService.lastFocusedWidget;
+		if (chatWidget?.hasInputFocus()) {
+
+			// Figure out the context of the chat widget by asking
+			// layout service for the part that has focus. Unfortunately
+			// there is no better way because the widget does not know
+			// its location.
+
+			let context: VoiceChatSessionContext;
+			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
+				context = chatWidget.location === ChatAgentLocation.Panel ? 'editor' : 'inline';
+			} else if (
+				[Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.BANNER_PART, Parts.ACTIVITYBAR_PART].some(part => layoutService.hasFocus(part))
+			) {
+				context = 'view';
+			} else {
+				context = 'quick';
+			}
+
+			return VoiceChatSessionControllerFactory.doCreateForChatWidget(context, chatWidget);
+		}
+
+		return undefined;
 	}
 
-	private static doCreateForChatEditor(chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
-		return VoiceChatSessionControllerFactory.doCreateForChatViewOrEditor('editor', chatView, viewsService);
-	}
-
-	private static createContextKeyController(contextKeyService: IContextKeyService, rawControllerVoiceChatInProgress: RawContextKey<boolean>): (state: VoiceChatSessionState) => void {
-		const contextVoiceChatGettingReady = CONTEXT_VOICE_CHAT_GETTING_READY.bindTo(contextKeyService);
-		const contextVoiceChatInProgress = CONTEXT_VOICE_CHAT_IN_PROGRESS.bindTo(contextKeyService);
-		const controllerVoiceChatInProgress = rawControllerVoiceChatInProgress.bindTo(contextKeyService);
+	private static createChatContextKeyController(contextKeyService: IContextKeyService, context: VoiceChatSessionContext): (state: VoiceChatSessionState) => void {
+		const contextVoiceChatGettingReady = ScopedVoiceChatGettingReady.bindTo(contextKeyService);
+		const contextVoiceChatInProgress = ScopedVoiceChatInProgress.bindTo(contextKeyService);
 
 		return (state: VoiceChatSessionState) => {
 			switch (state) {
 				case VoiceChatSessionState.GettingReady:
 					contextVoiceChatGettingReady.set(true);
-					contextVoiceChatInProgress.set(false);
-					controllerVoiceChatInProgress.set(false);
+					contextVoiceChatInProgress.reset();
 					break;
 				case VoiceChatSessionState.Started:
-					contextVoiceChatGettingReady.set(false);
-					contextVoiceChatInProgress.set(true);
-					controllerVoiceChatInProgress.set(true);
+					contextVoiceChatGettingReady.reset();
+					contextVoiceChatInProgress.set(context);
 					break;
 				case VoiceChatSessionState.Stopped:
-					contextVoiceChatGettingReady.set(false);
-					contextVoiceChatInProgress.set(false);
-					controllerVoiceChatInProgress.set(false);
+					contextVoiceChatGettingReady.reset();
+					contextVoiceChatInProgress.reset();
 					break;
 			}
 		};
 	}
 
-	private static doCreateForChatViewOrEditor(context: 'view' | 'editor', chatView: IChatWidget, viewsService: IViewsService): IVoiceChatSessionController {
+	private static doCreateForChatWidget(context: VoiceChatSessionContext, chatWidget: IChatWidget): IVoiceChatSessionController {
 		return {
 			context,
-			onDidAcceptInput: chatView.onDidAcceptInput,
-			// TODO@bpasero cancellation needs to work better for chat editors that are not view bound
-			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === CHAT_VIEW_ID),
-			focusInput: () => chatView.focusInput(),
-			acceptInput: () => chatView.acceptInput(),
-			updateInput: text => chatView.setInput(text),
-			getInput: () => chatView.getInput(),
-			setInputPlaceholder: text => chatView.setInputPlaceholder(text),
-			clearInputPlaceholder: () => chatView.resetInputPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(chatView.scopedContextKeyService, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS)
-		};
-	}
-
-	private static doCreateForQuickChat(quickChat: IChatWidget, quickChatService: IQuickChatService): IVoiceChatSessionController {
-		return {
-			context: 'quick',
-			onDidAcceptInput: quickChat.onDidAcceptInput,
-			onDidCancelInput: quickChatService.onDidClose,
-			focusInput: () => quickChat.focusInput(),
-			acceptInput: () => quickChat.acceptInput(),
-			updateInput: text => quickChat.setInput(text),
-			getInput: () => quickChat.getInput(),
-			setInputPlaceholder: text => quickChat.setInputPlaceholder(text),
-			clearInputPlaceholder: () => quickChat.resetInputPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(quickChat.scopedContextKeyService, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS)
-		};
-	}
-
-	private static doCreateForInlineChat(inlineChat: InlineChatController): IVoiceChatSessionController {
-		const inlineChatSession = inlineChat.joinCurrentRun() ?? inlineChat.run();
-
-		return {
-			context: 'inline',
-			onDidAcceptInput: inlineChat.onDidAcceptInput,
-			onDidCancelInput: Event.any(
-				inlineChat.onDidCancelInput,
-				Event.fromPromise(inlineChatSession)
-			),
-			focusInput: () => inlineChat.focus(),
-			acceptInput: () => inlineChat.acceptInput(),
-			updateInput: text => inlineChat.updateInput(text, false),
-			getInput: () => inlineChat.getInput(),
-			setInputPlaceholder: text => inlineChat.setPlaceholder(text),
-			clearInputPlaceholder: () => inlineChat.resetPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(inlineChat.scopedContextKeyService, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS)
+			scopedContextKeyService: chatWidget.scopedContextKeyService,
+			onDidAcceptInput: chatWidget.onDidAcceptInput,
+			onDidHideInput: chatWidget.onDidHide,
+			focusInput: () => chatWidget.focusInput(),
+			acceptInput: () => chatWidget.acceptInput(),
+			updateInput: text => chatWidget.setInput(text),
+			getInput: () => chatWidget.getInput(),
+			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
+			clearInputPlaceholder: () => chatWidget.resetInputPlaceholder(),
+			updateState: VoiceChatSessionControllerFactory.createChatContextKeyController(chatWidget.scopedContextKeyService, context)
 		};
 	}
 
 	private static doCreateForTerminalChat(terminalChat: TerminalChatController): IVoiceChatSessionController {
+		const context = 'terminal';
 		return {
-			context: 'terminal',
+			context,
+			scopedContextKeyService: terminalChat.scopedContextKeyService,
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
-			onDidCancelInput: terminalChat.onDidCancelInput,
+			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
 			acceptInput: () => terminalChat.acceptInput(),
 			updateInput: text => terminalChat.updateInput(text, false),
 			getInput: () => terminalChat.getInput(),
 			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
 			clearInputPlaceholder: () => terminalChat.resetPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createContextKeyController(terminalChat.scopedContextKeyService, CONTEXT_VOICE_CHAT_IN_TERMINAL_IN_PROGRESS)
+			updateState: VoiceChatSessionControllerFactory.createChatContextKeyController(terminalChat.scopedContextKeyService, context)
 		};
 	}
 }
@@ -369,7 +292,7 @@ class VoiceChatSessions {
 		session.disposables.add(toDisposable(() => cts.dispose(true)));
 
 		session.disposables.add(controller.onDidAcceptInput(() => this.stop(sessionId, controller.context)));
-		session.disposables.add(controller.onDidCancelInput(() => this.stop(sessionId, controller.context)));
+		session.disposables.add(controller.onDidHideInput(() => this.stop(sessionId, controller.context)));
 
 		controller.focusInput();
 
@@ -460,23 +383,30 @@ class VoiceChatSessions {
 			return;
 		}
 
-		const response = await this.currentVoiceChatSession.controller.acceptInput();
+		const controller = this.currentVoiceChatSession.controller;
+		const response = await controller.acceptInput();
 		if (!response) {
 			return;
 		}
-
-		if (
-			!this.accessibilityService.isScreenReaderOptimized() && // do not synthesize when screen reader is active
-			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
-		) {
-			ChatSynthesizerSessions.getInstance(this.instantiationService).start(response);
+		const autoSynthesize = this.configurationService.getValue<'on' | 'off' | 'auto'>(AccessibilityVoiceSettingId.AutoSynthesize);
+		if (autoSynthesize === 'on' || autoSynthesize === 'auto' && !this.accessibilityService.isScreenReaderOptimized()) {
+			let context: IVoiceChatSessionController | 'focused';
+			if (controller.context === 'inline') {
+				// TODO@bpasero this is ugly, but the lightweight inline chat turns into
+				// a different widget as soon as a response comes in, so we fallback to
+				// picking up from the focused chat widget
+				context = 'focused';
+			} else {
+				context = controller;
+			}
+			ChatSynthesizerSessions.getInstance(this.instantiationService).start(this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, context, response)));
 		}
 	}
 }
 
 export const VOICE_KEY_HOLD_THRESHOLD = 500;
 
-async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor, target: 'inline' | 'quick' | 'view' | 'focused', context?: IChatExecuteActionContext): Promise<void> {
+async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor, target: 'view' | 'inline' | 'quick' | 'focused', context?: IChatExecuteActionContext): Promise<void> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const keybindingService = accessor.get(IKeybindingService);
 
@@ -504,7 +434,7 @@ async function startVoiceChatWithHoldMode(id: string, accessor: ServicesAccessor
 
 class VoiceChatWithHoldModeAction extends Action2 {
 
-	constructor(desc: Readonly<IAction2Options>, private readonly target: 'inline' | 'quick' | 'view') {
+	constructor(desc: Readonly<IAction2Options>, private readonly target: 'view' | 'inline' | 'quick') {
 		super(desc);
 	}
 
@@ -520,7 +450,7 @@ export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 	constructor() {
 		super({
 			id: VoiceChatInChatViewAction.ID,
-			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in View"),
+			title: localize2('workbench.action.chat.voiceChatInView.label', "Voice Chat in Chat View"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
@@ -538,7 +468,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 	constructor() {
 		super({
 			id: HoldToVoiceChatInChatViewAction.ID,
-			title: localize2('workbench.action.chat.holdToVoiceChatInChatView.label', "Hold to Voice Chat in View"),
+			title: localize2('workbench.action.chat.holdToVoiceChatInChatView.label', "Hold to Voice Chat in Chat View"),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
@@ -561,6 +491,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 
 		const instantiationService = accessor.get(IInstantiationService);
 		const keybindingService = accessor.get(IKeybindingService);
+		const viewsService = accessor.get(IViewsService);
 
 		const holdMode = keybindingService.enableKeybindingHoldMode(HoldToVoiceChatInChatViewAction.ID);
 
@@ -573,7 +504,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 			}
 		}, VOICE_KEY_HOLD_THRESHOLD);
 
-		(await VoiceChatSessionControllerFactory.revealChatView(accessor))?.focusInput();
+		(await showChatView(viewsService))?.focusInput();
 
 		await holdMode;
 		handle.dispose();
@@ -634,36 +565,34 @@ export class StartVoiceChatAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
-					FocusInChatInput,							// scope this action to chat input fields only
-					EditorContextKeys.focus.negate(), 			// do not steal the editor inline-chat keybinding
-					NOTEBOOK_EDITOR_FOCUSED.negate()			// do not steal the notebook inline-chat keybinding
+					FocusInChatInput,					// scope this action to chat input fields only
+					EditorContextKeys.focus.negate(), 	// do not steal the editor inline-chat keybinding
+					NOTEBOOK_EDITOR_FOCUSED.negate()	// do not steal the notebook inline-chat keybinding
 				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: Codicon.mic,
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
-				CONTEXT_VOICE_CHAT_GETTING_READY.negate(),		// disable when voice chat is getting ready
-				AnyChatRequestInProgress?.negate(),				// disable when any chat request is in progress
-				SpeechToTextInProgress.negate()					// disable when speech to text is in progress
+				ScopedVoiceChatGettingReady.negate(),	// disable when voice chat is getting ready
+				AnyChatRequestInProgress?.negate(),		// disable when any chat request is in progress
+				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
-					TextToSpeechInProgress.negate(),					// hide when text to speech is in progress
-					CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(),	// hide when voice chat is in progress
-					CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(),		// 				||
-					CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate(),	// 				||
+					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
+					AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
 				),
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MenuId.for('terminalChatInput'),
+				id: TerminalChatExecute,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
-					TextToSpeechInProgress.negate(),						// hide when text to speech is in progress
-					CONTEXT_VOICE_CHAT_IN_TERMINAL_IN_PROGRESS.negate(),	// hide when voice chat is in progress
+					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
+					AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
 				),
 				group: 'navigation',
 				order: -1
@@ -678,9 +607,6 @@ export class StartVoiceChatAction extends Action2 {
 			// from a toolbar within the chat widget, then make sure
 			// to move focus into the input field so that the controller
 			// is properly retrieved
-			// TODO@bpasero this will actually not work if the button
-			// is clicked from the inline editor while focus is in a
-			// chat input field in a view or picker
 			widget.focusInput();
 		}
 
@@ -688,130 +614,39 @@ export class StartVoiceChatAction extends Action2 {
 	}
 }
 
-const InstallingSpeechProvider = new RawContextKey<boolean>('installingSpeechProvider', false, true);
+export class StopListeningAction extends Action2 {
 
-abstract class BaseInstallSpeechProviderAction extends Action2 {
-
-	private static readonly SPEECH_EXTENSION_ID = 'ms-vscode.vscode-speech';
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		try {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
-			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
-				justification: this.getJustification(),
-				enable: true
-			}, ProgressLocation.Notification);
-		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
-		}
-	}
-
-	protected abstract getJustification(): string;
-}
-
-export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
-
-	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
+	static readonly ID = 'workbench.action.chat.stopListening';
 
 	constructor() {
 		super({
-			id: InstallSpeechProviderForVoiceChatAction.ID,
-			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
-			icon: Codicon.mic,
-			precondition: InstallingSpeechProvider.negate(),
+			id: StopListeningAction.ID,
+			title: localize2('workbench.action.chat.stopListening.label', "Stop Listening"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 100,
+				primary: KeyCode.Escape,
+				when: AnyScopedVoiceChatInProgress
+			},
+			icon: spinningLoading,
+			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: HasSpeechProvider.negate(),
+				when: AnyScopedVoiceChatInProgress,
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MenuId.for('terminalChatInput'),
-				when: HasSpeechProvider.negate(),
+				id: TerminalChatExecute,
+				when: AnyScopedVoiceChatInProgress,
 				group: 'navigation',
 				order: -1
 			}]
 		});
 	}
 
-	protected getJustification(): string {
-		return localize('installProviderForVoiceChat.justification', "Microphone support requires this extension.");
-	}
-}
-
-class BaseStopListeningAction extends Action2 {
-
-	constructor(
-		desc: { id: string; icon?: ThemeIcon; f1?: boolean },
-		context: RawContextKey<boolean>,
-		menu: MenuId | undefined,
-	) {
-		super({
-			...desc,
-			title: localize2('workbench.action.chat.stopListening.label', "Stop Listening"),
-			category: CHAT_CATEGORY,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 100,
-				primary: KeyCode.Escape
-			},
-			precondition: ContextKeyExpr.and(CanVoiceChat, context),
-			menu: menu ? [{
-				id: menu,
-				when: ContextKeyExpr.and(CanVoiceChat, context),
-				group: 'navigation',
-				order: -1
-			}] : undefined
-		});
-	}
-
 	async run(accessor: ServicesAccessor): Promise<void> {
 		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).stop();
-	}
-}
-
-export class StopListeningAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListening';
-
-	constructor() {
-		super({ id: StopListeningAction.ID, f1: true }, CONTEXT_VOICE_CHAT_IN_PROGRESS, undefined);
-	}
-}
-
-export class StopListeningInChatViewAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInChatView';
-
-	constructor() {
-		super({ id: StopListeningInChatViewAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS, MenuId.ChatExecute);
-	}
-}
-
-export class StopListeningInChatEditorAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInChatEditor';
-
-	constructor() {
-		super({ id: StopListeningInChatEditorAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS, MenuId.ChatExecute);
-	}
-}
-
-export class StopListeningInQuickChatAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInQuickChat';
-
-	constructor() {
-		super({ id: StopListeningInQuickChatAction.ID, icon: spinningLoading }, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS, MenuId.ChatExecute);
-	}
-}
-
-export class StopListeningInTerminalChatAction extends BaseStopListeningAction {
-
-	static readonly ID = 'workbench.action.chat.stopListeningInTerminalChat';
-
-	constructor() {
-		super({ id: StopListeningInTerminalChatAction.ID, icon: spinningLoading }, CONTEXT_VOICE_CHAT_IN_TERMINAL_IN_PROGRESS, MenuId.for('terminalChatInput'));
 	}
 }
 
@@ -827,10 +662,13 @@ export class StopListeningAndSubmitAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: FocusInChatInput,
+				when: ContextKeyExpr.and(
+					FocusInChatInput,
+					AnyScopedVoiceChatInProgress
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
-			precondition: ContextKeyExpr.and(CanVoiceChat, CONTEXT_VOICE_CHAT_IN_PROGRESS)
+			precondition: GlobalVoiceChatInProgress // need global context here because of `f1: true`
 		});
 	}
 
@@ -842,6 +680,63 @@ export class StopListeningAndSubmitAction extends Action2 {
 //#endregion
 
 //#region Text to Speech
+
+const ScopedChatSynthesisInProgress = new RawContextKey<boolean>('scopedChatSynthesisInProgress', false, { type: 'boolean', description: localize('scopedChatSynthesisInProgress', "Defined as a location where voice recording from microphone is in progress for voice chat. This key is only defined scoped, per chat context.") });
+
+interface IChatSynthesizerSessionController {
+
+	readonly onDidHideChat: Event<unknown>;
+
+	readonly contextKeyService: IContextKeyService;
+	readonly response: IChatResponseModel;
+}
+
+class ChatSynthesizerSessionController {
+
+	static create(accessor: ServicesAccessor, context: IVoiceChatSessionController | 'focused', response: IChatResponseModel): IChatSynthesizerSessionController {
+		if (context === 'focused') {
+			return ChatSynthesizerSessionController.doCreateForFocusedChat(accessor, response);
+		} else {
+			return {
+				onDidHideChat: context.onDidHideInput,
+				contextKeyService: context.scopedContextKeyService,
+				response
+			};
+		}
+	}
+
+	private static doCreateForFocusedChat(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const terminalService = accessor.get(ITerminalService);
+
+		// 1.) probe terminal chat which is not part of chat widget service
+		const activeInstance = terminalService.activeInstance;
+		if (activeInstance) {
+			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			if (terminalChat?.hasFocus()) {
+				return {
+					onDidHideChat: terminalChat.onDidHide,
+					contextKeyService: terminalChat.scopedContextKeyService,
+					response
+				};
+			}
+		}
+
+		// 2.) otherwise go via chat widget service
+		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
+		if (chatWidget?.location === ChatAgentLocation.Editor) {
+			// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
+			chatWidget = chatWidgetService.lastFocusedWidget;
+		}
+
+		return {
+			onDidHideChat: chatWidget?.onDidHide ?? Event.None,
+			contextKeyService: chatWidget?.scopedContextKeyService ?? contextKeyService,
+			response
+		};
+	}
+}
 
 class ChatSynthesizerSessions {
 
@@ -861,7 +756,7 @@ class ChatSynthesizerSessions {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	async start(response: IChatResponseModel): Promise<void> {
+	async start(controller: IChatSynthesizerSessionController): Promise<void> {
 
 		// Stop running text-to-speech or speech-to-text sessions in chats
 		this.stop();
@@ -869,30 +764,37 @@ class ChatSynthesizerSessions {
 
 		const activeSession = this.activeSession = new CancellationTokenSource();
 
+		const disposables = new DisposableStore();
+		activeSession.token.onCancellationRequested(() => disposables.dispose());
+
 		const session = await this.speechService.createTextToSpeechSession(activeSession.token, 'chat');
 
 		if (activeSession.token.isCancellationRequested) {
 			return;
 		}
 
-		if (response.isComplete) {
-			return this.synthesizeCompletedResponse(session, response);
-		} else {
-			return this.synthesizePendingResponse(session, response, activeSession.token);
-		}
-	}
+		disposables.add(controller.onDidHideChat(() => this.stop()));
 
-	private synthesizeCompletedResponse(session: ITextToSpeechSession, response: IChatResponseModel): Promise<void> {
-		return session.synthesize(response.response.asString());
-	}
+		const scopedChatToSpeechInProgress = ScopedChatSynthesisInProgress.bindTo(controller.contextKeyService);
+		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.reset()));
 
-	private async synthesizePendingResponse(session: ITextToSpeechSession, response: IChatResponseModel, token: CancellationToken): Promise<void> {
-		for await (const chunk of this.nextChatResponseChunk(response, token)) {
-			if (token.isCancellationRequested) {
+		disposables.add(session.onDidChange(e => {
+			switch (e.status) {
+				case TextToSpeechStatus.Started:
+					scopedChatToSpeechInProgress.set(true);
+					break;
+				case TextToSpeechStatus.Stopped:
+					scopedChatToSpeechInProgress.reset();
+					break;
+			}
+		}));
+
+		for await (const chunk of this.nextChatResponseChunk(controller.response, activeSession.token)) {
+			if (activeSession.token.isCancellationRequested) {
 				return;
 			}
 
-			await raceCancellation(session.synthesize(chunk), token);
+			await raceCancellation(session.synthesize(chunk), activeSession.token);
 		}
 	}
 
@@ -900,39 +802,43 @@ class ChatSynthesizerSessions {
 		let totalOffset = 0;
 		let complete = false;
 		do {
-			const text = response.response.asString();
-			const { chunks, offset, tail } = this.toChunks(text, totalOffset);
+			const responseLength = response.response.toString().length;
+			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
 			totalOffset = offset;
 			complete = response.isComplete;
 
-			for (const chunk of chunks) {
+			if (chunk) {
 				yield chunk;
-
-				if (token.isCancellationRequested) {
-					return;
-				}
 			}
 
-			if (complete) {
-				yield tail;
-			} else if (text === response.response.asString()) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			if (!complete && responseLength === response.response.toString().length) {
 				await raceCancellation(Event.toPromise(response.onDidChange), token); // wait for the response to change
 			}
 		} while (!token.isCancellationRequested && !complete);
 	}
 
-	private toChunks(text: string, offset: number): { readonly chunks: string[]; readonly offset: number; readonly tail: string } {
-		const chunks: string[] = [];
+	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
+		let chunk: string | undefined = undefined;
 
-		for (let i = offset; i < text.length; i++) {
-			const char = text[i];
-			if (char === '.' || char === '!' || char === '?' || char === ':') {
-				chunks.push(text.substring(offset, i + 1));
-				offset = i + 1;
-			}
+		const text = response.response.toString();
+
+		if (response.isComplete) {
+			chunk = text.substring(offset);
+			offset = text.length + 1;
+		} else {
+			const res = parseNextChatResponseChunk(text, offset);
+			chunk = res.chunk;
+			offset = res.offset;
 		}
 
-		return { chunks, offset, tail: text.substring(offset) };
+		return {
+			chunk: chunk ? renderStringAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
+			offset
+		};
 	}
 
 	stop(): void {
@@ -941,27 +847,27 @@ class ChatSynthesizerSessions {
 	}
 }
 
-export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
+const sentenceDelimiter = ['.', '!', '?', ':'];
+const lineDelimiter = '\n';
+const wordDelimiter = ' ';
 
-	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
+export function parseNextChatResponseChunk(text: string, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
+	let chunk: string | undefined = undefined;
 
-	constructor() {
-		super({
-			id: InstallSpeechProviderForSynthesizeChatAction.ID,
-			title: localize2('workbench.action.chat.installProviderForSynthesis.label', "Read Aloud"),
-			icon: Codicon.unmute,
-			precondition: InstallingSpeechProvider.negate(),
-			menu: [{
-				id: MenuId.ChatMessageTitle,
-				when: HasSpeechProvider.negate(),
-				group: 'navigation'
-			}]
-		});
+	for (let i = text.length - 1; i >= offset; i--) { // going from end to start to produce largest chunks
+		const cur = text[i];
+		const next = text[i + 1];
+		if (
+			sentenceDelimiter.includes(cur) && next === wordDelimiter ||	// end of sentence
+			lineDelimiter === cur											// end of line
+		) {
+			chunk = text.substring(offset, i + 1).trim();
+			offset = i + 1;
+			break;
+		}
 	}
 
-	protected getJustification(): string {
-		return localize('installProviderForSynthesis.justification', "Speaker support requires this extension.");
-	}
+	return { chunk, offset };
 }
 
 export class ReadChatResponseAloud extends Action2 {
@@ -969,29 +875,40 @@ export class ReadChatResponseAloud extends Action2 {
 		super({
 			id: 'workbench.action.chat.readChatResponseAloud',
 			title: localize2('workbench.action.chat.readChatResponseAloud', "Read Aloud"),
-			f1: false,
 			icon: Codicon.unmute,
 			precondition: CanVoiceChat,
-			menu: {
+			menu: [{
 				id: MenuId.ChatMessageTitle,
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
-					CONTEXT_RESPONSE,					// only for responses
-					TextToSpeechInProgress.negate(),	// but not when already in progress
-					CONTEXT_RESPONSE_FILTERED.negate()	// and not when response is filtered
+					CONTEXT_RESPONSE,						// only for responses
+					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
+					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
 				),
 				group: 'navigation'
-			}
+			}, {
+				id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+				when: ContextKeyExpr.and(
+					CanVoiceChat,
+					CONTEXT_RESPONSE,						// only for responses
+					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
+					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
+				),
+				group: 'navigation'
+			}]
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
+		const instantiationService = accessor.get(IInstantiationService);
+
 		const response = args[0];
 		if (!isResponseVM(response)) {
 			return;
 		}
 
-		ChatSynthesizerSessions.getInstance(accessor.get(IInstantiationService)).start(response.model);
+		const controller = ChatSynthesizerSessionController.create(accessor, 'focused', response.model);
+		ChatSynthesizerSessions.getInstance(instantiationService).start(controller);
 	}
 }
 
@@ -1006,21 +923,28 @@ export class StopReadAloud extends Action2 {
 			title: localize2('workbench.action.speech.stopReadAloud', "Stop Reading Aloud"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: TextToSpeechInProgress,
+			precondition: GlobalTextToSpeechInProgress, // need global context here because of `f1: true`
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
+				when: ScopedChatSynthesisInProgress
 			},
 			menu: [
 				{
 					id: MenuId.ChatExecute,
-					when: TextToSpeechInProgress,
+					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
 				},
 				{
-					id: MenuId.for('terminalChatInput'),
-					when: TextToSpeechInProgress,
+					id: TerminalChatExecute,
+					when: ScopedChatSynthesisInProgress,
+					group: 'navigation',
+					order: -1
+				},
+				{
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
 				}
@@ -1035,14 +959,14 @@ export class StopReadAloud extends Action2 {
 
 export class StopReadChatItemAloud extends Action2 {
 
-	static readonly ID = 'workbench.action.chat.stopRadChatItemAloud';
+	static readonly ID = 'workbench.action.chat.stopReadChatItemAloud';
 
 	constructor() {
 		super({
 			id: StopReadChatItemAloud.ID,
 			icon: Codicon.mute,
-			title: localize2('workbench.action.chat.stopRadChatItemAloud', "Stop Reading Aloud"),
-			precondition: TextToSpeechInProgress,
+			title: localize2('workbench.action.chat.stopReadChatItemAloud', "Stop Reading Aloud"),
+			precondition: ScopedChatSynthesisInProgress,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
@@ -1051,7 +975,7 @@ export class StopReadChatItemAloud extends Action2 {
 				{
 					id: MenuId.ChatMessageTitle,
 					when: ContextKeyExpr.and(
-						TextToSpeechInProgress,				// only when in progress
+						ScopedChatSynthesisInProgress,		// only when in progress
 						CONTEXT_RESPONSE,					// only for responses
 						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
 					),
@@ -1307,6 +1231,85 @@ class KeywordActivationStatusEntry extends Disposable {
 
 	private updateStatusLabel(): void {
 		this.entry.value?.update(this.getStatusEntryProperties());
+	}
+}
+
+//#endregion
+
+//#region Install Provider Actions
+
+const InstallingSpeechProvider = new RawContextKey<boolean>('installingSpeechProvider', false, true);
+
+abstract class BaseInstallSpeechProviderAction extends Action2 {
+
+	private static readonly SPEECH_EXTENSION_ID = 'ms-vscode.vscode-speech';
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		try {
+			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
+			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
+				justification: this.getJustification(),
+				enable: true
+			}, ProgressLocation.Notification);
+		} finally {
+			InstallingSpeechProvider.bindTo(contextKeyService).reset();
+		}
+	}
+
+	protected abstract getJustification(): string;
+}
+
+export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
+
+	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
+
+	constructor() {
+		super({
+			id: InstallSpeechProviderForVoiceChatAction.ID,
+			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
+			icon: Codicon.mic,
+			precondition: InstallingSpeechProvider.negate(),
+			menu: [{
+				id: MenuId.ChatExecute,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation',
+				order: -1
+			}, {
+				id: TerminalChatExecute,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation',
+				order: -1
+			}]
+		});
+	}
+
+	protected getJustification(): string {
+		return localize('installProviderForVoiceChat.justification', "Microphone support requires this extension.");
+	}
+}
+
+export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
+
+	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
+
+	constructor() {
+		super({
+			id: InstallSpeechProviderForSynthesizeChatAction.ID,
+			title: localize2('workbench.action.chat.installProviderForSynthesis.label', "Read Aloud"),
+			icon: Codicon.unmute,
+			precondition: InstallingSpeechProvider.negate(),
+			menu: [{
+				id: MenuId.ChatMessageTitle,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation'
+			}]
+		});
+	}
+
+	protected getJustification(): string {
+		return localize('installProviderForSynthesis.justification', "Speaker support requires this extension.");
 	}
 }
 

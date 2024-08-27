@@ -435,6 +435,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public terminate(task: Task): Promise<ITaskTerminateResponse> {
 		const activeTerminal = this._activeTasks[task.getMapKey()];
+		if (!activeTerminal) {
+			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
+		}
 		const terminal = activeTerminal.terminal;
 		if (!terminal) {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
@@ -559,9 +562,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return { exitCode: 0 };
 			});
 		}).finally(() => {
-			if (this._activeTasks[mapKey] === activeTask) {
-				delete this._activeTasks[mapKey];
-			}
+			delete this._activeTasks[mapKey];
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };
@@ -1043,9 +1044,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._viewsService.openView(Markers.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
-			await this._terminalService.revealActiveTerminal();
+			await this._terminalService.revealTerminal(terminal);
 			if (task.command.presentation.focus) {
-				this._terminalService.focusActiveInstance();
+				this._terminalService.focusInstance(terminal);
 			}
 		}
 		this._activeTasks[task.getMapKey()].terminal = terminal;

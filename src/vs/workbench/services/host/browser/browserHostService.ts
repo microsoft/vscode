@@ -40,6 +40,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { coalesce } from 'vs/base/common/arrays';
 import { mainWindow, isAuxiliaryWindow } from 'vs/base/browser/window';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 enum HostShutdownReason {
 
@@ -79,6 +80,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 
@@ -236,7 +238,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		const payload = this.preservePayload(false /* not an empty window */);
+		const payload = this.preservePayload(false /* not an empty window */, options);
 		const fileOpenables: IFileToOpen[] = [];
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
@@ -393,7 +395,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.instantiationService.invokeFunction(accessor => fn(accessor));
 	}
 
-	private preservePayload(isEmptyWindow: boolean): Array<unknown> | undefined {
+	private preservePayload(isEmptyWindow: boolean, options?: IOpenWindowOptions): Array<unknown> | undefined {
 
 		// Selectively copy payload: for now only extension debugging properties are considered
 		const newPayload: Array<unknown> = new Array();
@@ -409,8 +411,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		if (!this.userDataProfileService.currentProfile.isDefault) {
-			newPayload.push(['lastActiveProfile', this.userDataProfileService.currentProfile.id]);
+		const newWindowProfile = (options?.forceProfile
+			? this.userDataProfilesService.profiles.find(profile => profile.name === options?.forceProfile)
+			: undefined) ?? this.userDataProfileService.currentProfile;
+		if (!newWindowProfile.isDefault) {
+			newPayload.push(['profile', newWindowProfile.name]);
 		}
 
 		return newPayload.length ? newPayload : undefined;
@@ -447,7 +452,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
 		return this.doOpen(undefined, {
 			reuse: options?.forceReuseWindow,
-			payload: this.preservePayload(true /* empty window */)
+			payload: this.preservePayload(true /* empty window */, options)
 		});
 	}
 
@@ -567,6 +572,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		// Signal shutdown reason to lifecycle
 		return this.lifecycleService.withExpectedShutdown(reason);
+	}
+
+	//#endregion
+
+	//#region File
+
+	getPathForFile(): undefined {
+		return undefined; // unsupported in browser environments
 	}
 
 	//#endregion

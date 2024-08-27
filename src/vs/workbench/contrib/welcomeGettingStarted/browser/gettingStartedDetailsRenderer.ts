@@ -17,6 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { gettingStartedContentRegistry } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 
 
 export class GettingStartedDetailsRenderer {
@@ -211,7 +212,7 @@ export class GettingStartedDetailsRenderer {
 	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, true, true);
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
 			this.mdCache.set(path, markdownContents);
 		}
 		return assertIsDefined(this.mdCache.get(path));
@@ -221,10 +222,20 @@ export class GettingStartedDetailsRenderer {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
 			if (useModuleId && moduleId) {
-				const contents = await new Promise<string>(c => {
-					require([moduleId], content => {
-						c(content.default());
-					});
+				const contents = await new Promise<string>((resolve, reject) => {
+					const provider = gettingStartedContentRegistry.getProvider(moduleId);
+					if (!provider) {
+						// ESM-comment-begin
+						require([moduleId], content => {
+							resolve(content.default());
+						});
+						// ESM-comment-end
+						// ESM-uncomment-begin
+						// reject(`Getting started: no provider registered for ${moduleId}`);
+						// ESM-uncomment-end
+					} else {
+						resolve(provider());
+					}
 				});
 				return contents;
 			}

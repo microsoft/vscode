@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import * as strings from 'vs/base/common/strings';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
@@ -556,6 +556,22 @@ suite('Strings', () => {
 		assert.strictEqual(strings.count('hello world', 'world'), 1);
 		assert.strictEqual(strings.count('hello world', 'hello world'), 1);
 		assert.strictEqual(strings.count('hello world', 'foo'), 0);
+	});
+
+	test('containsAmbiguousCharacter', () => {
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abcd'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('üå'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('(*&^)'), false);
+
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('ο'), true);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abɡc'), true);
+	});
+
+	test('containsInvisibleCharacter', () => {
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('abcd'), false);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter(' '), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e004e}b'), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e015a}\u000bb'), true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

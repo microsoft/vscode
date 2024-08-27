@@ -125,7 +125,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private static readonly READONLY_MESSAGES = {
 		providerReadonly: { value: localize('providerReadonly', "Editor is read-only because the file system of the file is read-only."), isTrusted: true },
 		sessionReadonly: { value: localize({ key: 'sessionReadonly', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file was set read-only in this session. [Click here](command:{0}) to set writeable.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
-		configuredReadonly: { value: localize({ key: 'configuredReadonly', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file was set read-only via settings. [Click here](command:{0}) to configure.", `workbench.action.openSettings?${encodeURIComponent('["files.readonly"]')}`), isTrusted: true },
+		configuredReadonly: { value: localize({ key: 'configuredReadonly', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file was set read-only via settings. [Click here](command:{0}) to configure or [toggle for this session](command:{1}).", `workbench.action.openSettings?${encodeURIComponent('["files.readonly"]')}`, 'workbench.action.files.toggleActiveEditorReadonlyInSession'), isTrusted: true },
 		fileLocked: { value: localize({ key: 'fileLocked', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because of file permissions. [Click here](command:{0}) to set writeable anyway.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
 		fileReadonly: { value: localize('fileReadonly', "Editor is read-only because the file is read-only."), isTrusted: true }
 	};
@@ -143,7 +143,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	private currentGlobalAutoSaveConfiguration: IAutoSaveConfiguration;
-	private currentFilesAssociationConfiguration: IStringDictionary<string>;
+	private currentFilesAssociationConfiguration: IStringDictionary<string> | undefined;
 	private currentHotExitConfiguration: string;
 
 	private readonly autoSaveConfigurationCache = new LRUCache<URI, ICachedAutoSaveConfiguration>(1000);
@@ -317,7 +317,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.currentGlobalAutoSaveConfiguration;
 	}
 
-	private computeAutoSaveConfiguration(resource: URI | undefined, filesConfiguration: IFilesConfigurationNode): ICachedAutoSaveConfiguration {
+	private computeAutoSaveConfiguration(resource: URI | undefined, filesConfiguration: IFilesConfigurationNode | undefined): ICachedAutoSaveConfiguration {
 		let autoSave: 'afterDelay' | 'onFocusChange' | 'onWindowChange' | undefined;
 		let autoSaveDelay: number | undefined;
 		let autoSaveWorkspaceFilesOnly: boolean | undefined;
@@ -326,10 +326,10 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		let isOutOfWorkspace: boolean | undefined;
 		let isShortAutoSaveDelay: boolean | undefined;
 
-		switch (filesConfiguration.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
+		switch (filesConfiguration?.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
 			case AutoSaveConfiguration.AFTER_DELAY: {
 				autoSave = 'afterDelay';
-				autoSaveDelay = typeof filesConfiguration.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
+				autoSaveDelay = typeof filesConfiguration?.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
 				isShortAutoSaveDelay = autoSaveDelay <= FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
 				break;
 			}
@@ -343,7 +343,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				break;
 		}
 
-		if (filesConfiguration.autoSaveWorkspaceFilesOnly === true) {
+		if (filesConfiguration?.autoSaveWorkspaceFilesOnly === true) {
 			autoSaveWorkspaceFilesOnly = true;
 
 			if (resource && !this.contextService.isInsideWorkspace(resource)) {
@@ -352,7 +352,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			}
 		}
 
-		if (filesConfiguration.autoSaveWhenNoErrors === true) {
+		if (filesConfiguration?.autoSaveWhenNoErrors === true) {
 			autoSaveWhenNoErrors = true;
 			isShortAutoSaveDelay = undefined; // this configuration disables short auto save delay
 		}

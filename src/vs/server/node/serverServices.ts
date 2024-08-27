@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
+import { getMachineId, getSqmMachineId, getdevDeviceId } from 'vs/base/node/id';
 import { Promises } from 'vs/base/node/pfs';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
@@ -77,6 +77,7 @@ import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from '
 import { RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { RemoteUserDataProfilesServiceChannel } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
 import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
+import { CSSDevelopmentService, ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -131,12 +132,16 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IUserDataProfilesService, userDataProfilesService);
 	socketServer.registerChannel('userDataProfiles', new RemoteUserDataProfilesServiceChannel(userDataProfilesService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
+	// Dev Only: CSS service (for ESM)
+	services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
+
 	// Initialize
-	const [, , machineId, sqmId] = await Promise.all([
+	const [, , machineId, sqmId, devDeviceId] = await Promise.all([
 		configurationService.initialize(),
 		userDataProfilesService.init(),
 		getMachineId(logService.error.bind(logService)),
-		getSqmMachineId(logService.error.bind(logService))
+		getSqmMachineId(logService.error.bind(logService)),
+		getdevDeviceId(logService.error.bind(logService))
 	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
@@ -156,7 +161,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender],
-			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, isInternal, 'remoteAgent'),
+			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];

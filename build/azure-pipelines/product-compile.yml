@@ -1,6 +1,9 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_BUILD_ESM
+    type: boolean
+    default: false
 
 steps:
   - task: NodeTool@0
@@ -98,6 +101,10 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
+  - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+    - script: node migrate.mjs --disable-watch
+      displayName: Migrate to ESM
+
   - template: common/install-builtin-extensions.yml@self
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -135,12 +142,21 @@ steps:
 
     - script: |
         set -e
-        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_STORAGE_ACCOUNT="vscodeweb" \
         AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
         AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
         AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
           node build/azure-pipelines/upload-sourcemaps
       displayName: Upload sourcemaps to Azure
+
+    - script: |
+        set -e
+        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+        AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+        AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+          node build/azure-pipelines/upload-sourcemaps
+      displayName: Upload sourcemaps to Azure (Deprecated)
 
     - script: ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Generate lists of telemetry events

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as vscode from 'vscode';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
@@ -66,7 +66,7 @@ suite('NotebookCell#Document', function () {
 			override onExtensionError(): boolean {
 				return true;
 			}
-		}), extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch);
+		}), extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch, new NullLogService());
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		const reg = extHostNotebooks.registerNotebookSerializer(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookSerializer>() { });

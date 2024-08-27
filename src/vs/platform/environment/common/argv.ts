@@ -141,4 +141,8 @@ export interface NativeParsedArgs {
 	'vmodule'?: string;
 	'disable-dev-shm-usage'?: boolean;
 	'ozone-platform'?: string;
+	'enable-tracing'?: string;
+	'trace-startup-format'?: string;
+	'trace-startup-file'?: string;
+	'trace-startup-duration'?: string;
 }

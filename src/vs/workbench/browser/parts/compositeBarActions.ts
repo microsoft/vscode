@@ -319,11 +319,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			else if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
-					if (this.options.compact) {
-						if (badge.number > 99) {
-							number = '';
-						}
-					} else if (badge.number > 999) {
+					if (badge.number > 999) {
 						const noOfThousands = badge.number / 1000;
 						const floor = Math.floor(noOfThousands);
 						if (noOfThousands > floor) {
@@ -331,6 +327,9 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 						} else {
 							number = `${noOfThousands}K`;
 						}
+					}
+					if (this.options.compact && number.length >= 3) {
+						classes.push('compact-content');
 					}
 					this.badgeContent.textContent = number;
 					show(this.badge);

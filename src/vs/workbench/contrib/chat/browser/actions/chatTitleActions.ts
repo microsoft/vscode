@@ -8,21 +8,23 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize2 } from 'vs/nls';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { ChatTreeItem, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE, CONTEXT_VOTE_UP_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatService, ChatAgentVoteDirection, ChatAgentVoteDownReason } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 
 export function registerChatTitleActions() {
 	registerAction2(class MarkHelpfulAction extends Action2 {
@@ -34,12 +36,17 @@ export function registerChatTitleActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('up'),
-				menu: {
+				menu: [{
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 1,
-					when: CONTEXT_RESPONSE
-				}
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
+				}, {
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
+				}]
 			});
 		}
 
@@ -52,33 +59,41 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Up,
+					reason: undefined
 				}
 			});
 			item.setVote(ChatAgentVoteDirection.Up);
+			item.setVoteDownReason(undefined);
 		}
 	});
 
 	registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.markUnhelpful',
+				id: MarkUnhelpfulActionId,
 				title: localize2('interactive.unhelpful.label', "Unhelpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('down'),
-				menu: {
+				menu: [{
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: CONTEXT_RESPONSE
-				}
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR.negate())
+				}, {
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR.negate())
+				}]
 			});
 		}
 
@@ -88,18 +103,27 @@ export function registerChatTitleActions() {
 				return;
 			}
 
+			const reason = args[1];
+			if (typeof reason !== 'string') {
+				return;
+			}
+
+			item.setVote(ChatAgentVoteDirection.Down);
+			item.setVoteDownReason(reason as ChatAgentVoteDownReason);
+
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Down,
+					reason: item.voteDownReason
 				}
 			});
-			item.setVote(ChatAgentVoteDirection.Down);
 		}
 	});
 
@@ -111,12 +135,17 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.report,
-				menu: {
+				menu: [{
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 3,
 					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
-				}
+				}, {
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+				}]
 			});
 		}
 
@@ -129,6 +158,7 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
@@ -175,7 +205,7 @@ export function registerChatTitleActions() {
 					return;
 				}
 
-				const value = item.response.asString();
+				const value = item.response.toString();
 				const splitContents = splitMarkdownAndCodeBlocks(value);
 
 				const focusRange = notebookEditor.getFocus();
@@ -251,89 +281,6 @@ export function registerChatTitleActions() {
 			if (requestId) {
 				const chatService = accessor.get(IChatService);
 				chatService.removeRequest(item.sessionId, requestId);
-			}
-		}
-	});
-
-	const rerunMenu = MenuId.for('ChatMessageTitle#Rerun');
-
-	MenuRegistry.appendMenuItem(MenuId.ChatMessageTitle, {
-		submenu: rerunMenu,
-		title: localize('reunmenu', "Rerun..."),
-		icon: Codicon.refresh,
-		group: 'navigation',
-		order: -10,
-		when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor)) // TODO@jrieken needs extension adoption
-
-	});
-
-	registerAction2(class RerunAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.rerun',
-				title: localize2('chat.rerun.label', "Rerun Request"),
-				f1: false,
-				category: CHAT_CATEGORY,
-				icon: Codicon.refresh,
-				precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), // TODO@jrieken needs extension adoption
-				menu: {
-					id: rerunMenu,
-					group: 'navigation',
-					order: -1,
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor, ...args: [ChatTreeItem | unknown]) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const chatService = accessor.get(IChatService);
-			const widget = chatWidgetService.lastFocusedWidget;
-			let item = args[0];
-			if (!isResponseVM(item)) {
-				item = widget?.getFocus();
-			}
-			if (!isResponseVM(item) || !widget) {
-				return;
-			}
-			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
-			if (request) {
-				await chatService.resendRequest(request, { noCommandDetection: false, attempt: request.attempt + 1, location: widget.location, implicitVariablesEnabled: true });
-			}
-		}
-	});
-
-	registerAction2(class RerunWithoutCommandDetectionAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.rerunWithoutCommandDetection',
-				title: localize2('chat.rerunWithoutCommandDetection.label', "Rerun without Command Detection"),
-				f1: false,
-				category: CHAT_CATEGORY,
-				icon: Codicon.refresh,
-				precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), // TODO@jrieken needs extension adoption
-				menu: {
-					when: CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND,
-					id: rerunMenu,
-					group: 'navigation',
-					order: -1,
-				}
-			});
-		}
-
-		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const chatService = accessor.get(IChatService);
-			const widget = chatWidgetService.lastFocusedWidget;
-			let item = args[0];
-			if (!isResponseVM(item)) {
-				item = widget?.getFocus();
-			}
-			if (!isResponseVM(item) || !widget) {
-				return;
-			}
-			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
-			if (request) {
-				await chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt, location: widget.location, implicitVariablesEnabled: true });
 			}
 		}
 	});

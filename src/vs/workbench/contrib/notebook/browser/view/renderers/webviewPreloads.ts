@@ -90,7 +90,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 
-	/* eslint-disable no-restricted-globals */
+	/* eslint-disable no-restricted-globals, no-restricted-syntax */
 
 	// The use of global `window` should be fine in this context, even
 	// with aux windows. This code is running from within an `iframe`
@@ -461,7 +461,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					id,
 					height,
 					init: update.init,
-					isOutput: update.isOutput,
+					isOutput: update.isOutput
 				});
 			} else {
 				this.pending.set(id, {
@@ -483,6 +483,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.pending.clear();
 		}
 	};
+
+	function elementHasContent(height: number) {
+		// we need to account for a potential 1px top and bottom border on a child within the output container
+		return height > 2.1;
+	}
 
 	const resizeObserver = new class {
 
@@ -519,23 +524,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 						continue;
 					}
 
-					const newHeight = entry.contentRect.height;
+					const hasContent = elementHasContent(entry.contentRect.height);
 					const shouldUpdatePadding =
-						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
-						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
+						(hasContent && observedElementInfo.lastKnownPadding === 0) ||
+						(!hasContent && observedElementInfo.lastKnownPadding !== 0);
 
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
 						window.requestAnimationFrame(() => {
-							if (newHeight !== 0) {
+							if (hasContent) {
 								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+							this.updateHeight(observedElementInfo, hasContent ? entry.target.offsetHeight : 0);
 						});
 					} else {
-						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						this.updateHeight(observedElementInfo, hasContent ? entry.target.offsetHeight : 0);
 					}
 				}
 			});
@@ -1425,9 +1430,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] }) => {
 		let find = true;
-		const matches: IFindMatch[] = [];
+		let matches: IFindMatch[] = [];
 
 		const range = document.createRange();
 		range.selectNodeContents(window.document.getElementById('findStart')!);
@@ -1553,6 +1558,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
+
+		matches = matches.filter(match => options.findIds.length ? options.findIds.includes(match.cellId) : true);
 		_highlighter.addHighlights(matches, options.ownerID);
 		window.document.getSelection()?.removeAllRanges();
 
@@ -2753,10 +2760,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.element.style.visibility = '';
 			this.element.style.top = `${top}px`;
-
-			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
-				isOutput: true,
-			});
 		}
 
 		public hide() {
@@ -2939,17 +2942,26 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			const offsetHeight = this.element.offsetHeight;
 			const cps = document.defaultView!.getComputedStyle(this.element);
-			if (offsetHeight !== 0 && cps.padding === '0px') {
-				// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
+			const verticalPadding = parseFloat(cps.paddingTop) + parseFloat(cps.paddingBottom);
+			const contentHeight = offsetHeight - verticalPadding;
+			if (elementHasContent(contentHeight) && cps.padding === '0px') {
+				// we set padding to zero if the output has no content (then we can have a zero-height output DOM node)
 				// thus we need to ensure the padding is accounted when updating the init height of the output
 				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
 					isOutput: true,
-					init: true,
+					init: true
 				});
 
 				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
-			} else {
+			} else if (elementHasContent(contentHeight)) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
+					isOutput: true,
+					init: true
+				});
+				this.element.style.padding = `0 ${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodeLeftPadding}`;
+			} else {
+				// we have a zero-height output DOM node
+				dimensionUpdater.updateHeight(this.outputId, 0, {
 					isOutput: true,
 					init: true,
 				});
@@ -3067,7 +3079,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			if (this.dragOverlay) {
-				window.document.body.removeChild(this.dragOverlay);
+				this.dragOverlay.remove();
 				this.dragOverlay = undefined;
 			}
 

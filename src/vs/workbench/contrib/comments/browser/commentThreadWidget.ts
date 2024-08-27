@@ -6,7 +6,7 @@
 import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
 import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -23,7 +23,7 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -36,9 +36,10 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { DomEmitter } from 'vs/base/browser/event';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
@@ -88,7 +89,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._header = new CommentThreadHeader<T>(
+		this._register(this._header = new CommentThreadHeader<T>(
 			container,
 			{
 				collapse: this.collapse.bind(this)
@@ -98,12 +99,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._contextKeyService,
 			this._scopedInstantiationService,
 			contextMenuService
-		);
+		));
 
 		this._header.updateCommentThread(this._commentThread);
 
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
+		this._register(toDisposable(() => bodyElement.remove()));
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({
@@ -155,6 +157,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
+		this._register(new DomEmitter(this.container, 'keydown').event(e => {
+			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
+				if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+					this._parentEditor.setSelection(this.commentThread.range);
+				}
+				this.collapse();
+			}
+		}));
 	}
 
 	private _setAriaLabel(): void {
@@ -350,6 +360,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (widthInPixel !== undefined) {
 			this._commentReply?.layout(widthInPixel);
 		}
+	}
+
+	ensureFocusIntoNewEditingComment() {
+		this._body.ensureFocusIntoNewEditingComment();
 	}
 
 	focusCommentEditor() {

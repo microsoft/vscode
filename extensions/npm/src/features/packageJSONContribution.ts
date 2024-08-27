@@ -292,8 +292,14 @@ export class PackageJSONContribution implements IJSONContribution {
 			// COREPACK_ENABLE_AUTO_PIN disables the package.json overwrite, and
 			// COREPACK_ENABLE_PROJECT_SPEC makes the npm view command succeed
 			//   even if packageManager specified a package manager other than npm.
-			const env = { COREPACK_ENABLE_AUTO_PIN: "0", COREPACK_ENABLE_PROJECT_SPEC: "0" };
-			cp.execFile(npmCommandPath, args, { cwd, env }, (error, stdout) => {
+			const env = { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0', COREPACK_ENABLE_PROJECT_SPEC: '0' };
+			let options: cp.ExecFileOptions = { cwd, env };
+			let commandPath: string = npmCommandPath;
+			if (process.platform === 'win32') {
+				options = { cwd, env, shell: true };
+				commandPath = `"${npmCommandPath}"`;
+			}
+			cp.execFile(commandPath, args, options, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);

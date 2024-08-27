@@ -17,6 +17,7 @@ import { EditorAction, EditorContributionInstantiation, registerEditorAction, re
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
@@ -328,8 +329,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions
 						const selections = this.editor.getSelections();
-						const selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
-						foldingModel.update(foldingRanges, selectionLineNumbers);
+						foldingModel.update(foldingRanges, toSelectedLines(selections));
 
 						scrollState?.restore(this.editor);
 
@@ -582,6 +582,29 @@ abstract class FoldingAction<T> extends EditorAction {
 	}
 }
 
+export interface SelectedLines {
+	startsInside(startLine: number, endLine: number): boolean;
+}
+
+export function toSelectedLines(selections: Selection[] | null): SelectedLines {
+	if (!selections || selections.length === 0) {
+		return {
+			startsInside: () => false
+		};
+	}
+	return {
+		startsInside(startLine: number, endLine: number): boolean {
+			for (const s of selections) {
+				const line = s.startLineNumber;
+				if (line >= startLine && line <= endLine) {
+					return true;
+				}
+			}
+			return false;
+		}
+	};
+}
+
 interface FoldingArguments {
 	levels?: number;
 	direction?: 'up' | 'down';
@@ -808,6 +831,30 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, selectedLines);
 	}
 }
+
+
+class ToggleFoldRecursivelyAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.toggleFoldRecursively',
+			label: nls.localize('toggleFoldRecursivelyAction.label', "Toggle Fold Recursively"),
+			alias: 'Toggle Fold Recursively',
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		const selectedLines = this.getSelectedLines(editor);
+		toggleCollapseState(foldingModel, Number.MAX_VALUE, selectedLines);
+	}
+}
+
 
 class FoldAllBlockCommentsAction extends FoldingAction<void> {
 
@@ -1189,6 +1236,7 @@ registerEditorAction(UnfoldAction);
 registerEditorAction(UnFoldRecursivelyAction);
 registerEditorAction(FoldAction);
 registerEditorAction(FoldRecursivelyAction);
+registerEditorAction(ToggleFoldRecursivelyAction);
 registerEditorAction(FoldAllAction);
 registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);

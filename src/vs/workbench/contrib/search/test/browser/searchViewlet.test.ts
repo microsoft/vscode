@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -60,21 +60,24 @@ suite('Search - Viewlet', () => {
 		result.add([{
 			resource: createFileUriFromPathFromRoot('/foo'),
 			results: [{
-				preview: {
-					text: 'bar',
-					matches: {
-						startLineNumber: 0,
-						startColumn: 0,
-						endLineNumber: 0,
-						endColumn: 1
+
+				previewText: 'bar',
+				rangeLocations: [
+					{
+						preview: {
+							startLineNumber: 0,
+							startColumn: 0,
+							endLineNumber: 0,
+							endColumn: 1
+						},
+						source: {
+							startLineNumber: 1,
+							startColumn: 0,
+							endLineNumber: 1,
+							endColumn: 1
+						}
 					}
-				},
-				ranges: {
-					startLineNumber: 1,
-					startColumn: 0,
-					endLineNumber: 1,
-					endColumn: 1
-				}
+				]
 			}]
 		}], '', false);
 

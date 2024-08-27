@@ -9,9 +9,9 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -25,7 +25,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 	constructor(
 		private readonly _diffEditor: IDiffEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
@@ -33,7 +33,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
 
 		if (!isEmbeddedDiffEditor) {
-			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
+			const computationResult = observableFromEvent(this, e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
 			this._register(autorunWithStore((reader, store) => {
@@ -46,7 +46,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						null
 					));
 					store.add(helperWidget.onClick(() => {
-						this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
+						this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.ignoreTrimWhitespace', false);
 					}));
 					helperWidget.render();
 				}
@@ -62,7 +62,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						[{
 							label: localize('removeTimeout', "Remove Limit"),
 							run: () => {
-								this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
+								this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.maxComputationTime', 0);
 							}
 						}],
 						{}

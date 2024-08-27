@@ -33,16 +33,18 @@ export interface IResolvedMultiDiffSource {
 
 export class MultiDiffEditorItem {
 	constructor(
-		readonly original: URI | undefined,
-		readonly modified: URI | undefined,
+		readonly originalUri: URI | undefined,
+		readonly modifiedUri: URI | undefined,
+		readonly goToFileUri: URI | undefined,
+		readonly contextKeys?: Record<string, ContextKeyValue>
 	) {
-		if (!original && !modified) {
+		if (!originalUri && !modifiedUri) {
 			throw new BugIndicatingError('Invalid arguments');
 		}
 	}
 
 	getKey(): string {
-		return JSON.stringify([this.modified?.toString(), this.original?.toString()]);
+		return JSON.stringify([this.modifiedUri?.toString(), this.originalUri?.toString()]);
 	}
 }
 

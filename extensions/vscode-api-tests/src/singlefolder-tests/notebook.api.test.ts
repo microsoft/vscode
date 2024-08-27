@@ -18,6 +18,10 @@ async function openRandomNotebookDocument() {
 	return vscode.workspace.openNotebookDocument(uri);
 }
 
+async function openUntitledNotebookDocument(data?: vscode.NotebookData) {
+	return vscode.workspace.openNotebookDocument('notebookCoreTest', data);
+}
+
 export async function saveAllFilesAndCloseAll() {
 	await saveAllEditors();
 	await closeAllEditors();
@@ -147,6 +151,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	teardown(async function () {
 		disposeAll(testDisposables);
 		testDisposables.length = 0;
+		await revertAllDirty();
 		await saveAllFilesAndCloseAll();
 	});
 
@@ -186,6 +191,27 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 
 		assert.strictEqual(!!vscode.window.activeNotebookEditor, true);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.notebook.uri.toString(), document.uri.toString());
+	});
+
+	test('Opening an utitled notebook without content will only open the editor when shown.', async function () {
+		const document = await openUntitledNotebookDocument();
+
+		assert.strictEqual(vscode.window.activeNotebookEditor, undefined);
+
+		// opening a cell-uri opens a notebook editor
+		await vscode.window.showNotebookDocument(document);
+
+		assert.strictEqual(!!vscode.window.activeNotebookEditor, true);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.notebook.uri.toString(), document.uri.toString());
+	});
+
+	test('Opening an untitled notebook with content will open a dirty document.', async function () {
+		const language = 'python';
+		const cell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '', language);
+		const data = new vscode.NotebookData([cell]);
+		const doc = await vscode.workspace.openNotebookDocument('jupyter-notebook', data);
+
+		assert.strictEqual(doc.isDirty, true);
 	});
 
 	test('Cannot open notebook from cell-uri with vscode.open-command', async function () {

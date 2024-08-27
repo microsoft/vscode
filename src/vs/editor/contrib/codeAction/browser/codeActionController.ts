@@ -41,7 +41,6 @@ import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
 	readonly fromLightbulb?: boolean;
@@ -85,7 +84,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		super();
 
 		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService, this._telemetryService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._lightBulbWidget = new Lazy(() => {
@@ -107,29 +106,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	private async showCodeActionsFromLightbulb(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-
-		// Telemetry for showing code actions from lightbulb. Shows us how often it was clicked.
-		type ShowCodeActionListEvent = {
-			codeActionListLength: number;
-			codeActions: string[];
-			codeActionProviders: string[];
-		};
-
-		type ShowListEventClassification = {
-			codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list from the lightbulb widget.' };
-			codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
-			codeActionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of code actions in this menu.' };
-			owner: 'justschen';
-			comment: 'Event used to gain insights into what code actions are being shown';
-		};
-
-		this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionsFromLightbulb', {
-			codeActionListLength: actions.validActions.length,
-			codeActions: actions.validActions.map(action => action.action.title),
-			codeActionProviders: actions.validActions.map(action => action.provider?.displayName ?? ''),
-		});
-
-
 		if (actions.allAIFixes && actions.validActions.length === 1) {
 			const actionItem = actions.validActions[0];
 			const command = actionItem.action.command;
@@ -183,11 +159,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	public hideLightBulbWidget(): void {
 		this._lightBulbWidget.rawValue?.hide();
+		this._lightBulbWidget.rawValue?.gutterHide();
 	}
 
 	private async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
-			this._lightBulbWidget.rawValue?.hide();
+			this.hideLightBulbWidget();
 			return;
 		}
 
@@ -212,7 +189,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
-						this._lightBulbWidget.value?.hide();
+						this.hideLightBulbWidget();
 						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
@@ -312,25 +289,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			onHide: (didCancel?) => {
 				this._editor?.focus();
 				currentDecorations.clear();
-				// Telemetry for showing code actions here. only log on `showLightbulb`. Logs when code action list is quit out.
-				if (options.fromLightbulb && didCancel !== undefined) {
-					type ShowCodeActionListEvent = {
-						codeActionListLength: number;
-						didCancel: boolean;
-					};
-
-					type ShowListEventClassification = {
-						codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list when quit out. Can be from any code action menu.' };
-						didCancel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code action was cancelled or selected.' };
-						owner: 'justschen';
-						comment: 'Event used to gain insights into how many valid code actions are being shown';
-					};
-
-					this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionList.onHide', {
-						codeActionListLength: actions.validActions.length,
-						didCancel: didCancel,
-					});
-				}
 			},
 			onHover: async (action: CodeActionItem, token: CancellationToken) => {
 				if (token.isCancellationRequested) {

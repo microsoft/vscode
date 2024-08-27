@@ -5,24 +5,13 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isCancellationError } from 'vs/base/common/errors';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
+import { IInlineChatSessionService } from './inlineChatSessionService';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { coalesceInPlace } from 'vs/base/common/arrays';
@@ -32,8 +21,10 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatRequestModel, IChatTextEditGroupState } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 
 
 export type TelemetryData = {
@@ -89,15 +80,6 @@ export class SessionWholeRange {
 		}
 	}
 
-	trackEdits(edits: ISingleEditOperation[]): void {
-		const newDeco: IModelDeltaDecoration[] = [];
-		for (const edit of edits) {
-			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
-		}
-		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
-		this._onDidChange.fire(this);
-	}
-
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
 
 		const newDeco: IModelDeltaDecoration[] = [];
@@ -137,17 +119,15 @@ export class SessionWholeRange {
 
 export class Session {
 
-	private _lastInput: SessionPrompt | undefined;
 	private _isUnstashed: boolean = false;
-	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: TelemetryData;
 
-	readonly textModelNAltVersion: number;
-	private _textModelNSnapshotAltVersion: number | undefined;
+	private readonly _versionByRequest = new Map<string, number>();
 
 	constructor(
 		readonly editMode: EditMode,
+		readonly headless: boolean,
 		/**
 		 * The URI of the document which is being EditorEdit
 		 */
@@ -157,18 +137,18 @@ export class Session {
 		 */
 		readonly textModel0: ITextModel,
 		/**
-		 * The document into which AI edits went, when live this is `targetUri` otherwise it is a temporary document
+		 * The model of the editor
 		 */
 		readonly textModelN: ITextModel,
-		readonly provider: IInlineChatSessionProvider,
-		readonly session: IInlineChatSession,
+		readonly agent: IChatAgent,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
 		readonly chatModel: ChatModel,
+		versionsByRequest?: [string, number][], // DEBT? this is needed when a chat model is "reused" for a new chat session
 	) {
-		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
+
 		this._teldata = {
-			extension: ExtensionIdentifier.toKey(provider.extensionId),
+			extension: ExtensionIdentifier.toKey(agent.extensionId),
 			startTime: this._startTime.toISOString(),
 			endTime: this._startTime.toISOString(),
 			edits: 0,
@@ -181,14 +161,9 @@ export class Session {
 			discardedHunks: 0,
 			responseTypes: ''
 		};
-	}
-
-	addInput(input: SessionPrompt): void {
-		this._lastInput = input;
-	}
-
-	get lastInput() {
-		return this._lastInput;
+		if (versionsByRequest) {
+			this._versionByRequest = new Map(versionsByRequest);
+		}
 	}
 
 	get isUnstashed(): boolean {
@@ -200,23 +175,30 @@ export class Session {
 		this._isUnstashed = true;
 	}
 
-	get textModelNSnapshotAltVersion(): number | undefined {
-		return this._textModelNSnapshotAltVersion;
+	markModelVersion(request: IChatRequestModel) {
+		this._versionByRequest.set(request.id, this.textModelN.getAlternativeVersionId());
 	}
 
-	createSnapshot(): void {
-		this._textModelNSnapshotAltVersion = this.textModelN.getAlternativeVersionId();
+	get versionsByRequest() {
+		return Array.from(this._versionByRequest);
 	}
 
-	addExchange(exchange: SessionExchange): void {
-		this._isUnstashed = false;
-		const newLen = this._exchange.push(exchange);
-		this._teldata.rounds += `${newLen}|`;
-		// this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
-	}
+	async undoChangesUntil(requestId: string): Promise<boolean> {
 
-	get lastExchange(): SessionExchange | undefined {
-		return this._exchange[this._exchange.length - 1];
+		const targetAltVersion = this._versionByRequest.get(requestId);
+		if (targetAltVersion === undefined) {
+			return false;
+		}
+		// undo till this point
+		this.hunkData.ignoreTextModelNChanges = true;
+		try {
+			while (targetAltVersion < this.textModelN.getAlternativeVersionId() && this.textModelN.canUndo()) {
+				await this.textModelN.undo();
+			}
+		} finally {
+			this.hunkData.ignoreTextModelNChanges = false;
+		}
+		return true;
 	}
 
 	get hasChangedText(): boolean {
@@ -259,144 +241,8 @@ export class Session {
 		this._teldata.endTime = new Date().toISOString();
 		return this._teldata;
 	}
-
-	asRecording(): Recording {
-		const result: Recording = {
-			session: this.session,
-			when: this._startTime,
-			exchanges: []
-		};
-		for (const exchange of this._exchange) {
-			const response = exchange.response;
-			if (response instanceof ReplyResponse) {
-				result.exchanges.push({ prompt: exchange.prompt.value, res: response.raw });
-			}
-		}
-		return result;
-	}
 }
 
-
-export class SessionPrompt {
-
-	constructor(
-		readonly value: string,
-	) { }
-}
-
-export class SessionExchange {
-
-	constructor(
-		readonly prompt: SessionPrompt,
-		readonly response: ReplyResponse | EmptyResponse | ErrorResponse
-	) { }
-}
-
-export class EmptyResponse {
-
-}
-
-export class ErrorResponse {
-
-	readonly message: string;
-	readonly isCancellation: boolean;
-
-	constructor(
-		readonly error: any
-	) {
-		this.message = toErrorMessage(error, false);
-		this.isCancellation = isCancellationError(error);
-	}
-}
-
-export class ReplyResponse {
-
-	readonly allLocalEdits: TextEdit[][] = [];
-	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
-	readonly workspaceEdit: WorkspaceEdit | undefined;
-
-
-	constructor(
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
-		readonly mdContent: IMarkdownString,
-		localUri: URI,
-		readonly modelAltVersionId: number,
-		progressEdits: TextEdit[][],
-		readonly requestId: string,
-		readonly chatResponse: IChatResponseModel | undefined,
-		@ITextFileService private readonly _textFileService: ITextFileService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-	) {
-
-		const editsMap = new ResourceMap<TextEdit[][]>();
-
-		editsMap.set(localUri, [...progressEdits]);
-
-		if (raw.type === InlineChatResponseType.EditorEdit) {
-			//
-			editsMap.get(localUri)!.push(raw.edits);
-
-		} else if (raw.type === InlineChatResponseType.BulkEdit) {
-			//
-			const edits = ResourceEdit.convert(raw.edits);
-
-			for (const edit of edits) {
-				if (edit instanceof ResourceFileEdit) {
-					if (edit.newResource && !edit.oldResource) {
-						editsMap.set(edit.newResource, []);
-						if (edit.options.contents) {
-							console.warn('CONTENT not supported');
-						}
-					}
-				} else if (edit instanceof ResourceTextEdit) {
-					//
-					const array = editsMap.get(edit.resource);
-					if (array) {
-						array.push([edit.textEdit]);
-					} else {
-						editsMap.set(edit.resource, [[edit.textEdit]]);
-					}
-				}
-			}
-		}
-
-		let needsWorkspaceEdit = false;
-
-		for (const [uri, edits] of editsMap) {
-
-			const flatEdits = edits.flat();
-			if (flatEdits.length === 0) {
-				editsMap.delete(uri);
-				continue;
-			}
-
-			const isLocalUri = isEqual(uri, localUri);
-			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isLocalUri);
-
-			if (uri.scheme === Schemas.untitled && !isLocalUri && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
-				const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
-				const untitledTextModel = this._textFileService.untitled.create({
-					associatedResource: uri,
-					languageId: langSelection.languageId
-				});
-				this.untitledTextModel = untitledTextModel;
-				untitledTextModel.resolve();
-			}
-		}
-
-		this.allLocalEdits = editsMap.get(localUri) ?? [];
-
-		if (needsWorkspaceEdit) {
-			const workspaceEdits: IWorkspaceTextEdit[] = [];
-			for (const [uri, edits] of editsMap) {
-				for (const edit of edits.flat()) {
-					workspaceEdits.push({ resource: uri, textEdit: edit, versionId: undefined });
-				}
-			}
-			this.workspaceEdit = { edits: workspaceEdits };
-		}
-	}
-}
 
 export class StashedSession {
 
@@ -466,7 +312,7 @@ export class HunkData {
 	private static readonly _HUNK_THRESHOLD = 8;
 
 	private readonly _store = new DisposableStore();
-	private readonly _data = new Map<RawHunk, { textModelNDecorations: string[]; textModel0Decorations: string[]; state: HunkState }>();
+	private readonly _data = new Map<RawHunk, RawHunkData>();
 	private _ignoreChanges: boolean = false;
 
 	constructor(
@@ -597,9 +443,9 @@ export class HunkData {
 		this._textModel0.pushEditOperations(null, edits, () => null);
 	}
 
-	async recompute() {
+	async recompute(editState: IChatTextEditGroupState, diff?: IDocumentDiff | null) {
 
-		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
+		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		if (!diff || diff.changes.length === 0) {
 			// return new HunkData([], session);
@@ -623,6 +469,8 @@ export class HunkData {
 		}
 
 		const hunks = mergedChanges.map(change => new RawHunk(change.original, change.modified, change.innerChanges ?? []));
+
+		editState.applied = hunks.length;
 
 		this._textModelN.changeDecorations(accessorN => {
 
@@ -651,6 +499,7 @@ export class HunkData {
 					}
 
 					this._data.set(hunk, {
+						editState,
 						textModelNDecorations,
 						textModel0Decorations,
 						state: HunkState.Pending
@@ -684,7 +533,7 @@ export class HunkData {
 	discardAll() {
 		const edits: ISingleEditOperation[][] = [];
 		for (const item of this.getInfo()) {
-			if (item.getState() !== HunkState.Rejected) {
+			if (item.getState() === HunkState.Pending) {
 				edits.push(this._discardEdits(item));
 			}
 		}
@@ -725,6 +574,9 @@ export class HunkData {
 						const edits = this._discardEdits(item);
 						this._textModelN.pushEditOperations(null, edits, () => null);
 						data.state = HunkState.Rejected;
+						if (data.editState.applied > 0) {
+							data.editState.applied -= 1;
+						}
 					}
 				},
 				acceptChanges: () => {
@@ -758,6 +610,13 @@ class RawHunk {
 		readonly changes: RangeMapping[]
 	) { }
 }
+
+type RawHunkData = {
+	textModelNDecorations: string[];
+	textModel0Decorations: string[];
+	state: HunkState;
+	editState: IChatTextEditGroupState;
+};
 
 export const enum HunkState {
 	Pending = 0,

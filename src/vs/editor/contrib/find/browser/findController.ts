@@ -5,7 +5,7 @@
 
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, MultiEditorAction, registerEditorAction, registerEditorCommand, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -771,7 +771,8 @@ export class MoveToMatchFindAction extends EditorAction {
 		}
 
 		const quickInputService = accessor.get(IQuickInputService);
-		const inputBox = quickInputService.createInputBox();
+		const disposables = new DisposableStore();
+		const inputBox = disposables.add(quickInputService.createInputBox());
 		inputBox.placeholder = nls.localize('findMatchAction.inputPlaceHolder', "Type a number to go to a specific match (between 1 and {0})", matchesCount);
 
 		const toFindMatchIndex = (value: string): number | undefined => {
@@ -805,11 +806,11 @@ export class MoveToMatchFindAction extends EditorAction {
 				this.clearDecorations(editor);
 			}
 		};
-		inputBox.onDidChangeValue(value => {
+		disposables.add(inputBox.onDidChangeValue(value => {
 			updatePickerAndEditor(value);
-		});
+		}));
 
-		inputBox.onDidAccept(() => {
+		disposables.add(inputBox.onDidAccept(() => {
 			const index = toFindMatchIndex(inputBox.value);
 			if (typeof index === 'number') {
 				controller.goToMatch(index);
@@ -817,12 +818,12 @@ export class MoveToMatchFindAction extends EditorAction {
 			} else {
 				inputBox.validationMessage = nls.localize('findMatchAction.inputValidationMessage', "Please type a number between 1 and {0}", controller.getState().matchesCount);
 			}
-		});
+		}));
 
-		inputBox.onDidHide(() => {
+		disposables.add(inputBox.onDidHide(() => {
 			this.clearDecorations(editor);
-			inputBox.dispose();
-		});
+			disposables.dispose();
+		}));
 
 		inputBox.show();
 	}

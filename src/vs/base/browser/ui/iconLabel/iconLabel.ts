@@ -12,7 +12,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { isString } from 'vs/base/common/types';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -26,8 +26,8 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelValueOptions {
-	title?: string | IUpdatableHoverTooltipMarkdownString;
-	descriptionTitle?: string | IUpdatableHoverTooltipMarkdownString;
+	title?: string | IManagedHoverTooltipMarkdownString;
+	descriptionTitle?: string | IManagedHoverTooltipMarkdownString;
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
@@ -45,7 +45,7 @@ export interface IIconLabelValueOptions {
 class FastLabelNode {
 	private disposed: boolean | undefined;
 	private _textContent: string | undefined;
-	private _className: string | undefined;
+	private _classNames: string[] | undefined;
 	private _empty: boolean | undefined;
 
 	constructor(private _element: HTMLElement) {
@@ -64,13 +64,14 @@ class FastLabelNode {
 		this._element.textContent = content;
 	}
 
-	set className(className: string) {
-		if (this.disposed || className === this._className) {
+	set classNames(classNames: string[]) {
+		if (this.disposed || equals(classNames, this._classNames)) {
 			return;
 		}
 
-		this._className = className;
-		this._element.className = className;
+		this._classNames = classNames;
+		this._element.classList.value = '';
+		this._element.classList.add(...classNames);
 	}
 
 	set empty(empty: boolean) {
@@ -158,7 +159,7 @@ export class IconLabel extends Disposable {
 		const existingIconNode = this.domNode.element.querySelector('.monaco-icon-label-iconpath');
 		if (options?.iconPath) {
 			let iconNode;
-			if (!existingIconNode || !(existingIconNode instanceof HTMLElement)) {
+			if (!existingIconNode || !(dom.isHTMLElement(existingIconNode))) {
 				iconNode = dom.$('.monaco-icon-label-iconpath');
 				this.domNode.element.prepend(iconNode);
 			} else {
@@ -169,9 +170,10 @@ export class IconLabel extends Disposable {
 			existingIconNode.remove();
 		}
 
-		this.domNode.className = labelClasses.join(' ');
+		this.domNode.classNames = labelClasses;
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
-		this.labelContainer.className = containerClasses.join(' ');
+		this.labelContainer.classList.value = '';
+		this.labelContainer.classList.add(...containerClasses);
 		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);
 
 		this.nameNode.setLabel(label, options);
@@ -194,7 +196,7 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+	private setupHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 		const previousCustomHover = this.customHovers.get(htmlElement);
 		if (previousCustomHover) {
 			previousCustomHover.dispose();
@@ -207,7 +209,7 @@ export class IconLabel extends Disposable {
 		}
 
 		if (this.hoverDelegate.showNativeHover) {
-			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 				if (isString(tooltip)) {
 					// Icons don't render in the native hover so we strip them out
 					htmlElement.title = stripIcons(tooltip);
@@ -219,7 +221,7 @@ export class IconLabel extends Disposable {
 			}
 			setupNativeHover(htmlElement, tooltip);
 		} else {
-			const hoverDisposable = getBaseLayerHoverDelegate().setupUpdatableHover(this.hoverDelegate, htmlElement, tooltip);
+			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, htmlElement, tooltip);
 			if (hoverDisposable) {
 				this.customHovers.set(htmlElement, hoverDisposable);
 			}

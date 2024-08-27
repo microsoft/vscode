@@ -610,7 +610,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		let anchor = e.anchor;
 
 		// Adjust for compressed folders (except when mouse is used)
-		if (anchor instanceof HTMLElement) {
+		if (DOM.isHTMLElement(anchor)) {
 			if (stat) {
 				const controllers = this.renderer.getCompressedNavigationController(stat);
 
@@ -660,7 +660,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.setContextKeys(stat);
 
 		if (stat) {
-			const enableTrash = this.configurationService.getValue<IFilesConfiguration>().files.enableTrash;
+			const enableTrash = Boolean(this.configurationService.getValue<IFilesConfiguration>().files?.enableTrash);
 			const hasCapability = this.fileService.hasCapability(stat.resource, FileSystemProviderCapabilities.Trash);
 			this.resourceMoveableToTrash.set(enableTrash && hasCapability);
 		} else {

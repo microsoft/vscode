@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from 'vs/amdX';
+import { canASAR, isESM } from 'vs/base/common/amd';
 import * as dom from 'vs/base/browser/dom';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -85,9 +86,9 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			this._updateTheme(this._themeService.getColorTheme(), false);
 		}));
 
-		this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
+		this._register(this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
 			this._createdModes.push(languageId);
-		});
+		}));
 	}
 
 	private getAsyncTokenizationEnabled(): boolean {
@@ -171,7 +172,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			}
 		}
 
-		const validLanguageId = grammar.language && this._languageService.isRegisteredLanguageId(grammar.language) ? grammar.language : null;
+		const validLanguageId = grammar.language && this._languageService.isRegisteredLanguageId(grammar.language) ? grammar.language : undefined;
 
 		function asStringArray(array: unknown, defaultValue: string[]): string[] {
 			if (!Array.isArray(array)) {
@@ -185,7 +186,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		return {
 			location: grammarLocation,
-			language: validLanguageId || undefined,
+			language: validLanguageId,
 			scopeName: grammar.scopeName,
 			embeddedLanguages: embeddedLanguages,
 			tokenTypes: tokenTypes,
@@ -302,14 +303,14 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				},
 				true,
 			);
-			tokenization.onDidEncounterLanguage((encodedLanguageId) => {
+			const disposable = tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 				if (!this._encounteredLanguages[encodedLanguageId]) {
 					const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
 					this._encounteredLanguages[encodedLanguageId] = true;
 					this._languageService.requestBasicLanguageFeatures(languageId);
 				}
 			});
-			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, maxTokenizationLineLength);
+			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, disposable, maxTokenizationLineLength);
 		} catch (err) {
 			if (err.message && err.message === missingTMGrammarErrorMessage) {
 				// Don't log this error message
@@ -371,13 +372,15 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private async _loadVSCodeOnigurumaWASM(): Promise<Response | ArrayBuffer> {
 		if (isWeb) {
-			const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm').toString(true));
+			const response = await fetch(isESM
+				? resolveAmdNodeModulePath('vscode-oniguruma', 'release/onig.wasm')
+				: FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm').toString(true));
 			// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 			// Otherwise, a TypeError is thrown when using the streaming compiler.
 			// We therefore use the non-streaming compiler :(.
 			return await response.arrayBuffer();
 		} else {
-			const response = await fetch(this._environmentService.isBuilt
+			const response = await fetch(canASAR && this._environmentService.isBuilt
 				? FileAccess.asBrowserUri(`${nodeModulesAsarUnpackedPath}/vscode-oniguruma/release/onig.wasm`).toString(true)
 				: FileAccess.asBrowserUri(`${nodeModulesPath}/vscode-oniguruma/release/onig.wasm`).toString(true));
 			return response;

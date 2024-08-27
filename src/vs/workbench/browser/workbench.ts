@@ -50,6 +50,7 @@ import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilityS
 import { setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { NotificationAccessibleView } from 'vs/workbench/browser/parts/notifications/notificationAccessibleView';
+import { isESM } from 'vs/base/common/amd';
 
 export interface IWorkbenchOptions {
 
@@ -99,21 +100,20 @@ export class Workbench extends Layout {
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
 
 		// Inform user about loading issues from the loader
-		interface AnnotatedLoadingError extends Error {
-			phase: 'loading';
-			moduleId: string;
-			neededBy: string[];
-		}
-		interface AnnotatedFactoryError extends Error {
-			phase: 'factory';
-			moduleId: string;
-		}
-		interface AnnotatedValidationError extends Error {
-			phase: 'configuration';
-		}
-		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
-
-		if (typeof mainWindow.require?.config === 'function') {
+		if (!isESM && typeof mainWindow.require?.config === 'function') {
+			interface AnnotatedLoadingError extends Error {
+				phase: 'loading';
+				moduleId: string;
+				neededBy: string[];
+			}
+			interface AnnotatedFactoryError extends Error {
+				phase: 'factory';
+				moduleId: string;
+			}
+			interface AnnotatedValidationError extends Error {
+				phase: 'configuration';
+			}
+			type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 			mainWindow.require.config({
 				onError: (err: AnnotatedError) => {
 					if (err.phase === 'loading') {

@@ -46,6 +46,9 @@ export class MockChatService implements IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	removeRequest(sessionid: string, requestId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -75,6 +78,10 @@ export class MockChatService implements IChatService {
 	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }> = undefined!;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
+		throw new Error('Method not implemented.');
+	}
+
+	setChatSessionTitle(sessionId: string, title: string): void {
 		throw new Error('Method not implemented.');
 	}
 }

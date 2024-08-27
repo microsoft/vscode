@@ -96,7 +96,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		container.classList.add('command-center-center');
 		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
 
-		const hover = this._store.add(this._hoverService.setupUpdatableHover(this._hoverDelegate, container, this.getTooltip()));
+		const hover = this._store.add(this._hoverService.setupManagedHover(this._hoverDelegate, container, this.getTooltip()));
 
 		// update label & tooltip when window title changes
 		this._store.add(this._windowTitle.onDidChange(() => {
@@ -157,7 +157,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							labelElement.innerText = label;
 							reset(container, searchIcon, labelElement);
 
-							const hover = this._store.add(that._hoverService.setupUpdatableHover(that._hoverDelegate, container, this.getTooltip()));
+							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
 
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {

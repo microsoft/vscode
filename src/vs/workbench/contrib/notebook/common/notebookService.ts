@@ -12,7 +12,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { ITextQuery } from 'vs/workbench/services/search/common/search';
@@ -65,6 +65,7 @@ export interface INotebookService {
 
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
 	withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo>;
+	tryGetDataProviderSync(viewType: string): SimpleNotebookProviderInfo | undefined;
 
 	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 
@@ -78,7 +79,7 @@ export interface INotebookService {
 	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string, otherMimetypes: readonly string[]): void;
 	saveMimeDisplayOrder(target: ConfigurationTarget): void;
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel;
+	createNotebookTextModel(viewType: string, uri: URI, stream?: VSBufferReadableStream): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];

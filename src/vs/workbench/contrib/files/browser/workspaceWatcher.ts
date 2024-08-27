@@ -115,7 +115,8 @@ export class WorkspaceWatcher extends Disposable {
 			reason = 'ETERM';
 		}
 
-		// Log telemetry if we gathered a reason (TODO@bpasero remove me once the TS experiment is over)
+		// Log telemetry if we gathered a reason (logging it from the renderer
+		// allows us to investigate this situation in context of experiments)
 		if (reason) {
 			type WatchErrorClassification = {
 				owner: 'bpasero';

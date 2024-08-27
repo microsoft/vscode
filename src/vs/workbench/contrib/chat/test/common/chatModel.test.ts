@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +17,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ISerializableChatData1, ISerializableChatData2, normalizeSerializableChatData, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -121,22 +121,52 @@ suite('ChatModel', () => {
 		model.removeRequest(requests[0].id);
 		assert.strictEqual(model.getRequests().length, 0);
 	});
+
+	test('adoptRequest', async function () {
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
+		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
+
+		model1.startInitialize();
+		model1.initialize(undefined);
+
+		model2.startInitialize();
+		model2.initialize(undefined);
+
+		const text = 'hello';
+		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+
+		assert.strictEqual(model1.getRequests().length, 1);
+		assert.strictEqual(model2.getRequests().length, 0);
+		assert.ok(request1.session === model1);
+		assert.ok(request1.response?.session === model1);
+
+		model2.adoptRequest(request1);
+
+		assert.strictEqual(model1.getRequests().length, 0);
+		assert.strictEqual(model2.getRequests().length, 1);
+		assert.ok(request1.session === model2);
+		assert.ok(request1.response?.session === model2);
+
+		model2.acceptResponseProgress(request1, { content: new MarkdownString('Hello'), kind: 'markdownContent' });
+
+		assert.strictEqual(request1.response.response.toString(), 'Hello');
+	});
 });
 
 suite('Response', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('mergeable markdown', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('markdown1'), kind: 'markdownContent' });
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 
-		assert.strictEqual(response.asString(), 'markdown1markdown2');
+		assert.strictEqual(response.toString(), 'markdown1markdown2');
 	});
 
 	test('not mergeable markdown', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		const md1 = new MarkdownString('markdown1');
 		md1.supportHtml = true;
 		response.updateContent({ content: md1, kind: 'markdownContent' });
@@ -145,10 +175,59 @@ suite('Response', () => {
 	});
 
 	test('inline reference', async () => {
-		const response = new Response([]);
+		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
 		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
 		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+	});
+});
+
+suite('normalizeSerializableChatData', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('v1', () => {
+		const v1Data: ISerializableChatData1 = {
+			creationDate: Date.now(),
+			initialLocation: undefined,
+			isImported: false,
+			requesterAvatarIconUri: undefined,
+			requesterUsername: 'me',
+			requests: [],
+			responderAvatarIconUri: undefined,
+			responderUsername: 'bot',
+			sessionId: 'session1',
+			welcomeMessage: []
+		};
+
+		const newData = normalizeSerializableChatData(v1Data);
+		assert.strictEqual(newData.creationDate, v1Data.creationDate);
+		assert.strictEqual(newData.lastMessageDate, v1Data.creationDate);
+		assert.strictEqual(newData.version, 3);
+		assert.ok('customTitle' in newData);
+	});
+
+	test('v2', () => {
+		const v2Data: ISerializableChatData2 = {
+			version: 2,
+			creationDate: 100,
+			lastMessageDate: Date.now(),
+			initialLocation: undefined,
+			isImported: false,
+			requesterAvatarIconUri: undefined,
+			requesterUsername: 'me',
+			requests: [],
+			responderAvatarIconUri: undefined,
+			responderUsername: 'bot',
+			sessionId: 'session1',
+			welcomeMessage: [],
+			computedTitle: 'computed title'
+		};
+
+		const newData = normalizeSerializableChatData(v2Data);
+		assert.strictEqual(newData.version, 3);
+		assert.strictEqual(newData.creationDate, v2Data.creationDate);
+		assert.strictEqual(newData.lastMessageDate, v2Data.lastMessageDate);
+		assert.strictEqual(newData.customTitle, v2Data.computedTitle);
 	});
 });

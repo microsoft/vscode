@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as resources from 'vs/base/common/resources';
-import * as assert from 'assert';
+import assert from 'assert';
 import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';

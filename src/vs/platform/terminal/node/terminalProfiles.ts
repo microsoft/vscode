@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as cp from 'child_process';
 import { Codicon } from 'vs/base/common/codicons';
 import { basename, delimiter, normalize } from 'vs/base/common/path';
@@ -38,7 +39,7 @@ export function detectAvailableProfiles(
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
-		readFile: pfs.Promises.readFile
+		readFile: fs.promises.readFile
 	};
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(

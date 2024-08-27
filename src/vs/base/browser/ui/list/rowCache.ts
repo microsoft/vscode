@@ -13,14 +13,6 @@ export interface IRow {
 	templateData: any;
 }
 
-function removeFromParent(element: HTMLElement): void {
-	try {
-		element.parentElement?.removeChild(element);
-	} catch (e) {
-		// this will throw if this happens due to a blur event, nasty business
-	}
-}
-
 export class RowCache<T> implements IDisposable {
 
 	private cache = new Map<string, IRow[]>();
@@ -104,7 +96,7 @@ export class RowCache<T> implements IDisposable {
 
 	private doRemoveNode(domNode: HTMLElement) {
 		domNode.classList.remove('scrolling');
-		removeFromParent(domNode);
+		domNode.remove();
 	}
 
 	private getTemplateCache(templateId: string): IRow[] {

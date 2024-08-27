@@ -139,9 +139,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super(editor, { keepEditorSelection: true, isAccessible: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
-		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = this._globalToDispose.add(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this._contextKeyService]
-		));
+		)));
 
 		const controller = this.commentService.getCommentController(this._uniqueOwner);
 		if (controller) {
@@ -150,7 +150,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._initialCollapsibleState = _pendingComment ? languages.CommentThreadCollapsibleState.Expanded : _commentThread.initialCollapsibleState;
 		_commentThread.initialCollapsibleState = this._initialCollapsibleState;
-		this._isExpanded = this._initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -188,39 +187,58 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	public reveal(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
+		this.makeVisible(commentUniqueId, focus);
+		const comment = this._commentThread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueId);
+		this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread, comment });
+	}
+
+	private _expandAndShowZoneWidget() {
 		if (!this._isExpanded) {
 			this.show(this.arrowPosition(this._commentThread.range), 2);
 		}
+	}
 
-		if (commentUniqueId !== undefined) {
-			const height = this.editor.getLayoutInfo().height;
-			const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
-			if (coords) {
-				let scrollTop: number = 1;
-				if (this._commentThread.range) {
-					const commentThreadCoords = coords.thread;
-					const commentCoords = coords.comment;
-					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
-				}
-				this.editor.setScrollTop(scrollTop);
-				if (focus === CommentWidgetFocus.Widget) {
-					this._commentThreadWidget.focus();
-				} else if (focus === CommentWidgetFocus.Editor) {
-					this._commentThreadWidget.focusCommentEditor();
-				}
-				return;
-			}
-		}
-		const rangeToReveal = this._commentThread.range
-			? new Range(this._commentThread.range.startLineNumber, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + 1, 1)
-			: new Range(1, 1, 1, 1);
-
-		this.editor.revealRangeInCenter(rangeToReveal);
+	private _setFocus(focus: CommentWidgetFocus) {
 		if (focus === CommentWidgetFocus.Widget) {
 			this._commentThreadWidget.focus();
 		} else if (focus === CommentWidgetFocus.Editor) {
 			this._commentThreadWidget.focusCommentEditor();
 		}
+	}
+
+	private _goToComment(commentUniqueId: number, focus: CommentWidgetFocus) {
+		const height = this.editor.getLayoutInfo().height;
+		const coords = this._commentThreadWidget.getCommentCoords(commentUniqueId);
+		if (coords) {
+			let scrollTop: number = 1;
+			if (this._commentThread.range) {
+				const commentThreadCoords = coords.thread;
+				const commentCoords = coords.comment;
+				scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
+			}
+			this.editor.setScrollTop(scrollTop);
+			this._setFocus(focus);
+		} else {
+			this._goToThread(focus);
+		}
+	}
+
+	private _goToThread(focus: CommentWidgetFocus) {
+		const rangeToReveal = this._commentThread.range
+			? new Range(this._commentThread.range.startLineNumber, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + 1, 1)
+			: new Range(1, 1, 1, 1);
+
+		this.editor.revealRangeInCenter(rangeToReveal);
+		this._setFocus(focus);
+	}
+
+	public makeVisible(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
+		this._expandAndShowZoneWidget();
+
+		if (commentUniqueId !== undefined) {
+			this._goToComment(commentUniqueId, focus);
+		}
+		this._goToThread(focus);
 	}
 
 	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {
@@ -301,8 +319,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
-	public expand() {
+	public expand(setActive?: boolean) {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
+		if (setActive) {
+			this.commentService.setActiveCommentAndThread(this.uniqueOwner, { thread: this._commentThread });
+		}
 	}
 
 	public getGlyphPosition(): number {
@@ -310,14 +331,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			return this._commentGlyph.getPosition().position!.lineNumber;
 		}
 		return 0;
-	}
-
-	toggleExpand() {
-		if (this._isExpanded) {
-			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
-		} else {
-			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
-		}
 	}
 
 	async update(commentThread: languages.CommentThread<IRange>) {
@@ -372,7 +385,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// If this is a new comment thread awaiting user input then we need to reveal it.
 		if (shouldReveal) {
-			this.reveal();
+			this.makeVisible();
 		}
 
 		this.bindCommentThreadListeners();
@@ -402,6 +415,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				this.show(this.arrowPosition(this._commentThread.range), 2);
+				this._commentThreadWidget.ensureFocusIntoNewEditingComment();
 				return;
 			}
 
@@ -439,7 +453,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	_refresh(dimensions: dom.Dimension) {
-		if (dimensions.height === 0 && dimensions.width === 0) {
+		if ((this._isExpanded === undefined) && (dimensions.height === 0) && (dimensions.width === 0)) {
 			this.commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 			return;
 		}

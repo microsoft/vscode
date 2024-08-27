@@ -11,12 +11,12 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
-	private readonly scrollTop = observableFromEvent(
+	private readonly scrollTop = observableFromEvent(this,
 		this._editor.onDidScrollChange,
 		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
 	);
 	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
-	private readonly modelAttached = observableFromEvent(
+	private readonly modelAttached = observableFromEvent(this,
 		this._editor.onDidChangeModel,
 		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
 	);
@@ -118,10 +118,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 							gutterItem.range.startLineNumber <= this._editor.getModel()!.getLineCount()
 								? this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, true) - scrollTop
 								: this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop;
-						const bottom = gutterItem.range.isEmpty
-							// Don't trust that `getBottomForLineNumber` for the previous line equals `getTopForLineNumber` for the current one.
-							? top
-							: (this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop);
+						const bottom =
+							gutterItem.range.endLineNumberExclusive === 1 ?
+								Math.max(top, this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, false) - scrollTop)
+								: Math.max(top, this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop);
 
 						const height = bottom - top;
 						view.domNode.style.top = `${top}px`;
@@ -136,7 +136,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		for (const id of unusedIds) {
 			const view = this.views.get(id)!;
 			view.gutterItemView.dispose();
-			this._domNode.removeChild(view.domNode);
+			view.domNode.remove();
 			this.views.delete(id);
 		}
 	}
