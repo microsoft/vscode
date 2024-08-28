@@ -271,7 +271,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				const currLineEmptyOrIndented = isLineEmptyOrIndented(lineNumber);
 				const notEmpty = !nextLineEmptyOrIndented && !prevLineEmptyOrIndented;
 
-
 				// check above and below. if both are blocked, display lightbulb in the gutter.
 				if (!nextLineEmptyOrIndented && !prevLineEmptyOrIndented && !hasDecoration) {
 					this.gutterState = new LightBulbState.Showing(actions, trigger, atPosition, {
@@ -280,7 +279,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 					});
 					this.renderGutterLightbub();
 					return this.hide();
-				} else if (prevLineEmptyOrIndented || endLine || (notEmpty && !currLineEmptyOrIndented)) {
+				} else if (prevLineEmptyOrIndented || endLine || (prevLineEmptyOrIndented && !currLineEmptyOrIndented)) {
 					effectiveLineNumber -= 1;
 				} else if (nextLineEmptyOrIndented || (notEmpty && currLineEmptyOrIndented)) {
 					effectiveLineNumber += 1;
