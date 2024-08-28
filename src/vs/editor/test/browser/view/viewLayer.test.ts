@@ -45,7 +45,7 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testOnModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
-		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>({ createLine: () => new TestLine('new') });
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),
@@ -322,7 +322,7 @@ suite('RenderedLinesCollection onLineChanged', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testOnModelLineChanged(changedLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
-		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>({ createLine: () => new TestLine('new') });
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),
@@ -405,7 +405,7 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testOnModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
-		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>({ createLine: () => new TestLine('new') });
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),
@@ -683,7 +683,7 @@ suite('RenderedLinesCollection onTokensChanged', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testOnModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
-		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
+		const col = new RenderedLinesCollection<TestLine>({ createLine: () => new TestLine('new') });
 		col._set(6, [
 			new TestLine('old6'),
 			new TestLine('old7'),

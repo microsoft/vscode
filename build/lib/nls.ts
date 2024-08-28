@@ -8,7 +8,9 @@ import * as lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
 import * as File from 'vinyl';
 import * as sm from 'source-map';
-import * as  path from 'path';
+import * as path from 'path';
+import * as sort from 'gulp-sort';
+import { isESM } from './esm';
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
@@ -54,62 +56,64 @@ function clone<T extends object>(object: T): T {
 export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStream {
 	let base: string;
 	const input = through();
-	const output = input.pipe(through(function (f: FileSourceMap) {
-		if (!f.sourceMap) {
-			return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
-		}
+	const output = input
+		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
+		.pipe(through(function (f: FileSourceMap) {
+			if (!f.sourceMap) {
+				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
+			}
 
-		let source = f.sourceMap.sources[0];
-		if (!source) {
-			return this.emit('error', new Error(`File ${f.relative} does not have a source in the source map.`));
-		}
+			let source = f.sourceMap.sources[0];
+			if (!source) {
+				return this.emit('error', new Error(`File ${f.relative} does not have a source in the source map.`));
+			}
 
-		const root = f.sourceMap.sourceRoot;
-		if (root) {
-			source = path.join(root, source);
-		}
+			const root = f.sourceMap.sourceRoot;
+			if (root) {
+				source = path.join(root, source);
+			}
 
-		const typescript = f.sourceMap.sourcesContent![0];
-		if (!typescript) {
-			return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
-		}
+			const typescript = f.sourceMap.sourcesContent![0];
+			if (!typescript) {
+				return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
+			}
 
-		base = f.base;
-		this.emit('data', _nls.patchFile(f, typescript, options));
-	}, function () {
-		for (const file of [
-			new File({
-				contents: Buffer.from(JSON.stringify({
-					keys: _nls.moduleToNLSKeys,
-					messages: _nls.moduleToNLSMessages,
-				}, null, '\t')),
-				base,
-				path: `${base}/nls.metadata.json`
-			}),
-			new File({
-				contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
-				base,
-				path: `${base}/nls.messages.json`
-			}),
-			new File({
-				contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
-				base,
-				path: `${base}/nls.keys.json`
-			}),
-			new File({
-				contents: Buffer.from(`/*---------------------------------------------------------
+			base = f.base;
+			this.emit('data', _nls.patchFile(f, typescript, options));
+		}, function () {
+			for (const file of [
+				new File({
+					contents: Buffer.from(JSON.stringify({
+						keys: _nls.moduleToNLSKeys,
+						messages: _nls.moduleToNLSMessages,
+					}, null, '\t')),
+					base,
+					path: `${base}/nls.metadata.json`
+				}),
+				new File({
+					contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
+					base,
+					path: `${base}/nls.messages.json`
+				}),
+				new File({
+					contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
+					base,
+					path: `${base}/nls.keys.json`
+				}),
+				new File({
+					contents: Buffer.from(`/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
 globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
-				base,
-				path: `${base}/nls.messages.js`
-			})
-		]) {
-			this.emit('data', file);
-		}
+					base,
+					path: `${base}/nls.messages.js`
+				})
+			]) {
+				this.emit('data', file);
+			}
 
-		this.emit('end');
-	}));
+			this.emit('end');
+		}));
 
 	return duplex(input, output);
 }
@@ -228,14 +232,24 @@ module _nls {
 			.filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
 			.map(n => <ts.ImportEqualsDeclaration>n)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'');
+			.filter(d => {
+				if (isESM()) {
+					return (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`);
+				}
+				return (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'';
+			});
 
 		// import ... from 'vs/nls';
 		const importDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
 			.map(n => <ts.ImportDeclaration>n)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-			.filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
+			.filter(d => {
+				if (isESM()) {
+					return d.moduleSpecifier.getText().endsWith(`/nls.js'`);
+				}
+				return d.moduleSpecifier.getText() === '\'vs/nls\'';
+			})
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
 
 		// `nls.localize(...)` calls

@@ -1013,6 +1013,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.lastResolvedFileStat = newFileStat;
 		}
 
+		// In all other cases update only the readonly and locked flags
+		else {
+			this.lastResolvedFileStat = { ...this.lastResolvedFileStat, readonly: newFileStat.readonly, locked: newFileStat.locked };
+		}
+
 		// Signal that the readonly state changed
 		if (this.isReadonly() !== oldReadonly) {
 			this._onDidChangeReadonly.fire();
@@ -1099,8 +1104,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		this.logService.info(`Adjusting encoding based on configured language override to '${encoding}' for ${this.resource.toString(true)}.`);
 
-		// Re-open with new encoding
-		return this.setEncodingInternal(encoding, EncodingMode.Decode);
+		// Force resolve to pick up the new encoding
+		return this.forceResolveFromFile();
 	}
 
 	private hasEncodingSetExplicitly: boolean = false;

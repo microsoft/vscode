@@ -83,6 +83,15 @@ export class EncodedTokenizationResult {
 }
 
 /**
+ * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
+ * @internal
+ */
+export interface ITreeSitterTokenizationSupport {
+	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): any;
+}
+
+/**
  * @internal
  */
 export interface ITokenizationSupport {
@@ -1876,7 +1885,7 @@ export interface CommentThread<T = IRange> {
 	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
-	comments: Comment[] | undefined;
+	comments: ReadonlyArray<Comment> | undefined;
 	onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
@@ -2106,17 +2115,17 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export interface ILazyTokenizationSupport {
-	get tokenizationSupport(): Promise<ITokenizationSupport | null>;
+export interface ILazyTokenizationSupport<TSupport> {
+	get tokenizationSupport(): Promise<TSupport | null>;
 }
 
 /**
  * @internal
  */
-export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport {
-	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
+export class LazyTokenizationSupport<TSupport = ITokenizationSupport> implements IDisposable, ILazyTokenizationSupport<TSupport> {
+	private _tokenizationSupport: Promise<TSupport & IDisposable | null> | null = null;
 
-	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
+	constructor(private readonly createSupport: () => Promise<TSupport & IDisposable | null>) {
 	}
 
 	dispose(): void {
@@ -2129,7 +2138,7 @@ export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSu
 		}
 	}
 
-	get tokenizationSupport(): Promise<ITokenizationSupport | null> {
+	get tokenizationSupport(): Promise<TSupport | null> {
 		if (!this._tokenizationSupport) {
 			this._tokenizationSupport = this.createSupport();
 		}
@@ -2140,7 +2149,7 @@ export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSu
 /**
  * @internal
  */
-export interface ITokenizationRegistry {
+export interface ITokenizationRegistry<TSupport> {
 
 	/**
 	 * An event triggered when:
@@ -2158,24 +2167,24 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support.
 	 */
-	register(languageId: string, support: ITokenizationSupport): IDisposable;
+	register(languageId: string, support: TSupport): IDisposable;
 
 	/**
 	 * Register a tokenization support factory.
 	 */
-	registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable;
+	registerFactory(languageId: string, factory: ILazyTokenizationSupport<TSupport>): IDisposable;
 
 	/**
 	 * Get or create the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	getOrCreate(languageId: string): Promise<ITokenizationSupport | null>;
+	getOrCreate(languageId: string): Promise<TSupport | null>;
 
 	/**
 	 * Get the tokenization support for a language.
 	 * Returns `null` if not found.
 	 */
-	get(languageId: string): ITokenizationSupport | null;
+	get(languageId: string): TSupport | null;
 
 	/**
 	 * Returns false if a factory is still pending.
@@ -2195,8 +2204,12 @@ export interface ITokenizationRegistry {
 /**
  * @internal
  */
-export const TokenizationRegistry: ITokenizationRegistry = new TokenizationRegistryImpl();
+export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> = new TokenizationRegistryImpl();
 
+/**
+ * @internal
+ */
+export const TreeSitterTokenizationRegistry: ITokenizationRegistry<ITreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
 
 /**
  * @internal

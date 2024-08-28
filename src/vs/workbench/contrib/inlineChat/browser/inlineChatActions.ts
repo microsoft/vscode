@@ -11,24 +11,22 @@ import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/em
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, MENU_INLINE_CHAT_CONTENT_STATUS, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, MENU_INLINE_CHAT_CONTENT_STATUS, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { fromNow } from 'vs/base/common/date';
-import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { HunkInformation } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -263,20 +261,25 @@ export class AcceptChanges extends AbstractInlineChatAction {
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 			}],
-			menu: {
+			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				),
-			}
+			}, {
+				id: MENU_INLINE_CHAT_ZONE,
+				group: 'navigation',
+				order: 1,
+			}]
 		});
 	}
 
-	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): Promise<void> {
-		ctrl.acceptHunk();
+	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
+		ctrl.acceptHunk(hunk);
 	}
 }
 
@@ -284,20 +287,25 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 
 	constructor() {
 		super({
-			id: 'inlineChat.discardHunkChange',
+			id: ACTION_DISCARD_CHANGES,
 			title: localize('discard', 'Discard'),
-			icon: Codicon.clearAll,
+			icon: Codicon.chromeClose,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
-			menu: {
+			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 2,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits),
 					CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)
 				),
-			},
+			}, {
+				id: MENU_INLINE_CHAT_ZONE,
+				group: 'navigation',
+				order: 2
+			}],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Escape,
@@ -306,8 +314,8 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 		});
 	}
 
-	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		return ctrl.discardHunk();
+	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
+		return ctrl.discardHunk(hunk);
 	}
 }
 
@@ -325,6 +333,7 @@ export class RerunAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 5,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.None)
 				)
@@ -444,42 +453,6 @@ export class MoveToPreviousHunk extends AbstractInlineChatAction {
 	}
 }
 
-export class CopyRecordings extends AbstractInlineChatAction {
-
-	constructor() {
-		super({
-			id: 'inlineChat.copyRecordings',
-			f1: true,
-			title: localize2('copyRecordings', "(Developer) Write Exchange to Clipboard")
-		});
-	}
-
-	override async runInlineChatCommand(accessor: ServicesAccessor): Promise<void> {
-
-		const clipboardService = accessor.get(IClipboardService);
-		const quickPickService = accessor.get(IQuickInputService);
-		const ieSessionService = accessor.get(IInlineChatSessionService);
-
-		const recordings = ieSessionService.recordings().filter(r => r.exchanges.length > 0);
-		if (recordings.length === 0) {
-			return;
-		}
-
-		const picks: (IQuickPickItem & { rec: Recording })[] = recordings.map(rec => {
-			return {
-				rec,
-				label: localize('label', "'{0}' and {1} follow ups ({2})", rec.exchanges[0].prompt, rec.exchanges.length - 1, fromNow(rec.when, true)),
-				tooltip: rec.exchanges.map(ex => ex.prompt).join('\n'),
-			};
-		});
-
-		const pick = await quickPickService.pick(picks, { canPickMany: false });
-		if (pick) {
-			clipboardService.writeText(JSON.stringify(pick.rec, undefined, 2));
-		}
-	}
-}
-
 export class ViewInChatAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
@@ -497,6 +470,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 				)
@@ -504,6 +478,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+				when: CONTEXT_IN_CHAT_INPUT
 			}
 		});
 	}
@@ -523,16 +498,21 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 			toggled: {
 				condition: CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF,
 			},
-			menu: {
+			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: 'zzz',
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)),
 				order: 1,
-			}
+			}, {
+				id: MENU_INLINE_CHAT_ZONE,
+				group: 'navigation',
+				when: CTX_INLINE_CHAT_CHANGE_HAS_DIFF,
+				order: 2
+			}]
 		});
 	}
 
-	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController): void {
-		ctrl.toggleDiff();
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, hunkInfo: HunkInformation | any): void {
+		ctrl.toggleDiff(hunkInfo);
 	}
 }

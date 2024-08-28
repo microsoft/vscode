@@ -60,7 +60,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		);
 	}
 
-	override provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
+	override provide(picker: IQuickPick<IEditorQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 
 		// Reset the pick state for this run
 		this.pickState.reset(!!picker.quickNavigate);

@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
@@ -16,9 +16,10 @@ export const enum InlineChatConfigKeys {
 	Mode = 'inlineChat.mode',
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
+	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
+	ZoneToolbar = 'inlineChat.experimental.enableZoneToolbar',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
-	AccessibleDiffView = 'inlineChat.accessibleDiffView',
-	ExpTextButtons = 'inlineChat.experimental.textButtons'
+	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
 
 export const enum EditMode {
@@ -66,8 +67,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
-		[InlineChatConfigKeys.ExpTextButtons]: {
-			description: localize('txtButtons', "Whether to use textual buttons."),
+		[InlineChatConfigKeys.StartWithOverlayWidget]: {
+			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, or as overlay widget which turns into a zone."),
+			default: false,
+			type: 'boolean',
+		},
+		[InlineChatConfigKeys.ZoneToolbar]: {
+			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
 			default: false,
 			type: 'boolean',
 			tags: ['experimental']
@@ -90,6 +96,7 @@ export const enum InlineChatResponseType {
 export const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
 export const CTX_INLINE_CHAT_FOCUSED = new RawContextKey<boolean>('inlineChatFocused', false, localize('inlineChatFocused', "Whether the interactive editor input is focused"));
+export const CTX_INLINE_CHAT_EDITING = new RawContextKey<boolean>('inlineChatEditing', true, localize('inlineChatEditing', "Whether the user is currently editing or generating code in the inline chat"));
 export const CTX_INLINE_CHAT_RESPONSE_FOCUSED = new RawContextKey<boolean>('inlineChatResponseFocused', false, localize('inlineChatResponseFocused', "Whether the interactive widget's response is focused"));
 export const CTX_INLINE_CHAT_EMPTY = new RawContextKey<boolean>('inlineChatEmpty', false, localize('inlineChatEmpty', "Whether the interactive editor input is empty"));
 export const CTX_INLINE_CHAT_INNER_CURSOR_FIRST = new RawContextKey<boolean>('inlineChatInnerCursorFirst', false, localize('inlineChatInnerCursorFirst', "Whether the cursor of the iteractive editor input is on the first line"));
@@ -106,20 +113,21 @@ export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
-export const CTX_INLINE_CHAT_CONFIG_TXT_BTNS = ContextKeyExpr.equals(`config.${[InlineChatConfigKeys.ExpTextButtons]}`, true);
-
 // --- (selected) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
+export const ACTION_DISCARD_CHANGES = 'inlineChat.discardHunkChange';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
+export const ACTION_REPORT_ISSUE = 'inlineChat.reportIssue';
 
 // --- menus
 
-export const MENU_INLINE_CHAT_EXECUTE = MenuId.for('inlineChat.execute');
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
+export const MENU_INLINE_CHAT_WIDGET_SECONDARY = MenuId.for('inlineChatWidget.secondary');
+export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
 
 // --- colors
 

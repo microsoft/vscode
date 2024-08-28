@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -22,6 +22,8 @@ import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workben
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isHTMLElement } from 'vs/base/browser/dom';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -70,19 +72,44 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.instantiationService.createInstance(MainEditorPart, this);
 	}
 
+	//#region Scoped Instantiation Services
+
+	private readonly mapPartToInstantiationService = new Map<number /* window ID */, IInstantiationService>();
+
+	getScopedInstantiationService(part: IEditorPart): IInstantiationService {
+		if (part === this.mainPart) {
+			if (!this.mapPartToInstantiationService.has(part.windowId)) {
+				this.instantiationService.invokeFunction(accessor => {
+					const editorService = accessor.get(IEditorService); // using `invokeFunction` to get hold of `IEditorService` lazily
+
+					this.mapPartToInstantiationService.set(part.windowId, this._register(this.instantiationService.createChild(new ServiceCollection(
+						[IEditorService, editorService.createScoped('main', this._store)]
+					))));
+				});
+			}
+		}
+
+		return this.mapPartToInstantiationService.get(part.windowId) ?? this.instantiationService;
+	}
+
+	//#endregion
+
 	//#region Auxiliary Editor Parts
 
-	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<IAuxiliaryEditorPartCreateEvent>());
+	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<IAuxiliaryEditorPart>());
 	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
 
 	async createAuxiliaryEditorPart(options?: IAuxiliaryEditorPartOpenOptions): Promise<IAuxiliaryEditorPart> {
 		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
 
+		// Keep instantiation service
+		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
+		disposables.add(toDisposable(() => this.mapPartToInstantiationService.delete(part.windowId)));
+
 		// Events
 		this._onDidAddGroup.fire(part.activeGroup);
 
-		const eventDisposables = disposables.add(new DisposableStore());
-		this._onDidCreateAuxiliaryEditorPart.fire({ part, instantiationService, disposables: eventDisposables });
+		this._onDidCreateAuxiliaryEditorPart.fire(part);
 
 		return part;
 	}

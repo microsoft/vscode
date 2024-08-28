@@ -363,19 +363,20 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private async getAuthenticationSession(): Promise<ExistingSessionItem | undefined> {
 		const sessions = await this.getAllSessions();
-		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
+		const disposables = new DisposableStore();
+		const quickpick = disposables.add(this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>({ useSeparators: true }));
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
 		quickpick.ignoreFocusOut = true;
 		quickpick.items = await this.createQuickpickItems(sessions);
 
 		return new Promise((resolve, reject) => {
-			quickpick.onDidHide((e) => {
+			disposables.add(quickpick.onDidHide((e) => {
 				resolve(undefined);
-				quickpick.dispose();
-			});
+				disposables.dispose();
+			}));
 
-			quickpick.onDidAccept(async (e) => {
+			disposables.add(quickpick.onDidAccept(async (e) => {
 				const selection = quickpick.selectedItems[0];
 				if ('provider' in selection) {
 					const session = await this.authenticationService.createSession(selection.provider.id, selection.provider.scopes);
@@ -386,7 +387,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					resolve(undefined);
 				}
 				quickpick.hide();
-			});
+			}));
 
 			quickpick.show();
 		});
@@ -750,7 +751,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 		return new Promise<void>((c, e) => {
 			const disposables = new DisposableStore();
-			const quickPick = this.quickInputService.createQuickPick();
+			const quickPick = this.quickInputService.createQuickPick({ useSeparators: true });
 			quickPick.placeholder = localize('manage.placeholder', 'Select a command to invoke');
 			disposables.add(quickPick);
 			const items: Array<QuickPickItem> = [];

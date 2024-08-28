@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +15,7 @@ import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
 import { hash } from 'vs/base/common/hash';
@@ -72,6 +72,7 @@ export interface IChatRequestViewModel {
 	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
+	readonly confirmation?: string;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -168,6 +169,7 @@ export interface IChatResponseViewModel {
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
+	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
@@ -175,6 +177,7 @@ export interface IChatResponseViewModel {
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
@@ -305,38 +308,13 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 
 		let codeBlockIndex = 0;
-		const renderer = new marked.Renderer();
-		renderer.code = (value, languageId) => {
-			languageId ??= '';
-			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text: value, languageId });
-			return '';
-		};
-
-		marked.parse(this.ensureFencedCodeBlocksTerminated(content), { renderer });
-	}
-
-	/**
-	 * Marked doesn't consistently render fenced code blocks that aren't terminated.
-	 *
-	 * Try to close them ourselves to workaround this.
-	 */
-	private ensureFencedCodeBlocksTerminated(content: string): string {
-		const lines = content.split('\n');
-		let inCodeBlock = false;
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			if (line.startsWith('```')) {
-				inCodeBlock = !inCodeBlock;
+		marked.walkTokens(marked.lexer(content), token => {
+			if (token.type === 'code') {
+				const lang = token.lang || '';
+				const text = token.text;
+				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang });
 			}
-		}
-
-		// If we're still in a code block at the end of the content, add a closing fence
-		if (inCodeBlock) {
-			lines.push('```');
-		}
-
-		return lines.join('\n');
+		});
 	}
 }
 
@@ -379,6 +357,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get contentReferences() {
 		return this._model.response?.contentReferences;
+	}
+
+	get confirmation() {
+		return this._model.confirmation;
 	}
 
 	currentRenderedHeight: number | undefined;
@@ -483,6 +465,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.vote;
 	}
 
+	get voteDownReason() {
+		return this._model.voteDownReason;
+	}
+
 	get requestId() {
 		return this._model.requestId;
 	}
@@ -571,6 +557,11 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	setVote(vote: ChatAgentVoteDirection): void {
 		this._modelChangeCount++;
 		this._model.setVote(vote);
+	}
+
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
+		this._modelChangeCount++;
+		this._model.setVoteDownReason(reason);
 	}
 
 	setEditApplied(edit: IChatTextEditGroup, editCount: number) {

@@ -41,7 +41,7 @@ export class TestService extends Disposable implements ITestService {
 	private testControllers = observableValue<ReadonlyMap<string, IMainThreadTestController>>('testControllers', new Map<string, IMainThreadTestController>());
 	private testExtHosts = new Set<IMainThreadTestHostProxy>();
 
-	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
+	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined; taskId: string | undefined }>();
 	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly testRefreshCancellations = new Set<CancellationTokenSource>();
@@ -82,11 +82,11 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly showInlineOutput = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
+	public readonly showInlineOutput = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'inlineTestOutputVisible',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
-	}, this.storage)), true);
+	}, this.storage), true));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -133,14 +133,14 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public cancelTestRun(runId?: string) {
-		this.cancelExtensionTestRunEmitter.fire({ runId });
+	public cancelTestRun(runId?: string, taskId?: string) {
+		this.cancelExtensionTestRunEmitter.fire({ runId, taskId });
 
 		if (runId === undefined) {
 			for (const runCts of this.uiRunningTests.values()) {
 				runCts.cancel();
 			}
-		} else {
+		} else if (!taskId) {
 			this.uiRunningTests.get(runId)?.cancel();
 		}
 	}

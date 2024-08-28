@@ -5,9 +5,11 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import * as dom from 'vs/base/browser/dom';
+import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { localize2 } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
@@ -157,16 +159,32 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._addon.value = this._instantiationService.createInstance(SuggestAddon, TerminalSuggestContribution._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
-			xterm.loadAddon(this._addon.value);
-			this._addon.value.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
-			this._addon.value.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-			this.add(this._instance.onDidBlur(() => this._addon.value?.hideSuggestWidget()));
-			this.add(this._addon.value.onAcceptedCompletion(async text => {
+			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, TerminalSuggestContribution._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+			xterm.loadAddon(addon);
+			addon.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
+			addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+			this.add(this._instance.onDidBlur(() => addon.hideSuggestWidget()));
+			this.add(addon.onAcceptedCompletion(async text => {
 				this._instance.focus();
 				this._instance.sendText(text, false);
 			}));
-			this.add(this._instance.onDidSendText(() => this._addon.value?.hideSuggestWidget()));
+
+			// If completions are requested, pause and queue input events until completions are
+			// received. This fixing some problems in PowerShell, particularly enter not executing
+			// when typing quickly and some characters being printed twice. On Windows this isn't
+			// needed because inputs are _not_ echoed when not handled immediately.
+			// TODO: This should be based on the OS of the pty host, not the client
+			if (!isWindows) {
+				let barrier: AutoOpenBarrier | undefined;
+				this.add(addon.onDidRequestCompletions(() => {
+					barrier = new AutoOpenBarrier(2000);
+					this._instance.pauseInputEvents(barrier);
+				}));
+				this.add(addon.onDidReceiveCompletions(() => {
+					barrier?.open();
+					barrier = undefined;
+				}));
+			}
 		}
 	}
 }
@@ -250,7 +268,8 @@ registerActiveInstanceAction({
 	keybinding: {
 		primary: KeyCode.Enter,
 		// Enter is bound to other workbench keybindings that this needs to beat
-		weight: KeybindingWeight.WorkbenchContrib + 1
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'ignore'),
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });

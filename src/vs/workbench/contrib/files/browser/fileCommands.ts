@@ -39,7 +39,7 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/em
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isCancellationError } from 'vs/base/common/errors';
-import { toAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/editor';
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -204,8 +204,8 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
-				original: { resource: resources[1] },
-				modified: { resource: resources[0] },
+				original: { resource: resources[0] },
+				modified: { resource: resources[1] },
 				options: { pinned: true }
 			});
 		}
@@ -444,16 +444,17 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 		await editorService.save(editors, options);
 	} catch (error) {
 		if (!isCancellationError(error)) {
+			const actions: IAction[] = [toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => instantiationService.invokeFunction(accessor => doSaveEditors(accessor, editors, options)) })];
+			const editorsToRevert = editors.filter(({ editor }) => !editor.hasCapability(EditorInputCapabilities.Untitled) /* all except untitled to prevent unexpected data-loss */);
+			if (editorsToRevert.length > 0) {
+				actions.push(toAction({ id: 'workbench.action.files.revertEditors', label: editorsToRevert.length > 1 ? nls.localize('revertAll', "Revert All") : nls.localize('revert', "Revert"), run: () => editorService.revert(editorsToRevert) }));
+			}
+
 			notificationService.notify({
 				id: editors.map(({ editor }) => hash(editor.resource?.toString())).join(), // ensure unique notification ID per set of editor
 				severity: Severity.Error,
 				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
-				actions: {
-					primary: [
-						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => instantiationService.invokeFunction(accessor => doSaveEditors(accessor, editors, options)) }),
-						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
-					]
-				}
+				actions: { primary: actions }
 			});
 		}
 	}

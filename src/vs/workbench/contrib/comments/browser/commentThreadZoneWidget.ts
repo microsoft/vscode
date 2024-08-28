@@ -333,14 +333,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return 0;
 	}
 
-	toggleExpand() {
-		if (this._isExpanded) {
-			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
-		} else {
-			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
-		}
-	}
-
 	async update(commentThread: languages.CommentThread<IRange>) {
 		if (this._commentThread !== commentThread) {
 			this._commentThreadDisposables.forEach(disposable => disposable.dispose());
@@ -423,6 +415,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {
 			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				this.show(this.arrowPosition(this._commentThread.range), 2);
+				this._commentThreadWidget.ensureFocusIntoNewEditingComment();
 				return;
 			}
 

@@ -238,7 +238,6 @@ export class HitTestContext {
 	public readonly viewModel: IViewModel;
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
-	public readonly overflowWidgetsDomNode: HTMLElement | null;
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -252,7 +251,6 @@ export class HitTestContext {
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
-		this.overflowWidgetsDomNode = viewHelper.overflowWidgetsDomNode ?? null;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
@@ -415,7 +413,6 @@ class HitTestRequest extends BareHitTestRequest {
 	private _useHitTestTarget: boolean;
 	private _targetPathCacheElement: HTMLElement | null = null;
 	private _targetPathCacheValue: Uint8Array = new Uint8Array(0);
-	private _targetElement: HTMLElement | null = null;
 
 	public get target(): HTMLElement | null {
 		if (this._useHitTestTarget) {
@@ -425,18 +422,17 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public get targetPath(): Uint8Array {
-		if (this._targetPathCacheElement !== this.target && this._targetElement) {
+		if (this._targetPathCacheElement !== this.target) {
 			this._targetPathCacheElement = this.target;
-			this._targetPathCacheValue = PartFingerprints.collect(this.target, this._targetElement);
+			this._targetPathCacheValue = PartFingerprints.collect(this.target, this._ctx.viewDomNode);
 		}
 		return this._targetPathCacheValue;
 	}
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null, targetElement: HTMLElement | null = null) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null) {
 		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 		this._eventTarget = eventTarget;
-		this._targetElement = targetElement;
 
 		// If no event target is passed in, we will use the hit test target
 		const hasEventTarget = Boolean(this._eventTarget);
@@ -536,9 +532,9 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTargetForView(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
+	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, ctx.viewDomNode);
+		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request);
 
@@ -555,16 +551,6 @@ export class MouseTargetFactory {
 			return r;
 		} catch (err) {
 			// console.log(err);
-			return request.fulfillUnknown();
-		}
-	}
-
-	public createMouseTargetForOverflowWidgetsDomNode(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null) {
-		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, ctx.overflowWidgetsDomNode);
-		try {
-			return MouseTargetFactory._createMouseTarget(ctx, request);
-		} catch (err) {
 			return request.fulfillUnknown();
 		}
 	}

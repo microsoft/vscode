@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { localize } from 'vs/nls';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
 import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -40,7 +40,7 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const hoverController = HoverController.get(codeEditor);
+		const hoverController = ContentHoverController.get(codeEditor);
 		if (!hoverController) {
 			return;
 		}
@@ -62,7 +62,7 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 		if (!codeEditor) {
 			throw new Error('No active or focused code editor');
 		}
-		const hoverController = HoverController.get(codeEditor);
+		const hoverController = ContentHoverController.get(codeEditor);
 		if (!hoverController) {
 			return;
 		}
@@ -83,7 +83,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 
 	protected _focusedHoverPartIndex: number = -1;
 
-	constructor(protected readonly _hoverController: HoverController) {
+	constructor(protected readonly _hoverController: ContentHoverController) {
 		super();
 	}
 
@@ -165,7 +165,7 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 
 	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 
-	constructor(hoverController: HoverController) {
+	constructor(hoverController: ContentHoverController) {
 		super(hoverController);
 	}
 
@@ -181,7 +181,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	constructor(
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _editor: ICodeEditor,
-		hoverController: HoverController,
+		hoverController: ContentHoverController,
 	) {
 		super(hoverController);
 		this._initializeOptions(this._editor, hoverController);
@@ -221,7 +221,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		});
 	}
 
-	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
+	private _initializeOptions(editor: ICodeEditor, hoverController: ContentHoverController): void {
 		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
 		this.options.language = editor.getModel()?.getLanguageId();
 		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, true); };

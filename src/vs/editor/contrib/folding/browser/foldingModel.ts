@@ -7,6 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from './foldingRanges';
 import { hash } from 'vs/base/common/hash';
+import { SelectedLines } from 'vs/editor/contrib/folding/browser/folding';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions;
@@ -111,9 +112,9 @@ export class FoldingModel {
 		this.updatePost(FoldingRegions.fromFoldRanges(newFoldingRanges));
 	}
 
-	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
-		const foldedOrManualRanges = this._currentFoldedOrManualRanges(blockedLineNumers);
-		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedOrManualRanges, this._textModel.getLineCount());
+	public update(newRegions: FoldingRegions, selection?: SelectedLines): void {
+		const foldedOrManualRanges = this._currentFoldedOrManualRanges(selection);
+		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedOrManualRanges, this._textModel.getLineCount(), selection);
 		this.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 	}
 
@@ -141,17 +142,7 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this });
 	}
 
-	private _currentFoldedOrManualRanges(blockedLineNumers: number[] = []): FoldRange[] {
-
-		const isBlocked = (startLineNumber: number, endLineNumber: number) => {
-			for (const blockedLineNumber of blockedLineNumers) {
-				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
-					return true;
-				}
-			}
-			return false;
-		};
-
+	private _currentFoldedOrManualRanges(selection?: SelectedLines): FoldRange[] {
 		const foldedRanges: FoldRange[] = [];
 		for (let i = 0, limit = this._regions.length; i < limit; i++) {
 			let isCollapsed = this.regions.isCollapsed(i);
@@ -160,7 +151,7 @@ export class FoldingModel {
 				const foldRange = this._regions.toFoldRange(i);
 				const decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
 				if (decRange) {
-					if (isCollapsed && isBlocked(decRange.startLineNumber, decRange.endLineNumber)) {
+					if (isCollapsed && selection?.startsInside(decRange.startLineNumber + 1, decRange.endLineNumber)) {
 						isCollapsed = false; // uncollapse is the range is blocked
 					}
 					foldedRanges.push({

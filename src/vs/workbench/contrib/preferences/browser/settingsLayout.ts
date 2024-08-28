@@ -235,6 +235,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
 					settings: ['chat.*', 'inlineChat.*']
+				},
+				{
+					id: 'features/issueReporter',
+					label: localize('issueReporter', 'Issue Reporter'),
+					settings: ['issueReporter.*']
 				}
 			]
 		},

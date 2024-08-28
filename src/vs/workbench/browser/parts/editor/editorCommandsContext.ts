@@ -102,7 +102,7 @@ function moveCurrentEditorContextToFront(editorContext: IEditorCommandsContext, 
 	return multiEditorContext;
 }
 
-function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAcion: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext | undefined {
+function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAction: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext | undefined {
 	// We only know how to extraxt the command context from URI and IEditorCommandsContext arguments
 	const filteredArgs = commandArgs.filter(arg => isEditorCommandsContext(arg) || URI.isUri(arg));
 
@@ -125,7 +125,7 @@ function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAcion: bo
 
 	// If there is no context in the arguments, try to find the context from the focused list
 	// if the action was executed from a list
-	if (isListAcion) {
+	if (isListAction) {
 		const list = listService.lastFocusedList as List<unknown>;
 		for (const focusedElement of list.getFocusedElements()) {
 			if (isGroupOrEditor(focusedElement)) {
@@ -146,6 +146,15 @@ function getMultiSelectContext(editorContext: IEditorCommandsContext, isListActi
 
 		if (selection.length > 1) {
 			return selection.map(e => groupOrEditorToEditorContext(e, editorContext.preserveFocus, editorGroupsService));
+		}
+
+		if (selection.length === 0) {
+			// TODO@benibenj workaround for https://github.com/microsoft/vscode/issues/224050
+			// Explainer: the `isListAction` flag can be a false positive in certain cases because
+			// it will be `true` if the active element is a `List` even if it is part of the editor
+			// area. The workaround here is to fallback to `isListAction: false` if the list is not
+			// having any editor or group selected.
+			return getMultiSelectContext(editorContext, false, editorService, editorGroupsService, listService);
 		}
 	}
 	// Check editors selected in the group (tabs)

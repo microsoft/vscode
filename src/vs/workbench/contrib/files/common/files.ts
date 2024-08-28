@@ -97,6 +97,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		expandSingleFolderWorkspaces: boolean;
 		sortOrder: SortOrder;
 		sortOrderLexicographicOptions: LexicographicOptions;
+		sortOrderReverse: boolean;
 		decorations: {
 			colors: boolean;
 			badges: boolean;
@@ -143,6 +144,7 @@ export const enum LexicographicOptions {
 export interface ISortOrderConfiguration {
 	sortOrder: SortOrder;
 	lexicographicOptions: LexicographicOptions;
+	reverse: boolean;
 }
 
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {

@@ -20,6 +20,7 @@ const testAgentData: IChatAgentData = {
 	locations: [],
 	metadata: {},
 	slashCommands: [],
+	disambiguation: [],
 };
 
 suite('ChatAgents', function () {

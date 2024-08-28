@@ -10,8 +10,8 @@ import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -24,7 +24,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IDiffEditorViewModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
@@ -35,7 +35,9 @@ import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bro
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
+import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
@@ -47,10 +49,13 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
@@ -62,8 +67,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { FileKind } from 'vs/platform/files/common/files';
+import { assertType } from 'vs/base/common/types';
 
 const $ = dom.$;
 
@@ -146,6 +150,8 @@ export class CodeBlockPart extends Disposable {
 	private readonly disposableStore = this._register(new DisposableStore());
 	private isDisposed = false;
 
+	private resourceContextKey: ResourceContextKey;
+
 	constructor(
 		private readonly options: ChatEditorOptions,
 		readonly menuId: MenuId,
@@ -160,6 +166,7 @@ export class CodeBlockPart extends Disposable {
 		super();
 		this.element = $('.interactive-result-code-block');
 
+		this.resourceContextKey = this._register(instantiationService.createInstance(ResourceContextKey));
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
@@ -286,10 +293,12 @@ export class CodeBlockPart extends Disposable {
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
-				ColorDetector.ID
+				ColorDetector.ID,
+				LinkDetector.ID,
 			])
 		}));
 	}
@@ -396,7 +405,8 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private clearWidgets() {
-		HoverController.get(this.editor)?.hideContentHover();
+		ContentHoverController.get(this.editor)?.hideContentHover();
+		MarginHoverController.get(this.editor)?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
@@ -413,6 +423,7 @@ export class CodeBlockPart extends Disposable {
 			element: data.element,
 			languageId: textModel.getLanguageId()
 		} satisfies ICodeBlockActionContext;
+		this.resourceContextKey.set(textModel.uri);
 	}
 
 	private getVulnerabilitiesLabel(): string {
@@ -473,6 +484,7 @@ export interface ICodeCompareBlockData {
 }
 
 
+// long-lived object that sits in the DiffPool and that gets reused
 export class CodeCompareBlockPart extends Disposable {
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
@@ -484,7 +496,7 @@ export class CodeCompareBlockPart extends Disposable {
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
 
-	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable<IDiffEditorViewModel>());
+	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
 
 	constructor(
@@ -602,7 +614,8 @@ export class CodeCompareBlockPart extends Disposable {
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		};
@@ -682,7 +695,9 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private getContentHeight() {
-		return this.diffEditor.getContentHeight();
+		return this.diffEditor.getModel()
+			? this.diffEditor.getContentHeight()
+			: dom.getTotalHeight(this.messageElement);
 	}
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
@@ -712,8 +727,10 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private clearWidgets() {
-		HoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		HoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
+		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		MarginHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
+		MarginHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
@@ -728,7 +745,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this.element.classList.toggle('no-diff', isEditApplied);
 
-		if (data.edit.state?.applied) {
+		if (isEditApplied) {
+			assertType(data.edit.state?.applied);
 
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
@@ -772,8 +790,13 @@ export class CodeCompareBlockPart extends Disposable {
 				return;
 			}
 
+			const listener = Event.any(diffData.original.onWillDispose, diffData.modified.onWillDispose)(() => {
+				// this a bit weird and basically duplicates https://github.com/microsoft/vscode/blob/7cbcafcbcc88298cfdcd0238018fbbba8eb6853e/src/vs/editor/browser/widget/diffEditor/diffEditorWidget.ts#L328
+				// which cannot call `setModel(null)` without first complaining
+				this.diffEditor.setModel(null);
+			});
 			this.diffEditor.setModel(viewModel);
-			this._lastDiffEditorViewModel.value = viewModel;
+			this._lastDiffEditorViewModel.value = combinedDisposable(listener, viewModel);
 
 		} else {
 			this.diffEditor.setModel(null);
@@ -785,10 +808,6 @@ export class CodeCompareBlockPart extends Disposable {
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
-	}
-
-	clearModel() {
-		this.diffEditor.setModel(null);
 	}
 }
 

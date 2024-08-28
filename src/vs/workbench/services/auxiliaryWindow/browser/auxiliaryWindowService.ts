@@ -36,14 +36,17 @@ export interface IAuxiliaryWindowOpenEvent {
 export enum AuxiliaryWindowMode {
 	Maximized,
 	Normal,
-	Fullscreen,
-	Custom
+	Fullscreen
 }
 
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
+
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
+
+	readonly nativeTitlebar?: boolean;
+	readonly disableFullscreen?: boolean;
 }
 
 export interface IAuxiliaryWindowService {
@@ -329,9 +332,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			`top=${newWindowBounds.y}`,
 			`width=${newWindowBounds.width}`,
 			`height=${newWindowBounds.height}`,
-			options?.mode === AuxiliaryWindowMode.Custom ? 'titlebar=yes' : undefined, 	// non-standard property
-			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined, 	// non-standard property
-			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
+
+			// non-standard properties
+			options?.nativeTitlebar ? 'window-native-titlebar=yes' : undefined,
+			options?.disableFullscreen ? 'window-disable-fullscreen=yes' : undefined,
+			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
+			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined
 		]);
 
 		const auxiliaryWindow = mainWindow.open(isFirefox ? '' /* FF immediately fires an unload event if using about:blank */ : 'about:blank', undefined, features.join(','));

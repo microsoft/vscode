@@ -17,11 +17,13 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isDefined } from 'vs/base/common/types';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-
+import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
@@ -1173,6 +1175,43 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _indexIsInvalid(index: number): boolean {
 		return index < 0 || index >= this._cells.length;
 	}
+
+	//#region Find
+	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; match: FindMatch } | null {
+		// check if search cell index is valid
+		this._assertIndex(searchStart.cellIndex);
+		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+		const searchData = searchParams.parseSearchRequest();
+
+		if (!searchData) {
+			return null;
+		}
+
+		let cellIndex = searchStart.cellIndex;
+		let searchStartPosition = searchStart.position;
+
+		while (cellIndex < this._cells.length) {
+			const cell = this._cells[cellIndex];
+			const searchRange = new Range(
+				searchStartPosition.lineNumber,
+				searchStartPosition.column,
+				cell.textBuffer.getLineCount(),
+				cell.textBuffer.getLineMaxColumn(cell.textBuffer.getLineCount())
+			);
+
+			const result = cell.textBuffer.findMatchesLineByLine(searchRange, searchData, false, 1);
+			if (result.length > 0) {
+				return { cell, match: result[0] };
+			}
+
+			// Move to the next cell
+			cellIndex++;
+			searchStartPosition = { lineNumber: 1, column: 1 }; // Reset position to start of the next cell
+		}
+
+		return null;
+	}
+	//#endregion
 }
 
 class OutputSequence implements ISequence {

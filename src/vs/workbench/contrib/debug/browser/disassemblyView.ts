@@ -247,6 +247,8 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
+		this._disassembledInstructions.domNode.classList.add('disassembly-view');
+
 		if (this.focusedInstructionReference) {
 			this.reloadDisassembly(this.focusedInstructionReference, 0);
 		}
@@ -661,8 +663,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		// align from the bottom so that it lines up with instruction when source code is present.
 		container.style.alignSelf = 'flex-end';
 
-		const icon = append(container, $('.disassembly-view'));
-		icon.classList.add('codicon');
+		const icon = append(container, $('.codicon'));
 		icon.style.display = 'flex';
 		icon.style.alignItems = 'center';
 		icon.style.justifyContent = 'center';

@@ -60,21 +60,24 @@ suite('Search - Viewlet', () => {
 		result.add([{
 			resource: createFileUriFromPathFromRoot('/foo'),
 			results: [{
-				preview: {
-					text: 'bar',
-					matches: {
-						startLineNumber: 0,
-						startColumn: 0,
-						endLineNumber: 0,
-						endColumn: 1
+
+				previewText: 'bar',
+				rangeLocations: [
+					{
+						preview: {
+							startLineNumber: 0,
+							startColumn: 0,
+							endLineNumber: 0,
+							endColumn: 1
+						},
+						source: {
+							startLineNumber: 1,
+							startColumn: 0,
+							endLineNumber: 1,
+							endColumn: 1
+						}
 					}
-				},
-				ranges: {
-					startLineNumber: 1,
-					startColumn: 0,
-					endLineNumber: 1,
-					endColumn: 1
-				}
+				]
 			}]
 		}], '', false);
 

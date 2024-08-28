@@ -64,6 +64,7 @@ export interface IButton extends IDisposable {
 	set label(value: string | IMarkdownString);
 	set icon(value: ThemeIcon);
 	set enabled(value: boolean);
+	set checked(value: boolean);
 
 	focus(): void;
 	hasFocus(): boolean;
@@ -304,6 +305,20 @@ export class Button extends Disposable implements IButton {
 		return !this._element.classList.contains('disabled');
 	}
 
+	set checked(value: boolean) {
+		if (value) {
+			this._element.classList.add('checked');
+			this._element.setAttribute('aria-checked', 'true');
+		} else {
+			this._element.classList.remove('checked');
+			this._element.setAttribute('aria-checked', 'false');
+		}
+	}
+
+	get checked() {
+		return this._element.classList.contains('checked');
+	}
+
 	setTitle(title: string) {
 		if (!this._hover && title !== '') {
 			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
@@ -412,6 +427,14 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		return this.button.enabled;
 	}
 
+	set checked(value: boolean) {
+		this.button.checked = value;
+	}
+
+	get checked() {
+		return this.button.checked;
+	}
+
 	focus(): void {
 		this.button.focus();
 	}
@@ -460,6 +483,14 @@ export class ButtonWithDescription implements IButtonWithDescription {
 
 	set enabled(enabled: boolean) {
 		this._button.enabled = enabled;
+	}
+
+	set checked(value: boolean) {
+		this._button.checked = value;
+	}
+
+	get checked(): boolean {
+		return this._button.checked;
 	}
 
 	focus(): void {

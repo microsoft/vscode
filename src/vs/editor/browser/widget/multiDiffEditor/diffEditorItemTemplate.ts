@@ -20,6 +20,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
 import { ActionRunnerWithContext } from './utils';
+import { IContextKeyService, type IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -94,12 +96,14 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		: undefined;
 
 	private readonly _outerEditorHeight: number;
+	private readonly _contextKeyService: IScopedContextKeyService;
 
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _overflowWidgetsDomNode: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -155,13 +159,15 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._container.appendChild(this._elements.root);
 		this._outerEditorHeight = this._headerHeight;
 
-		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
+		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
+		const instantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
+		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri))),
 			menuOptions: {
 				shouldForwardArgs: true,
 			},
 			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
-			actionViewItemProvider: (action, options) => createActionViewItem(_instantiationService, action, options),
+			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
 	}
 
@@ -173,7 +179,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}
 	}
 
-	private readonly _dataStore = new DisposableStore();
+	private readonly _dataStore = this._register(new DisposableStore());
 
 	private _data: TemplateData | undefined;
 
@@ -248,6 +254,12 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				this.setData(undefined);
 			}
 		});
+
+		if (data.viewModel.documentDiffItem.contextKeys) {
+			for (const [key, value] of Object.entries(data.viewModel.documentDiffItem.contextKeys)) {
+				this._contextKeyService.createKey(key, value);
+			}
+		}
 	}
 
 	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 40;

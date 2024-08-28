@@ -32,7 +32,7 @@ export interface ITerminalSuggestConfiguration {
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
 		type: 'boolean',
 		default: false,
 	},
@@ -51,14 +51,15 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 	[TerminalSuggestSettingId.RunOnEnter]: {
 		restricted: true,
 		markdownDescription: localize('suggest.runOnEnter', "Controls whether suggestions should run immediately when `Enter` (not `Tab`) is used to accept the result."),
-		enum: ['never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
+		enum: ['ignore', 'never', 'exactMatch', 'exactMatchIgnoreExtension', 'always'],
 		markdownEnumDescriptions: [
+			localize('runOnEnter.ignore', "Ignore suggestions and send the enter directly to the shell without completing. This is used as the default value so the suggest widget is as unobtrusive as possible."),
 			localize('runOnEnter.never', "Never run on `Enter`."),
 			localize('runOnEnter.exactMatch', "Run on `Enter` when the suggestion is typed in its entirety."),
 			localize('runOnEnter.exactMatchIgnoreExtension', "Run on `Enter` when the suggestion is typed in its entirety or when a file is typed without its extension included."),
 			localize('runOnEnter.always', "Always run on `Enter`.")
 		],
-		default: 'exactMatchIgnoreExtension',
+		default: 'ignore',
 	},
 	[TerminalSuggestSettingId.BuiltinCompletions]: {
 		restricted: true,

@@ -7,12 +7,12 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
+import { CommandExecutor } from 'vs/editor/common/cursor/cursor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
@@ -646,44 +646,35 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext): Promise<void> {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
-		const selectedCellEditors: ICodeEditor[] = [];
-		context.selectedCells.forEach(cell => {
-			const findContext = { notebookEditor: context.notebookEditor, cell };
-			const foundEditor = findTargetCellEditor(findContext, cell);
-			if (foundEditor) {
-				selectedCellEditors.push(foundEditor);
-			}
-		});
+		context.selectedCells.forEach(async cellViewModel => {
+			const textModel = await cellViewModel.resolveTextModel();
 
-
-		selectedCellEditors.forEach(editor => {
-			if (!editor.hasModel()) {
-				return;
-			}
-
-			const model = editor.getModel();
-			const commands: ICommand[] = [];
-			const modelOptions = model.getOptions();
-			const commentsOptions = editor.getOption(EditorOption.comments);
-
-			const selection = editor.getSelection();
-
-			commands.push(new LineCommentCommand(
+			const commentsOptions = cellViewModel.commentOptions;
+			const cellCommentCommand = new LineCommentCommand(
 				languageConfigurationService,
-				new Selection(1, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount())),
-				modelOptions.indentSize,
+				new Selection(1, 1, textModel.getLineCount(), textModel.getLineMaxColumn(textModel.getLineCount())), // comment the entire cell
+				textModel.getOptions().tabSize,
 				Type.Toggle,
-				commentsOptions.insertSpace,
-				commentsOptions.ignoreEmptyLines,
+				commentsOptions.insertSpace ?? true,
+				commentsOptions.ignoreEmptyLines ?? true,
 				false
-			));
+			);
 
-			editor.pushUndoStop();
-			editor.executeCommands(COMMENT_SELECTED_CELLS_ID, commands);
-			editor.pushUndoStop();
+			// store any selections that are in the cell, allows them to be shifted by comments and preserved
+			const cellEditorSelections = cellViewModel.getSelections();
+			const initialTrackedRangesIDs: string[] = cellEditorSelections.map(selection => {
+				return textModel._setTrackedRange(null, selection, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+			});
 
-			editor.setSelection(selection);
-		});
+			CommandExecutor.executeCommands(textModel, cellEditorSelections, [cellCommentCommand]);
+
+			const newTrackedSelections = initialTrackedRangesIDs.map(i => {
+				return textModel._getTrackedRange(i);
+			}).filter(r => !!r).map((range,) => {
+				return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+			});
+			cellViewModel.setSelections(newTrackedSelections ?? []);
+		}); // end of cells forEach
 	}
 
 });

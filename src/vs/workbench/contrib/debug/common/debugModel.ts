@@ -54,7 +54,8 @@ export class ExpressionContainer implements IExpressionContainer {
 		public indexedVariables: number | undefined = 0,
 		public memoryReference: string | undefined = undefined,
 		private startOfVariables: number | undefined = 0,
-		public presentationHint: DebugProtocol.VariablePresentationHint | undefined = undefined
+		public presentationHint: DebugProtocol.VariablePresentationHint | undefined = undefined,
+		public valueLocationReference: number | undefined = undefined,
 	) { }
 
 	get reference(): number | undefined {
@@ -83,6 +84,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.indexedVariables = dummyVar.indexedVariables;
 		this.memoryReference = dummyVar.memoryReference;
 		this.presentationHint = dummyVar.presentationHint;
+		this.valueLocationReference = dummyVar.valueLocationReference;
 		// Also call overridden method to adopt subclass props
 		this.adoptLazyResponse(dummyVar);
 	}
@@ -162,7 +164,7 @@ export class ExpressionContainer implements IExpressionContainer {
 					const count = nameCount.get(v.name) || 0;
 					const idDuplicationIndex = count > 0 ? count.toString() : '';
 					nameCount.set(v.name, count + 1);
-					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.memoryReference, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex);
+					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.memoryReference, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex, v.declarationLocationReference, v.valueLocationReference);
 				}
 				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, undefined, { kind: 'virtual' }, undefined, undefined, false);
 			});
@@ -220,6 +222,7 @@ export class ExpressionContainer implements IExpressionContainer {
 				this.memoryReference = response.body.memoryReference;
 				this.type = response.body.type || this.type;
 				this.presentationHint = response.body.presentationHint;
+				this.valueLocationReference = response.body.valueLocationReference;
 
 				if (!keepLazyVars && response.body.presentationHint?.lazy) {
 					await this.evaluateLazy();
@@ -312,8 +315,9 @@ export class Expression extends ExpressionContainer implements IExpression {
 	}
 
 	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
+		const hadDefaultValue = this.value === Expression.DEFAULT_VALUE;
 		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
-		if (this.valueChanged) {
+		if (hadDefaultValue || this.valueChanged) {
 			this._onDidChangeValue.fire(this);
 		}
 	}
@@ -354,8 +358,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 		public readonly available = true,
 		startOfVariables = 0,
 		idDuplicationIndex = '',
+		public readonly declarationLocationReference: number | undefined = undefined,
+		valueLocationReference: number | undefined = undefined,
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint, valueLocationReference);
 		this.value = value || '';
 		this.type = type;
 	}

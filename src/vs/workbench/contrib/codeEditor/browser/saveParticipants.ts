@@ -6,6 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -27,6 +28,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
@@ -278,6 +280,7 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -408,7 +411,27 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
+			const sw = new StopWatch();
+
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
+
+			// Telemetry for duration of each code action on save.
+			type CodeActionOnSave = {
+				codeAction: string;
+				duration: number;
+			};
+			type CodeActionOnSaveClassification = {
+				owner: 'justschen';
+				comment: 'Information about the code action that was accepted on save.';
+				codeAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the code action setting that is run.' };
+				duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
+			};
+
+			this.telemetryService.publicLog2<CodeActionOnSave, CodeActionOnSaveClassification>('codeAction.appliedOnSave', {
+				codeAction: codeActionKind.value,
+				duration: sw.elapsed()
+			});
+
 			if (token.isCancellationRequested) {
 				actionsToRun.dispose();
 				return;

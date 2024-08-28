@@ -99,7 +99,7 @@ class NewFileTemplatesManager extends Disposable {
 		const { promise: resultPromise, resolve: resolveResult } = promiseWithResolvers<boolean>();
 
 		const disposables = new DisposableStore();
-		const qp = this.quickInputService.createQuickPick();
+		const qp = this.quickInputService.createQuickPick({ useSeparators: true });
 		qp.title = localize('newFileTitle', "New File...");
 		qp.placeholder = localize('newFilePlaceholder', "Select File Type or Enter File Name...");
 		qp.sortByLabel = false;

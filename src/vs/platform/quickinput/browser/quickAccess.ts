@@ -20,7 +20,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	private readonly lastAcceptedPickerValues = new Map<IQuickAccessProviderDescriptor, string>();
 
 	private visibleQuickAccess: {
-		readonly picker: IQuickPick<IQuickPickItem>;
+		readonly picker: IQuickPick<IQuickPickItem, { useSeparators: true }>;
 		readonly descriptor: IQuickAccessProviderDescriptor | undefined;
 		readonly value: string;
 	} | undefined = undefined;
@@ -99,7 +99,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const disposables = new DisposableStore();
-		const picker = disposables.add(this.quickInputService.createQuickPick());
+		const picker = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true }));
 		picker.value = value;
 		this.adjustValueSelection(picker, descriptor, options);
 		picker.placeholder = options?.placeholder ?? descriptor?.placeholder;
@@ -163,7 +163,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		}
 	}
 
-	private adjustValueSelection(picker: IQuickPick<IQuickPickItem>, descriptor?: IQuickAccessProviderDescriptor, options?: IQuickAccessOptions): void {
+	private adjustValueSelection(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, descriptor?: IQuickAccessProviderDescriptor, options?: IQuickAccessOptions): void {
 		let valueSelection: [number, number];
 
 		// Preserve: just always put the cursor at the end
@@ -180,7 +180,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	}
 
 	private registerPickerListeners(
-		picker: IQuickPick<IQuickPickItem>,
+		picker: IQuickPick<IQuickPickItem, { useSeparators: true }>,
 		provider: IQuickAccessProvider | undefined,
 		descriptor: IQuickAccessProviderDescriptor | undefined,
 		value: string,

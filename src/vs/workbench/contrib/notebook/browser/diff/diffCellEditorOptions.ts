@@ -6,6 +6,14 @@
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
+/**
+ * Do not leave at 12, when at 12 and we have whitespace and only one line,
+ * then there's not enough space for the button `Show Whitespace Differences`
+ */
+export const fixedEditorPaddingSingleLineCells = {
+	top: 24,
+	bottom: 24
+};
 export const fixedEditorPadding = {
 	top: 12,
 	bottom: 12
@@ -29,8 +37,7 @@ export const fixedEditorOptions: IEditorOptions = {
 	selectOnLineNumbers: false,
 	wordWrap: 'off',
 	lineNumbers: 'off',
-	lineDecorationsWidth: 0,
-	glyphMargin: false,
+	glyphMargin: true,
 	fixedOverflowWidgets: true,
 	minimap: { enabled: false },
 	renderValidationDecorations: 'on',

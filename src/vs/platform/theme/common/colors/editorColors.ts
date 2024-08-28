@@ -426,7 +426,7 @@ export const overviewRulerCommonContentForeground = registerColor('editorOvervie
 	nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
 
 export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground',
-	{ dark: '#d186167e', light: '#d186167e', hcDark: '#AB5A00', hcLight: '' },
+	{ dark: '#d186167e', light: '#d186167e', hcDark: '#AB5A00', hcLight: '#AB5A00' },
 	nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground',

@@ -69,13 +69,13 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private readonly _onDidChangeLabel = new Emitter<string | undefined>();
 	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
 
-	private _comments: languages.Comment[] | undefined;
+	private _comments: ReadonlyArray<languages.Comment> | undefined;
 
-	public get comments(): languages.Comment[] | undefined {
+	public get comments(): ReadonlyArray<languages.Comment> | undefined {
 		return this._comments;
 	}
 
-	public set comments(newComments: languages.Comment[] | undefined) {
+	public set comments(newComments: ReadonlyArray<languages.Comment> | undefined) {
 		this._comments = newComments;
 		this._onDidChangeComments.fire(this._comments);
 	}
@@ -204,12 +204,16 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('range')) { this._range = changes.range!; }
 		if (modified('label')) { this._label = changes.label; }
 		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
-		if (modified('comments')) { this._comments = changes.comments; }
+		if (modified('comments')) { this.comments = changes.comments; }
 		if (modified('collapseState')) { this.initialCollapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
 		if (modified('state')) { this.state = changes.state!; }
 		if (modified('applicability')) { this.applicability = changes.applicability!; }
 		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }
+	}
+
+	hasComments(): boolean {
+		return !!this.comments && this.comments.length > 0;
 	}
 
 	dispose() {

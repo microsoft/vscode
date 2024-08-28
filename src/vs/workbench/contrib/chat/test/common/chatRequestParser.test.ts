@@ -16,7 +16,9 @@ import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestP
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
+import { MockLanguageModelToolsService } from 'vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -34,6 +36,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(ILanguageModelToolsService, new MockLanguageModelToolsService());
 		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 
 		varService = mockObject<IChatVariablesService>()({});
@@ -117,7 +120,7 @@ suite('ChatRequestParser', () => {
 	});
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands } satisfies IChatAgentData;
+		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands, disambiguation: [], } satisfies IChatAgentData;
 	};
 
 	test('agent with subcommand after text', async () => {

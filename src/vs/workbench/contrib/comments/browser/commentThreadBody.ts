@@ -70,6 +70,12 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._commentsElement.focus();
 	}
 
+	ensureFocusIntoNewEditingComment() {
+		if (this._commentElements.length === 1 && this._commentElements[0].isEditing) {
+			this._commentElements[0].setFocus(true);
+		}
+	}
+
 	async display() {
 		this._commentsElement = dom.append(this.container, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');

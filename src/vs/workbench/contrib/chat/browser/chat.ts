@@ -129,10 +129,10 @@ export interface IChatViewViewContext {
 }
 
 export interface IChatResourceViewContext {
-	resource: boolean;
+	isQuickChat?: boolean;
 }
 
-export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext;
+export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
 
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;

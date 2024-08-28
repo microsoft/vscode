@@ -189,7 +189,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 				assert.strictEqual(value.mtime, undefined);
 				assert.strictEqual(value.ctime, undefined);
 			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource));
+				assert.fail('Unexpected value ' + basename(value.resource));
 			}
 		});
 	});

@@ -24,7 +24,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		super({ canAcceptInBackground: true });
 	}
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem>): IDisposable {
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
 		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
 
 		picker.items = [{ label }];
@@ -33,7 +33,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		return Disposable.None;
 	}
 
-	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem>, token: CancellationToken): IDisposable {
+	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 		const editor = context.editor;
 		const disposables = new DisposableStore();
 

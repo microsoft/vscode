@@ -9,6 +9,7 @@ const fs = require("fs");
 const minimatch = require("minimatch");
 const vscode_universal_bundler_1 = require("vscode-universal-bundler");
 const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
+const esm_1 = require("../lib/esm");
 const root = path.dirname(path.dirname(__dirname));
 async function main(buildDir) {
     const arch = process.env['VSCODE_ARCH'];
@@ -26,13 +27,14 @@ async function main(buildDir) {
         '**/CodeResources',
         '**/Credits.rtf',
     ];
+    const canAsar = !(0, esm_1.isESM)('ASAR disabled in universal build'); // TODO@esm ASAR disabled in ESM
     await (0, vscode_universal_bundler_1.makeUniversalApp)({
         x64AppPath,
         arm64AppPath,
-        asarPath: asarRelativePath,
+        asarPath: canAsar ? asarRelativePath : undefined,
         outAppPath,
         force: true,
-        mergeASARs: true,
+        mergeASARs: canAsar,
         x64ArchFiles: '*/kerberos.node',
         filesToSkipComparison: (file) => {
             for (const expected of filesToSkip) {

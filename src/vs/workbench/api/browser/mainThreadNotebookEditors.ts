@@ -105,6 +105,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
+			label: options.label,
 			override: viewType
 		};
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export const multiDiffEditorHeaderBackground = registerColor(
 	'multiDiffEditor.headerBackground',
@@ -14,7 +14,7 @@ export const multiDiffEditorHeaderBackground = registerColor(
 
 export const multiDiffEditorBackground = registerColor(
 	'multiDiffEditor.background',
-	'editorBackground',
+	editorBackground,
 	localize('multiDiffEditor.background', 'The background color of the multi file diff editor')
 );
 

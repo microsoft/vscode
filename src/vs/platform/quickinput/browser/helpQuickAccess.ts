@@ -25,7 +25,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) { }
 
-	provide(picker: IQuickPick<IHelpQuickAccessPickItem>): IDisposable {
+	provide(picker: IQuickPick<IHelpQuickAccessPickItem, { useSeparators: true }>): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Open a picker with the selected value if picked

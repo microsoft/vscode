@@ -811,61 +811,66 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 }
 
 registerThemingParticipant((theme, collector) => {
+	const scope = '.monaco-editor .glyph-margin-widgets, .monaco-workbench .debug-breakpoints, .monaco-workbench .disassembly-view, .monaco-editor .contentWidgets';
 	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
 	if (debugIconBreakpointColor) {
-		collector.addRule(`
-		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.regular)}`).join(',\n		')},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointUnsupported)},
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointHint)}:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)}::after,
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframe)}::after {
-			color: ${debugIconBreakpointColor} !important;
-		}
-		`);
+		collector.addRule(`${scope} {
+			${icons.allBreakpoints.map(b => `${ThemeIcon.asCSSSelector(b.regular)}`).join(',\n		')},
+			${ThemeIcon.asCSSSelector(icons.debugBreakpointUnsupported)},
+			${ThemeIcon.asCSSSelector(icons.debugBreakpointHint)}:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
+			${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)}::after,
+			${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframe)}::after {
+				color: ${debugIconBreakpointColor} !important;
+			}
+		}`);
 
-		collector.addRule(`
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.pending)} {
-			color: ${debugIconBreakpointColor} !important;
-			font-size: 12px !important;
-		}
-		`);
+		collector.addRule(`${scope} {
+			${ThemeIcon.asCSSSelector(icons.breakpoint.pending)} {
+				color: ${debugIconBreakpointColor} !important;
+				font-size: 12px !important;
+			}
+		}`);
 	}
 
 	const debugIconBreakpointDisabledColor = theme.getColor(debugIconBreakpointDisabledForeground);
 	if (debugIconBreakpointDisabledColor) {
-		collector.addRule(`
-		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.disabled)}`).join(',\n		')} {
-			color: ${debugIconBreakpointDisabledColor};
-		}
-		`);
+		collector.addRule(`${scope} {
+			${icons.allBreakpoints.map(b => ThemeIcon.asCSSSelector(b.disabled)).join(',\n		')} {
+				color: ${debugIconBreakpointDisabledColor};
+			}
+		}`);
 	}
 
 	const debugIconBreakpointUnverifiedColor = theme.getColor(debugIconBreakpointUnverifiedForeground);
 	if (debugIconBreakpointUnverifiedColor) {
-		collector.addRule(`
-		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.unverified)}`).join(',\n		')} {
-			color: ${debugIconBreakpointUnverifiedColor};
-		}
-		`);
+		collector.addRule(`${scope} {
+			${icons.allBreakpoints.map(b => ThemeIcon.asCSSSelector(b.unverified)).join(',\n		')} {
+				color: ${debugIconBreakpointUnverifiedColor};
+			}
+		}`);
 	}
 
 	const debugIconBreakpointCurrentStackframeForegroundColor = theme.getColor(debugIconBreakpointCurrentStackframeForeground);
 	if (debugIconBreakpointCurrentStackframeForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframe)},
 		.monaco-editor .debug-top-stack-frame-column {
 			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
+		}
+		${scope} {
+			${ThemeIcon.asCSSSelector(icons.debugStackframe)} {
+				color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
+			}
 		}
 		`);
 	}
 
 	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeForeground);
 	if (debugIconBreakpointStackframeFocusedColor) {
-		collector.addRule(`
-		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)} {
-			color: ${debugIconBreakpointStackframeFocusedColor} !important;
-		}
-		`);
+		collector.addRule(`${scope} {
+			${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)} {
+				color: ${debugIconBreakpointStackframeFocusedColor} !important;
+			}
+		}`);
 	}
 });
 

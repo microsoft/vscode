@@ -170,6 +170,13 @@ function Set-MappedKeyHandler {
 	}
 }
 
+function Get-KeywordCompletionResult(
+	$Keyword,
+	$Description = $null
+) {
+	[System.Management.Automation.CompletionResult]::new($Keyword, $Keyword, [System.Management.Automation.CompletionResultType]::Keyword, $null -ne $Description ? $Description : $Keyword)
+}
+
 function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Ctrl+Spacebar -Sequence 'F12,a'
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
@@ -178,7 +185,7 @@ function Set-MappedKeyHandlers {
 
 	# Enable suggestions if the environment variable is set and Windows PowerShell is not being used
 	# as APIs are not available to support this feature
-	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "6.0") {
+	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "7.0") {
 		Remove-Item Env:VSCODE_SUGGEST
 
 		# VS Code send completions request (may override Ctrl+Spacebar)
@@ -191,8 +198,112 @@ function Set-MappedKeyHandlers {
 			# Get commands, convert to string array to reduce the payload size and send as JSON
 			$commands = @(
 				[System.Management.Automation.CompletionCompleters]::CompleteCommand('')
-				# Keywords aren't included in CompletionCommand
-				[System.Management.Automation.CompletionResult]::new('exit', 'exit', [System.Management.Automation.CompletionResultType]::Keyword, "exit [<exitcode>]")
+				Get-KeywordCompletionResult -Keyword 'begin'
+				Get-KeywordCompletionResult -Keyword 'break'
+				Get-KeywordCompletionResult -Keyword 'catch' -Description "catch [[<error type>][',' <error type>]*] {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'class' -Description @"
+class <class-name> [: [<base-class>][,<interface-list>]] {
+    [[<attribute>] [hidden] [static] <property-definition> ...]
+    [<class-name>([<constructor-argument-list>])
+      {<constructor-statement-list>} ...]
+    [[<attribute>] [hidden] [static] <method-definition> ...]
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'clean'
+				Get-KeywordCompletionResult -Keyword 'continue'
+				Get-KeywordCompletionResult -Keyword 'data' -Description @"
+data [<variable-name>] [-supportedCommand <cmdlet-name>] {
+    <Permitted content>
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'do' -Description @"
+do {<statement list>} while (<condition>)
+do {<statement list>} until (<condition>)
+"@
+				Get-KeywordCompletionResult -Keyword 'dynamicparam' -Description "dynamicparam {<statement-list>}"
+				Get-KeywordCompletionResult -Keyword 'else' -Description @"
+if (<test1>)
+    {<statement list 1>}
+[elseif (<test2>)
+    {<statement list 2>}]
+[else
+    {<statement list 3>}]
+"@
+				Get-KeywordCompletionResult -Keyword 'elseif' -Description @"
+if (<test1>)
+    {<statement list 1>}
+[elseif (<test2>)
+    {<statement list 2>}]
+[else
+    {<statement list 3>}]
+"@
+				Get-KeywordCompletionResult -Keyword 'end'
+				Get-KeywordCompletionResult -Keyword 'enum' -Description @"
+[[<attribute>]...] [Flag()] enum <enum-name>[ : <underlying-type-name>] {
+    <label 0> [= 1]
+    <label 1> [= 2]
+    <label 2> [= 4]
+    <label 3> [= 8]
+    ...
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'exit' -Description "exit [<exitcode>]"
+				Get-KeywordCompletionResult -Keyword 'filter' -Description "filter [<scope:>]<name> {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'finally' -Description "finally {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'for' -Description @"
+for (<Init>; <Condition>; <Repeat>)
+{
+    <Statement list>
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'foreach' -Description "foreach ($<item> in $<collection>){<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'function' -Description @"
+function [<scope:>]<name> [([type]`$parameter1[,[type]`$parameter2])]
+{
+  begin {<statement list>}
+  process {<statement list>}
+  end {<statement list>}
+  clean {<statement list>}
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'hidden'
+				Get-KeywordCompletionResult -Keyword 'if' -Description @"
+if (<test1>)
+	{<statement list 1>}
+[elseif (<test2>)
+	{<statement list 2>}]
+[else
+	{<statement list 3>}]
+"@
+				Get-KeywordCompletionResult -Keyword 'in' -Description "foreach (`$<item> in `$<collection>){<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'param' -Description "param (`$Parameter1)"
+				Get-KeywordCompletionResult -Keyword 'process'
+				Get-KeywordCompletionResult -Keyword 'return' -Description "return [<expression>]"
+				Get-KeywordCompletionResult -Keyword 'static' -Description @"
+class <class-name> [: [<base-class>][,<interface-list>]] {
+    [[<attribute>] [hidden] [static] <property-definition> ...]
+    [<class-name>([<constructor-argument-list>])
+      {<constructor-statement-list>} ...]
+    [[<attribute>] [hidden] [static] <method-definition> ...]
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'switch' -Description @"
+Switch (<test-expression>)
+{
+    <result1-to-be-matched> {<action>}
+    <result2-to-be-matched> {<action>}
+}
+"@
+				Get-KeywordCompletionResult -Keyword 'throw' -Description "throw [<expression>]"
+				Get-KeywordCompletionResult -Keyword 'trap' -Description "trap [[<error type>]] {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'try' -Description "try {<statement list>}"
+				Get-KeywordCompletionResult -Keyword 'until' -Description "do {<statement list>} until (<condition>)"
+				Get-KeywordCompletionResult -Keyword 'using' -Description @"
+using module <module-name>
+
+using assembly <.NET-assembly-path>
+"@
+				Get-KeywordCompletionResult -Keyword 'while' -Description "while (<condition>){<statement list>}"
 			)
 			$mappedCommands = Compress-Completions($commands)
 			$result = "$([char]0x1b)]633;CompletionsPwshCommands;commands;"
@@ -215,6 +326,7 @@ function Set-MappedKeyHandlers {
 function Send-Completions {
 	$commandLine = ""
 	$cursorIndex = 0
+	$prefixCursorDelta = 0
 	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
 	$completionPrefix = $commandLine
 
@@ -222,34 +334,109 @@ function Send-Completions {
 	$result = "$([char]0x1b)]633;Completions"
 
 	# If there is a space in the input, defer to TabExpansion2 as it's more complicated to
-	# determine what type of completions to use
+	# determine what type of completions to use.
 	# `[` is included here as namespace commands are not included in CompleteCommand(''),
 	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
 	# multiple times
 	if ($completionPrefix.Contains(' ') -or $completionPrefix.Contains('[') -or $PSVersionTable.PSVersion -lt "6.0") {
-		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-		if ($null -ne $completions.CompletionMatches) {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
-				$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
-				# Add . and .. to the completions list
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
-				)
-				$json.Add([System.Management.Automation.CompletionResult]::new(
-					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
-				)
-				$mappedCommands = Compress-Completions($json)
-				$result += $mappedCommands | ConvertTo-Json -Compress
-			} else {
-				$mappedCommands = Compress-Completions($completions.CompletionMatches)
-				$result += $mappedCommands | ConvertTo-Json -Compress
+
+		# Adjust the completion prefix and cursor index such that tab expansion will be requested
+		# immediately after the last whitespace. This allows the client to perform fuzzy filtering
+		# such that requesting completions in the middle of a word should show the same completions
+		# as at the start. This only happens when the last word does not include special characters:
+		# - `/` and `\`: Completions change when navigating directories.
+		# - `$`: Completions change when variables.
+		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
+		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
+		if ($lastWord -notmatch '[/\\$]') {
+			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastWhitespaceIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
 			}
+		}
+		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
+		# completions are consistent regardless of where it was requested
+		elseif ($lastWord -match '[/\\]') {
+			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
+			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastSlashIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
+
+		# Get completions using TabExpansion2
+		$completions = $null
+		try
+		{
+			$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		}
+		catch
+		{
+			# TabExpansion2 may throw when there are no completions, in this case return an empty
+			# list to prevent falling back to file path completions
+		}
+		if ($null -eq $completions -or $null -eq $completions.CompletionMatches) {
+			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
+		} else {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
+			$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
+			# Relative directory completions
+			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
+				# Add `../ relative to the top completion
+				$firstCompletion = $completions.CompletionMatches[0]
+				if ($firstCompletion.CompletionText.StartsWith("..$([System.IO.Path]::DirectorySeparatorChar)")) {
+					if ($completionPrefix -match "(\.\.$([System.IO.Path]::DirectorySeparatorChar))+") {
+						$parentDir = "$($matches[0])..$([System.IO.Path]::DirectorySeparatorChar)"
+						$currentPath = Split-Path -Parent $firstCompletion.ToolTip
+						try {
+							$parentDirPath = Split-Path -Parent $currentPath
+							$json.Add([System.Management.Automation.CompletionResult]::new(
+								$parentDir, $parentDir, [System.Management.Automation.CompletionResultType]::ProviderContainer, $parentDirPath)
+							)
+						} catch { }
+					}
+				}
+				# Add `.` and `..` to the completions list for results that only contain files and dirs
+				else {
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
+					)
+					$json.Add([System.Management.Automation.CompletionResult]::new(
+						'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
+					)
+				}
+			}
+			# Add `-` and `+` as a completion for move backwards in location history. Unfortunately
+			# we don't set the path it will navigate to since the Set-Location stack is not public
+			# API https://github.com/PowerShell/PowerShell/issues/23860
+			if ($completionPrefix -eq "cd -") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('-', '-', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate backwards in location history"))
+			}
+			if ($completionPrefix -eq "cd +") {
+				$json.Add([System.Management.Automation.CompletionResult]::new('+', '+', [System.Management.Automation.CompletionResultType]::ProviderContainer, "Navigate forwards in location history"))
+			}
+			$mappedCommands = Compress-Completions($json)
+			$result += $mappedCommands | ConvertTo-Json -Compress
 		}
 	}
 	# If there is no space, get completions using CompletionCompleters as it gives us more
 	# control and works on the empty string
 	else {
+		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
+		# completions are consistent regardless of where it was requested
+		if ($completionPrefix -match '[/\\]') {
+			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
+			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+				$newCursorIndex = $lastSlashIndex + 1
+				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
+				$prefixCursorDelta = $cursorIndex - $newCursorIndex
+				$cursorIndex = $newCursorIndex
+			}
+		}
 		# Note that CompleteCommand isn't included here as it's expensive
 		$completions = $(
 			# Add trailing \ for directories so behavior aligns with TabExpansion2
@@ -263,7 +450,7 @@ function Send-Completions {
 			([System.Management.Automation.CompletionCompleters]::CompleteVariable(''))
 		)
 		if ($null -ne $completions) {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
 			$mappedCommands = Compress-Completions($completions)
 			$result += $mappedCommands | ConvertTo-Json -Compress
 		} else {
@@ -279,7 +466,10 @@ function Send-Completions {
 
 function Compress-Completions($completions) {
 	$completions | ForEach-Object {
-		if ($_.CompletionText -eq $_.ToolTip) {
+		if ($_.CustomIcon) {
+			,@($_.CompletionText, $_.ResultType, $_.ToolTip, $_.CustomIcon)
+		}
+		elseif ($_.CompletionText -eq $_.ToolTip) {
 			,@($_.CompletionText, $_.ResultType)
 		} else {
 			,@($_.CompletionText, $_.ResultType, $_.ToolTip)

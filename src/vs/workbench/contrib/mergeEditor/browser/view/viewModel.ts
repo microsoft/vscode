@@ -193,6 +193,7 @@ export class MergeEditorViewModel extends Disposable {
 	): void {
 		this.manuallySetActiveModifiedBaseRange.set({ range: baseRange, counter: this.counter++ }, tx);
 		this.model.setState(baseRange, state, inputNumber, tx);
+		this.lastFocusedEditor.clearCache(tx);
 	}
 
 	private goToConflict(getModifiedBaseRange: (editor: CodeEditorView, curLineNumber: number) => ModifiedBaseRange | undefined): void {

@@ -165,8 +165,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.includesExcludesContainer = DOM.append(container, DOM.$('.includes-excludes'));
 
 		// Toggle query details button
-		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, localize('moreSearch', "Toggle Search Details")));
+		const toggleQueryDetailsLabel = localize('moreSearch', "Toggle Search Details");
+		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', 'aria-label': toggleQueryDetailsLabel }));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, toggleQueryDetailsLabel));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
 			this.toggleIncludesExcludes();
@@ -483,7 +484,20 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
+		const focusResults = this.searchConfig.searchEditor.focusResultsOnSearch;
+
+		// If _options don't define focusResult field, then use the setting
+		if (_options === undefined) {
+			_options = { focusResults: focusResults };
+		} else if (_options.focusResults === undefined) {
+			_options.focusResults = focusResults;
+		}
+
 		const options = { resetCursor: true, delay: 0, ..._options };
+
+		if (!(this.queryEditorWidget.searchInput?.inputBox.isInputValid())) {
+			return;
+		}
 
 		if (!this.pauseSearching) {
 			await this.runSearchDelayer.trigger(async () => {
@@ -550,15 +564,14 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			excludePattern: config.filesToExclude,
+			excludePattern: [{ pattern: config.filesToExclude }],
 			includePattern: config.filesToInclude,
 			onlyOpenEditors: config.onlyOpenEditors,
 			previewOptions: {
 				matchLines: 1,
 				charsPerLine: 1000
 			},
-			afterContext: config.contextLines,
-			beforeContext: config.contextLines,
+			surroundingContext: config.contextLines,
 			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true,
 			notebookSearchConfig: {

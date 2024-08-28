@@ -15,7 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { DebugLinkHoverBehavior, LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
@@ -98,7 +98,7 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
 			const stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
-			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined);
+			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined, undefined, { type: DebugLinkHoverBehavior.Rich, store: this._disposables });
 			stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 			ariaLabel += ', ' + this.exceptionInfo.details.stackTrace;

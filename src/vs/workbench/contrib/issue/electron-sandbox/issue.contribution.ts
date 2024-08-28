@@ -18,17 +18,17 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
 import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
-import { IssueFormService2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueFormService';
 import { NativeIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issueService';
 import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
 import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { NativeIssueFormService } from 'vs/workbench/contrib/issue/electron-sandbox/nativeIssueFormService';
 
 
 //#region Issue Contribution
 
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
-registerSingleton(IIssueFormService, IssueFormService2, InstantiationType.Delayed);
+registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
 
 class NativeIssueContribution extends BaseIssueContribution {
 
@@ -61,7 +61,7 @@ class NativeIssueContribution extends BaseIssueContribution {
 			properties: {
 				'issueReporter.experimental.auxWindow': {
 					type: 'boolean',
-					default: productService.quality !== 'stable',
+					default: true,
 					description: 'Enable the new experimental issue reporter in electron.',
 				},
 			}

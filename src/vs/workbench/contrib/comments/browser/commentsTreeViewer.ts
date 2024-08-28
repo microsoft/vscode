@@ -76,7 +76,7 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
+class CommentsModelVirtualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 
@@ -90,10 +90,10 @@ class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCo
 
 	public getTemplateId(element: any): string {
 		if (element instanceof ResourceWithCommentThreads) {
-			return CommentsModelVirualDelegate.RESOURCE_ID;
+			return CommentsModelVirtualDelegate.RESOURCE_ID;
 		}
 		if (element instanceof CommentNode) {
-			return CommentsModelVirualDelegate.COMMENT_ID;
+			return CommentsModelVirtualDelegate.COMMENT_ID;
 		}
 
 		return '';
@@ -254,6 +254,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const textDescription = dom.$('');
 			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
 			image.parentNode!.replaceChild(textDescription, image);
+		}
+		while ((renderedComment.element.children.length > 1) && (renderedComment.element.firstElementChild?.tagName === 'HR')) {
+			renderedComment.element.removeChild(renderedComment.element.firstElementChild);
 		}
 		return renderedComment;
 	}
@@ -450,7 +453,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
-		const delegate = new CommentsModelVirualDelegate();
+		const delegate = new CommentsModelVirtualDelegate();
 		const actionViewItemProvider = createActionViewItem.bind(undefined, instantiationService);
 		const menus = instantiationService.createInstance(CommentsMenus);
 		menus.setContextKeyService(contextKeyService);
@@ -484,6 +487,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
+				sorter: options.sorter,
 				findWidgetEnabled: false,
 				multipleSelectionSupport: false,
 			},

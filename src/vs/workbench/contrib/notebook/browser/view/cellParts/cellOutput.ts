@@ -381,7 +381,8 @@ class CellOutputElement extends Disposable {
 			});
 		}
 
-		const picker = this.quickInputService.createQuickPick();
+		const disposables = new DisposableStore();
+		const picker = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true }));
 		picker.items = [
 			...items,
 			{ type: 'separator' },
@@ -393,10 +394,10 @@ class CellOutputElement extends Disposable {
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
-			picker.onDidAccept(() => {
+			disposables.add(picker.onDidAccept(() => {
 				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer) : undefined);
-				picker.dispose();
-			});
+				disposables.dispose();
+			}));
 			picker.show();
 		});
 

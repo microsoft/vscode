@@ -2521,8 +2521,8 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
  * @see https://www.smashingmagazine.com/2023/08/better-context-menus-safe-triangles/ for example
  */
 export class SafeTriangle {
-	// 4 triangles, 2 points (x, y) stored for each
-	private triangles: number[] = [];
+	// 4 points (x, y), 8 length
+	private points = new Int16Array(8);
 
 	constructor(
 		private readonly originX: number,
@@ -2530,34 +2530,28 @@ export class SafeTriangle {
 		target: HTMLElement
 	) {
 		const { top, left, right, bottom } = target.getBoundingClientRect();
-		const t = this.triangles;
+		const t = this.points;
 		let i = 0;
 
 		t[i++] = left;
 		t[i++] = top;
+
 		t[i++] = right;
 		t[i++] = top;
 
 		t[i++] = left;
-		t[i++] = top;
-		t[i++] = left;
 		t[i++] = bottom;
 
-		t[i++] = right;
-		t[i++] = top;
-		t[i++] = right;
-		t[i++] = bottom;
-
-		t[i++] = left;
-		t[i++] = bottom;
 		t[i++] = right;
 		t[i++] = bottom;
 	}
 
 	public contains(x: number, y: number) {
-		const { triangles, originX, originY } = this;
+		const { points, originX, originY } = this;
 		for (let i = 0; i < 4; i++) {
-			if (isPointWithinTriangle(x, y, originX, originY, triangles[2 * i], triangles[2 * i + 1], triangles[2 * i + 2], triangles[2 * i + 3])) {
+			const p1 = 2 * i;
+			const p2 = 2 * ((i + 1) % 4);
+			if (isPointWithinTriangle(x, y, originX, originY, points[p1], points[p1 + 1], points[p2], points[p2 + 1])) {
 				return true;
 			}
 		}

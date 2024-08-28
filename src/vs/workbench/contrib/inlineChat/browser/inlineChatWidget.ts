@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from 'vs/base/browser/dom';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IAction } from 'vs/base/common/actions';
+import { isNonEmptyArray, tail } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, constObservable, derived, observableValue } from 'vs/base/common/observable';
+import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { constObservable, derived, ISettableObservable, observableValue } from 'vs/base/common/observable';
 import 'vs/css!./media/inlineChat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from 'vs/editor/browser/widget/diffEditor/components/accessibleDiffViewer';
@@ -16,38 +20,39 @@ import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/ed
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
+import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { createActionViewItem, IMenuEntryActionViewItemOptions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { MarkUnhelpfulActionId } from 'vs/workbench/contrib/chat/browser/actions/chatTitleActions';
+import { IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatVoteDownButton } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatAgentVoteDirection, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, InlineChatConfigKeys, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { isNonEmptyArray, tail } from 'vs/base/common/arrays';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 
 export interface InlineChatWidgetViewState {
@@ -62,6 +67,8 @@ export interface IInlineChatWidgetConstructionOptions {
 	 * The menu that rendered as button bar, use for accept, discard etc
 	 */
 	statusMenuId: MenuId | { menu: MenuId; options: IWorkbenchButtonBarOptions };
+
+	secondaryMenuId?: MenuId;
 
 	/**
 	 * The options for the chat widget
@@ -89,9 +96,9 @@ export class InlineChatWidget {
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
-				h('div.actions.text-style.hidden@toolbar1'),
-				h('div.actions.button-style.hidden@toolbar2'),
+				h('div.actions.button-style.hidden@toolbar1'),
 				h('div.label.status.hidden@statusLabel'),
+				h('div.actions.button-style.hidden@toolbar2'),
 			]),
 		]
 	);
@@ -139,14 +146,32 @@ export class InlineChatWidget {
 		this._chatWidget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
-			{ resource: true },
+			undefined,
 			{
 				defaultElementHeight: 32,
 				renderStyle: 'minimal',
 				renderInputOnTop: false,
 				renderFollowups: true,
 				supportsFileReferences: _configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
-				filter: item => !isWelcomeVM(item),
+				filter: item => {
+					if (isWelcomeVM(item)) {
+						// filter welcome messages
+						return false;
+					}
+					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
+						// filter responses that
+						// - are just text edits(prevents the "Made Edits")
+						// - are all empty
+						if (item.response.value.length > 0 && item.response.value.every(item => item.kind === 'textEditGroup' && options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+							return false;
+						}
+						if (item.response.value.length === 0) {
+							return false;
+						}
+						return true;
+					}
+					return true;
+				},
 				...options.chatWidgetViewOptions
 			},
 			{
@@ -161,13 +186,43 @@ export class InlineChatWidget {
 		this._chatWidget.setVisible(true);
 		this._store.add(this._chatWidget);
 
+		const ctxResponse = CONTEXT_RESPONSE.bindTo(this.scopedContextKeyService);
+		const ctxResponseVote = CONTEXT_RESPONSE_VOTE.bindTo(this.scopedContextKeyService);
+		const ctxResponseSupportIssues = CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING.bindTo(this.scopedContextKeyService);
+		const ctxResponseError = CONTEXT_RESPONSE_ERROR.bindTo(this.scopedContextKeyService);
+		const ctxResponseErrorFiltered = CONTEXT_RESPONSE_FILTERED.bindTo(this.scopedContextKeyService);
+
 		const viewModelStore = this._store.add(new DisposableStore());
 		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
 			viewModelStore.clear();
+
 			const viewModel = this._chatWidget.viewModel;
-			if (viewModel) {
-				viewModelStore.add(viewModel.onDidChange(() => this._onDidChangeHeight.fire()));
+			if (!viewModel) {
+				return;
 			}
+
+			viewModelStore.add(toDisposable(() => {
+				toolbar2.context = undefined;
+				ctxResponse.reset();
+				ctxResponseVote.reset();
+				ctxResponseError.reset();
+				ctxResponseErrorFiltered.reset();
+				ctxResponseSupportIssues.reset();
+			}));
+
+			viewModelStore.add(viewModel.onDidChange(() => {
+
+				const last = viewModel.getItems().at(-1);
+				toolbar2.context = last;
+
+				ctxResponse.set(isResponseVM(last));
+				ctxResponseVote.set(isResponseVM(last) ? last.vote === ChatAgentVoteDirection.Down ? 'down' : last.vote === ChatAgentVoteDirection.Up ? 'up' : '' : '');
+				ctxResponseError.set(isResponseVM(last) && last.errorDetails !== undefined);
+				ctxResponseErrorFiltered.set((!!(isResponseVM(last) && last.errorDetails?.responseIsFiltered)));
+				ctxResponseSupportIssues.set(isResponseVM(last) && (last.agent?.metadata.supportIssueReporting ?? false));
+
+				this._onDidChangeHeight.fire();
+			}));
 			this._onDidChangeHeight.fire();
 		}));
 
@@ -187,22 +242,9 @@ export class InlineChatWidget {
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 
-		// TEXT-ONLY bar
-		const statusToolbarMenu = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar1, statusMenuId, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
-			actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
-			toolbarOptions: { primaryGroup: '0_main' },
-			menuOptions: { renderShortTitle: true },
-			label: true,
-			icon: false
-		});
-		this._store.add(statusToolbarMenu.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-		this._store.add(statusToolbarMenu);
-
 		// BUTTON bar
 		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
-		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar2, statusMenuId, {
+		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar1, statusMenuId, {
 			toolbarOptions: { primaryGroup: '0_main' },
 			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true },
@@ -211,9 +253,19 @@ export class InlineChatWidget {
 		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
 
-		const toggleToolbar = () => this._elements.status.classList.toggle('text', this._configurationService.getValue(InlineChatConfigKeys.ExpTextButtons));
-		this._store.add(this._configurationService.onDidChangeConfiguration(e => e.affectsConfiguration(InlineChatConfigKeys.ExpTextButtons) && toggleToolbar()));
-		toggleToolbar();
+		// secondary toolbar
+		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, options.secondaryMenuId ?? MenuId.for(''), {
+			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+			menuOptions: { renderShortTitle: true, shouldForwardArgs: true },
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
+					return scopedInstaService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
+				}
+				return createActionViewItem(scopedInstaService, action, options);
+			}
+		});
+		this._store.add(toolbar2.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(toolbar2);
 
 
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -333,7 +385,7 @@ export class InlineChatWidget {
 	}
 
 	protected _getExtraHeight(): number {
-		return 4 /* padding */ + 2 /*border*/ + 4 /*shadow*/;
+		return 2 /*border*/ + 4 /*shadow*/;
 	}
 
 	get value(): string {
@@ -360,6 +412,14 @@ export class InlineChatWidget {
 
 	set placeholder(value: string) {
 		this._chatWidget.setInputPlaceholder(value);
+	}
+
+	toggleStatus(show: boolean) {
+		this._elements.toolbar1.classList.toggle('hidden', !show);
+		this._elements.toolbar2.classList.toggle('hidden', !show);
+		this._elements.status.classList.toggle('hidden', !show);
+		this._elements.infoLabel.classList.toggle('hidden', !show);
+		this._onDidChangeHeight.fire();
 	}
 
 	updateToolbar(show: boolean) {
@@ -399,16 +459,6 @@ export class InlineChatWidget {
 
 	setChatModel(chatModel: IChatModel) {
 		this._chatWidget.setModel(chatModel, { inputValue: undefined });
-	}
-
-
-	/**
-	 * @deprecated use `setChatModel` instead
-	 */
-	addToHistory(input: string) {
-		if (this._chatWidget.viewModel?.model === this._defaultChatModel) {
-			this._chatWidget.input.acceptInput(true);
-		}
 	}
 
 	/**

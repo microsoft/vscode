@@ -11,6 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippets: string | Snippet[]): Promise<Snippet | undefined> {
 
@@ -77,16 +78,17 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 		return result;
 	};
 
-	const picker = quickInputService.createQuickPick<ISnippetPick>();
+	const disposables = new DisposableStore();
+	const picker = disposables.add(quickInputService.createQuickPick<ISnippetPick>({ useSeparators: true }));
 	picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
 	picker.matchOnDetail = true;
 	picker.ignoreFocusOut = false;
 	picker.keepScrollPosition = true;
-	picker.onDidTriggerItemButton(ctx => {
+	disposables.add(picker.onDidTriggerItemButton(ctx => {
 		const isEnabled = snippetService.isEnabled(ctx.item.snippet);
 		snippetService.updateEnablement(ctx.item.snippet, !isEnabled);
 		picker.items = makeSnippetPicks();
-	});
+	}));
 	picker.items = makeSnippetPicks();
 	if (!picker.items.length) {
 		picker.validationMessage = nls.localize('pick.noSnippetAvailable', "No snippet available");
@@ -96,6 +98,6 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 	// wait for an item to be picked or the picker to become hidden
 	await Promise.race([Event.toPromise(picker.onDidAccept), Event.toPromise(picker.onDidHide)]);
 	const result = picker.selectedItems[0]?.snippet;
-	picker.dispose();
+	disposables.dispose();
 	return result;
 }

@@ -439,7 +439,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Resolve
 
-	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
+	lastResolvedFileStat: IFileStatWithMetadata | undefined; // !!! DO NOT MARK PRIVATE! USED IN TESTS !!!
 
 	isResolved(): this is IResolvedStoredFileWorkingCopy<M> {
 		return !!this.model;
@@ -1143,7 +1143,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Do you want to overwrite the file with your changes?", this.name);
 
 			primaryActions.push(toAction({ id: 'fileWorkingCopy.overwrite', label: localize('overwrite', "Overwrite"), run: () => this.save({ ...options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT }) }));
-			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('revert', "Revert"), run: () => this.revert() }));
 		}
 
 		// Any other save error
@@ -1196,8 +1196,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 				}
 			}));
 
-			// Discard
-			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('discard', "Discard"), run: () => this.revert() }));
+			// Revert
+			primaryActions.push(toAction({ id: 'fileWorkingCopy.revert', label: localize('revert', "Revert"), run: () => this.revert() }));
 
 			// Message
 			if (isWriteLocked) {
@@ -1240,6 +1240,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// sync.
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
+		}
+
+		// In all other cases update only the readonly and locked flags
+		else {
+			this.lastResolvedFileStat = { ...this.lastResolvedFileStat, readonly: newFileStat.readonly, locked: newFileStat.locked };
 		}
 
 		// Signal that the readonly state changed

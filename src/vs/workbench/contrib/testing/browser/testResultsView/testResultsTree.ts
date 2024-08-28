@@ -32,12 +32,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
-import { TestOutputSubject, InspectSubject, TaskSubject, MessageSubject, mapFindTestMessage, getMessageArgs } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject, getMessageArgs, mapFindTestMessage } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
+import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
@@ -121,7 +122,19 @@ class CoverageElement implements ITreeElement {
 	) {
 		this.onDidChange = Event.fromObservableLight(coverageService.selected);
 	}
+}
 
+class OlderResultsElement implements ITreeElement {
+	public readonly type = 'older';
+	public readonly context: undefined;
+	public readonly id = `older-${this.n}`;
+	public readonly onDidChange = Event.None;
+	public readonly label: string;
+
+	constructor(private readonly n: number) {
+		this.label = localize('nOlderResults', '{0} older results', n);
+
+	}
 }
 
 class TestCaseElement implements ITreeElement {
@@ -173,7 +186,7 @@ class TaskElement implements ITreeElement {
 	public readonly changeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.changeEmitter.event;
 	public readonly type = 'task';
-	public readonly context: string;
+	public readonly context: { resultId: string; taskId: string };
 	public readonly id: string;
 	public readonly label: string;
 	public readonly itemsCache = new CreationCache<TestCaseElement>();
@@ -185,8 +198,8 @@ class TaskElement implements ITreeElement {
 	constructor(public readonly results: ITestResult, public readonly task: ITestRunTaskResults, public readonly index: number) {
 		this.id = `${results.id}/${index}`;
 		this.task = results.tasks[index];
-		this.context = String(index);
-		this.label = this.task.name ?? localize('testUnnamedTask', 'Unnamed Task');
+		this.context = { resultId: results.id, taskId: this.task.id };
+		this.label = this.task.name;
 	}
 }
 
@@ -248,7 +261,7 @@ class TestMessageElement implements ITreeElement {
 	}
 }
 
-type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TaskElement | CoverageElement;
+type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TaskElement | CoverageElement | OlderResultsElement;
 
 export class OutputPeekTree extends Disposable {
 	private disposed = false;
@@ -268,6 +281,7 @@ export class OutputPeekTree extends Disposable {
 		@ITestExplorerFilterState explorerFilter: ITestExplorerFilterState,
 		@ITestCoverageService coverageService: ITestCoverageService,
 		@IProgressService progressService: IProgressService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -312,6 +326,7 @@ export class OutputPeekTree extends Disposable {
 		)) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		const cc = new CreationCache<TreeElement>();
+
 		const getTaskChildren = (taskElem: TaskElement): Iterable<ICompressedTreeElement<TreeElement>> => {
 			const { results, index, itemsCache, task } = taskElem;
 			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0);
@@ -345,7 +360,7 @@ export class OutputPeekTree extends Disposable {
 				.filter(isDefined);
 		};
 
-		const getResultChildren = (result: ITestResult): Iterable<ICompressedTreeElement<TreeElement>> => {
+		const getResultChildren = (result: ITestResult): ICompressedTreeElement<TreeElement>[] => {
 			return result.tasks.map((task, taskIndex) => {
 				const taskElem = cc.getOrCreate(task, () => new TaskElement(result, task, taskIndex));
 				return ({
@@ -357,16 +372,42 @@ export class OutputPeekTree extends Disposable {
 			});
 		};
 
-		const getRootChildren = () => results.results.map(result => {
-			const element = cc.getOrCreate(result, () => new TestResultElement(result));
-			return {
-				element,
-				incompressible: true,
-				collapsible: true,
-				collapsed: this.tree.hasElement(element) ? this.tree.isCollapsed(element) : true,
-				children: getResultChildren(result)
-			};
-		});
+		const getRootChildren = (): Iterable<ICompressedTreeElement<TreeElement>> => {
+			let children: ICompressedTreeElement<TreeElement>[] = [];
+
+			const older = [];
+
+			for (const result of results.results) {
+				if (!children.length && result.tasks.length) {
+					children = getResultChildren(result);
+				} else if (children) {
+					const element = cc.getOrCreate(result, () => new TestResultElement(result));
+					older.push({
+						element,
+						incompressible: true,
+						collapsible: true,
+						collapsed: this.tree.hasElement(element) ? this.tree.isCollapsed(element) : true,
+						children: getResultChildren(result)
+					});
+				}
+			}
+
+			if (!children.length) {
+				return older;
+			}
+
+			if (older.length) {
+				children.push({
+					element: new OlderResultsElement(older.length),
+					incompressible: true,
+					collapsible: true,
+					collapsed: true,
+					children: older,
+				});
+			}
+
+			return children;
+		};
 
 		// Queued result updates to prevent spamming CPU when lots of tests are
 		// completing and messaging quickly (#142514)
@@ -388,15 +429,12 @@ export class OutputPeekTree extends Disposable {
 		};
 
 		const attachToResults = (result: LiveTestResult) => {
-			const resultNode = cc.get(result)! as TestResultElement;
 			const disposable = new DisposableStore();
 			disposable.add(result.onNewTask(i => {
+				this.tree.setChildren(null, getRootChildren(), { diffIdentityProvider });
+
 				if (result.tasks.length === 1) {
 					this.requestReveal.fire(new TaskSubject(result, 0)); // reveal the first task in new runs
-				}
-
-				if (this.tree.hasElement(resultNode)) {
-					this.tree.setChildren(resultNode, getResultChildren(result), { diffIdentityProvider });
 				}
 
 				// note: tasks are bounded and their lifetime is equivalent to that of
@@ -407,6 +445,7 @@ export class OutputPeekTree extends Disposable {
 					queueTaskChildrenUpdate(cc.get(task) as TaskElement);
 				}));
 			}));
+
 			disposable.add(result.onEndTask(index => {
 				(cc.get(result.tasks[index]) as TaskElement | undefined)?.changeEmitter.fire();
 			}));
@@ -432,11 +471,9 @@ export class OutputPeekTree extends Disposable {
 			}));
 
 			disposable.add(result.onComplete(() => {
-				resultNode.changeEmitter.fire();
+				(cc.get(result) as TestResultElement | undefined)?.changeEmitter.fire();
 				disposable.dispose();
 			}));
-
-			return resultNode;
 		};
 
 		this._register(results.onResultsChanged(e => {
@@ -449,18 +486,10 @@ export class OutputPeekTree extends Disposable {
 
 			if ('completed' in e) {
 				(cc.get(e.completed) as TestResultElement | undefined)?.changeEmitter.fire();
-				return;
-			}
-
-			this.tree.setChildren(null, getRootChildren(), { diffIdentityProvider });
-
-			// done after setChildren intentionally so that the ResultElement exists in the cache.
-			if ('started' in e) {
-				for (const child of this.tree.getNode(null).children) {
-					this.tree.collapse(child.element, false);
-				}
-
-				this.tree.expand(attachToResults(e.started), true);
+			} else if ('started' in e) {
+				attachToResults(e.started);
+			} else {
+				this.tree.setChildren(null, getRootChildren(), { diffIdentityProvider });
 			}
 		}));
 
@@ -544,6 +573,16 @@ export class OutputPeekTree extends Disposable {
 
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+
+		this._register(this.tree.onDidChangeCollapseState(e => {
+			if (e.node.element instanceof OlderResultsElement && !e.node.collapsed) {
+				telemetryService.publicLog2<{}, {
+					owner: 'connor4312';
+					// we're considering removing or depromoting this feature because we don't think it's used:
+					comment: 'Records that test history was used';
+				}>('testing.expandOlderResults');
+			}
+		}));
 
 		this.tree.setChildren(null, getRootChildren());
 		for (const result of results.results) {
@@ -708,6 +747,15 @@ class TreeActionsProvider {
 				undefined,
 				() => this.requestReveal.fire(new TaskSubject(element.results, element.index)),
 			));
+			if (element.task.running) {
+				primary.push(new Action(
+					'testing.outputPeek.cancel',
+					localize('testing.cancelRun', 'Cancel Test Run'),
+					ThemeIcon.asClassName(icons.testingCancelIcon),
+					undefined,
+					() => this.commandService.executeCommand(TestCommandId.CancelTestRunAction, element.results.id, element.task.id),
+				));
+			}
 		}
 
 		if (element instanceof TestResultElement) {

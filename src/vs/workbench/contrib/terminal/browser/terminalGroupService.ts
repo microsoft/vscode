@@ -14,11 +14,13 @@ import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { asArray } from 'vs/base/common/arrays';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -34,6 +36,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private _terminalGroupCountContextKey: IContextKey<number>;
 
 	private _container: HTMLElement | undefined;
+
+	private _isQuickInputOpened: boolean = false;
 
 	private readonly _onDidChangeActiveGroup = this._register(new Emitter<ITerminalGroup | undefined>());
 	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
@@ -62,7 +66,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -71,6 +76,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._register(this.onDidDisposeGroup(group => this._removeGroup(group)));
 		this._register(this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length)));
 		this._register(Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility()));
+		this._register(this._quickInputService.onShow(() => this._isQuickInputOpened = true));
+		this._register(this._quickInputService.onHide(() => this._isQuickInputOpened = false));
 	}
 
 	hidePanel(): void {
@@ -208,7 +215,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		if (wasActiveGroup) {
 			// Adjust focus if the group was active
-			if (this.groups.length > 0) {
+			if (this.groups.length > 0 && !this._isQuickInputOpened) {
 				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
 				this.setActiveGroupByIndex(newIndex, true);
 				this.activeInstance?.focus(true);
@@ -318,40 +325,66 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.setActiveGroupByIndex(newIndex);
 	}
 
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance) {
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
+	private _getValidTerminalGroups = (sources: ITerminalInstance[]): Set<ITerminalGroup> => {
+		return new Set(
+			sources
+				.map(source => this.getGroupForInstance(source))
+				.filter((group) => group !== undefined)
+		);
+	};
 
-		// Something went wrong
-		if (!sourceGroup || !targetGroup) {
+	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance) {
+		source = asArray(source);
+		const sourceGroups = this._getValidTerminalGroups(source);
+		const targetGroup = this.getGroupForInstance(target);
+		if (!targetGroup || sourceGroups.size === 0) {
 			return;
 		}
 
 		// The groups are the same, rearrange within the group
-		if (sourceGroup === targetGroup) {
-			const index = sourceGroup.terminalInstances.indexOf(target);
-			if (index !== -1) {
-				sourceGroup.moveInstance(source, index);
-			}
+		if (sourceGroups.size === 1 && sourceGroups.has(targetGroup)) {
+			const targetIndex = targetGroup.terminalInstances.indexOf(target);
+			const sortedSources = source.sort((a, b) => {
+				return targetGroup.terminalInstances.indexOf(a) - targetGroup.terminalInstances.indexOf(b);
+			});
+			const firstTargetIndex = targetGroup.terminalInstances.indexOf(sortedSources[0]);
+			const position: 'before' | 'after' = firstTargetIndex < targetIndex ? 'after' : 'before';
+			targetGroup.moveInstance(sortedSources, targetIndex, position);
+			this._onDidChangeInstances.fire();
 			return;
 		}
 
 		// The groups differ, rearrange groups
-		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
 		const targetGroupIndex = this.groups.indexOf(targetGroup);
-		this.groups.splice(sourceGroupIndex, 1);
-		this.groups.splice(targetGroupIndex, 0, sourceGroup);
+		const sortedSourceGroups = Array.from(sourceGroups).sort((a, b) => {
+			return this.groups.indexOf(a) - this.groups.indexOf(b);
+		});
+		const firstSourceGroupIndex = this.groups.indexOf(sortedSourceGroups[0]);
+		const position: 'before' | 'after' = firstSourceGroupIndex < targetGroupIndex ? 'after' : 'before';
+		const insertIndex = position === 'after' ? targetGroupIndex + 1 : targetGroupIndex;
+		this.groups.splice(insertIndex, 0, ...sortedSourceGroups);
+		for (const sourceGroup of sortedSourceGroups) {
+			const originSourceGroupIndex = position === 'after' ? this.groups.indexOf(sourceGroup) : this.groups.lastIndexOf(sourceGroup);
+			this.groups.splice(originSourceGroupIndex, 1);
+		}
 		this._onDidChangeInstances.fire();
 	}
 
-	moveGroupToEnd(source: ITerminalInstance): void {
-		const sourceGroup = this.getGroupForInstance(source);
-		if (!sourceGroup) {
+	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void {
+		source = asArray(source);
+		const sourceGroups = this._getValidTerminalGroups(source);
+		if (sourceGroups.size === 0) {
 			return;
 		}
-		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
-		this.groups.splice(sourceGroupIndex, 1);
-		this.groups.push(sourceGroup);
+		const lastInstanceIndex = this.groups.length - 1;
+		const sortedSourceGroups = Array.from(sourceGroups).sort((a, b) => {
+			return this.groups.indexOf(a) - this.groups.indexOf(b);
+		});
+		this.groups.splice(lastInstanceIndex + 1, 0, ...sortedSourceGroups);
+		for (const sourceGroup of sortedSourceGroups) {
+			const sourceGroupIndex = this.groups.indexOf(sourceGroup);
+			this.groups.splice(sourceGroupIndex, 1);
+		}
 		this._onDidChangeInstances.fire();
 	}
 
@@ -371,7 +404,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		// Rearrange within the target group
 		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
-		targetGroup.moveInstance(source, index);
+		targetGroup.moveInstance(source, index, side);
 	}
 
 	unsplitInstance(instance: ITerminalInstance) {

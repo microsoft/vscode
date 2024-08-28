@@ -9,7 +9,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { assertType } from 'vs/base/common/types';
 import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from 'vs/editor/common/services/editorWorker';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
@@ -18,7 +18,7 @@ import { TextEdit } from 'vs/editor/common/languages';
 
 export class TestWorkerService extends mock<IEditorWorkerService>() {
 
-	private readonly _worker = new EditorSimpleWorker(null!, null);
+	private readonly _worker = new BaseEditorSimpleWorker();
 
 	constructor(@IModelService private readonly _modelService: IModelService) {
 		super();
@@ -36,21 +36,21 @@ export class TestWorkerService extends mock<IEditorWorkerService>() {
 		assertType(originalModel);
 		assertType(modifiedModel);
 
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: originalModel.uri.toString(),
 			versionId: originalModel.getVersionId(),
 			lines: originalModel.getLinesContent(),
 			EOL: originalModel.getEOL(),
 		});
 
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: modifiedModel.uri.toString(),
 			versionId: modifiedModel.getVersionId(),
 			lines: modifiedModel.getLinesContent(),
 			EOL: modifiedModel.getEOL(),
 		});
 
-		const result = await this._worker.computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
+		const result = await this._worker.$computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
 		if (!result) {
 			return result;
 		}

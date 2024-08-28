@@ -101,6 +101,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
+import { NotebookHorizontalTracker } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookHorizontalTracker';
+import { NotebookCellEditorPool } from 'vs/workbench/contrib/notebook/browser/view/notebookCellEditorPool';
 
 const $ = DOM.$;
 
@@ -150,6 +152,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeDecorations: Event<void> = this._onDidChangeDecorations.event;
 	private readonly _onDidScroll = this._register(new Emitter<void>());
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
+	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
 	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
 	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
 	private readonly _onDidChangeFocus = this._register(new Emitter<void>());
@@ -199,6 +203,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _dndController: CellDragAndDropController | null = null;
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
 	private _renderedEditors: Map<ICellViewModel, ICodeEditor> = new Map();
+	private _editorPool!: NotebookCellEditorPool;
 	private _viewContext: ViewContext;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private readonly _localStore: DisposableStore = this._register(new DisposableStore());
@@ -257,6 +262,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const [focused] = this._list.getFocusedElements();
 		return this._renderedEditors.get(focused);
+	}
+
+	get activeCellAndCodeEditor(): [ICellViewModel, ICodeEditor] | undefined {
+		if (this._isDisposed) {
+			return;
+		}
+
+		const [focused] = this._list.getFocusedElements();
+		const editor = this._renderedEditors.get(focused);
+		if (!editor) {
+			return;
+		}
+		return [focused, editor];
 	}
 
 	get codeEditors(): [ICellViewModel, ICodeEditor][] {
@@ -323,6 +341,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._notebookOptions,
 			eventDispatcher,
 			language => this.getBaseCellEditorOptions(language));
+		this._register(this._viewContext.eventDispatcher.onDidChangeLayout(() => {
+			this._onDidChangeLayout.fire();
+		}));
 		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
 			this._onDidChangeCellState.fire(e);
 		}));
@@ -610,6 +631,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.scrollableElement.appendChild(this._notebookOverviewRulerContainer);
 		this._registerNotebookOverviewRuler();
 
+		this._register(this.instantiationService.createInstance(NotebookHorizontalTracker, this, this._list.scrollableElement));
+
 		this._overflowContainer = document.createElement('div');
 		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
@@ -896,11 +919,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _createCellList(): void {
 		this._body.classList.add('cell-list-container');
-
 		this._dndController = this._register(new CellDragAndDropController(this, this._body));
 		const getScopedContextKeyService = (container: HTMLElement) => this._list.contextKeyService.createScoped(container);
+		this._editorPool = this._register(this.instantiationService.createInstance(NotebookCellEditorPool, this, getScopedContextKeyService));
 		const renderers = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._dndController, getScopedContextKeyService),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._editorPool, this._dndController, getScopedContextKeyService),
 			this.instantiationService.createInstance(MarkupCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService),
 		];
 
@@ -1065,27 +1088,22 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookStickyScroll() {
-		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._list));
+		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._list, (sizeDelta) => {
+			if (this.isDisposed) {
+				return;
+			}
 
-		const localDisposableStore = this._register(new DisposableStore());
-
-		this._register(this._notebookStickyScroll.onDidChangeNotebookStickyScroll((sizeDelta) => {
-			const d = localDisposableStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
-				if (this.isDisposed) {
-					return;
+			if (this._dimension && this._isVisible) {
+				if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
+					this.layout(this._dimension);
+					this.setScrollTop(this.scrollTop + sizeDelta);
+				} else if (sizeDelta < 0) { // delta < 0 ==> sticky is shrinking, cell list growing
+					this.setScrollTop(this.scrollTop + sizeDelta);
+					this.layout(this._dimension);
 				}
+			}
 
-				if (this._dimension && this._isVisible) {
-					if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
-						this.layout(this._dimension);
-						this.setScrollTop(this.scrollTop + sizeDelta);
-					} else if (sizeDelta < 0) { // delta < 0 ==> sticky is shrinking, cell list growing
-						this.setScrollTop(this.scrollTop + sizeDelta);
-						this.layout(this._dimension);
-					}
-				}
-				localDisposableStore.delete(d);
-			}));
+			this._onDidScroll.fire();
 		}));
 	}
 
@@ -2098,6 +2116,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	get scrollTop() {
 		return this._list.scrollTop;
+	}
+
+	get scrollBottom() {
+		return this._list.scrollTop + this._list.getRenderHeight();
 	}
 
 	getAbsoluteTopOfElement(cell: ICellViewModel) {

@@ -3,28 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
-import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from 'vs/workbench/services/search/common/search';
+import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
 	toCanonicalName: (encoding: string) => string;
 }
 interface IAITextQueryProviderPair {
-	query: IAITextQuery; provider: AITextSearchProvider;
+	query: IAITextQuery; provider: AITextSearchProviderNew;
 }
 
 interface ITextQueryProviderPair {
-	query: ITextQuery; provider: TextSearchProvider;
+	query: ITextQuery; provider: TextSearchProviderNew;
 }
+interface FolderQueryInfo {
+	queryTester: QueryGlobTester;
+	folder: URI;
+	folderIdx: number;
+}
+
 export class TextSearchManager {
 
 	private collector: TextSearchResultsCollector | null = null;
@@ -48,14 +54,14 @@ export class TextSearchManager {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
-			const onResult = (result: TextSearchResult, folderIdx: number) => {
+			const onResult = (result: TextSearchResultNew, folderIdx: number) => {
 				if (isCanceled) {
 					return;
 				}
 
 				if (!this.isLimitHit) {
 					const resultSize = this.resultSize(result);
-					if (extensionResultIsMatch(result) && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
+					if (result instanceof TextSearchMatchNew && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
 						this.isLimitHit = true;
 						isCanceled = true;
 						tokenSource.cancel();
@@ -65,27 +71,22 @@ export class TextSearchManager {
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
-					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
+					const a = result instanceof TextSearchMatchNew;
+
+					if (newResultSize > 0 || !a) {
 						this.collector!.add(result, folderIdx);
 					}
 				}
 			};
 
 			// For each root folder
-			Promise.all(folderQueries.map((fq, i) => {
-				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
-			})).then(results => {
+			this.doSearch(folderQueries, onResult, tokenSource.token).then(result => {
 				tokenSource.dispose();
 				this.collector!.flush();
 
-				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
-					limitHit: this.isLimitHit || someFolderHitLImit,
-					messages: results.flatMap(result => {
-						if (!result?.message) { return []; }
-						if (Array.isArray(result.message)) { return result.message; }
-						else { return [result.message]; }
-					}),
+					limitHit: this.isLimitHit || result?.limitHit,
+					messages: this.getMessagesFromResults(result),
 					stats: {
 						type: this.processType
 					}
@@ -98,8 +99,14 @@ export class TextSearchManager {
 		});
 	}
 
-	private resultSize(result: TextSearchResult): number {
-		if (extensionResultIsMatch(result)) {
+	private getMessagesFromResults(result: TextSearchCompleteNew | null | undefined) {
+		if (!result?.message) { return []; }
+		if (Array.isArray(result.message)) { return result.message; }
+		return [result.message];
+	}
+
+	private resultSize(result: TextSearchResultNew): number {
+		if (result instanceof TextSearchMatchNew) {
 			return Array.isArray(result.ranges) ?
 				result.ranges.length :
 				1;
@@ -110,29 +117,25 @@ export class TextSearchManager {
 		}
 	}
 
-	private trimResultToSize(result: TextSearchMatch, size: number): TextSearchMatch {
-		const rangesArr = Array.isArray(result.ranges) ? result.ranges : [result.ranges];
-		const matchesArr = Array.isArray(result.preview.matches) ? result.preview.matches : [result.preview.matches];
-
-		return {
-			ranges: rangesArr.slice(0, size),
-			preview: {
-				matches: matchesArr.slice(0, size),
-				text: result.preview.text
-			},
-			uri: result.uri
-		};
+	private trimResultToSize(result: TextSearchMatchNew, size: number): TextSearchMatchNew {
+		return new TextSearchMatchNew(result.uri, result.ranges.slice(0, size), result.previewText);
 	}
 
-	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
-		const queryTester = new QueryGlobTester(this.query, folderQuery);
+	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
+		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
+		folderQueries.forEach((fq, i) => {
+			const queryTester = new QueryGlobTester(this.query, fq);
+			folderMappings.set(fq.folder, { queryTester, folder: fq.folder, folderIdx: i });
+		});
+
 		const testingPs: Promise<void>[] = [];
 		const progress = {
-			report: (result: TextSearchResult) => {
-				if (!this.validateProviderResult(result)) {
-					return;
-				}
+			report: (result: TextSearchResultNew) => {
 
+				if (result.uri === undefined) {
+					throw Error('Text search result URI is undefined. Please check provider implementation.');
+				}
+				const folderQuery = folderMappings.findSubstr(result.uri)!;
 				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
 					hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));
@@ -142,23 +145,32 @@ export class TextSearchManager {
 				const relativePath = resources.relativePath(folderQuery.folder, result.uri);
 				if (relativePath) {
 					// This method is only async when the exclude contains sibling clauses
-					const included = queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
+					const included = folderQuery.queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
 					if (isThenable(included)) {
 						testingPs.push(
 							included.then(isIncluded => {
 								if (isIncluded) {
-									onResult(result);
+									onResult(result, folderQuery.folderIdx);
 								}
 							}));
 					} else if (included) {
-						onResult(result);
+						onResult(result, folderQuery.folderIdx);
 					}
 				}
 			}
 		};
 
-		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-
+		const folderOptions = folderQueries.map(fq => this.getSearchOptionsForFolder(fq));
+		const searchOptions: TextSearchProviderOptions = {
+			folderOptions,
+			maxFileSize: this.query.maxFileSize,
+			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
+			previewOptions: this.query.previewOptions ?? DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS,
+			surroundingContext: this.query.surroundingContext ?? 0,
+		};
+		if ('usePCRE2' in this.query) {
+			(<IExtendedExtensionSearchOptions>searchOptions).usePCRE2 = this.query.usePCRE2;
+		}
 
 		let result;
 		if (this.queryProviderPair.query.type === QueryType.aiText) {
@@ -173,56 +185,39 @@ export class TextSearchManager {
 		return result;
 	}
 
-	private validateProviderResult(result: TextSearchResult): boolean {
-		if (extensionResultIsMatch(result)) {
-			if (Array.isArray(result.ranges)) {
-				if (!Array.isArray(result.preview.matches)) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same type.');
-					return false;
-				}
-
-				if ((<Range[]>result.preview.matches).length !== result.ranges.length) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
-					return false;
-				}
-			} else {
-				if (Array.isArray(result.preview.matches)) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchOptions {
+	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchProviderFolderOptions {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
-		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
+
+		let excludePattern = fq.excludePattern?.map(e => ({
+			folder: e.folder,
+			patterns: resolvePatternsForProvider(this.query.excludePattern, e.pattern)
+		}));
+
+		if (!excludePattern || excludePattern.length === 0) {
+			excludePattern = [{
+				folder: undefined,
+				patterns: resolvePatternsForProvider(this.query.excludePattern, undefined)
+			}];
+		}
+		const excludes = excludeToGlobPattern(excludePattern);
 
 		const options = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
-			useIgnoreFiles: !fq.disregardIgnoreFiles,
-			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
-			useParentIgnoreFiles: !fq.disregardParentIgnoreFiles,
+			useIgnoreFiles: {
+				local: !fq.disregardIgnoreFiles,
+				parent: !fq.disregardParentIgnoreFiles,
+				global: !fq.disregardGlobalIgnoreFiles
+			},
 			followSymlinks: !fq.ignoreSymlinks,
-			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
-			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
-			previewOptions: this.query.previewOptions,
-			afterContext: this.query.afterContext,
-			beforeContext: this.query.beforeContext
+			encoding: (fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding)) ?? '',
 		};
-		if ('usePCRE2' in this.query) {
-			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
-		}
 		return options;
 	}
 }
 
-function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
+function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQueryNew {
 	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,
@@ -243,7 +238,7 @@ export class TextSearchResultsCollector {
 		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
 	}
 
-	add(data: TextSearchResult, folderIdx: number): void {
+	add(data: TextSearchResultNew, folderIdx: number): void {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
@@ -280,25 +275,25 @@ export class TextSearchResultsCollector {
 	}
 }
 
-function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
+function extensionResultToFrontendResult(data: TextSearchResultNew): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
-	if (extensionResultIsMatch(data)) {
+	if (data instanceof TextSearchMatchNew) {
 		return {
-			preview: {
-				matches: mapArrayOrNot(data.preview.matches, m => ({
-					startLineNumber: m.start.line,
-					startColumn: m.start.character,
-					endLineNumber: m.end.line,
-					endColumn: m.end.character
-				})),
-				text: data.preview.text
-			},
-			ranges: mapArrayOrNot(data.ranges, r => ({
-				startLineNumber: r.start.line,
-				startColumn: r.start.character,
-				endLineNumber: r.end.line,
-				endColumn: r.end.character
-			}))
+			previewText: data.previewText,
+			rangeLocations: data.ranges.map(r => ({
+				preview: {
+					startLineNumber: r.previewRange.start.line,
+					startColumn: r.previewRange.start.character,
+					endLineNumber: r.previewRange.end.line,
+					endColumn: r.previewRange.end.character
+				} satisfies ISearchRange,
+				source: {
+					startLineNumber: r.sourceRange.start.line,
+					startColumn: r.sourceRange.start.character,
+					endLineNumber: r.sourceRange.end.line,
+					endColumn: r.sourceRange.end.character
+				} satisfies ISearchRange,
+			})),
 		} satisfies ITextSearchMatch;
 	} else {
 		return {
@@ -308,9 +303,6 @@ function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchRes
 	}
 }
 
-export function extensionResultIsMatch(data: TextSearchResult): data is TextSearchMatch {
-	return !!(<TextSearchMatch>data).preview;
-}
 
 /**
  * Collects items that have a size - before the cumulative size of collected items reaches START_BATCH_AFTER_COUNT, the callback is called for every

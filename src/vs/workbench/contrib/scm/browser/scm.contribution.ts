@@ -7,7 +7,7 @@ import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity';
@@ -32,9 +32,12 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
-import { getActiveElement } from 'vs/base/browser/dom';
+import { getActiveElement, isActiveElement } from 'vs/base/browser/dom';
 import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { isSCMRepository } from 'vs/workbench/contrib/scm/browser/util';
+import { SCMHistoryViewPane } from 'vs/workbench/contrib/scm/browser/scmHistoryViewPane';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -82,7 +85,7 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
-	weight: 80,
+	weight: 40,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
@@ -109,6 +112,18 @@ viewsRegistry.registerViews([{
 	order: -1000,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
+	containerIcon: sourceControlViewIcon
+}], viewContainer);
+
+viewsRegistry.registerViews([{
+	id: HISTORY_VIEW_PANE_ID,
+	name: localize2('source control history', "Source Control Graph"),
+	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
+	canToggleVisibility: true,
+	canMoveView: true,
+	weight: 40,
+	order: 2, /* https://github.com/microsoft/vscode/issues/226447 */
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
@@ -308,33 +323,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('showInputActionButton', "Controls whether an action button can be shown in the Source Control input."),
 			default: true
 		},
-		'scm.showIncomingChanges': {
-			type: 'string',
-			enum: ['always', 'never', 'auto'],
-			enumDescriptions: [
-				localize('scm.showIncomingChanges.always', "Always show incoming changes in the Source Control view."),
-				localize('scm.showIncomingChanges.never', "Never show incoming changes in the Source Control view."),
-				localize('scm.showIncomingChanges.auto', "Only show incoming changes in the Source Control view when any exist."),
-			],
-			description: localize('scm.showIncomingChanges', "Controls whether incoming changes are shown in the Source Control view."),
-			default: 'auto'
-		},
-		'scm.showOutgoingChanges': {
-			type: 'string',
-			enum: ['always', 'never', 'auto'],
-			enumDescriptions: [
-				localize('scm.showOutgoingChanges.always', "Always show outgoing changes in the Source Control view."),
-				localize('scm.showOutgoingChanges.never', "Never show outgoing changes in the Source Control view."),
-				localize('scm.showOutgoingChanges.auto', "Only show outgoing changes in the Source Control view when any exist."),
-			],
-			description: localize('scm.showOutgoingChanges', "Controls whether outgoing changes are shown in the Source Control view."),
-			default: 'auto'
-		},
-		'scm.showChangesSummary': {
-			type: 'boolean',
-			description: localize('scm.showChangesSummary', "Controls whether the All Changes entry is shown for incoming/outgoing changes in the Source Control view."),
-			default: true
-		},
 		'scm.workingSets.enabled': {
 			type: 'boolean',
 			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
@@ -350,9 +338,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
 			default: 'current'
 		},
-		'scm.showHistoryGraph': {
+		'scm.compactFolders': {
 			type: 'boolean',
-			description: localize('scm.showHistoryGraph', "Controls whether to render incoming/outgoing changes using a graph in the Source Control view."),
+			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
 			default: true
 		}
 	}
@@ -458,12 +446,35 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
-CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, provider: ISCMProvider) => {
-	if (!provider || !provider.rootUri) {
+CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, ...providers: ISCMProvider[]) => {
+	if (!providers || providers.length === 0) {
 		return;
 	}
 
 	const commandService = accessor.get(ICommandService);
+	const listService = accessor.get(IListService);
+
+	let provider = providers.length === 1 ? providers[0] : undefined;
+
+	if (!provider) {
+		const list = listService.lastFocusedList;
+		const element = list?.getHTMLElement();
+
+		if (list instanceof WorkbenchList && element && isActiveElement(element)) {
+			const [index] = list.getFocus();
+			const focusedElement = list.element(index);
+
+			// Source Control Repositories
+			if (isSCMRepository(focusedElement)) {
+				provider = focusedElement.provider;
+			}
+		}
+	}
+
+	if (!provider?.rootUri) {
+		return;
+	}
+
 	await commandService.executeCommand('openInIntegratedTerminal', provider.rootUri);
 });
 

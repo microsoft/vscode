@@ -145,8 +145,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return result;
 	}
 
-
-
 	private static _convertNotebookRegistrationData(extension: IExtensionDescription, registration: vscode.NotebookRegistrationData | undefined): INotebookContributionData | undefined {
 		if (!registration) {
 			return;
@@ -205,28 +203,25 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return assertIsDefined(document?.apiNotebook);
 	}
 
-
-	async showNotebookDocument(notebookOrUri: vscode.NotebookDocument | URI, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
-
-		if (URI.isUri(notebookOrUri)) {
-			notebookOrUri = await this.openNotebookDocument(notebookOrUri);
-		}
-
+	async showNotebookDocument(notebook: vscode.NotebookDocument, options?: vscode.NotebookDocumentShowOptions): Promise<vscode.NotebookEditor> {
 		let resolvedOptions: INotebookDocumentShowOptions;
 		if (typeof options === 'object') {
 			resolvedOptions = {
 				position: typeConverters.ViewColumn.from(options.viewColumn),
 				preserveFocus: options.preserveFocus,
 				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
-				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined
+				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				label: options?.label
 			};
 		} else {
 			resolvedOptions = {
-				preserveFocus: false
+				preserveFocus: false,
+				pinned: true
 			};
 		}
 
-		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.notebookType, resolvedOptions);
+		const viewType = options?.asRepl ? 'repl' : notebook.notebookType;
+		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebook.uri, viewType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
 		if (editor) {
@@ -234,9 +229,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (editorId) {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}" because another editor opened in the meantime.`);
+			throw new Error(`Could NOT open editor for "${notebook.uri.toString()}" because another editor opened in the meantime.`);
 		} else {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}".`);
+			throw new Error(`Could NOT open editor for "${notebook.uri.toString()}".`);
 		}
 	}
 

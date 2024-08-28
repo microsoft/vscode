@@ -5,6 +5,8 @@
 
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { ListResizeColumnAction } from 'vs/workbench/contrib/list/browser/listResizeColumnAction';
 
 export class ListContext implements IWorkbenchContribution {
 
@@ -21,3 +23,5 @@ export class ListContext implements IWorkbenchContribution {
 }
 
 registerWorkbenchContribution2(ListContext.ID, ListContext, WorkbenchPhase.BlockStartup);
+registerAction2(ListResizeColumnAction);
+

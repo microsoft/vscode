@@ -56,6 +56,12 @@ import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVari
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { NullWorkbenchAssignmentService } from 'vs/workbench/services/assignment/test/common/nullAssignmentService';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import { MockLanguageModelToolsService } from 'vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService';
+import { IChatRequestModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { assertSnapshot } from 'vs/base/test/common/snapshot';
 
 suite('InlineChatSession', function () {
 
@@ -89,6 +95,7 @@ suite('InlineChatSession', function () {
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
+			[ILanguageModelToolsService, new MockLanguageModelToolsService()],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop
@@ -115,7 +122,8 @@ suite('InlineChatSession', function () {
 			[IConfigurationService, new TestConfigurationService()],
 			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 				override onDidChangeLocation = Event.None;
-			}]
+			}],
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
 		);
 
 
@@ -133,7 +141,8 @@ suite('InlineChatSession', function () {
 			isDefault: true,
 			locations: [ChatAgentLocation.Editor],
 			metadata: {},
-			slashCommands: []
+			slashCommands: [],
+			disambiguation: [],
 		}, {
 			async invoke() {
 				return {};
@@ -480,4 +489,90 @@ suite('InlineChatSession', function () {
 
 		inlineChatSessionService.releaseSession(session);
 	});
+
+	test('Pressing Escape after inline chat errored with "response filtered" leaves document dirty #7764', async function () {
+
+		const origValue = `class Foo {
+	private onError(error: string): void {
+		if (/The request timed out|The network connection was lost/i.test(error)) {
+			return;
+		}
+
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: error,
+			source: nls.localize('update service', "Update Service"),
+		});
+	}
+}`;
+		model.setValue(origValue);
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		const fakeRequest = new class extends mock<IChatRequestModel>() {
+			override get id() { return 'one'; }
+		};
+		session.markModelVersion(fakeRequest);
+
+		assert.strictEqual(editor.getModel().getLineCount(), 15);
+
+		await makeEditAsAi([EditOperation.replace(new Range(7, 1, 7, Number.MAX_SAFE_INTEGER), `error = error.replace(
+			/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/,
+			'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information'
+		);`)]);
+
+		assert.strictEqual(editor.getModel().getLineCount(), 18);
+
+		// called when a response errors out
+		await session.undoChangesUntil(fakeRequest.id);
+		await session.hunkData.recompute({ applied: 0, sha1: 'fakeSha1' }, undefined);
+
+		assert.strictEqual(editor.getModel().getValue(), origValue);
+
+		session.hunkData.discardAll(); // called when dimissing the session
+		assert.strictEqual(editor.getModel().getValue(), origValue);
+	});
+
+	test('Apply Code\'s preview should be easier to undo/esc #7537', async function () {
+		model.setValue(`export function fib(n) {
+	if (n <= 0) return 0;
+	if (n === 1) return 0;
+	if (n === 2) return 1;
+	return fib(n - 1) + fib(n - 2);
+}`);
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.replace(new Range(5, 1, 6, Number.MAX_SAFE_INTEGER), `
+	let a = 0, b = 1, c;
+	for (let i = 3; i <= n; i++) {
+		c = a + b;
+		a = b;
+		b = c;
+	}
+	return b;
+}`)]);
+
+		assert.strictEqual(session.hunkData.size, 1);
+		assert.strictEqual(session.hunkData.pending, 1);
+		assert.ok(session.hunkData.getInfo().every(d => d.getState() === HunkState.Pending));
+
+		await assertSnapshot(editor.getModel().getValue(), { name: '1' });
+
+		await model.undo();
+		await assertSnapshot(editor.getModel().getValue(), { name: '2' });
+
+		// overlapping edits (even UNDO) mark edits as accepted
+		assert.strictEqual(session.hunkData.size, 1);
+		assert.strictEqual(session.hunkData.pending, 0);
+		assert.ok(session.hunkData.getInfo().every(d => d.getState() === HunkState.Accepted));
+
+		// no further change when discarding
+		session.hunkData.discardAll(); // CANCEL
+		await assertSnapshot(editor.getModel().getValue(), { name: '2' });
+	});
+
 });

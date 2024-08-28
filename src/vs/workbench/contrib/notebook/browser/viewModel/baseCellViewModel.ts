@@ -8,6 +8,7 @@ import { Disposable, IDisposable, IReference, MutableDisposable, dispose } from 
 import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorCommentsOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -83,6 +84,15 @@ export abstract class BaseCellViewModel extends Disposable {
 
 		this._lineNumbers = lineNumbers;
 		this._onDidChangeState.fire({ cellLineNumberChanged: true });
+	}
+
+	private _commentOptions: IEditorCommentsOptions;
+	public get commentOptions(): IEditorCommentsOptions {
+		return this._commentOptions;
+	}
+
+	public set commentOptions(newOptions: IEditorCommentsOptions) {
+		this._commentOptions = newOptions;
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -208,6 +218,13 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this.model.collapseState?.outputCollapsed) {
 			this._outputCollapsed = true;
 		}
+
+		this._commentOptions = this._configurationService.getValue<IEditorCommentsOptions>('editor.comments', { overrideIdentifier: this.language });
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.comments')) {
+				this._commentOptions = this._configurationService.getValue<IEditorCommentsOptions>('editor.comments', { overrideIdentifier: this.language });
+			}
+		}));
 	}
 
 
@@ -510,12 +527,24 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	setSelections(selections: Selection[]) {
 		if (selections.length) {
-			this._textEditor?.setSelections(selections);
+			if (this._textEditor) {
+				this._textEditor?.setSelections(selections);
+			} else if (this._editorViewStates) {
+				this._editorViewStates.cursorState = selections.map(selection => {
+					return {
+						inSelectionMode: !selection.isEmpty(),
+						selectionStart: selection.getStartPosition(),
+						position: selection.getEndPosition(),
+					};
+				});
+			}
 		}
 	}
 
 	getSelections() {
-		return this._textEditor?.getSelections() || [];
+		return this._textEditor?.getSelections()
+			?? this._editorViewStates?.cursorState.map(state => new Selection(state.selectionStart.lineNumber, state.selectionStart.column, state.position.lineNumber, state.position.column))
+			?? [];
 	}
 
 	getSelectionsStartPosition(): IPosition[] | undefined {

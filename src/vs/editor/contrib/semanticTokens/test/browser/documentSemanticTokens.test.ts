@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -29,6 +30,7 @@ import { TestTextResourcePropertiesService } from 'vs/editor/test/common/service
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -50,12 +52,14 @@ suite('ModelSemanticColoring', () => {
 		languageFeaturesService = new LanguageFeaturesService();
 		languageService = disposables.add(new LanguageService(false));
 		const semanticTokensStylingService = disposables.add(new SemanticTokensStylingService(themeService, logService, languageService));
+		const instantiationService = new TestInstantiationService();
+		instantiationService.set(ILanguageService, languageService);
+		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
 		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
-			languageService,
-			new TestLanguageConfigurationService(),
+			instantiationService
 		));
 		const envService = new class extends mock<IEnvironmentService>() {
 			override isBuilt: boolean = true;

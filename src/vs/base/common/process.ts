@@ -21,7 +21,7 @@ if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.process !== 'unde
 }
 
 // Native node.js environment
-else if (typeof process !== 'undefined') {
+else if (typeof process !== 'undefined' && typeof process?.versions?.node === 'string') {
 	safeProcess = {
 		get platform() { return process.platform; },
 		get arch() { return process.arch; },

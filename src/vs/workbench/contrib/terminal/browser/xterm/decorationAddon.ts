@@ -468,7 +468,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _showToggleVisibilityQuickPick() {
-		const quickPick = this._quickInputService.createQuickPick();
+		const quickPick = this._register(this._quickInputService.createQuickPick());
 		quickPick.hideInput = true;
 		quickPick.hideCheckAll = true;
 		quickPick.canSelectMany = true;
@@ -493,7 +493,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 		}
 		quickPick.selectedItems = selectedItems;
-		quickPick.onDidChangeSelection(async e => {
+		this._register(quickPick.onDidChangeSelection(async e => {
 			let newValue: 'both' | 'gutter' | 'overviewRuler' | 'never' = 'never';
 			if (e.includes(gutterIcon)) {
 				if (e.includes(overviewRulerIcon)) {
@@ -505,7 +505,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				newValue = 'overviewRuler';
 			}
 			await this._configurationService.updateValue(TerminalSettingId.ShellIntegrationDecorationsEnabled, newValue);
-		});
+		}));
 		quickPick.ok = false;
 		quickPick.show();
 	}

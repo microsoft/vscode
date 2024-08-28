@@ -799,8 +799,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			let quickInputVisible = false;
-			quickInputService.onShow(() => quickInputVisible = true);
-			quickInputService.onHide(() => quickInputVisible = false);
+			this._register(quickInputService.onShow(() => quickInputVisible = true));
+			this._register(quickInputService.onHide(() => quickInputVisible = false));
 
 			let visibleProgress: VisibleProgress | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;

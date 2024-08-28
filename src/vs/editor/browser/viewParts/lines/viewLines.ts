@@ -11,7 +11,7 @@ import { Constants } from 'vs/base/common/uint';
 import 'vs/css!./viewLines';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
-import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
+import { VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
 import { ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
@@ -87,7 +87,7 @@ class HorizontalRevealSelectionsRequest {
 
 type HorizontalRevealRequest = HorizontalRevealRangeRequest | HorizontalRevealSelectionsRequest;
 
-export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, IViewLines {
+export class ViewLines extends ViewPart implements IViewLines {
 	/**
 	 * Adds this amount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
 	 */
@@ -122,10 +122,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
 		super(context);
-		this._linesContent = linesContent;
-		this._textRangeRestingSpot = document.createElement('div');
-		this._visibleLines = new VisibleLinesCollection(this);
-		this.domNode = this._visibleLines.domNode;
 
 		const conf = this._context.configuration;
 		const options = this._context.configuration.options;
@@ -140,6 +136,13 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
 		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+
+		this._linesContent = linesContent;
+		this._textRangeRestingSpot = document.createElement('div');
+		this._visibleLines = new VisibleLinesCollection({
+			createLine: () => new ViewLine(this._viewLineOptions),
+		});
+		this.domNode = this._visibleLines.domNode;
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName(`view-lines ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
@@ -172,14 +175,6 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this.domNode;
 	}
-
-	// ---- begin IVisibleLinesHost
-
-	public createVisibleLine(): ViewLine {
-		return new ViewLine(this._viewLineOptions);
-	}
-
-	// ---- end IVisibleLinesHost
 
 	// ---- begin view event handlers
 
@@ -710,12 +705,10 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		let paddingBottom: number = 0;
 
 		if (!shouldIgnoreScrollOff) {
-			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
-			if (this._stickyScrollEnabled) {
-				paddingTop = Math.max(context, this._maxNumberStickyLines) * this._lineHeight;
-			} else {
-				paddingTop = context * this._lineHeight;
-			}
+			const maxLinesInViewport = (viewportHeight / this._lineHeight);
+			const surroundingLines = Math.max(this._cursorSurroundingLines, this._stickyScrollEnabled ? this._maxNumberStickyLines : 0);
+			const context = Math.min(maxLinesInViewport / 2, surroundingLines);
+			paddingTop = context * this._lineHeight;
 			paddingBottom = Math.max(0, (context - 1)) * this._lineHeight;
 		} else {
 			if (!minimalReveal) {

@@ -399,6 +399,12 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			results
 				.map(r => {
 					const o = Convert.TestResults.to(r);
+					const taskWithCoverage = r.tasks.findIndex(t => t.hasCoverage);
+					if (taskWithCoverage !== -1) {
+						o.getDetailedCoverage = (uri, token = CancellationToken.None) =>
+							this.proxy.$getCoverageDetails(r.id, taskWithCoverage, uri, token).then(r => r.map(Convert.TestCoverage.to));
+					}
+
 					testResultInternalIDs.set(o, r.id);
 					return o;
 				})
@@ -506,11 +512,11 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	/**
 	 * Cancels an ongoing test run.
 	 */
-	public $cancelExtensionTestRun(runId: string | undefined) {
+	public $cancelExtensionTestRun(runId: string | undefined, taskId: string | undefined) {
 		if (runId === undefined) {
 			this.runTracker.cancelAllRuns();
 		} else {
-			this.runTracker.cancelRunById(runId);
+			this.runTracker.cancelRunById(runId, taskId);
 		}
 	}
 
@@ -599,7 +605,7 @@ const enum TestRunTrackerState {
 class TestRunTracker extends Disposable {
 	private state = TestRunTrackerState.Running;
 	private running = 0;
-	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun }>();
+	private readonly tasks = new Map</* task ID */string, { cts: CancellationTokenSource; run: vscode.TestRun }>();
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
@@ -659,8 +665,10 @@ class TestRunTracker extends Disposable {
 	}
 
 	/** Requests cancellation of the run. On the second call, forces cancellation. */
-	public cancel() {
-		if (this.state === TestRunTrackerState.Running) {
+	public cancel(taskId?: string) {
+		if (taskId) {
+			this.tasks.get(taskId)?.cts.cancel();
+		} else if (this.state === TestRunTrackerState.Running) {
 			this.cts.cancel();
 			this.state = TestRunTrackerState.Cancelling;
 		} else if (this.state === TestRunTrackerState.Cancelling) {
@@ -731,13 +739,15 @@ class TestRunTracker extends Disposable {
 		};
 
 		let ended = false;
+		// tasks are alive for as long as the tracker is alive, so simple this._register is fine:
+		const cts = this._register(new CancellationTokenSource(this.cts.token));
 
 		// one-off map used to associate test items with incrementing IDs in `addCoverage`.
 		// There's no need to include their entire ID, we just want to make sure they're
 		// stable and unique. Normal map is okay since TestRun lifetimes are limited.
 		const run: vscode.TestRun = {
 			isPersisted: this.dto.isPersisted,
-			token: this.cts.token,
+			token: cts.token,
 			name,
 			onDidDispose: this.onDidDispose,
 			addCoverage: (coverage) => {
@@ -815,8 +825,13 @@ class TestRunTracker extends Disposable {
 		};
 
 		this.running++;
-		this.tasks.set(taskId, { run });
-		this.proxy.$startedTestRunTask(runId, { id: taskId, ctrlId: this.dto.controllerId, name, running: true });
+		this.tasks.set(taskId, { run, cts });
+		this.proxy.$startedTestRunTask(runId, {
+			id: taskId,
+			ctrlId: this.dto.controllerId,
+			name: name || this.extension.displayName || this.extension.identifier.value,
+			running: true,
+		});
 
 		return run;
 	}
@@ -921,8 +936,8 @@ export class TestRunCoordinator {
 	/**
 	 * Cancels an existing test run via its cancellation token.
 	 */
-	public cancelRunById(runId: string) {
-		this.trackedById.get(runId)?.cancel();
+	public cancelRunById(runId: string, taskId?: string) {
+		this.trackedById.get(runId)?.cancel(taskId);
 	}
 
 	/**

@@ -90,6 +90,7 @@ export const enum TerminalSettingId {
 	EnvWindows = 'terminal.integrated.env.windows',
 	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
+	ExperimentalWindowsUseConptyDll = 'terminal.integrated.experimental.windowsUseConptyDll',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
@@ -127,23 +128,27 @@ export const enum TerminalSettingId {
 }
 
 export const enum PosixShellType {
-	PowerShell = 'pwsh',
 	Bash = 'bash',
 	Fish = 'fish',
 	Sh = 'sh',
 	Csh = 'csh',
 	Ksh = 'ksh',
 	Zsh = 'zsh',
-	Python = 'python'
+
 }
 export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
-	PowerShell = 'pwsh',
 	Wsl = 'wsl',
 	GitBash = 'gitbash',
-	Python = 'python'
 }
-export type TerminalShellType = PosixShellType | WindowsShellType;
+
+export const enum GeneralShellType {
+	PowerShell = 'pwsh',
+	Python = 'python',
+	Julia = 'julia',
+	NuShell = 'nu'
+}
+export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -661,6 +666,7 @@ export interface ITerminalProcessOptions {
 		nonce: string;
 	};
 	windowsEnableConpty: boolean;
+	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
 }

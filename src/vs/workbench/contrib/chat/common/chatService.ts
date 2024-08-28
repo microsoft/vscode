@@ -82,7 +82,7 @@ export enum ChatResponseReferencePartStatusKind {
 }
 
 export interface IChatContentReference {
-	reference: URI | Location | IChatContentVariableReference;
+	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
@@ -164,6 +164,12 @@ export interface IChatCommandButton {
 	kind: 'command';
 }
 
+export interface IChatMoveMessage {
+	uri: URI;
+	range: IRange;
+	kind: 'move';
+}
+
 export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
@@ -194,6 +200,7 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatMoveMessage
 	| IChatConfirmation;
 
 export interface IChatFollowup {
@@ -210,10 +217,22 @@ export enum ChatAgentVoteDirection {
 	Up = 1
 }
 
+export enum ChatAgentVoteDownReason {
+	IncorrectCode = 'incorrectCode',
+	DidNotFollowInstructions = 'didNotFollowInstructions',
+	IncompleteCode = 'incompleteCode',
+	MissingContext = 'missingContext',
+	PoorlyWrittenOrFormatted = 'poorlyWrittenOrFormatted',
+	RefusedAValidRequest = 'refusedAValidRequest',
+	OffensiveOrUnsafe = 'offensiveOrUnsafe',
+	Other = 'other',
+	WillReportIssue = 'willReportIssue'
+}
+
 export interface IChatVoteAction {
 	kind: 'vote';
 	direction: ChatAgentVoteDirection;
-	reportIssue?: boolean;
+	reason: ChatAgentVoteDownReason | undefined;
 }
 
 export enum ChatCopyKind {
@@ -236,6 +255,8 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
+	userAction?: string;
+	codeMapper?: string;
 }
 
 export interface IChatTerminalAction {
@@ -295,6 +316,8 @@ export interface IChatCompleteResponse {
 export interface IChatDetail {
 	sessionId: string;
 	title: string;
+	lastMessageDate: number;
+	isActive: boolean;
 }
 
 export interface IChatProviderInfo {
@@ -348,6 +371,11 @@ export interface IChatSendRequestOptions {
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
 	slashCommand?: string;
+
+	/**
+	 * The label of the confirmation action that was selected.
+	 */
+	confirmation?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -375,6 +403,7 @@ export interface IChatService {
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	getHistory(): IChatDetail[];
+	setChatSessionTitle(sessionId: string, title: string): void;
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
 

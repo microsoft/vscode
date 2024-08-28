@@ -6,29 +6,24 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer';
+import { importAMDNodeModule } from 'vs/amdX';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { TextMateWorkerHost } from './textMateWorkerHost';
 
 /**
  * Defines the worker entry point. Must be exported and named `create`.
+ * @skipMangle
  */
-export function create(ctx: IWorkerContext<ITextMateWorkerHost>, createData: ICreateData): TextMateTokenizationWorker {
-	return new TextMateTokenizationWorker(ctx, createData);
-}
-
-export interface ITextMateWorkerHost {
-	readFile(_resource: UriComponents): Promise<string>;
-	setTokensAndStates(controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void>;
-	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
+export function create(workerServer: IWorkerServer): TextMateTokenizationWorker {
+	return new TextMateTokenizationWorker(workerServer);
 }
 
 export interface ICreateData {
 	grammarDefinitions: IValidGrammarDefinitionDTO[];
-	textmateMainUri: string;
-	onigurumaMainUri: string;
 	onigurumaWASMUri: string;
 }
 
@@ -50,17 +45,19 @@ export interface StateDeltas {
 	stateDeltas: (StackDiff | null)[];
 }
 
-export class TextMateTokenizationWorker {
-	private readonly _host: ITextMateWorkerHost;
+export class TextMateTokenizationWorker implements IRequestHandler {
+	_requestHandlerBrand: any;
+
+	private readonly _host: TextMateWorkerHost;
 	private readonly _models = new Map</* controllerId */ number, TextMateWorkerTokenizer>();
 	private readonly _grammarCache: Promise<ICreateGrammarResult>[] = [];
-	private readonly _grammarFactory: Promise<TMGrammarFactory | null>;
+	private _grammarFactory: Promise<TMGrammarFactory | null> = Promise.resolve(null);
 
-	constructor(
-		ctx: IWorkerContext<ITextMateWorkerHost>,
-		private readonly _createData: ICreateData
-	) {
-		this._host = ctx.host;
+	constructor(workerServer: IWorkerServer) {
+		this._host = TextMateWorkerHost.getChannel(workerServer);
+	}
+
+	public async $init(_createData: ICreateData): Promise<void> {
 		const grammarDefinitions = _createData.grammarDefinitions.map<IValidGrammarDefinition>((def) => {
 			return {
 				location: URI.revive(def.location),
@@ -74,14 +71,13 @@ export class TextMateTokenizationWorker {
 				sourceExtensionId: def.sourceExtensionId,
 			};
 		});
-		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions);
+		this._grammarFactory = this._loadTMGrammarFactory(grammarDefinitions, _createData.onigurumaWASMUri);
 	}
 
-	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
-		const uri = this._createData.textmateMainUri;
-		const vscodeTextmate = await import(uri);
-		const vscodeOniguruma = await import(this._createData.onigurumaMainUri);
-		const response = await fetch(this._createData.onigurumaWASMUri);
+	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[], onigurumaWASMUri: string): Promise<TMGrammarFactory> {
+		const vscodeTextmate = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
+		const vscodeOniguruma = await importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js');
+		const response = await fetch(onigurumaWASMUri);
 
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.
@@ -97,13 +93,13 @@ export class TextMateTokenizationWorker {
 		return new TMGrammarFactory({
 			logTrace: (msg: string) => {/* console.log(msg) */ },
 			logError: (msg: string, err: any) => console.error(msg, err),
-			readFile: (resource: URI) => this._host.readFile(resource)
+			readFile: (resource: URI) => this._host.$readFile(resource)
 		}, grammarDefinitions, vscodeTextmate, onigLib);
 	}
 
 	// These methods are called by the renderer
 
-	public acceptNewModel(data: IRawModelData): void {
+	public $acceptNewModel(data: IRawModelData): void {
 		const uri = URI.revive(data.uri);
 		const that = this;
 		this._models.set(data.controllerId, new TextMateWorkerTokenizer(uri, data.lines, data.EOL, data.versionId, {
@@ -118,27 +114,27 @@ export class TextMateTokenizationWorker {
 				return that._grammarCache[encodedLanguageId];
 			},
 			setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void {
-				that._host.setTokensAndStates(data.controllerId, versionId, tokens, stateDeltas);
+				that._host.$setTokensAndStates(data.controllerId, versionId, tokens, stateDeltas);
 			},
 			reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void {
-				that._host.reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
+				that._host.$reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			},
 		}, data.languageId, data.encodedLanguageId, data.maxTokenizationLineLength));
 	}
 
-	public acceptModelChanged(controllerId: number, e: IModelChangedEvent): void {
+	public $acceptModelChanged(controllerId: number, e: IModelChangedEvent): void {
 		this._models.get(controllerId)!.onEvents(e);
 	}
 
-	public retokenize(controllerId: number, startLineNumber: number, endLineNumberExclusive: number): void {
+	public $retokenize(controllerId: number, startLineNumber: number, endLineNumberExclusive: number): void {
 		this._models.get(controllerId)!.retokenize(startLineNumber, endLineNumberExclusive);
 	}
 
-	public acceptModelLanguageChanged(controllerId: number, newLanguageId: string, newEncodedLanguageId: LanguageId): void {
+	public $acceptModelLanguageChanged(controllerId: number, newLanguageId: string, newEncodedLanguageId: LanguageId): void {
 		this._models.get(controllerId)!.onLanguageId(newLanguageId, newEncodedLanguageId);
 	}
 
-	public acceptRemovedModel(controllerId: number): void {
+	public $acceptRemovedModel(controllerId: number): void {
 		const model = this._models.get(controllerId);
 		if (model) {
 			model.dispose();
@@ -146,12 +142,12 @@ export class TextMateTokenizationWorker {
 		}
 	}
 
-	public async acceptTheme(theme: IRawTheme, colorMap: string[]): Promise<void> {
+	public async $acceptTheme(theme: IRawTheme, colorMap: string[]): Promise<void> {
 		const grammarFactory = await this._grammarFactory;
 		grammarFactory?.setTheme(theme, colorMap);
 	}
 
-	public acceptMaxTokenizationLineLength(controllerId: number, value: number): void {
+	public $acceptMaxTokenizationLineLength(controllerId: number, value: number): void {
 		this._models.get(controllerId)!.acceptMaxTokenizationLineLength(value);
 	}
 }

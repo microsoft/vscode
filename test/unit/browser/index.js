@@ -252,7 +252,6 @@ async function runTestsInBrowser(testModules, browserType) {
 			// when running from `out-build`, ensure to load the default
 			// messages file, because all `nls.localize` calls have their
 			// english values removed and replaced by an index.
-			// VSCODE_GLOBALS: NLS
 			// @ts-ignore
 			globalThis._VSCODE_NLS_MESSAGES = JSON.parse(value);
 		}, nlsMessages);

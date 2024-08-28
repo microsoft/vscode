@@ -222,7 +222,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		// Show the hover hint if needed
-		if (hideOnHover && options.appearance?.showHoverHint) {
+		if (options.appearance?.showHoverHint) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const infoElement = $('div.info');
 			infoElement.textContent = localize('hoverhint', 'Hold {0} key to mouse over', isMacintosh ? 'Option' : 'Alt');

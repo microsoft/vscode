@@ -217,7 +217,7 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: MockNotebookCell[]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
 
 	const viewType = 'notebook';
-	const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map((cell): ICellDto2 => {
+	const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test://test'), cells.map((cell): ICellDto2 => {
 		return {
 			source: cell[0],
 			mime: undefined,
@@ -378,11 +378,17 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 		override get notebook() {
 			return originalNotebook.viewModel.notebookDocument;
 		}
+		override get resource() {
+			return originalNotebook.viewModel.notebookDocument.uri;
+		}
 	};
 
 	const modifiedResource = new class extends mock<IResolvedNotebookEditorModel>() {
 		override get notebook() {
 			return modifiedNotebook.viewModel.notebookDocument;
+		}
+		override get resource() {
+			return modifiedNotebook.viewModel.notebookDocument.uri;
 		}
 	};
 
@@ -399,15 +405,19 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	if (res instanceof Promise) {
 		res.finally(() => {
 			originalNotebook.editor.dispose();
+			originalNotebook.viewModel.notebookDocument.dispose();
 			originalNotebook.viewModel.dispose();
 			modifiedNotebook.editor.dispose();
+			modifiedNotebook.viewModel.notebookDocument.dispose();
 			modifiedNotebook.viewModel.dispose();
 			disposables.dispose();
 		});
 	} else {
 		originalNotebook.editor.dispose();
+		originalNotebook.viewModel.notebookDocument.dispose();
 		originalNotebook.viewModel.dispose();
 		modifiedNotebook.editor.dispose();
+		modifiedNotebook.viewModel.notebookDocument.dispose();
 		modifiedNotebook.viewModel.dispose();
 		disposables.dispose();
 	}

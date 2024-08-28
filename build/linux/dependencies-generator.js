@@ -15,6 +15,7 @@ const dep_lists_2 = require("./rpm/dep-lists");
 const types_1 = require("./debian/types");
 const types_2 = require("./rpm/types");
 const product = require("../../product.json");
+const esm_1 = require("../lib/esm");
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.
 // If false, we warn about new dependencies if they show up
@@ -43,7 +44,8 @@ async function getDependencies(packageType, buildDir, applicationName, arch) {
         throw new Error('Invalid RPM arch string ' + arch);
     }
     // Get the files for which we want to find dependencies.
-    const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
+    const canAsar = !(0, esm_1.isESM)('ASAR disabled in Linux builds'); // TODO@esm ASAR disabled in ESM
+    const nativeModulesPath = path.join(buildDir, 'resources', 'app', canAsar ? 'node_modules.asar.unpacked' : 'node_modules');
     const findResult = (0, child_process_1.spawnSync)('find', [nativeModulesPath, '-name', '*.node']);
     if (findResult.status) {
         console.error('Error finding files:');

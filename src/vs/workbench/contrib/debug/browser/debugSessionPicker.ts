@@ -21,7 +21,7 @@ export async function showDebugSessionMenu(accessor: ServicesAccessor, selectAnd
 	const commandService = accessor.get(ICommandService);
 
 	const localDisposableStore = new DisposableStore();
-	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>();
+	const quickPick = quickInputService.createQuickPick<IPickerDebugItem>({ useSeparators: true });
 	localDisposableStore.add(quickPick);
 	quickPick.matchOnLabel = quickPick.matchOnDescription = quickPick.matchOnDetail = quickPick.sortByLabel = false;
 	quickPick.placeholder = nls.localize('moveFocusedView.selectView', 'Search debug sessions by name');

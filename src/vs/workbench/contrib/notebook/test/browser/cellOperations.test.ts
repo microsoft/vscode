@@ -48,7 +48,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
+				await moveCellRange({ notebookEditor: editor }, 'down');
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
 				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
@@ -74,7 +74,7 @@ suite('CellOperations', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
+				await moveCellRange({ notebookEditor: editor }, 'down');
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
 				assert.strictEqual(viewModel.cellAt(1)?.getText(), '# header a');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');

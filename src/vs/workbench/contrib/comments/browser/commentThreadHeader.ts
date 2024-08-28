@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, ActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import * as languages from 'vs/editor/common/languages';
 import { IRange } from 'vs/editor/common/core/range';
@@ -26,7 +26,11 @@ import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
+const DELETE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(Codicon.trashcan);
 
+function threadHasComments(comments: ReadonlyArray<languages.Comment> | undefined): comments is ReadonlyArray<languages.Comment> {
+	return !!comments && comments.length > 0;
+}
 
 export class CommentThreadHeader<T = IRange> extends Disposable {
 	private _headElement: HTMLElement;
@@ -63,7 +67,17 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 
 		this._register(this._actionbarWidget);
 
-		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this._delegate.collapse());
+		const collapseClass = threadHasComments(this._commentThread.comments) ? COLLAPSE_ACTION_CLASS : DELETE_ACTION_CLASS;
+		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), collapseClass, true, () => this._delegate.collapse());
+		if (!threadHasComments(this._commentThread.comments)) {
+			const commentsChanged: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+			commentsChanged.value = this._commentThread.onDidChangeComments(() => {
+				if (threadHasComments(this._commentThread.comments)) {
+					this._collapseAction.class = COLLAPSE_ACTION_CLASS;
+					commentsChanged.clear();
+				}
+			});
+		}
 
 		const menu = this._commentMenus.getCommentThreadTitleActions(this._contextKeyService);
 		this._register(menu);

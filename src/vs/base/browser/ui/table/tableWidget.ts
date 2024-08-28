@@ -193,7 +193,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		user: string,
 		container: HTMLElement,
 		private virtualDelegate: ITableVirtualDelegate<TRow>,
-		columns: ITableColumn<TRow, TCell>[],
+		private columns: ITableColumn<TRow, TCell>[],
 		renderers: ITableRenderer<TCell, unknown>[],
 		_options?: ITableOptions<TRow>
 	) {
@@ -229,6 +229,15 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 
 		this.styleElement = createStyleSheet(this.domNode);
 		this.style(unthemedListStyles);
+	}
+
+	getColumnLabels(): string[] {
+		return this.columns.map(c => c.label);
+	}
+
+	resizeColumn(index: number, percentage: number): void {
+		const size = Math.round((percentage / 100.00) * this.cachedWidth);
+		this.splitview.resizeView(index, size);
 	}
 
 	updateOptions(options: ITableOptionsUpdate): void {

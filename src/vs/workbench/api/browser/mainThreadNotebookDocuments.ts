@@ -125,30 +125,45 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		}
 	}
 
-
 	async $tryCreateNotebook(options: { viewType: string; content?: NotebookDataDto }): Promise<UriComponents> {
-		const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
-
-		// untitled notebooks are disposed when they get saved. we should not hold a reference
-		// to such a disposed notebook and therefore dispose the reference as well
-		ref.object.notebook.onWillDispose(() => {
-			ref.dispose();
-		});
-
-		// untitled notebooks are dirty by default
-		this._proxy.$acceptDirtyStateChanged(ref.object.resource, true);
-
-		// apply content changes... slightly HACKY -> this triggers a change event
 		if (options.content) {
-			const data = NotebookDto.fromNotebookDataDto(options.content);
-			ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+			const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
+
+			// untitled notebooks are disposed when they get saved. we should not hold a reference
+			// to such a disposed notebook and therefore dispose the reference as well
+			ref.object.notebook.onWillDispose(() => {
+				ref.dispose();
+			});
+
+			// untitled notebooks with content are dirty by default
+			this._proxy.$acceptDirtyStateChanged(ref.object.resource, true);
+
+			// apply content changes... slightly HACKY -> this triggers a change event
+			if (options.content) {
+				const data = NotebookDto.fromNotebookDataDto(options.content);
+				ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+			}
+			return ref.object.notebook.uri;
+		} else {
+			// If we aren't adding content, we don't need to resolve the full editor model yet.
+			// This will allow us to adjust settings when the editor is opened, e.g. scratchpad
+			const notebook = await this._notebookEditorModelResolverService.createUntitledNotebookTextModel(options.viewType);
+			return notebook.uri;
 		}
-		return ref.object.resource;
 	}
 
 	async $tryOpenNotebook(uriComponents: UriComponents): Promise<URI> {
 		const uri = URI.revive(uriComponents);
 		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined);
+
+		if (uriComponents.scheme === 'untitled') {
+			// untitled notebooks are disposed when they get saved. we should not hold a reference
+			// to such a disposed notebook and therefore dispose the reference as well
+			ref.object.notebook.onWillDispose(() => {
+				ref.dispose();
+			});
+		}
+
 		this._modelReferenceCollection.add(uri, ref);
 		return uri;
 	}

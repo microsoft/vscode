@@ -7,7 +7,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
@@ -119,37 +119,27 @@ export const testingCoverCountBadgeBackground = registerColor('testing.coverCoun
 
 export const testingCoverCountBadgeForeground = registerColor('testing.coverCountBadgeForeground', badgeForeground, localize('testing.coverCountBadgeForeground', 'Foreground for the badge indicating execution count'));
 
-export const testMessageSeverityColors: {
-	[K in TestMessageType]: {
-		decorationForeground: string;
-		marginBackground: string;
-	};
-} = {
-	[TestMessageType.Error]: {
-		decorationForeground: registerColor(
-			'testing.message.error.decorationForeground',
-			{ dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorForeground, hcLight: editorForeground },
-			localize('testing.message.error.decorationForeground', 'Text color of test error messages shown inline in the editor.')
-		),
-		marginBackground: registerColor(
-			'testing.message.error.lineBackground',
-			{ dark: new Color(new RGBA(255, 0, 0, 0.2)), light: new Color(new RGBA(255, 0, 0, 0.2)), hcDark: null, hcLight: null },
-			localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
-		),
-	},
-	[TestMessageType.Output]: {
-		decorationForeground: registerColor(
-			'testing.message.info.decorationForeground',
-			transparent(editorForeground, 0.5),
-			localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
-		),
-		marginBackground: registerColor(
-			'testing.message.info.lineBackground',
-			null,
-			localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
-		),
-	},
-};
+
+registerColor(
+	'testing.message.error.decorationForeground',
+	{ dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorForeground, hcLight: editorForeground },
+	localize('testing.message.error.decorationForeground', 'Text color of test error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.error.lineBackground',
+	{ dark: new Color(new RGBA(255, 0, 0, 0.1)), light: new Color(new RGBA(255, 0, 0, 0.1)), hcDark: null, hcLight: null },
+	localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.info.decorationForeground',
+	transparent(editorForeground, 0.5),
+	localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.info.lineBackground',
+	null,
+	localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
+);
 
 export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Errored]: testingColorIconErrored,

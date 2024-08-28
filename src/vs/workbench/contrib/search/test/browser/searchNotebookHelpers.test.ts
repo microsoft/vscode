@@ -149,28 +149,28 @@ suite('searchNotebookHelpers', () => {
 			codeWebviewResults = webviewMatchesToTextSearchMatches(codeCellFindMatch.webviewMatches);
 
 			assert.strictEqual(markdownContentResults.length, 1);
-			assert.strictEqual(markdownContentResults[0].preview.text, '# Hello World Test\n');
-			assertRangesEqual(markdownContentResults[0].preview.matches, [new Range(0, 14, 0, 18)]);
-			assertRangesEqual(markdownContentResults[0].ranges, [new Range(0, 14, 0, 18)]);
+			assert.strictEqual(markdownContentResults[0].previewText, '# Hello World Test\n');
+			assertRangesEqual(markdownContentResults[0].rangeLocations.map(e => e.preview), [new Range(0, 14, 0, 18)]);
+			assertRangesEqual(markdownContentResults[0].rangeLocations.map(e => e.source), [new Range(0, 14, 0, 18)]);
 
 
 			assert.strictEqual(codeContentResults.length, 2);
-			assert.strictEqual(codeContentResults[0].preview.text, 'print("test! testing!!")\n');
-			assert.strictEqual(codeContentResults[1].preview.text, 'print("this is a Test")\n');
-			assertRangesEqual(codeContentResults[0].preview.matches, [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
-			assertRangesEqual(codeContentResults[0].ranges, [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
+			assert.strictEqual(codeContentResults[0].previewText, 'print("test! testing!!")\n');
+			assert.strictEqual(codeContentResults[1].previewText, 'print("this is a Test")\n');
+			assertRangesEqual(codeContentResults[0].rangeLocations.map(e => e.preview), [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
+			assertRangesEqual(codeContentResults[0].rangeLocations.map(e => e.source), [new Range(0, 7, 0, 11), new Range(0, 13, 0, 17)]);
 
 			assert.strictEqual(codeWebviewResults.length, 3);
-			assert.strictEqual(codeWebviewResults[0].preview.text, 'test! testing!!');
-			assert.strictEqual(codeWebviewResults[1].preview.text, 'test! testing!!');
-			assert.strictEqual(codeWebviewResults[2].preview.text, 'this is a Test');
+			assert.strictEqual(codeWebviewResults[0].previewText, 'test! testing!!');
+			assert.strictEqual(codeWebviewResults[1].previewText, 'test! testing!!');
+			assert.strictEqual(codeWebviewResults[2].previewText, 'this is a Test');
 
-			assertRangesEqual(codeWebviewResults[0].preview.matches, [new Range(0, 1, 0, 5)]);
-			assertRangesEqual(codeWebviewResults[1].preview.matches, [new Range(0, 7, 0, 11)]);
-			assertRangesEqual(codeWebviewResults[2].preview.matches, [new Range(0, 11, 0, 15)]);
-			assertRangesEqual(codeWebviewResults[0].ranges, [new Range(0, 1, 0, 5)]);
-			assertRangesEqual(codeWebviewResults[1].ranges, [new Range(0, 7, 0, 11)]);
-			assertRangesEqual(codeWebviewResults[2].ranges, [new Range(0, 11, 0, 15)]);
+			assertRangesEqual(codeWebviewResults[0].rangeLocations.map(e => e.preview), [new Range(0, 1, 0, 5)]);
+			assertRangesEqual(codeWebviewResults[1].rangeLocations.map(e => e.preview), [new Range(0, 7, 0, 11)]);
+			assertRangesEqual(codeWebviewResults[2].rangeLocations.map(e => e.preview), [new Range(0, 11, 0, 15)]);
+			assertRangesEqual(codeWebviewResults[0].rangeLocations.map(e => e.source), [new Range(0, 1, 0, 5)]);
+			assertRangesEqual(codeWebviewResults[1].rangeLocations.map(e => e.source), [new Range(0, 7, 0, 11)]);
+			assertRangesEqual(codeWebviewResults[2].rangeLocations.map(e => e.source), [new Range(0, 11, 0, 15)]);
 		});
 
 		test('convert ITextSearchMatch to MatchInNotebook', () => {

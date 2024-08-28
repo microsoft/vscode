@@ -12,7 +12,6 @@ import { getReplView, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { localize } from 'vs/nls';
-import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 
 export class ReplAccessibilityHelp implements IAccessibleViewImplentation {
 	priority = 120;
@@ -53,13 +52,9 @@ class ReplAccessibilityHelpProvider extends Disposable implements IAccessibleVie
 			localize('repl.input', "The debug console input can be navigated to from the output with the Focus Next Widget command{0}.", '<keybinding:widgetNavigation.focusNext>'),
 			localize('repl.history', "The debug console output history can be navigated with the up and down arrow keys."),
 			localize('repl.accessibleView', "The Open Accessible View command{0} will allow character by character navigation of the console output.", '<keybinding:editor.action.accessibleView>'),
-			localize('repl.showRunAndDebug', "The Show Run and Debug view command{0} will open the Run and Debug view.", '<keybinding:workbench.view.debug>'),
-			AccessibilityHelpNLS.setBreakpoint,
+			localize('repl.showRunAndDebug', "The Show Run and Debug view command{0} will open the Run and Debug view and provides more information about debugging.", '<keybinding:workbench.view.debug>'),
+			localize('repl.clear', "The Debug: Clear Console command{0} will clear the console output.", '<keybinding:workbench.debug.panel.action.clearReplAction>'),
 			localize('repl.lazyVariables', "The setting `debug.expandLazyVariables` controls whether variables are evaluated automatically. This is enabled by default when using a screen reader."),
-			localize('repl.continue', "The Debug: Continue command{0} will continue execution until the next breakpoint.", '<keybinding:workbench.action.debug.continue>'),
-			localize('repl.stepInto', "The Debug: Step Into command{0} will step into the next function call.", '<keybinding:workbench.action.debug.stepInto>'),
-			localize('repl.stepOver', "The Debug: Step Over command{0} will step over the current function call.", '<keybinding:workbench.action.debug.stepOver>'),
-			localize('repl.stepOut', "The Debug: Step Out command{0} will step out of the current function call.", '<keybinding:workbench.action.debug.stepOut>'),
 		].join('\n');
 	}
 }

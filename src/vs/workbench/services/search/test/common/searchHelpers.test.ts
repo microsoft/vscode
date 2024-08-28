@@ -39,9 +39,9 @@ suite('SearchHelpers', () => {
 		test('simple', () => {
 			const results = editorMatchesToTextSearchResults([new FindMatch(new Range(6, 1, 6, 2), null)], mockTextModel);
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].preview.text, '6\n');
-			assertRangesEqual(results[0].preview.matches, [new Range(0, 0, 0, 1)]);
-			assertRangesEqual(results[0].ranges, [new Range(5, 0, 5, 1)]);
+			assert.strictEqual(results[0].previewText, '6\n');
+			assertRangesEqual(results[0].rangeLocations.map(e => e.preview), [new Range(0, 0, 0, 1)]);
+			assertRangesEqual(results[0].rangeLocations.map(e => e.source), [new Range(5, 0, 5, 1)]);
 		});
 
 		test('multiple', () => {
@@ -53,23 +53,23 @@ suite('SearchHelpers', () => {
 				],
 				mockTextModel);
 			assert.strictEqual(results.length, 2);
-			assertRangesEqual(results[0].preview.matches, [
+			assertRangesEqual(results[0].rangeLocations.map(e => e.preview), [
 				new Range(0, 0, 0, 1),
 				new Range(0, 3, 2, 1),
 			]);
-			assertRangesEqual(results[0].ranges, [
+			assertRangesEqual(results[0].rangeLocations.map(e => e.source), [
 				new Range(5, 0, 5, 1),
 				new Range(5, 3, 7, 1),
 			]);
-			assert.strictEqual(results[0].preview.text, '6\n7\n8\n');
+			assert.strictEqual(results[0].previewText, '6\n7\n8\n');
 
-			assertRangesEqual(results[1].preview.matches, [
+			assertRangesEqual(results[1].rangeLocations.map(e => e.preview), [
 				new Range(0, 0, 1, 2),
 			]);
-			assertRangesEqual(results[1].ranges, [
+			assertRangesEqual(results[1].rangeLocations.map(e => e.source), [
 				new Range(8, 0, 9, 2),
 			]);
-			assert.strictEqual(results[1].preview.text, '9\n10\n');
+			assert.strictEqual(results[1].previewText, '9\n10\n');
 		});
 	});
 
@@ -91,23 +91,24 @@ suite('SearchHelpers', () => {
 			}
 		} as ITextModel;
 
-		function getQuery(beforeContext?: number, afterContext?: number): ITextQuery {
+		function getQuery(surroundingContext?: number): ITextQuery {
 			return {
 				folderQueries: [],
 				type: QueryType.Text,
 				contentPattern: { pattern: 'test' },
-				beforeContext,
-				afterContext
+				surroundingContext,
 			};
 		}
 
 		test('no context', () => {
 			const matches = [{
-				preview: {
-					text: 'foo',
-					matches: new Range(0, 0, 0, 10)
-				},
-				ranges: new Range(0, 0, 0, 10)
+				previewText: 'foo',
+				rangeLocations: [
+					{
+						preview: new Range(0, 0, 0, 10),
+						source: new Range(0, 0, 0, 10)
+					}
+				]
 			}];
 
 			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery()), matches);
@@ -115,14 +116,17 @@ suite('SearchHelpers', () => {
 
 		test('simple', () => {
 			const matches = [{
-				preview: {
-					text: 'foo',
-					matches: new Range(0, 0, 0, 10)
-				},
-				ranges: new Range(1, 0, 1, 10)
-			}];
+				previewText: 'foo',
+				rangeLocations: [
+					{
+						preview: new Range(0, 0, 0, 10),
+						source: new Range(1, 0, 1, 10)
+					}
+				]
+			}
+			];
 
-			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1)), [
 				{
 					text: '1',
 					lineNumber: 1
@@ -131,10 +135,6 @@ suite('SearchHelpers', () => {
 				{
 					text: '3',
 					lineNumber: 3
-				},
-				{
-					text: '4',
-					lineNumber: 4
 				},
 			] satisfies ITextSearchResult[]);
 		});
@@ -142,21 +142,25 @@ suite('SearchHelpers', () => {
 		test('multiple matches next to each other', () => {
 			const matches = [
 				{
-					preview: {
-						text: 'foo',
-						matches: new Range(0, 0, 0, 10)
-					},
-					ranges: new Range(1, 0, 1, 10)
+					previewText: 'foo',
+					rangeLocations: [
+						{
+							preview: new Range(0, 0, 0, 10),
+							source: new Range(1, 0, 1, 10)
+						}
+					]
 				},
 				{
-					preview: {
-						text: 'bar',
-						matches: new Range(0, 0, 0, 10)
-					},
-					ranges: new Range(2, 0, 2, 10)
+					previewText: 'bar',
+					rangeLocations: [
+						{
+							preview: new Range(0, 0, 0, 10),
+							source: new Range(2, 0, 2, 10)
+						}
+					]
 				}];
 
-			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1)), [
 				<ITextSearchContext>{
 					text: '1',
 					lineNumber: 1
@@ -166,39 +170,35 @@ suite('SearchHelpers', () => {
 					text: '4',
 					lineNumber: 4
 				},
-				<ITextSearchContext>{
-					text: '5',
-					lineNumber: 5
-				},
 			]);
 		});
 
 		test('boundaries', () => {
 			const matches = [
 				{
-					preview: {
-						text: 'foo',
-						matches: new Range(0, 0, 0, 10)
-					},
-					ranges: new Range(0, 0, 0, 10)
+					previewText: 'foo',
+					rangeLocations: [
+						{
+							preview: new Range(0, 0, 0, 10),
+							source: new Range(0, 0, 0, 10)
+						}
+					]
 				},
 				{
-					preview: {
-						text: 'bar',
-						matches: new Range(0, 0, 0, 10)
-					},
-					ranges: new Range(MOCK_LINE_COUNT - 1, 0, MOCK_LINE_COUNT - 1, 10)
+					previewText: 'bar',
+					rangeLocations: [
+						{
+							preview: new Range(0, 0, 0, 10),
+							source: new Range(MOCK_LINE_COUNT - 1, 0, MOCK_LINE_COUNT - 1, 10)
+						}
+					]
 				}];
 
-			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1)), [
 				matches[0],
 				<ITextSearchContext>{
 					text: '2',
 					lineNumber: 2
-				},
-				<ITextSearchContext>{
-					text: '3',
-					lineNumber: 3
 				},
 				<ITextSearchContext>{
 					text: '' + (MOCK_LINE_COUNT - 1),

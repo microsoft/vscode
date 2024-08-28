@@ -5,7 +5,7 @@
 
 import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,6 +14,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
+import product from 'vs/platform/product/common/product';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -160,6 +161,7 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
+	readonly experimentalControlOverlay?: boolean;
 }
 
 export interface IDensitySettings {
@@ -225,12 +227,21 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
-	if (!isWindows || isWeb) {
-		return false; // only supported on a desktop Windows instance
+	if (isMacintosh || isWeb) {
+		return false; // only supported on a Windows/Linux desktop instances
 	}
 
 	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
+	}
+
+	if (isLinux) {
+		const setting = configurationService.getValue('window.experimentalControlOverlay');
+		if (typeof setting === 'boolean') {
+			return setting;
+		}
+
+		return product.quality !== 'stable'; // disable by default in stable for now (TODO@bpasero TODO@benibenj flip when custom title is default)
 	}
 
 	// Default to true.

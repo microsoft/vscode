@@ -109,37 +109,38 @@ suite('Debug - Base Debug View', () => {
 
 	test('render expression value', () => {
 		let container = $('.container');
-		renderExpressionValue('render \n me', container, {}, NullHoverService);
+		const store = disposables.add(new DisposableStore());
+		renderExpressionValue(store, 'render \n me', container, {}, NullHoverService);
 		assert.strictEqual(container.className, 'value');
 		assert.strictEqual(container.textContent, 'render \n me');
 
 		const expression = new Expression('console');
 		expression.value = 'Object';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true }, NullHoverService);
+		renderExpressionValue(store, expression, container, { colorize: true }, NullHoverService);
 		assert.strictEqual(container.className, 'value unavailable error');
 
 		expression.available = true;
 		expression.value = '"string value"';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector }, NullHoverService);
+		renderExpressionValue(store, expression, container, { colorize: true, linkDetector }, NullHoverService);
 		assert.strictEqual(container.className, 'value string');
 		assert.strictEqual(container.textContent, '"string value"');
 
 		expression.type = 'boolean';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true }, NullHoverService);
+		renderExpressionValue(store, expression, container, { colorize: true }, NullHoverService);
 		assert.strictEqual(container.className, 'value boolean');
 		assert.strictEqual(container.textContent, expression.value);
 
 		expression.value = 'this is a long string';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4, linkDetector }, NullHoverService);
+		renderExpressionValue(store, expression, container, { colorize: true, maxValueLength: 4, linkDetector }, NullHoverService);
 		assert.strictEqual(container.textContent, 'this...');
 
 		expression.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector }, NullHoverService);
+		renderExpressionValue(store, expression, container, { colorize: true, linkDetector }, NullHoverService);
 		assert.ok(container.querySelector('a'));
 		assert.strictEqual(container.querySelector('a')!.textContent, expression.value);
 	});

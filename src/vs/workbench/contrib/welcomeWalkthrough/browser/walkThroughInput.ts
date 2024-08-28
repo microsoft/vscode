@@ -8,9 +8,9 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { marked } from 'vs/base/common/marked/marked';
+import { marked, Tokens } from 'vs/base/common/marked/marked';
 import { isEqual } from 'vs/base/common/resources';
-import { requireToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
+import { moduleToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -107,7 +107,7 @@ export class WalkThroughInput extends EditorInput {
 
 	override resolve(): Promise<WalkThroughModel> {
 		if (!this.promise) {
-			this.promise = requireToContent(this.instantiationService, this.options.resource)
+			this.promise = moduleToContent(this.instantiationService, this.options.resource)
 				.then(content => {
 					if (this.resource.path.endsWith('.html')) {
 						return new WalkThroughModel(content, []);
@@ -116,13 +116,13 @@ export class WalkThroughInput extends EditorInput {
 					const snippets: Promise<IReference<ITextEditorModel>>[] = [];
 					let i = 0;
 					const renderer = new marked.Renderer();
-					renderer.code = (code, lang) => {
+					renderer.code = ({ lang }: Tokens.Code) => {
 						i++;
 						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
 					};
-					content = marked(content, { renderer });
+					content = marked(content, { async: false, renderer });
 
 					return Promise.all(snippets)
 						.then(refs => new WalkThroughModel(content, refs));

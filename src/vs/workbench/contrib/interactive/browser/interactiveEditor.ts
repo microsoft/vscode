@@ -60,8 +60,10 @@ import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 import { ReplInputHintContentWidget } from 'vs/workbench/contrib/interactive/browser/replInputHintContentWidget';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -88,7 +90,6 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	private _inputCellContainer!: HTMLElement;
 	private _inputFocusIndicator!: HTMLElement;
 	private _inputRunButtonContainer!: HTMLElement;
-	private _inputConfigContainer!: HTMLElement;
 	private _inputEditorContainer!: HTMLElement;
 	private _codeEditorWidget!: CodeEditorWidget;
 	private _notebookWidgetService: INotebookEditorService;
@@ -146,9 +147,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			themeService,
 			storageService
 		);
-		this._instantiationService = instantiationService;
 		this._notebookWidgetService = notebookWidgetService;
-		this._contextKeyService = contextKeyService;
 		this._configurationService = configurationService;
 		this._notebookKernelService = notebookKernelService;
 		this._languageService = languageService;
@@ -158,6 +157,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._editorGroupService = editorGroupService;
 		this._notebookExecutionStateService = notebookExecutionStateService;
 		this._extensionService = extensionService;
+
+		this._rootElement = DOM.$('.interactive-editor');
+		this._contextKeyService = this._register(contextKeyService.createScoped(this._rootElement));
+		this._contextKeyService.createKey('isCompositeNotebook', true);
+		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 
 		this._editorOptions = this._computeEditorOptions();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -189,7 +193,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
+		DOM.append(parent, this._rootElement);
 		this._rootElement.style.position = 'relative';
 		this._notebookEditorContainer = DOM.append(this._rootElement, DOM.$('.notebook-editor-container'));
 		this._inputCellContainer = DOM.append(this._rootElement, DOM.$('.input-cell-container'));
@@ -199,34 +203,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._inputRunButtonContainer = DOM.append(this._inputCellContainer, DOM.$('.run-button-container'));
 		this._setupRunButtonToolbar(this._inputRunButtonContainer);
 		this._inputEditorContainer = DOM.append(this._inputCellContainer, DOM.$('.input-editor-container'));
-		this._setupConfigButtonToolbar();
 		this._createLayoutStyles();
-	}
-
-	private _setupConfigButtonToolbar() {
-		this._inputConfigContainer = DOM.append(this._inputEditorContainer, DOM.$('.input-toolbar-container'));
-		this._inputConfigContainer.style.position = 'absolute';
-		this._inputConfigContainer.style.right = '0';
-		this._inputConfigContainer.style.marginTop = '6px';
-		this._inputConfigContainer.style.marginRight = '12px';
-		this._inputConfigContainer.style.zIndex = '1';
-		this._inputConfigContainer.style.display = 'none';
-
-		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputConfig, this._contextKeyService));
-		const toolbar = this._register(new ToolBar(this._inputConfigContainer, this._contextMenuService, {
-			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: (action, options) => {
-				return createActionViewItem(this._instantiationService, action, options);
-			},
-			renderDropdownAsChildElement: true
-		}));
-
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
-		toolbar.setActions([...primary, ...secondary]);
 	}
 
 	private _setupRunButtonToolbar(runButtonContainer: HTMLElement) {
@@ -390,7 +367,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		this._widgetDisposableStore.clear();
 
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, notebookInput, {
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
@@ -410,7 +387,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
@@ -428,7 +406,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					HoverController.ID,
+					ContentHoverController.ID,
+					MarginHoverController.ID,
 					MarkerController.ID
 				])
 			}
@@ -566,8 +545,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel.getValue();
-			if (this.input?.resource && value !== '') {
-				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
+			if (this.input?.resource) {
+				const historyService = (this.input as InteractiveEditorInput).historyService;
+				if (!historyService.matchesCurrent(this.input.resource, value)) {
+					historyService.replaceLast(this.input.resource, value);
+				}
 			}
 		}));
 
@@ -683,11 +665,9 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		if (!this._hintElement && !shouldHide) {
 			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
-			this._inputConfigContainer.style.display = 'block';
 		} else if (this._hintElement && shouldHide) {
 			this._hintElement.dispose();
 			this._hintElement = undefined;
-			this._inputConfigContainer.style.display = 'none';
 		}
 	}
 

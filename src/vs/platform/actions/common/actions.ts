@@ -61,6 +61,7 @@ export class MenuId {
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
 	static readonly DebugCallStackToolbar = new MenuId('DebugCallStackToolbar');
+	static readonly DebugCreateConfiguration = new MenuId('DebugCreateConfiguration');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContent = new MenuId('EditorContent');
@@ -132,6 +133,7 @@ export class MenuId {
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
 	static readonly SCMSourceControlInline = new MenuId('SCMSourceControlInline');
 	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
+	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');

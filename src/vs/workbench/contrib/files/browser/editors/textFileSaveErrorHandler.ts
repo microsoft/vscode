@@ -158,8 +158,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			// Save As
 			primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model));
 
-			// Discard
-			primaryActions.push(this.instantiationService.createInstance(DiscardModelAction, model));
+			// Revert
+			primaryActions.push(this.instantiationService.createInstance(RevertModelAction, model));
 
 			// Message
 			if (isWriteLocked) {
@@ -306,12 +306,12 @@ class RetrySaveModelAction extends Action {
 	}
 }
 
-class DiscardModelAction extends Action {
+class RevertModelAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel
 	) {
-		super('workbench.files.action.discardModel', localize('discard', "Discard"));
+		super('workbench.files.action.revertModel', localize('revert', "Revert"));
 	}
 
 	override async run(): Promise<void> {

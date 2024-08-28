@@ -233,7 +233,7 @@ suite('Monarch', () => {
 			uselessReplaceKey2: '@uselessReplaceKey3',
 			uselessReplaceKey3: '@uselessReplaceKey4',
 			uselessReplaceKey4: '@uselessReplaceKey5',
-			uselessReplaceKey5: '@ham' || '',
+			uselessReplaceKey5: '@ham',
 			tokenizer: {
 				root: [
 					{

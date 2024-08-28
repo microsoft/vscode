@@ -66,10 +66,9 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		data.name.textContent = text;
 		data.name.title = element.element.type ?? '';
 
-		renderExpressionValue(element.element, data.value, {
+		renderExpressionValue(data.elementDisposables, element.element, data.value, {
 			colorize: true,
-			hover: data.elementDisposables,
-			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 		}, this._hoverService);
 	}
 

@@ -21,11 +21,11 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
-import { ChatAgentLocation, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
@@ -76,6 +76,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _agentCompletionProviders = this._register(new DisposableMap<number, IDisposable>());
 	private readonly _agentIdsToCompletionProviders = this._register(new DisposableMap<string, IDisposable>);
 
+	private readonly _chatParticipantDetectionProviders = this._register(new DisposableMap<number, IDisposable>());
+
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
@@ -103,7 +105,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				for (const [handle, agent] of this._agents) {
 					if (agent.id === e.agentId) {
 						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.result ?? {}, e.action.direction);
+							this._proxy.$acceptFeedback(handle, e.result ?? {}, e.action);
 						} else {
 							this._proxy.$acceptAction(handle, e.result || {}, e);
 						}
@@ -161,6 +163,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			provideWelcomeMessage: (location: ChatAgentLocation, token: CancellationToken) => {
 				return this._proxy.$provideWelcomeMessage(handle, location, token);
 			},
+			provideChatTitle: (history, token) => {
+				return this._proxy.$provideChatTitle(handle, history, token);
+			},
 			provideSampleQuestions: (location: ChatAgentLocation, token: CancellationToken) => {
 				return this._proxy.$provideSampleQuestions(handle, location, token);
 			}
@@ -172,7 +177,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			disposable = this._chatAgentService.registerDynamicAgent(
 				{
 					id,
-					name: dynamicProps.name ?? '', // This case is for an API change and can be removed tomorrow
+					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
@@ -181,6 +186,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					fullName: dynamicProps.fullName,
 					metadata: revive(metadata),
 					slashCommands: [],
+					disambiguation: [],
 					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
 				},
 				impl);
@@ -297,6 +303,20 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void {
 		this._agentCompletionProviders.deleteAndDispose(handle);
 		this._agentIdsToCompletionProviders.deleteAndDispose(id);
+	}
+
+	$registerChatParticipantDetectionProvider(handle: number): void {
+		this._chatParticipantDetectionProviders.set(handle, this._chatAgentService.registerChatParticipantDetectionProvider(handle,
+			{
+				provideParticipantDetection: async (request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation; participants: IChatParticipantMetadata[] }, token: CancellationToken) => {
+					return await this._proxy.$detectChatParticipant(handle, request, { history }, options, token);
+				}
+			}
+		));
+	}
+
+	$unregisterChatParticipantDetectionProvider(handle: number): void {
+		this._chatParticipantDetectionProviders.deleteAndDispose(handle);
 	}
 }
 

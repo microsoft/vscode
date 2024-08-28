@@ -118,7 +118,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this.expandReplyArea();
 		} else if (hasExistingComments) {
 			this.createReplyButton(this.commentEditor, this.form);
-		} else if (focus && (!this._commentThread.comments || this._commentThread.comments.length === 0)) {
+		} else if (focus && (this._commentThread.comments && this._commentThread.comments.length === 0)) {
 			this.expandReplyArea();
 		}
 		this._error = dom.append(this.form, dom.$('.validation-error.hidden'));

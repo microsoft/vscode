@@ -230,7 +230,7 @@ export class TerminalViewPane extends ViewPane {
 		if (!this._parentDomElement) {
 			return;
 		}
-		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
+		this._terminalTabbedView = this._register(this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement));
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention

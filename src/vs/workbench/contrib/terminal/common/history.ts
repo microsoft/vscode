@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { PosixShellType, TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { GeneralShellType, PosixShellType, TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
@@ -83,7 +83,7 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Bash:
 			result = await fetchBashHistory(accessor);
 			break;
-		case PosixShellType.PowerShell: // WindowsShellType.PowerShell has the same value
+		case GeneralShellType.PowerShell:
 			result = await fetchPwshHistory(accessor);
 			break;
 		case PosixShellType.Zsh:
@@ -92,7 +92,7 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Fish:
 			result = await fetchFishHistory(accessor);
 			break;
-		case PosixShellType.Python:
+		case GeneralShellType.Python:
 			result = await fetchPythonHistory(accessor);
 			break;
 		default: return [];

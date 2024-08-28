@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/9cd6bc151f4b9df5d9aeb1e39e30071018d3cb2a",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/969429cb9230a63f9155987f069acd4234d10e1a",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -94,7 +94,7 @@
 				"4": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -1900,7 +1900,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -1910,7 +1910,7 @@
 				"5": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -2368,7 +2368,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -2404,7 +2404,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -2562,7 +2562,7 @@
 			"name": "meta.scope.item.latex"
 		},
 		{
-			"begin": "((\\\\)(?:[aA]uto|foot|full|no|ref|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\p{Alphabetic}:.]*\\})*)(?:([<\\[])[^\\]<>]*([>\\]]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
+			"begin": "((\\\\)(?:[aA]uto|foot|full|no|ref|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\p{Alphabetic}\\p{Number}_:.-]*\\})*)(<[^\\]<>]*>)?((?:\\[[^\\]]*\\])*)(\\{)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.cite.latex"
@@ -2578,18 +2578,20 @@
 					]
 				},
 				"4": {
-					"name": "punctuation.definition.arguments.optional.begin.latex"
+					"patterns": [
+						{
+							"include": "#optional-arg-angle-no-highlight"
+						}
+					]
 				},
 				"5": {
-					"name": "punctuation.definition.arguments.optional.end.latex"
+					"patterns": [
+						{
+							"include": "#optional-arg-bracket-no-highlight"
+						}
+					]
 				},
 				"6": {
-					"name": "punctuation.definition.arguments.optional.begin.latex"
-				},
-				"7": {
-					"name": "punctuation.definition.arguments.optional.end.latex"
-				},
-				"8": {
 					"name": "punctuation.definition.arguments.begin.latex"
 				}
 			},
@@ -2602,6 +2604,7 @@
 			"name": "meta.citation.latex",
 			"patterns": [
 				{
+					"match": "((%).*)$",
 					"captures": {
 						"1": {
 							"name": "comment.line.percentage.tex"
@@ -2609,8 +2612,7 @@
 						"2": {
 							"name": "punctuation.definition.comment.tex"
 						}
-					},
-					"match": "((%).*)$"
+					}
 				},
 				{
 					"match": "[\\p{Alphabetic}\\p{Number}:.-]+",
@@ -2740,7 +2742,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -2783,7 +2785,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -2820,7 +2822,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -2867,7 +2869,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -3048,7 +3050,7 @@
 					"name": "punctuation.definition.variable.latex"
 				}
 			},
-			"match": "(\\\\)[cgl](?:[_\\p{Alphabetic}@]+)+_[a-z]+",
+			"match": "(\\\\)(?:[cgl]_+[_\\p{Alphabetic}@]+_[a-z]+|[qs]_[_\\p{Alphabetic}@]+[\\p{Alphabetic}@])",
 			"name": "variable.other.latex3.latex"
 		},
 		{
@@ -3073,27 +3075,29 @@
 				{
 					"captures": {
 						"1": {
-							"name": "punctuation.definition.arguments.optional.begin.latex"
+							"patterns": [
+								{
+									"include": "#optional-arg-parenthesis-no-highlight"
+								}
+							]
 						},
 						"2": {
-							"name": "punctuation.definition.arguments.optional.end.latex"
+							"patterns": [
+								{
+									"include": "#optional-arg-bracket-no-highlight"
+								}
+							]
 						},
 						"3": {
-							"name": "punctuation.definition.arguments.optional.begin.latex"
-						},
-						"4": {
-							"name": "punctuation.definition.arguments.optional.end.latex"
-						},
-						"5": {
 							"name": "punctuation.definition.arguments.begin.latex"
 						},
-						"6": {
+						"4": {
 							"name": "constant.other.reference.citation.latex"
 						},
-						"7": {
+						"5": {
 							"name": "punctuation.definition.arguments.end.latex"
 						},
-						"8": {
+						"6": {
 							"patterns": [
 								{
 									"include": "#autocites-arg"
@@ -3101,7 +3105,7 @@
 							]
 						}
 					},
-					"match": "(?:(\\()[^\\)]*(\\))){0,2}(?:(\\[)[^\\]]*(\\])){0,2}(\\{)([\\p{Alphabetic}\\p{Number}:.]+)(\\})(.*)"
+					"match": "((?:\\([^\\)]*\\)){0,2})((?:\\[[^\\]]*\\]){0,2})(\\{)([\\p{Alphabetic}\\p{Number}_:.-]+)(\\})(.*)"
 				}
 			]
 		},
@@ -3159,7 +3163,7 @@
 				"3": {
 					"patterns": [
 						{
-							"include": "#optional-arg"
+							"include": "#optional-arg-bracket"
 						}
 					]
 				},
@@ -3222,7 +3226,7 @@
 				}
 			]
 		},
-		"optional-arg": {
+		"optional-arg-bracket": {
 			"patterns": [
 				{
 					"captures": {
@@ -3237,6 +3241,73 @@
 						}
 					},
 					"match": "(\\[)([^\\[]*?)(\\])",
+					"name": "meta.parameter.optional.latex"
+				}
+			]
+		},
+		"optional-arg-parenthesis": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.arguments.optional.begin.latex"
+						},
+						"2": {
+							"name": "variable.parameter.function.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.optional.end.latex"
+						}
+					},
+					"match": "(\\()([^\\(]*?)(\\))",
+					"name": "meta.parameter.optional.latex"
+				}
+			]
+		},
+		"optional-arg-bracket-no-highlight": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.arguments.optional.begin.latex"
+						},
+						"2": {
+							"name": "punctuation.definition.arguments.optional.end.latex"
+						}
+					},
+					"match": "(\\[)[^\\[]*?(\\])",
+					"name": "meta.parameter.optional.latex"
+				}
+			]
+		},
+		"optional-arg-angle-no-highlight": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.arguments.optional.begin.latex"
+						},
+						"2": {
+							"name": "punctuation.definition.arguments.optional.end.latex"
+						}
+					},
+					"match": "(<)[^<]*?(>)",
+					"name": "meta.parameter.optional.latex"
+				}
+			]
+		},
+		"optional-arg-parenthesis-no-highlight": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.arguments.optional.begin.latex"
+						},
+						"2": {
+							"name": "punctuation.definition.arguments.optional.end.latex"
+						}
+					},
+					"match": "(\\()[^\\(]*?(\\))",
 					"name": "meta.parameter.optional.latex"
 				}
 			]

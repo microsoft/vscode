@@ -31,6 +31,7 @@ import { events as windows11_pwsh_writehost_multiline } from 'vs/workbench/contr
 import { importAMDNodeModule } from 'vs/amdX';
 import { testRawPwshCompletions } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/testRawPwshCompletions';
 import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { timeout } from 'vs/base/common/async';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
@@ -162,14 +163,17 @@ suite('Terminal Contrib Suggest Recordings', () => {
 					case 'promptInputChange': {
 						const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
 						if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
-							await new Promise<void>(r => {
-								const d = promptInputModel.onDidChangeInput(() => {
-									if (promptInputModel.getCombinedString() === event.data) {
-										d.dispose();
-										r();
-									}
-								});
-							});
+							await Promise.race([
+								await timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
+								await new Promise<void>(r => {
+									const d = promptInputModel.onDidChangeInput(() => {
+										if (promptInputModel.getCombinedString() === event.data) {
+											d.dispose();
+											r();
+										}
+									});
+								})
+							]);
 						}
 						break;
 					}

@@ -62,6 +62,7 @@ import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateF
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = DOM.$;
 
@@ -122,7 +123,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
 		this.delayedFiltering = new Delayer<void>(300);
@@ -590,7 +592,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		if (this.keybindingsEditorModel) {
 			const filter = this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedenceAction.checked);
-
+			this.accessibilityService.alert(localize('foundResults', "{0} results", keybindingsEntries.length));
 			this.ariaLabelElement.setAttribute('aria-label', this.getAriaLabel(keybindingsEntries));
 
 			if (keybindingsEntries.length === 0) {

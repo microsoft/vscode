@@ -50,6 +50,7 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { NotebookCellEditorPool } from 'vs/workbench/contrib/notebook/browser/view/notebookCellEditorPool';
 
 const $ = DOM.$;
 
@@ -239,6 +240,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	constructor(
 		notebookEditor: INotebookEditorDelegate,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
+		private editorPool: NotebookCellEditorPool,
 		dndController: CellDragAndDropController,
 		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -287,6 +289,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			dimension: {
 				width: 0,
 				height: 0
+			},
+			scrollbar: {
+				vertical: 'hidden',
+				horizontal: 'auto',
+				handleMouseWheel: false,
+				useShadows: false,
 			},
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
@@ -376,7 +384,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.domNode.innerText = '';
 		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
-		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
+		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, this.editorPool));
 		this.renderedEditors.set(element, templateData.editor);
 	}
 

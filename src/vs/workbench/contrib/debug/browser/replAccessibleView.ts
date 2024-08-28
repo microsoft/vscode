@@ -5,7 +5,7 @@
 
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IDebugService, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
+import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { getReplView, Repl } from 'vs/workbench/contrib/debug/browser/repl';
@@ -22,14 +22,14 @@ export class ReplAccessibleView implements IAccessibleViewImplentation {
 	type: AccessibleViewType = AccessibleViewType.View;
 	getProvider(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const debugService = accessor.get(IDebugService);
 		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const replView = getReplView(viewsService);
 		if (!replView) {
 			return undefined;
 		}
+
 		const focusedElement = replView.getFocusedElement();
-		return new ReplOutputAccessibleViewProvider(replView, focusedElement, debugService, accessibleViewService);
+		return new ReplOutputAccessibleViewProvider(replView, focusedElement, accessibleViewService);
 	}
 }
 
@@ -52,18 +52,16 @@ class ReplOutputAccessibleViewProvider extends Disposable implements IAccessible
 	constructor(
 		private readonly _replView: Repl,
 		private readonly _focusedElement: IReplElement | undefined,
-		@IDebugService private readonly _debugService: IDebugService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService) {
 		super();
 		this._treeHadFocus = !!_focusedElement;
 	}
 	public provideContent(): string {
-		const viewModel = this._debugService.getViewModel();
-		const focusedDebugSession = viewModel?.focusedSession;
-		if (!focusedDebugSession) {
-			return 'No debug session is active.';
+		const debugSession = this._replView.getDebugSession();
+		if (!debugSession) {
+			return 'No debug session available.';
 		}
-		const elements = focusedDebugSession.getReplElements();
+		const elements = debugSession.getReplElements();
 		if (!elements.length) {
 			return 'No output in the debug console.';
 		}

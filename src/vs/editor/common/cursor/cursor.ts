@@ -740,7 +740,7 @@ interface ICommandsData {
 	hadTrackedEditOperation: boolean;
 }
 
-class CommandExecutor {
+export class CommandExecutor {
 
 	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[]): Selection[] | null {
 

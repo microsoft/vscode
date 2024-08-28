@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownRenderOptions, MarkedOptions } from 'vs/base/browser/markdownRenderer';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarkdownRendererOptions, IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
 
@@ -56,6 +59,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(options ?? {}, languageService, openerService);
 	}
@@ -79,6 +83,26 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		return super.render(mdWithBody, options, markedOptions);
+		const result = super.render(mdWithBody, options, markedOptions);
+		return this.attachCustomHover(result);
+	}
+
+	private attachCustomHover(result: IMarkdownRenderResult): IMarkdownRenderResult {
+		const store = new DisposableStore();
+		result.element.querySelectorAll('a').forEach((element) => {
+			if (element.title) {
+				const title = element.title;
+				element.title = '';
+				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
+			}
+		});
+
+		return {
+			element: result.element,
+			dispose: () => {
+				result.dispose();
+				store.dispose();
+			}
+		};
 	}
 }

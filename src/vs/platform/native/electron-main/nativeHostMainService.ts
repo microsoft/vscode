@@ -179,6 +179,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return undefined;
 	}
 
+	async getActiveWindowPosition(): Promise<IRectangle | undefined> {
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		if (activeWindow) {
+			return activeWindow.getBounds();
+		}
+		return undefined;
+	}
+
 	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
@@ -507,7 +515,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return true;
 	}
 
-	private async openExternalBrowser(url: string, defaultApplication?: string) {
+	private async openExternalBrowser(url: string, defaultApplication?: string): Promise<void> {
 		const configuredBrowser = defaultApplication ?? this.configurationService.getValue<string>('workbench.externalBrowser');
 		if (!configuredBrowser) {
 			return shell.openExternal(url);
@@ -523,13 +531,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		try {
 			const { default: open } = await import('open');
-			await open(url, {
+			const res = await open(url, {
 				app: {
 					// Use `open.apps` helper to allow cross-platform browser
 					// aliases to be looked up properly. Fallback to the
 					// configured value if not found.
 					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
 				}
+			});
+
+			res.stderr?.once('data', (data: Buffer) => {
+				this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
+				return shell.openExternal(url);
 			});
 		} catch (error) {
 			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);

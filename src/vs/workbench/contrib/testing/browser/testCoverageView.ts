@@ -698,13 +698,13 @@ registerAction2(class TestCoverageChangeSortingAction extends ViewAction<TestCov
 		quickInput.placeholder = localize('testing.coverageSortPlaceholder', 'Sort the Test Coverage view...');
 		quickInput.items = items;
 		quickInput.show();
-		quickInput.onDidHide(() => quickInput.dispose());
-		quickInput.onDidAccept(() => {
+		disposables.add(quickInput.onDidHide(() => disposables.dispose()));
+		disposables.add(quickInput.onDidAccept(() => {
 			const picked = quickInput.selectedItems[0]?.value;
 			if (picked !== undefined) {
 				view.sortOrder.set(picked, undefined);
 				quickInput.dispose();
 			}
-		});
+		}));
 	}
 });

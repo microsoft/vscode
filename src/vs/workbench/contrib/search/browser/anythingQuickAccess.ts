@@ -87,7 +87,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly pickState = this._register(new class extends Disposable {
 
-		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
+		picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }> | undefined = undefined;
 
 		editorViewState = this._register(this.instantiationService.createInstance(PickerEditorState));
 
@@ -109,7 +109,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			super();
 		}
 
-		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
+		set(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>): void {
 
 			// Picker for this run
 			this.picker = picker;
@@ -188,7 +188,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	override provide(picker: IQuickPick<IAnythingQuickPickItem>, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IDisposable {
+	override provide(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Update the pick state for this run

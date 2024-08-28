@@ -47,7 +47,7 @@ suite('QuickAccess', () => {
 
 		constructor(@IQuickInputService private readonly quickInputService: IQuickInputService, disposables: DisposableStore) { }
 
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			providerDefaultCalled = true;
 			token.onCancellationRequested(() => providerDefaultCanceled = true);
@@ -60,7 +60,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider1 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider1Called = true;
 			token.onCancellationRequested(() => provider1Canceled = true);
@@ -70,7 +70,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider2 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider2Called = true;
 			token.onCancellationRequested(() => provider2Canceled = true);
@@ -80,7 +80,7 @@ suite('QuickAccess', () => {
 	}
 
 	class TestProvider3 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
+		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider3Called = true;
 			token.onCancellationRequested(() => provider3Canceled = true);

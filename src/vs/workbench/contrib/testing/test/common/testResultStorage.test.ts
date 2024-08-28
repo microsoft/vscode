@@ -28,7 +28,7 @@ suite('Workbench - Test Result Storage', () => {
 			NullTelemetryService,
 		));
 
-		t.addTask({ id: taskName, name: undefined, running: true, ctrlId: 'ctrlId' });
+		t.addTask({ id: taskName, name: 'n', running: true, ctrlId: 'ctrlId' });
 		const tests = ds.add(testStubs.nested());
 		tests.expand(tests.root.id, Infinity);
 		t.addTestChainToRun('ctrlId', [

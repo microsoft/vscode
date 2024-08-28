@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/model/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { InlineEditHintsWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';

@@ -133,7 +133,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 		super();
 	}
 
-	provide(picker: IQuickPick<T>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+	provide(picker: IQuickPick<T, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Apply options if any

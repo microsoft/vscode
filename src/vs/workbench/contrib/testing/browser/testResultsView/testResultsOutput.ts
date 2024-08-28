@@ -65,7 +65,7 @@ export interface IPeekOutputRenderer extends IDisposable {
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(subject: InspectSubject): Promise<boolean>;
 	/** Recalculate content layout. Returns the height it should be rendered at. */
-	layout(dimension: dom.IDimension): number | undefined;
+	layout(dimension: dom.IDimension, hasMultipleFrames: boolean): number | undefined;
 	/** Dispose the content provider. */
 	dispose(): void;
 }
@@ -172,7 +172,7 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		this.widget.clear();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	public layout(dimensions: dom.IDimension, hasMultipleFrames: boolean) {
 		this.dimension = dimensions;
 		const editor = this.widget.value;
 		if (!editor) {
@@ -180,7 +180,11 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		}
 
 		editor.layout(dimensions);
-		const height = Math.min(1000, Math.max(editor.getOriginalEditor().getContentHeight(), editor.getModifiedEditor().getContentHeight()));
+		if (!hasMultipleFrames) {
+			return dimensions.height;
+		}
+
+		const height = Math.min(10000, Math.max(editor.getOriginalEditor().getContentHeight(), editor.getModifiedEditor().getContentHeight()));
 		editor.layout({ height, width: dimensions.width });
 		return height;
 	}
@@ -219,7 +223,6 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 
 
 		const rendered = this._register(this.markdown.value.render(message.message, {}));
-		rendered.element.style.height = '100%';
 		rendered.element.style.userSelect = 'text';
 		rendered.element.classList.add('preview-text');
 		this.container.appendChild(rendered.element);
@@ -232,7 +235,7 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 			return undefined;
 		}
 
-		this.element.style.width = `${dimension.width}px`;
+		this.element.style.width = `${dimension.width - 32}px`;
 		return this.element.clientHeight;
 	}
 
@@ -307,7 +310,7 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		this.model.clear();
 	}
 
-	public layout(dimensions: dom.IDimension) {
+	public layout(dimensions: dom.IDimension, hasMultipleFrames: boolean) {
 		this.dimension = dimensions;
 		const editor = this.widget.value;
 		if (!editor) {
@@ -315,6 +318,10 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		}
 
 		editor.layout(dimensions);
+		if (!hasMultipleFrames) {
+			return dimensions.height;
+		}
+
 		const height = editor.getContentHeight();
 		editor.layout({ height, width: dimensions.width });
 		return height;

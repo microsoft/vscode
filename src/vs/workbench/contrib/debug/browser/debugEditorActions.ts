@@ -23,6 +23,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
+import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 import { Repl } from 'vs/workbench/contrib/debug/browser/repl';
@@ -304,7 +305,12 @@ export class RunToCursorAction extends EditorAction {
 			id: RunToCursorAction.ID,
 			label: RunToCursorAction.LABEL.value,
 			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, PanelFocusContext.toNegated(), ContextKeyExpr.or(EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLY_VIEW_FOCUS)),
+			precondition: ContextKeyExpr.and(
+				CONTEXT_DEBUGGERS_AVAILABLE,
+				PanelFocusContext.toNegated(),
+				ContextKeyExpr.or(EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLY_VIEW_FOCUS),
+				CONTEXT_IN_CHAT_SESSION.negate()
+			),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 2,
@@ -345,7 +351,10 @@ export class SelectionToReplAction extends EditorAction {
 			id: SelectionToReplAction.ID,
 			label: SelectionToReplAction.LABEL.value,
 			alias: 'Debug: Evaluate in Console',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(
+				CONTEXT_IN_DEBUG_MODE,
+				EditorContextKeys.editorTextFocus,
+				CONTEXT_IN_CHAT_SESSION.negate()),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 0
@@ -385,7 +394,10 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			id: SelectionToWatchExpressionsAction.ID,
 			label: SelectionToWatchExpressionsAction.LABEL.value,
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(
+				CONTEXT_IN_DEBUG_MODE,
+				EditorContextKeys.editorTextFocus,
+				CONTEXT_IN_CHAT_SESSION.negate()),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 1

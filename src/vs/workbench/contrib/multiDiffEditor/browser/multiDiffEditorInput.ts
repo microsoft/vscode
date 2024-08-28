@@ -31,7 +31,7 @@ import { EditorInput, IEditorCloseHandler } from 'vs/workbench/common/editor/edi
 import { MultiDiffEditorIcon } from 'vs/workbench/contrib/multiDiffEditor/browser/icons.contribution';
 import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
@@ -174,6 +174,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				multiDiffEditorItem: r,
 				original: original?.object.textEditorModel,
 				modified: modified?.object.textEditorModel,
+				contextKeys: r.contextKeys,
 				get options() {
 					return {
 						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),
@@ -233,9 +234,16 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	public readonly resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
+
+	private readonly textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
+		this._textFileService.files.onDidChangeDirty,
+		item => item.resource.toString(),
+		uri => uri.toString()
+	);
+
 	private readonly _isDirtyObservables = mapObservableArrayCached(this, this.resources.map(r => r ?? []), res => {
-		const isModifiedDirty = res.modifiedUri ? isUriDirty(this._textFileService, res.modifiedUri) : constObservable(false);
-		const isOriginalDirty = res.originalUri ? isUriDirty(this._textFileService, res.originalUri) : constObservable(false);
+		const isModifiedDirty = res.modifiedUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.modifiedUri) : constObservable(false);
+		const isOriginalDirty = res.originalUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.originalUri) : constObservable(false);
 		return derived(reader => /** @description modifiedDirty||originalDirty */ isModifiedDirty.read(reader) || isOriginalDirty.read(reader));
 	}, i => i.getKey());
 	private readonly _isDirtyObservable = derived(this, reader => this._isDirtyObservables.read(reader).some(isDirty => isDirty.read(reader)))
@@ -290,11 +298,67 @@ export interface IDocumentDiffItemWithMultiDiffEditorItem extends IDocumentDiffI
 	multiDiffEditorItem: MultiDiffEditorItem;
 }
 
-function isUriDirty(textFileService: ITextFileService, uri: URI) {
-	return observableFromEvent(
-		Event.filter(textFileService.files.onDidChangeDirty, e => e.resource.toString() === uri.toString()),
-		() => textFileService.isDirty(uri)
-	);
+/**
+ * Uses a map to efficiently dispatch events to listeners that are interested in a specific key.
+*/
+class FastEventDispatcher<T, TKey> {
+	private _count = 0;
+	private readonly _buckets = new Map<string, Set<(value: T) => void>>();
+
+	private _eventSubscription: IDisposable | undefined;
+
+	constructor(
+		private readonly _event: Event<T>,
+		private readonly _getEventArgsKey: (item: T) => string,
+		private readonly _keyToString: (key: TKey) => string,
+	) {
+	}
+
+	public filteredEvent(filter: TKey): (listener: (e: T) => any) => IDisposable {
+		return listener => {
+			const key = this._keyToString(filter);
+			let bucket = this._buckets.get(key);
+			if (!bucket) {
+				bucket = new Set();
+				this._buckets.set(key, bucket);
+			}
+			bucket.add(listener);
+
+			this._count++;
+			if (this._count === 1) {
+				this._eventSubscription = this._event(this._handleEventChange);
+			}
+
+			return {
+				dispose: () => {
+					bucket!.delete(listener);
+					if (bucket!.size === 0) {
+						this._buckets.delete(key);
+					}
+					this._count--;
+
+					if (this._count === 0) {
+						this._eventSubscription?.dispose();
+						this._eventSubscription = undefined;
+					}
+				}
+			};
+		};
+	}
+
+	private readonly _handleEventChange = (e: T) => {
+		const key = this._getEventArgsKey(e);
+		const bucket = this._buckets.get(key);
+		if (bucket) {
+			for (const listener of bucket) {
+				listener(e);
+			}
+		}
+	};
+}
+
+function isUriDirty(onDidChangeDirty: FastEventDispatcher<ITextFileEditorModel, URI>, textFileService: ITextFileService, uri: URI) {
+	return observableFromEvent(onDidChangeDirty.filteredEvent(uri), () => textFileService.isDirty(uri));
 }
 
 function getReadonlyConfiguration(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {

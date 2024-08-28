@@ -227,11 +227,12 @@ export class SimpleCompletionModel {
 // File score boosts for specific file extensions on Windows. This only applies when the file is the
 // _first_ part of the command line.
 const fileExtScores = new Map<string, number>(isWindows ? [
-	// Pwsh
+	// Windows - .ps1 > .exe > .bat > .cmd. This is the command precedence when running the files
+	//           without an extension, tested manually in pwsh v7.4.4
 	['ps1', 0.09],
-	// Windows
-	['bat', 0.05],
-	['cmd', 0.05],
+	['exe', 0.08],
+	['bat', 0.07],
+	['cmd', 0.07],
 	// Non-Windows
 	['sh', -0.05],
 	['bash', -0.05],
@@ -247,6 +248,7 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	// Windows
 	['bat', -0.05],
 	['cmd', -0.05],
+	['exe', -0.05],
 	// Non-Windows
 	['sh', 0.05],
 	['bash', 0.05],

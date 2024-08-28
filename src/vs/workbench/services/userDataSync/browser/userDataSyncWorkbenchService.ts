@@ -577,7 +577,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		let result: UserDataSyncAccount | IAuthenticationProvider | undefined;
 		const disposables: DisposableStore = new DisposableStore();
-		const quickPick = disposables.add(this.quickInputService.createQuickPick<AccountQuickPickItem>());
+		const quickPick = disposables.add(this.quickInputService.createQuickPick<AccountQuickPickItem>({ useSeparators: true }));
 
 		const promise = new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(c => {
 			disposables.add(quickPick.onDidHide(() => {

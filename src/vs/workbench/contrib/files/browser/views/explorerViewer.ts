@@ -880,6 +880,10 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		const lexicographicOptions = this.explorerService.sortOrderConfiguration.lexicographicOptions;
+		const reverse = this.explorerService.sortOrderConfiguration.reverse;
+		if (reverse) {
+			[statA, statB] = [statB, statA];
+		}
 
 		let compareFileNames;
 		let compareFileExtensions;

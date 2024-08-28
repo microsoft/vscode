@@ -41,6 +41,11 @@ export interface ITestingDecorationsService {
 	 * Returns undefined if there's no such decoration.
 	 */
 	getDecoratedTestPosition(resource: URI, testId: string): Position | undefined;
+
+	/**
+	 * Sets that alternative actions are displayed on the model.
+	 */
+	updateDecorationsAlternateAction(resource: URI, isAlt: boolean): void;
 }
 
 export interface ITestDecoration {

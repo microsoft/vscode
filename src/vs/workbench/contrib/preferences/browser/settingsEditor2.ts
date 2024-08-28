@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
+import { Delayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -181,8 +181,7 @@ export class SettingsEditor2 extends EditorPane {
 	private tocTree!: TOCTree;
 
 	private delayedFilterLogging: Delayer<void>;
-	private localSearchDelayer: Delayer<void>;
-	private remoteSearchThrottle: ThrottledDelayer<void>;
+	private searchDelayer: Delayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -252,8 +251,7 @@ export class SettingsEditor2 extends EditorPane {
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.localSearchDelayer = new Delayer(300);
-		this.remoteSearchThrottle = new ThrottledDelayer(200);
+		this.searchDelayer = new Delayer(300);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
@@ -484,8 +482,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const target: SettingsTarget | undefined = options.folderUri ?? recoveredViewState?.settingsTarget ?? <SettingsTarget | undefined>options.target;
 		if (target) {
-			this.settingsTargetsWidget.settingsTarget = target;
-			this.viewState.settingsTarget = target;
+			this.settingsTargetsWidget.updateTarget(target);
 		}
 	}
 
@@ -1627,8 +1624,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.searchResultModel = null;
 			}
 
-			this.localSearchDelayer.cancel();
-			this.remoteSearchThrottle.cancel();
+			this.searchDelayer.cancel();
 			if (this.searchInProgress) {
 				this.searchInProgress.cancel();
 				this.searchInProgress.dispose();
@@ -1719,7 +1715,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
 
-	private triggerFilterPreferences(query: string): Promise<void> {
+	private async triggerFilterPreferences(query: string): Promise<void> {
 		if (this.searchInProgress) {
 			this.searchInProgress.cancel();
 			this.searchInProgress = null;
@@ -1727,18 +1723,29 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Trigger the local search. If it didn't find an exact match, trigger the remote search.
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
-		return this.localSearchDelayer.trigger(async () => {
-			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				const result = await this.localFilterPreferences(query);
-				if (result && !result.exactMatch) {
-					this.remoteSearchThrottle.trigger(async () => {
-						if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-							await this.remoteSearchPreferences(query, this.searchInProgress?.token);
-						}
-					});
+		return this.searchDelayer.trigger(async () => {
+			if (!searchInProgress.token.isCancellationRequested) {
+				const localResults = await this.localFilterPreferences(query, searchInProgress.token);
+				if (localResults && !localResults.exactMatch && !searchInProgress.token.isCancellationRequested) {
+					await this.remoteSearchPreferences(query, searchInProgress.token);
 				}
+
+				// Update UI only after all the search results are in
+				// ref https://github.com/microsoft/vscode/issues/224946
+				this.onDidFinishSearch();
 			}
 		});
+	}
+
+	private onDidFinishSearch() {
+		this.tocTreeModel.currentSearchModel = this.searchResultModel;
+		this.tocTreeModel.update();
+		this.tocTree.setFocus([]);
+		this.viewState.filterToCategory = undefined;
+		this.tocTree.expandAll();
+		this.settingsTree.scrollTop = 0;
+		this.refreshTOCTree();
+		this.renderTree(undefined, true);
 	}
 
 	private localFilterPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
@@ -1746,14 +1753,9 @@ export class SettingsEditor2 extends EditorPane {
 		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider, token);
 	}
 
-	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<void> {
+	private remoteSearchPreferences(query: string, token?: CancellationToken): Promise<ISearchResult | null> {
 		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		const newExtSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query, true);
-
-		return Promise.all([
-			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
-			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
-		]).then(() => { });
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token);
 	}
 
 	private async filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider?: ISearchProvider, token?: CancellationToken): Promise<ISearchResult | null> {
@@ -1762,24 +1764,8 @@ export class SettingsEditor2 extends EditorPane {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
 		}
-		if (!this.searchResultModel) {
-			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
-			// Must be called before this.renderTree()
-			// to make sure the search results count is set.
-			this.searchResultModel.setResult(type, result);
-			this.tocTreeModel.currentSearchModel = this.searchResultModel;
-		} else {
-			this.searchResultModel.setResult(type, result);
-			this.tocTreeModel.update();
-		}
-		if (type === SearchResultIdx.Local) {
-			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
-			this.tocTree.expandAll();
-		}
-		this.settingsTree.scrollTop = 0;
-		this.refreshTOCTree();
-		this.renderTree(undefined, true);
+		this.searchResultModel ??= this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
+		this.searchResultModel.setResult(type, result);
 		return result;
 	}
 

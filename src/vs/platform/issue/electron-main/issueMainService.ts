@@ -11,7 +11,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { localize } from 'vs/nls';
+import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
@@ -22,6 +22,8 @@ import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electr
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { isESM } from 'vs/base/common/amd';
+import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -49,6 +51,7 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
 	) { }
 
 	//#region Used by renderer
@@ -83,14 +86,14 @@ export class IssueMainService implements IIssueMainService {
 					},
 					product,
 					nls: {
-						// VSCODE_GLOBALS: NLS
-						messages: globalThis._VSCODE_NLS_MESSAGES,
-						language: globalThis._VSCODE_NLS_LANGUAGE
-					}
+						messages: getNLSMessages(),
+						language: getNLSLanguage()
+					},
+					cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
+					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {

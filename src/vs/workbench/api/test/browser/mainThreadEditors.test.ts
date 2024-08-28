@@ -16,12 +16,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -57,6 +55,10 @@ import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperatio
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('MainThreadEditors', () => {
 
@@ -80,19 +82,11 @@ suite('MainThreadEditors', () => {
 		createdResources.clear();
 		deletedResources.clear();
 
-
 		const configService = new TestConfigurationService();
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
-		modelService = new ModelService(
-			configService,
-			new TestTextResourcePropertiesService(configService),
-			undoRedoService,
-			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService(),
-		);
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));
@@ -178,7 +172,17 @@ suite('MainThreadEditors', () => {
 			}
 		});
 
+		services.set(ILanguageService, disposables.add(new LanguageService()));
+		services.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+
 		const instaService = new InstantiationService(services);
+
+		modelService = new ModelService(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			undoRedoService,
+			instaService
+		);
 
 		bulkEdits = instaService.createInstance(MainThreadBulkEdits, SingleProxyRPCProtocol(null));
 	});

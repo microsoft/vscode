@@ -141,7 +141,7 @@ suite('Workbench - TerminalInstance', () => {
 							unicodeVersion: '6',
 							shellIntegration: {
 								enabled: true
-							},
+							}
 						}
 					},
 				})

@@ -832,8 +832,8 @@ export class NoTreeViewError extends Error {
 	constructor(treeViewId: string) {
 		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
 	}
-	static is(err: Error): err is NoTreeViewError {
-		return err.name === 'NoTreeViewError';
+	static is(err: unknown): err is NoTreeViewError {
+		return !!err && (err as Error).name === 'NoTreeViewError';
 	}
 }
 
