@@ -307,7 +307,7 @@ export class BulkFileOperations {
 		return result;
 	}
 
-	getFileEdits(uri: URI): ISingleEditOperation[] {
+	async getFileEdits(uri: URI): Promise<ISingleEditOperation[]> {
 
 		for (const file of this.fileOperations) {
 			if (file.uri.toString() === uri.toString()) {
@@ -316,7 +316,11 @@ export class BulkFileOperations {
 				let ignoreAll = false;
 
 				for (const edit of file.originalEdits.values()) {
-					if (edit instanceof ResourceTextEdit) {
+					if (edit instanceof ResourceFileEdit) {
+						const content = await edit.options.contents;
+						if (!content) continue;
+						result.push(EditOperation.replaceMove(Range.lift({ startLineNumber: 0, startColumn: 0, endLineNumber: Number.MAX_VALUE, endColumn: 0 }), content.toString()));
+					} else if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
 							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text)));
 						}
@@ -402,7 +406,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 			model.applyEdits(undoEdits);
 		}
 		// apply new edits and keep (future) undo edits
-		const newEdits = this._operations.getFileEdits(uri);
+		const newEdits = await this._operations.getFileEdits(uri);
 		const newUndoEdits = model.applyEdits(newEdits, true);
 		this._modelPreviewEdits.set(model.id, newUndoEdits);
 	}
