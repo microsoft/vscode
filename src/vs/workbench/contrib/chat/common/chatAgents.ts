@@ -445,7 +445,7 @@ export class ChatAgentService implements IChatAgentService {
 		const participants = this.getAgents().reduce<IChatParticipantMetadata[]>((acc, a) => {
 			acc.push({ participant: a.id, disambiguation: a.disambiguation ?? [] });
 			for (const command of a.slashCommands) {
-				acc.push({ participant: a.id, command: command.name, disambiguation: [] });
+				acc.push({ participant: a.id, command: command.name, disambiguation: command.disambiguation ?? [] });
 			}
 			return acc;
 		}, []);
