@@ -713,8 +713,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private _onDidChange = this._register(new Emitter<AbstractUserDataProfileElement | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _templates: IProfileTemplateInfo[] | undefined;
-	get templates(): readonly IProfileTemplateInfo[] { return this._templates ?? []; }
+	private templates: Promise<readonly IProfileTemplateInfo[]> | undefined;
 
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -761,9 +760,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
-	override async resolve(): Promise<void> {
-		await super.resolve();
-		this._templates = await this.userDataProfileManagementService.getBuiltinProfileTemplates();
+	getTemplates(): Promise<readonly IProfileTemplateInfo[]> {
+		if (!this.templates) {
+			this.templates = this.userDataProfileManagementService.getBuiltinProfileTemplates();
+		}
+		return this.templates;
 	}
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
