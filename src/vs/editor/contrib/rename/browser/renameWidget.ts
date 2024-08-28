@@ -318,7 +318,8 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null): void {
-		this._trace('invoking afterRender, position: ', position ? 'not null' : 'null');
+		// @ulugbekna: commenting trace log out until we start unmounting the widget from editor properly
+		// this._trace('invoking afterRender, position: ', position ? 'not null' : 'null');
 		if (position === null) {
 			// cancel rename when input widget isn't rendered anymore
 			this.cancelInput(true, 'afterRender (because position is null)');
