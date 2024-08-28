@@ -185,6 +185,7 @@ class OutputEditor extends AbstractTextResourceEditor {
 		options.lineDecorationsWidth = 20;
 		options.rulers = [];
 		options.folding = false;
+		options.codeLens = false;
 		options.scrollBeyondLastLine = false;
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
