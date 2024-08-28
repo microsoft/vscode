@@ -710,7 +710,6 @@ class ProfileTreeDataSource implements IAsyncDataSource<AbstractUserDataProfileE
 					children.push({ element: 'name', root: element });
 					children.push({ element: 'icon', root: element });
 				}
-				children.push({ element: 'useForCurrent', root: element });
 				children.push({ element: 'useAsDefault', root: element });
 				children.push({ element: 'contents', root: element });
 			}
