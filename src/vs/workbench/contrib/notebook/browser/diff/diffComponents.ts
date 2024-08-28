@@ -186,23 +186,10 @@ class PropertyHeader extends Disposable {
 
 			const target = e.event.target as HTMLElement;
 
-			if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {
-				const parent = target.parentElement as HTMLElement;
-
-				if (!parent) {
-					return;
-				}
-
-				if (!parent.classList.contains(this.accessor.prefix)) {
-					return;
-				}
-
-				if (!parent.classList.contains('property-folding-indicator')) {
-					return;
-				}
-
-				// folding icon
-
+			if (target === this.propertyHeaderContainer ||
+				target === this._foldingIndicator || this._foldingIndicator.contains(target) ||
+				target === metadataStatus || metadataStatus.contains(target)
+			) {
 				const cellViewModel = e.target;
 
 				if (cellViewModel === this.cell) {
