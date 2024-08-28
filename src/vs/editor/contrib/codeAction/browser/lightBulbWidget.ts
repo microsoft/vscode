@@ -298,7 +298,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 					return this.hide();
 				}
 			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
-				console.log('fifth');
 				effectiveLineNumber += 1;
 			} else if (column * fontInfo.spaceWidth < 22) {
 				// cannot show lightbulb above/below and showing
