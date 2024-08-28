@@ -64,6 +64,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -119,10 +120,11 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 			return { actions: [] };
 		}
 		return {
+			/*
 			actions:
 				[
 					{
-						commandId: KEEP_EDITOR_COMMAND_ID,
+						commandId: this.tabsModel.isActive(editor) ? KEEP_EDITOR_COMMAND_ID : '', // avoid showing keybinding if not active
 						label: localize('keepEditor', "Keep Editor"),
 						run: () => {
 							this.commandService.executeCommand(KEEP_EDITOR_COMMAND_ID, editor.resource);
@@ -135,7 +137,9 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 							this.commandService.executeCommand(TOGGLE_KEEP_EDITORS_COMMAND_ID);
 						}
 					},
-				]
+				],
+			*/
+			content: new MarkdownString(`${options.content} _([preview mode](https://code.visualstudio.com/docs/getstarted/userinterface#_preview-mode))_`, true),
 		};
 	}
 }
