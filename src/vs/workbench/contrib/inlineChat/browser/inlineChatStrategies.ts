@@ -7,7 +7,7 @@ import { getTotalWidth, WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -43,6 +43,9 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Iterable } from 'vs/base/common/iterator';
+import { ConflictActionsFactory, IContentWidgetAction } from 'vs/workbench/contrib/mergeEditor/browser/view/conflictActions';
+import { constObservable } from 'vs/base/common/observable';
+import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 
 export interface IEditObserver {
 	start(): void;
@@ -216,8 +219,10 @@ type HunkDisplayData = {
 
 	decorationIds: string[];
 
-	viewZoneId: string | undefined;
-	viewZone: IViewZone;
+	diffViewZoneId: string | undefined;
+	diffViewZone: IViewZone;
+
+	lensActionsViewZoneIds?: string[];
 
 	distance: number;
 	position: Position;
@@ -257,6 +262,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
+	private readonly _lensActionsFactory: ConflictActionsFactory;
 	private _editCount: number = 0;
 
 	constructor(
@@ -268,6 +274,8 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextService: IContextKeyService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instaService: IInstantiationService
 	) {
@@ -276,6 +284,7 @@ export class LiveStrategy extends EditModeStrategy {
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
 		this._progressiveEditingDecorations = this._editor.createDecorationsCollection();
+		this._lensActionsFactory = this._store.add(new ConflictActionsFactory(this._editor));
 
 	}
 
@@ -487,25 +496,25 @@ export class LiveStrategy extends EditModeStrategy {
 							afterLineNumber: -1,
 							heightInLines: result.heightInLines,
 							domNode,
-							ordinal: 50000 + 1 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
+							ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
 						};
 
 						const toggleDiff = () => {
 							const scrollState = StableEditorScrollState.capture(this._editor);
 							changeDecorationsAndViewZones(this._editor, (_decorationsAccessor, viewZoneAccessor) => {
 								assertType(data);
-								if (!data.viewZoneId) {
+								if (!data.diffViewZoneId) {
 									const [hunkRange] = hunkData.getRangesN();
 									viewZoneData.afterLineNumber = hunkRange.startLineNumber - 1;
-									data.viewZoneId = viewZoneAccessor.addZone(viewZoneData);
+									data.diffViewZoneId = viewZoneAccessor.addZone(viewZoneData);
 									overlay?.updateExtraTop(result.heightInLines);
 								} else {
-									viewZoneAccessor.removeZone(data.viewZoneId!);
+									viewZoneAccessor.removeZone(data.diffViewZoneId!);
 									overlay?.updateExtraTop(0);
-									data.viewZoneId = undefined;
+									data.diffViewZoneId = undefined;
 								}
 							});
-							this._ctxCurrentChangeShowsDiff.set(typeof data?.viewZoneId === 'string');
+							this._ctxCurrentChangeShowsDiff.set(typeof data?.diffViewZoneId === 'string');
 							scrollState.restore(this._editor);
 						};
 
@@ -513,17 +522,48 @@ export class LiveStrategy extends EditModeStrategy {
 							? this._instaService.createInstance(InlineChangeOverlay, this._editor, hunkData)
 							: undefined;
 
+
+						let lensActions: IDisposable | undefined;
+						const lensActionsViewZoneIds: string[] = [];
+
+						if (this._showOverlayToolbar && hunkData.getState() === HunkState.Pending) {
+
+							const actions: IContentWidgetAction[] = [];
+							const tuples = this._menuService.getMenuActions(MENU_INLINE_CHAT_ZONE, this._contextService, { arg: hunkData });
+							for (const [, group] of tuples) {
+								for (const item of group) {
+									if (item instanceof MenuItemAction) {
+										actions.push({
+											text: item.label,
+											tooltip: item.tooltip,
+											action: async () => item.run(),
+										});
+									}
+								}
+							}
+
+							lensActions = this._lensActionsFactory.createWidget(viewZoneAccessor,
+								hunkRanges[0].startLineNumber - 1,
+								constObservable(actions),
+								lensActionsViewZoneIds
+							);
+						}
+
 						const remove = () => {
 							changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
 								assertType(data);
 								for (const decorationId of data.decorationIds) {
 									decorationsAccessor.removeDecoration(decorationId);
 								}
-								if (data.viewZoneId) {
-									viewZoneAccessor.removeZone(data.viewZoneId);
+								if (data.diffViewZoneId) {
+									viewZoneAccessor.removeZone(data.diffViewZoneId);
 								}
 								data.decorationIds = [];
-								data.viewZoneId = undefined;
+								data.diffViewZoneId = undefined;
+
+								data.lensActionsViewZoneIds?.forEach(viewZoneAccessor.removeZone);
+								data.lensActionsViewZoneIds = undefined;
+								lensActions?.dispose();
 							});
 
 							overlay?.dispose();
@@ -548,8 +588,9 @@ export class LiveStrategy extends EditModeStrategy {
 						data = {
 							hunk: hunkData,
 							decorationIds,
-							viewZoneId: '',
-							viewZone: viewZoneData,
+							diffViewZoneId: '',
+							diffViewZone: viewZoneData,
+							lensActionsViewZoneIds,
 							distance: myDistance,
 							position: hunkRanges[0].getStartPosition().delta(-1),
 							acceptHunk,
