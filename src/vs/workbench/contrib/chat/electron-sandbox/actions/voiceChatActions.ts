@@ -941,12 +941,6 @@ export class StopReadAloud extends Action2 {
 					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
-				},
-				{
-					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
-					when: ScopedChatSynthesisInProgress,
-					group: 'navigation',
-					order: -1
 				}
 			]
 		});
@@ -974,6 +968,15 @@ export class StopReadChatItemAloud extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatMessageTitle,
+					when: ContextKeyExpr.and(
+						ScopedChatSynthesisInProgress,		// only when in progress
+						CONTEXT_RESPONSE,					// only for responses
+						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
+					),
+					group: 'navigation'
+				},
+				{
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					when: ContextKeyExpr.and(
 						ScopedChatSynthesisInProgress,		// only when in progress
 						CONTEXT_RESPONSE,					// only for responses
