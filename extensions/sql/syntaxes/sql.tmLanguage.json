@@ -436,12 +436,7 @@
 				}
 			},
 			"end": "\\*/",
-			"name": "comment.block",
-			"patterns": [
-				{
-					"include": "#comment-block"
-				}
-			]
+			"name": "comment.block"
 		},
 		"regexps": {
 			"patterns": [
