@@ -39,6 +39,12 @@
             "scope": "resource",
             "markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
             "default": true
+          },
+          "ipynb.experimental.serialization": {
+            "type": "boolean",
+            "scope": "resource",
+            "markdownDescription": "%ipynb.experimental.serialization%",
+            "default": false
           }
         }
       }

@@ -107,10 +107,15 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			data.metadata.indentAmount :
 			' ';
 
-		return this.serializeViaWorker({
-			notebookContent: sorted,
-			indentAmount
-		});
+		const experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', false);
+		if (experimentalSave) {
+			return this.serializeViaWorker({
+				notebookContent: sorted,
+				indentAmount
+			});
+		} else {
+			return Promise.resolve(JSON.stringify(sorted, undefined, indentAmount));
+		}
 	}
 }
 
