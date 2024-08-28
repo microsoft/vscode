@@ -664,7 +664,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	async findTextInFilesBase(query: vscode.TextSearchQuery, queryOptions: QueryOptions<ITextQueryBuilderOptions>[] | undefined, callback: (result: ITextSearchResult<URI>, uri: URI) => void, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
 		const requestId = this._requestIdProvider.getNext();
 
-		const isCanceled = false;
+		let isCanceled = false;
+		token.onCancellationRequested(_ => {
+			isCanceled = true;
+		});
 
 		this._activeSearchCallbacks[requestId] = p => {
 			if (isCanceled) {
