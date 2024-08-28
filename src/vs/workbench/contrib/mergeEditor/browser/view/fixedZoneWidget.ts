@@ -33,6 +33,7 @@ export abstract class FixedZoneWidget extends Disposable {
 			domNode: document.createElement('div'),
 			afterLineNumber: afterLineNumber,
 			heightInPx: height,
+			ordinal: 50000 + 1,
 			onComputedHeight: (height) => {
 				this.widgetDomNode.style.height = `${height}px`;
 			},
