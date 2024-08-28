@@ -7,8 +7,8 @@ import { getTotalWidth, WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { themeColorFromId } from 'vs/base/common/themables';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { themeColorFromId, ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
@@ -27,7 +27,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { HunkInformation, Session, HunkState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
@@ -44,7 +44,7 @@ import { MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Iterable } from 'vs/base/common/iterator';
 import { ConflictActionsFactory, IContentWidgetAction } from 'vs/workbench/contrib/mergeEditor/browser/view/conflictActions';
-import { constObservable } from 'vs/base/common/observable';
+import { observableValue } from 'vs/base/common/observable';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 
 export interface IEditObserver {
@@ -518,35 +518,54 @@ export class LiveStrategy extends EditModeStrategy {
 							scrollState.restore(this._editor);
 						};
 
-						const overlay = this._showOverlayToolbar
+						const overlay = this._showOverlayToolbar && false
 							? this._instaService.createInstance(InlineChangeOverlay, this._editor, hunkData)
 							: undefined;
 
 
-						let lensActions: IDisposable | undefined;
+						let lensActions: DisposableStore | undefined;
 						const lensActionsViewZoneIds: string[] = [];
 
 						if (this._showOverlayToolbar && hunkData.getState() === HunkState.Pending) {
 
-							const actions: IContentWidgetAction[] = [];
-							const tuples = this._menuService.getMenuActions(MENU_INLINE_CHAT_ZONE, this._contextService, { arg: hunkData });
-							for (const [, group] of tuples) {
-								for (const item of group) {
-									if (item instanceof MenuItemAction) {
-										actions.push({
-											text: item.label,
-											tooltip: item.tooltip,
-											action: async () => item.run(),
-										});
+							lensActions = new DisposableStore();
+
+							const menu = this._menuService.createMenu(MENU_INLINE_CHAT_ZONE, this._contextService);
+							const makeActions = () => {
+								const actions: IContentWidgetAction[] = [];
+								const tuples = menu.getActions();
+								for (const [, group] of tuples) {
+									for (const item of group) {
+										if (item instanceof MenuItemAction) {
+
+											let text = item.label;
+
+											if (item.id === ACTION_TOGGLE_DIFF) {
+												text = item.checked ? 'Hide Changes' : 'Show Changes';
+											} else if (ThemeIcon.isThemeIcon(item.item.icon)) {
+												text = `$(${item.item.icon.id}) ${text}`;
+											}
+
+											actions.push({
+												text,
+												tooltip: item.tooltip,
+												action: async () => item.run(),
+											});
+										}
 									}
 								}
-							}
+								return actions;
+							};
 
-							lensActions = this._lensActionsFactory.createWidget(viewZoneAccessor,
+							const obs = observableValue(this, makeActions());
+							lensActions.add(menu.onDidChange(() => obs.set(makeActions(), undefined)));
+							lensActions.add(menu);
+
+							lensActions.add(this._lensActionsFactory.createWidget(viewZoneAccessor,
 								hunkRanges[0].startLineNumber - 1,
-								constObservable(actions),
+								obs,
 								lensActionsViewZoneIds
-							);
+							));
 						}
 
 						const remove = () => {
