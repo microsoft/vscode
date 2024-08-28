@@ -292,6 +292,11 @@
 	height: 100%;
 }
 
+.monaco-workbench.fullscreen .part.titlebar .window-controls-container {
+	display: none;
+	background-color: transparent;
+}
+
 /* Window Controls Container Web: Apply WCO environment variables (https://developer.mozilla.org/en-US/docs/Web/CSS/env#titlebar-area-x) */
 .monaco-workbench.web .part.titlebar .titlebar-right .window-controls-container {
 	width: calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px));
@@ -326,11 +331,6 @@
 
 .monaco-workbench:not(.web).mac .part.titlebar .window-controls-container {
 	width: 70px;
-}
-
-.monaco-workbench.fullscreen .part.titlebar .window-controls-container {
-	display: none;
-	background-color: transparent;
 }
 
 /* Window Control Icons */
