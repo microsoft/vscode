@@ -151,18 +151,24 @@ export class NativeEditContext extends Disposable {
 		if (!this._previousEditContextState) {
 			return;
 		}
-		const previousSelectionStart = this._previousEditContextState.selectionStartOffset;
-		const previousSelectionEnd = this._previousEditContextState.selectionEndOffset;
-		let replacePrevCharCnt = 0;
-		if (e.updateRangeStart < previousSelectionStart) {
-			replacePrevCharCnt = previousSelectionStart - e.updateRangeStart;
-		}
 		let replaceNextCharCnt = 0;
-		if (e.updateRangeEnd > previousSelectionEnd) {
-			replaceNextCharCnt = e.updateRangeEnd - previousSelectionEnd;
+		let replacePrevCharCnt = 0;
+		if (e.updateRangeEnd > this._previousEditContextState.selectionEndOffset) {
+			replaceNextCharCnt = e.updateRangeEnd - this._previousEditContextState.selectionEndOffset;
+		}
+		if (e.updateRangeStart < this._previousEditContextState.selectionStartOffset) {
+			replacePrevCharCnt = this._previousEditContextState.selectionStartOffset - e.updateRangeStart;
+		}
+		let text = '';
+		if (this._previousEditContextState.selectionStartOffset < e.updateRangeStart) {
+			text += this._previousEditContextState.content.substring(this._previousEditContextState.selectionStartOffset, e.updateRangeStart);
+		}
+		text += e.text;
+		if (this._previousEditContextState.selectionEndOffset > e.updateRangeEnd) {
+			text += this._previousEditContextState.content.substring(e.updateRangeEnd, this._previousEditContextState.selectionEndOffset);
 		}
 		const typeInput: ITypeData = {
-			text: e.text,
+			text,
 			replacePrevCharCnt,
 			replaceNextCharCnt,
 			positionDelta: 0,

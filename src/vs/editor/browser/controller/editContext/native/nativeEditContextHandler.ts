@@ -35,7 +35,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	static NATIVE_EDIT_CONTEXT_CLASS_NAME = 'native-edit-context';
 
 	// Dom element which holds screen reader content and handles key presses
-	private readonly _domElement: FastDomNode<HTMLDivElement>;
+	public readonly domNode: FastDomNode<HTMLDivElement>;
 
 	// Field indicating whether dom element is focused
 	private _hasFocus: boolean = false;
@@ -65,20 +65,20 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	) {
 		super(context);
 
-		this._domElement = new FastDomNode(document.createElement('div'));
-		this._domElement.setClassName(`${NativeEditContextHandler.NATIVE_EDIT_CONTEXT_CLASS_NAME} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+		this.domNode = new FastDomNode(document.createElement('div'));
+		this.domNode.setClassName(`${NativeEditContextHandler.NATIVE_EDIT_CONTEXT_CLASS_NAME} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 
-		this._nativeEditContext = new NativeEditContext(this._domElement, context, viewController, clipboardService);
+		this._nativeEditContext = new NativeEditContext(this.domNode, context, viewController, clipboardService);
 
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'focus', () => this._setHasFocus(true)));
-		this._register(dom.addDisposableListener(this._domElement.domNode, 'blur', () => this._setHasFocus(false)));
+		this._register(dom.addDisposableListener(this.domNode.domNode, 'focus', () => this._setHasFocus(true)));
+		this._register(dom.addDisposableListener(this.domNode.domNode, 'blur', () => this._setHasFocus(false)));
 
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 	}
 
 	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
-		overflowGuardContainer.appendChild(this._domElement);
+		overflowGuardContainer.appendChild(this.domNode);
 		this._nativeEditContext.setParent(overflowGuardContainer.domNode);
 	}
 
@@ -131,12 +131,12 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._domElement.domNode.setAttribute('wrap', layoutInfo.wrappingColumn !== -1 ? 'on' : 'off');
-		this._domElement.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		this._domElement.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
+		this.domNode.domNode.setAttribute('wrap', layoutInfo.wrappingColumn !== -1 ? 'on' : 'off');
+		this.domNode.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+		this.domNode.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
-		this._domElement.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
+		this.domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 	}
 
 	public isFocused(): boolean {
@@ -149,7 +149,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	}
 
 	public refreshFocusState(): void {
-		const hasFocus = dom.getActiveElement() === this._domElement.domNode;
+		const hasFocus = dom.getActiveElement() === this.domNode.domNode;
 		this._setHasFocus(hasFocus);
 	}
 
@@ -160,7 +160,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		}
 		this._hasFocus = newHasFocus;
 		if (this._hasFocus) {
-			this._domElement.domNode.focus();
+			this.domNode.domNode.focus();
 		}
 		if (this._hasFocus) {
 			this._context.viewModel.setHasFocus(true);
@@ -176,8 +176,8 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		if (!screenReaderContentInfo) {
 			return;
 		}
-		if (this._domElement.domNode.textContent !== screenReaderContentInfo.content) {
-			this._domElement.domNode.textContent = screenReaderContentInfo.content;
+		if (this.domNode.domNode.textContent !== screenReaderContentInfo.content) {
+			this.domNode.domNode.textContent = screenReaderContentInfo.content;
 		}
 		this._setSelectionOfScreenReaderContent(screenReaderContentInfo.selectionOffsetStart, screenReaderContentInfo.selectionOffsetEnd);
 		this._screenReaderContentInfo = screenReaderContentInfo;
@@ -218,7 +218,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		if (!activeDocumentSelection) {
 			return;
 		}
-		const textContent = this._domElement.domNode.firstChild;
+		const textContent = this.domNode.domNode.firstChild;
 		if (!textContent) {
 			return;
 		}
@@ -234,19 +234,25 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 			return;
 		}
 		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this._domElement, this._fontInfo);
+		applyFontInfo(this.domNode, this._fontInfo);
 
 		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
 		const top = verticalOffsetForPrimaryLineNumber - this._scrollTop;
-		this._domElement.setTop(top);
-		this._domElement.setLeft(this._contentLeft);
-		this._domElement.setWidth(this._contentWidth);
-		this._domElement.setHeight(this._lineHeight);
+		this.domNode.setTop(top);
+		this.domNode.setLeft(this._contentLeft);
+		this.domNode.setWidth(this._contentWidth);
+		this.domNode.setHeight(this._lineHeight);
 
 		// Setting position within the screen reader content
 		const textContent = this._screenReaderContentInfo.content;
 		const textContentBeforeSelection = textContent.substring(0, this._screenReaderContentInfo.selectionOffsetStart);
-		this._domElement.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
-		this._domElement.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
+		this.domNode.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
+		this.domNode.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
+	}
+
+	/* Last rendered data needed for correct hit-testing and determining the mouse position.
+	 * Without this, the selection will blink as incorrect mouse position is calculated */
+	public getLastRenderData(): Position | null {
+		return this._primarySelection.getPosition();
 	}
 }

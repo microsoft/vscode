@@ -294,18 +294,13 @@ export class View extends ViewEventHandler {
 			},
 
 			dispatchTextAreaEvent: (event: CustomEvent) => {
-				if (this._editContextHandler instanceof TextAreaEditContextHandler) {
-					this._editContextHandler.textArea.domNode.dispatchEvent(event);
-				}
+				this._editContextHandler.domNode.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
-				if (this._editContextHandler instanceof TextAreaEditContextHandler) {
-					const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
-					const lastTextareaPosition = this._editContextHandler.getLastRenderData();
-					return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
-				}
-				return new PointerHandlerLastRenderData([], null);
+				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
+				const lastTextareaPosition = this._editContextHandler.getLastRenderData();
+				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			renderNow: (): void => {
 				this.render(true, false);

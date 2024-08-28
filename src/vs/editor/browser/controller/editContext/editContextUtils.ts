@@ -15,12 +15,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 
 export abstract class AbstractEditContextHandler extends ViewPart {
+	abstract domNode: FastDomNode<HTMLElement>;
 	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;
 	abstract writeScreenReaderContent(reason: string): void;
 	abstract focusScreenReaderContent(): void;
 	abstract setAriaOptions(options: IEditorAriaOptions): void;
 	abstract refreshFocusState(): void;
 	abstract isFocused(): boolean;
+	abstract getLastRenderData(): Position | null;
 }
 
 export interface ITypeData {
