@@ -316,13 +316,21 @@
 	order: 1;
 }
 
-/* Window Controls Container Desktop: apply zoom friendly size (not applying WCO environment variables because we have seen perf issues in the past using them!) */
+/* Window Controls Container Desktop: apply zoom friendly size */
 .monaco-workbench:not(.web):not(.mac) .part.titlebar .window-controls-container {
 	width: calc(138px / var(--zoom-factor, 1));
 }
 
 .monaco-workbench:not(.web):not(.mac) .part.titlebar .titlebar-container.counter-zoom .window-controls-container {
 	width: 138px;
+}
+
+.monaco-workbench.linux:not(.web) .part.titlebar .window-controls-container.wco-enabled {
+	width: calc(100px / var(--zoom-factor, 1)); /* TODO@bpasero TODO@benibenj this should not be hardcoded (https://github.com/microsoft/vscode/issues/226804) */
+}
+
+.monaco-workbench.linux:not(.web) .part.titlebar .titlebar-container.counter-zoom .window-controls-container.wco-enabled {
+	width: 100px; /* TODO@bpasero TODO@benibenj this should not be hardcoded (https://github.com/microsoft/vscode/issues/226804) */
 }
 
 .monaco-workbench:not(.web):not(.mac) .part.titlebar .titlebar-container:not(.counter-zoom) .window-controls-container * {

@@ -497,6 +497,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// window control buttons.
 			} else {
 				this.windowControlsContainer = append(windowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				if (isWCOEnabled()) {
+					this.windowControlsContainer.classList.add('wco-enabled');
+				}
 			}
 		}
 
