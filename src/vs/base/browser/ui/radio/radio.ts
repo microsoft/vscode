@@ -11,7 +11,7 @@ import { $ } from 'vs/base/browser/dom';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export interface IRadioStyles {
 	readonly activeForeground?: string;
@@ -53,7 +53,7 @@ export class Radio extends Widget {
 	constructor(opts: IRadioOptions) {
 		super();
 
-		this.hoverDelegate = opts.hoverDelegate ?? getDefaultHoverDelegate('element');
+		this.hoverDelegate = opts.hoverDelegate ?? this._register(createInstantHoverDelegate());
 
 		this.domNode = $('.monaco-custom-radio');
 		this.domNode.setAttribute('role', 'radio');
