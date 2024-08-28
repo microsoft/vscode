@@ -152,7 +152,7 @@ class ChatHistoryAction extends Action2 {
 
 				let lastDate: string | undefined = undefined;
 				const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
-					const timeAgoStr = fromNowByDay(i.lastMessageDate, true);
+					const timeAgoStr = fromNowByDay(i.lastMessageDate, true, true);
 					const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
 						type: 'separator', label: timeAgoStr,
 					} : undefined;
