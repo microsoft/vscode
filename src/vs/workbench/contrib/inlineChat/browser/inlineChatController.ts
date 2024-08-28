@@ -741,7 +741,7 @@ export class InlineChatController implements IEditorContribution {
 		await responsePromise.p;
 		await progressiveEditsQueue.whenIdle();
 
-		if (response.isCanceled) {
+		if (response.result?.errorDetails) {
 			await this._session.undoChangesUntil(response.requestId);
 		}
 
@@ -758,7 +758,6 @@ export class InlineChatController implements IEditorContribution {
 
 		if (response.result?.errorDetails) {
 			//
-			await this._session.undoChangesUntil(response.requestId);
 
 		} else if (response.response.value.length === 0) {
 			// empty -> show message
