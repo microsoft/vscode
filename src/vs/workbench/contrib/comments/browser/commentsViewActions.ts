@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -74,9 +74,9 @@ export class CommentsFilters extends Disposable {
 		}
 	}
 
-	private _sortBy = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
+	private _sortBy: IContextKey<CommentsSortOrder> = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
 	get sortBy(): CommentsSortOrder {
-		return this._sortBy.get()!;
+		return this._sortBy.get() ?? CommentsSortOrder.ResourceAscending;
 	}
 	set sortBy(sortBy: CommentsSortOrder) {
 		if (this._sortBy.get() !== sortBy) {
@@ -208,7 +208,7 @@ registerAction2(class extends ViewAction<ICommentsView> {
 			icon: Codicon.history,
 			viewId: COMMENTS_VIEW_ID,
 			toggled: {
-				condition: ContextKeyExpr.equals('commentsView.sortBy', CommentsSortOrder.UpdatedAtDescending),
+				condition: ContextKeyExpr.equals(CONTEXT_KEY_SORT_BY.key, CommentsSortOrder.UpdatedAtDescending),
 				title: localize('sorting by updated at', "Updated Time"),
 			},
 			menu: {
@@ -229,13 +229,13 @@ registerAction2(class extends ViewAction<ICommentsView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${COMMENTS_VIEW_ID}.toggleSortByResource`,
-			title: localize('toggle sorting by resource', "File"),
+			title: localize('toggle sorting by resource', "Position in File"),
 			category: localize('comments', "Comments"),
 			icon: Codicon.history,
 			viewId: COMMENTS_VIEW_ID,
 			toggled: {
-				condition: ContextKeyExpr.equals('commentsView.sortBy', CommentsSortOrder.ResourceAscending),
-				title: localize('sorting by file', "File"),
+				condition: ContextKeyExpr.equals(CONTEXT_KEY_SORT_BY.key, CommentsSortOrder.ResourceAscending),
+				title: localize('sorting by position in file', "Position in File"),
 			},
 			menu: {
 				id: commentSortSubmenu,
