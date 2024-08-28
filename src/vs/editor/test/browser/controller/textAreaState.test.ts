@@ -366,7 +366,7 @@ suite('TextAreaState', () => {
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = createTextModel(lines.join('\n'));
 			const actual = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
-			const textAreaState = new TextAreaState(actual.value, actual.selectionStart, actual.selectionEnd, selection, actual.newLineCountBeforeSelection);
+			const textAreaState = new TextAreaState(actual.value, actual.selectionOffsetStart, actual.selectionOffsetEnd, selection, actual.newLineCountBeforeSelection);
 			assert.ok(equalsTextAreaState(textAreaState, expected));
 			model.dispose();
 		}

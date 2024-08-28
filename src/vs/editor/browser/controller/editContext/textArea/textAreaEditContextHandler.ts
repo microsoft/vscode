@@ -222,11 +222,11 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 				return getDataToCopy(this._context.viewModel, this._selections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
 			},
 			getScreenReaderContent: (): TextAreaState => {
+				const selection = this._selections[0];
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
-					const selection = this._selections[0];
 					if (platform.isMacintosh && selection.isEmpty()) {
 						const position = selection.getStartPosition();
 
@@ -265,7 +265,6 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 					// in the `compositionstart` event we cannot clear the textarea, because
 					// it then forgets to ever send a `compositionend`.
 					// we therefore only write the current word in the textarea
-					const selection = this._selections[0];
 					if (selection.isEmpty()) {
 						const position = selection.getStartPosition();
 						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
@@ -276,9 +275,8 @@ export class TextAreaEditContextHandler extends AbstractEditContextHandler {
 					return TextAreaState.EMPTY;
 				}
 
-				const selection = this._selections[0];
 				const textAreaData = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
-				return new TextAreaState(textAreaData.value, textAreaData.selectionStart, textAreaData.selectionEnd, selection, textAreaData.newLineCountBeforeSelection);
+				return new TextAreaState(textAreaData.value, textAreaData.selectionOffsetStart, textAreaData.selectionOffsetEnd, selection, textAreaData.newLineCountBeforeSelection);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {

@@ -25,7 +25,7 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 
 interface ScreenReaderContentInfo {
-	content: string;
+	value: string;
 	selectionOffsetStart: number;
 	selectionOffsetEnd: number;
 }
@@ -130,8 +130,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this.domNode.domNode.setAttribute('wrap', layoutInfo.wrappingColumn !== -1 ? 'on' : 'off');
 		this.domNode.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.domNode.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
@@ -161,8 +159,6 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		this._hasFocus = newHasFocus;
 		if (this._hasFocus) {
 			this.domNode.domNode.focus();
-		}
-		if (this._hasFocus) {
 			this._context.viewModel.setHasFocus(true);
 		} else {
 			this._context.viewModel.setHasFocus(false);
@@ -176,8 +172,8 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		if (!screenReaderContentInfo) {
 			return;
 		}
-		if (this.domNode.domNode.textContent !== screenReaderContentInfo.content) {
-			this.domNode.domNode.textContent = screenReaderContentInfo.content;
+		if (this.domNode.domNode.textContent !== screenReaderContentInfo.value) {
+			this.domNode.domNode.textContent = screenReaderContentInfo.value;
 		}
 		this._setSelectionOfScreenReaderContent(screenReaderContentInfo.selectionOffsetStart, screenReaderContentInfo.selectionOffsetEnd);
 		this._screenReaderContentInfo = screenReaderContentInfo;
@@ -204,12 +200,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		const screenReaderContent = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
-		return {
-			content: screenReaderContent.value,
-			selectionOffsetStart: screenReaderContent.selectionStart,
-			selectionOffsetEnd: screenReaderContent.selectionEnd
-		};
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
@@ -244,7 +235,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		this.domNode.setHeight(this._lineHeight);
 
 		// Setting position within the screen reader content
-		const textContent = this._screenReaderContentInfo.content;
+		const textContent = this._screenReaderContentInfo.value;
 		const textContentBeforeSelection = textContent.substring(0, this._screenReaderContentInfo.selectionOffsetStart);
 		this.domNode.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
 		this.domNode.domNode.scrollLeft = this._primaryCursorVisibleRange.left;

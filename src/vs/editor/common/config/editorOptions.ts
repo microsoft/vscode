@@ -5203,11 +5203,13 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 
 //#region editContext
 
+export type EditContextType = 'native' | 'textarea';
+
 export interface IEditContextOptions {
 	/**
 	 * Controls the type of edit context that is used
 	 */
-	type?: 'native' | 'textarea';
+	type?: EditContextType;
 }
 
 /**

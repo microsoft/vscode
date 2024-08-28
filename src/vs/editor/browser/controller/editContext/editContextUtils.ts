@@ -54,8 +54,8 @@ export class PagedScreenReaderStrategy {
 
 	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): {
 		value: string;
-		selectionStart: number;
-		selectionEnd: number;
+		selectionOffsetStart: number;
+		selectionOffsetEnd: number;
 		newLineCountBeforeSelection: number;
 	} {
 		// Chromium handles very poorly text even of a few thousand chars
@@ -104,8 +104,8 @@ export class PagedScreenReaderStrategy {
 
 		return {
 			value: pretext + text + posttext,
-			selectionStart: pretext.length,
-			selectionEnd: pretext.length + text.length,
+			selectionOffsetStart: pretext.length,
+			selectionOffsetEnd: pretext.length + text.length,
 			newLineCountBeforeSelection: pretextRange.endLineNumber - pretextRange.startLineNumber,
 		};
 	}

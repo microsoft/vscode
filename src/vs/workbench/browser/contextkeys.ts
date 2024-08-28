@@ -301,6 +301,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private updateInputContextKeys(ownerDocument: Document): void {
 
 		function activeElementIsInput(): boolean {
+			// NativeEditContextHandler uses div not text area hence checking its classname instead
 			return !!ownerDocument.activeElement && (ownerDocument.activeElement.tagName === 'INPUT' || ownerDocument.activeElement.tagName === 'TEXTAREA' || ownerDocument.activeElement.classList.contains(NativeEditContextHandler.NATIVE_EDIT_CONTEXT_CLASS_NAME));
 		}
 

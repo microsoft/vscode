@@ -12,16 +12,16 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { _debugComposition, ITextAreaWrapper, TextAreaState } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextState';
 import { ClipboardDataToCopy, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
-import { Mimes } from 'vs/base/common/mime';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';

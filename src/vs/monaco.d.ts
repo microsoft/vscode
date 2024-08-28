@@ -4833,11 +4833,13 @@ declare namespace monaco.editor {
 		showDropSelector?: 'afterDrop' | 'never';
 	}
 
+	export type EditContextType = 'native' | 'textarea';
+
 	export interface IEditContextOptions {
 		/**
 		 * Controls the type of edit context that is used
 		 */
-		type?: 'native' | 'textarea';
+		type?: EditContextType;
 	}
 
 	/**
