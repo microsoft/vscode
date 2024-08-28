@@ -318,7 +318,7 @@ export class BulkFileOperations {
 				for (const edit of file.originalEdits.values()) {
 					if (edit instanceof ResourceFileEdit) {
 						const content = await edit.options.contents;
-						if (!content) continue;
+						if (!content) { continue; }
 						result.push(EditOperation.replaceMove(Range.lift({ startLineNumber: 0, startColumn: 0, endLineNumber: Number.MAX_VALUE, endColumn: 0 }), content.toString()));
 					} else if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
