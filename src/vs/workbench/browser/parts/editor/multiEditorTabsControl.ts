@@ -47,7 +47,7 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { KEEP_EDITOR_COMMAND_ID, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { /*KEEP_EDITOR_COMMAND_ID, TOGGLE_KEEP_EDITORS_COMMAND_ID, */ UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
@@ -60,7 +60,7 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { applyDragImage } from 'vs/base/browser/dnd';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+//import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverOptions } from 'vs/base/browser/ui/hover/hover';
@@ -101,7 +101,7 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 		private readonly tabsModel: IReadonlyEditorGroupModel,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		@ICommandService private readonly commandService: ICommandService,
+		// @ICommandService private readonly commandService: ICommandService,
 
 	) {
 		super(
@@ -213,7 +213,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IHostService hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@ICommandService private readonly commandService: ICommandService,
+		//@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
@@ -867,7 +867,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const index = this.tabsModel.indexOf(editor);
 		let hoverDelegate = this.mapTabHoverDelegates.get(index);
 		if (!hoverDelegate) {
-			hoverDelegate = new MultiEditorTabHoverDelegate(index, this.tabsModel, this.configurationService, this.hoverService, this.commandService);
+			hoverDelegate = new MultiEditorTabHoverDelegate(index, this.tabsModel, this.configurationService, this.hoverService /*, this.commandService */);
 			this.mapTabHoverDelegates.set(index, hoverDelegate);
 		}
 		return hoverDelegate;
