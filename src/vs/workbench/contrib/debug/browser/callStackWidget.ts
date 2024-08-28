@@ -12,20 +12,24 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, observableValue } from 'vs/base/common/observable';
+import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, observableValue, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/callStackWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorContributionCtor, EditorContributionInstantiation, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { Location } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { localize, localize2 } from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
@@ -38,7 +42,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { makeStackFrameColumnDecoration, TOP_STACK_FRAME_DECORATION } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 
 export class CallStackFrame {
@@ -96,6 +100,9 @@ class WrappedCustomStackFrame implements IFrameLikeItem {
 
 	constructor(public readonly original: CustomStackFrame) { }
 }
+
+const isFrameLike = (item: unknown): item is IFrameLikeItem =>
+	item instanceof WrappedCallStackFrame || item instanceof WrappedCustomStackFrame;
 
 type ListItem = WrappedCallStackFrame | SkippedCallFrames | WrappedCustomStackFrame;
 
@@ -155,6 +162,17 @@ export class CallStackWidget extends Disposable {
 	public layout(height?: number, width?: number): void {
 		this.list.layout(height, width);
 		this.layoutEmitter.fire();
+	}
+
+	public collapseAll() {
+		transaction(tx => {
+			for (let i = 0; i < this.list.length; i++) {
+				const frame = this.list.element(i);
+				if (isFrameLike(frame)) {
+					frame.collapsed.set(true, tx);
+				}
+			}
+		});
 	}
 
 	private async loadFrame(replacing: SkippedCallFrames): Promise<void> {
@@ -356,9 +374,9 @@ abstract class AbstractFrameRenderer<T extends IAbstractFrameRendererTemplateDat
 			collapse.element.ariaExpanded = String(!collapsed);
 			elements.root.classList.toggle('collapsed', collapsed);
 		}));
-		elementStore.add(collapse.onDidClick(() => {
-			item.collapsed.set(!item.collapsed.get(), undefined);
-		}));
+		const toggleCollapse = () => item.collapsed.set(!item.collapsed.get(), undefined);
+		elementStore.add(collapse.onDidClick(toggleCollapse));
+		elementStore.add(dom.addDisposableListener(elements.title, 'click', toggleCollapse));
 	}
 
 	disposeElement(element: ListItem, index: number, templateData: T, height: number | undefined): void {
@@ -382,26 +400,33 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 		private readonly containingEditor: ICodeEditor | undefined,
 		private readonly onLayout: Event<void>,
 		@ITextModelService private readonly modelService: ITextModelService,
-		@ICodeEditorService private readonly editorService: ICodeEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(instantiationService);
 	}
 
 	protected override finishRenderTemplate(data: IAbstractFrameRendererTemplateData): IStackTemplateData {
+		// override default e.g. language contributions, only allow users to click
+		// on code in the call stack to go to its source location
+		const contributions: IEditorContributionDescription[] = [{
+			id: ClickToLocationContribution.ID,
+			instantiation: EditorContributionInstantiation.BeforeFirstInteraction,
+			ctor: ClickToLocationContribution as EditorContributionCtor,
+		}];
+
 		const editor = this.containingEditor
 			? this.instantiationService.createInstance(
 				EmbeddedCodeEditorWidget,
 				data.elements.editor,
 				editorOptions,
-				{ isSimpleWidget: true },
+				{ isSimpleWidget: true, contributions },
 				this.containingEditor,
 			)
 			: this.instantiationService.createInstance(
 				CodeEditorWidget,
 				data.elements.editor,
 				editorOptions,
-				{ isSimpleWidget: true },
+				{ isSimpleWidget: true, contributions },
 			);
 
 		data.templateStore.add(editor);
@@ -423,20 +448,6 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 		const uri = item.source!;
 
 		template.label.element.setFile(uri);
-		template.elements.title.role = 'link';
-		elementStore.add(dom.addDisposableListener(template.elements.title, 'click', e => {
-			this.editorService.openCodeEditor({
-				resource: uri,
-				options: {
-					selection: Range.fromPositions({
-						column: item.column ?? 1,
-						lineNumber: item.line ?? 1,
-					}),
-					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
-				},
-			}, this.containingEditor || null, e.ctrlKey || e.metaKey);
-		}));
-
 		const cts = new CancellationTokenSource();
 		elementStore.add(toDisposable(() => cts.dispose(true)));
 		this.modelService.createModelReference(uri).then(reference => {
@@ -629,6 +640,73 @@ class SkippedRenderer implements IListRenderer<ListItem, ISkippedTemplateData> {
 
 	disposeTemplate(templateData: ISkippedTemplateData): void {
 		templateData.store.dispose();
+	}
+}
+
+/** A simple contribution that makes all data in the editor clickable to go to the location */
+class ClickToLocationContribution extends Disposable implements IEditorContribution {
+	public static readonly ID = 'clickToLocation';
+	private readonly linkDecorations: IEditorDecorationsCollection;
+	private current: { line: number; word: IWordAtPosition } | undefined;
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IEditorService editorService: IEditorService,
+	) {
+		super();
+		this.linkDecorations = editor.createDecorationsCollection();
+		this._register(toDisposable(() => this.linkDecorations.clear()));
+
+		const clickLinkGesture = this._register(new ClickLinkGesture(editor));
+
+		this._register(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+			this.onMove(mouseEvent);
+		}));
+		this._register(clickLinkGesture.onExecute((e) => {
+			const model = this.editor.getModel();
+			if (!this.current || !model) {
+				return;
+			}
+
+			editorService.openEditor({
+				resource: model.uri,
+				options: {
+					selection: Range.fromPositions(new Position(this.current.line, this.current.word.startColumn)),
+					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
+				},
+			}, e.hasSideBySideModifier ? SIDE_GROUP : undefined);
+		}));
+	}
+
+	private onMove(mouseEvent: ClickLinkMouseEvent) {
+		if (!mouseEvent.hasTriggerModifier) {
+			return this.clear();
+		}
+
+		const position = mouseEvent.target.position;
+		const word = position && this.editor.getModel()?.getWordAtPosition(position);
+		if (!word) {
+			return this.clear();
+		}
+
+		const prev = this.current?.word;
+		if (prev && prev.startColumn === word.startColumn && prev.endColumn === word.endColumn && prev.word === word.word) {
+			return;
+		}
+
+		this.current = { word, line: position.lineNumber };
+		this.linkDecorations.set([{
+			range: new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+			options: {
+				description: 'call-stack-go-to-file-link',
+				inlineClassName: 'call-stack-go-to-file-link',
+			},
+		}]);
+	}
+
+	private clear() {
+		this.linkDecorations.clear();
+		this.current = undefined;
 	}
 }
 

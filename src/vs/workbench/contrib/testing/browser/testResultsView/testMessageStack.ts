@@ -30,6 +30,10 @@ export class TestResultStackWidget extends Disposable {
 		));
 	}
 
+	public collapseAll() {
+		this.widget.collapseAll();
+	}
+
 	public update(messageFrame: AnyStackFrame, stack: ITestMessageStackFrame[]) {
 		this.widget.setFrames([messageFrame, ...stack.map(frame => new CallStackFrame(
 			frame.label,

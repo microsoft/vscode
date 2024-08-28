@@ -22,6 +22,9 @@ interface ISubjectCommon {
 	controllerId: string;
 }
 
+export const inspectSubjectHasStack = (subject: InspectSubject | undefined) =>
+	subject instanceof MessageSubject && !!subject.stack?.length;
+
 export class MessageSubject implements ISubjectCommon {
 	public readonly test: ITestItem;
 	public readonly message: ITestMessage;
