@@ -449,7 +449,7 @@ class CellInfoContentProvider {
 					resource
 				);
 				this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
-					if (result && e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellMetadata && event.index === cellIndex)) {
+					if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellMetadata || event.kind === NotebookCellsChangeType.ChangeCellLanguage) && event.index === cellIndex)) {
 						const value = getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
 						if (result.getValue() !== value) {
 							result.setValue(getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language));

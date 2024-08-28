@@ -117,7 +117,7 @@
 				defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json'),
 
 				// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
-				locale: 'en',
+				locale: userLocale,
 				availableLanguages: {}
 			};
 		}

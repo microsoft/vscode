@@ -53,7 +53,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern?: glob.ParsedExpression;
 
-	constructor(private config: IFileQuery, private provider: FileSearchProviderNew, private sessionToken?: CancellationToken) {
+	constructor(private config: IFileQuery, private provider: FileSearchProviderNew, private sessionToken?: unknown) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || undefined;
@@ -305,11 +305,11 @@ export class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private readonly sessions = new Map<string, CancellationTokenSource>();
+	private readonly sessions = new Map<string, unknown>();
 
 	fileSearch(config: IFileQuery, provider: FileSearchProviderNew, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
-		const engine = new FileSearchEngine(config, provider, sessionTokenSource && sessionTokenSource.token);
+		const engine = new FileSearchEngine(config, provider, sessionTokenSource);
 
 		let resultCount = 0;
 		const onInternalResult = (batch: IInternalFileMatch[]) => {
@@ -333,17 +333,17 @@ export class FileSearchManager {
 	}
 
 	clearCache(cacheKey: string): void {
-		const sessionTokenSource = this.getSessionTokenSource(cacheKey);
-		sessionTokenSource?.cancel();
+		// with no reference to this, it will be removed from WeakMaps
+		this.sessions.delete(cacheKey);
 	}
 
-	private getSessionTokenSource(cacheKey: string | undefined): CancellationTokenSource | undefined {
+	private getSessionTokenSource(cacheKey: string | undefined): unknown {
 		if (!cacheKey) {
 			return undefined;
 		}
 
 		if (!this.sessions.has(cacheKey)) {
-			this.sessions.set(cacheKey, new CancellationTokenSource());
+			this.sessions.set(cacheKey, new Object());
 		}
 
 		return this.sessions.get(cacheKey);

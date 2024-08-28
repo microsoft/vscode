@@ -22,7 +22,7 @@ import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CellEditType, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { NotebookMultiTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor';
 import { Codicon } from 'vs/base/common/codicons';
@@ -307,14 +307,24 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
-
-		if (!original || !modified) {
+		if (!(context.cell instanceof SideBySideDiffElementViewModel)) {
 			return;
 		}
 
-		modified.textModel.metadata = original.metadata;
+		const original = context.cell.original;
+		const modified = context.cell.modified;
+
+		const modifiedCellIndex = context.cell.mainDocumentTextModel.cells.indexOf(modified.textModel);
+		if (modifiedCellIndex === -1) {
+			return;
+		}
+
+		const rawEdits: ICellEditOperation[] = [{ editType: CellEditType.Metadata, index: modifiedCellIndex, metadata: original.metadata }];
+		if (context.cell.original.language && context.cell.modified.language !== context.cell.original.language) {
+			rawEdits.push({ editType: CellEditType.CellLanguage, index: modifiedCellIndex, language: context.cell.original.language });
+		}
+
+		context.cell.modifiedDocument.applyEdits(rawEdits, true, undefined, () => undefined, undefined, true);
 	}
 });
 
