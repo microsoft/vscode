@@ -134,6 +134,7 @@
 .action-widget .action-widget-action-bar {
 	background-color: var(--vscode-editorActionList-background);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+	margin-top: 2px;
 }
 
 .action-widget .action-widget-action-bar::before {
