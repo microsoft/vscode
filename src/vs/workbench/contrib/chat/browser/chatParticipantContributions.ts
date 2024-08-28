@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -23,10 +22,10 @@ import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/b
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IRawChatParticipantContribution } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
@@ -312,13 +311,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 function getParticipantKey(extensionId: ExtensionIdentifier, participantName: string): string {
 	return `${extensionId.value}_${participantName}`;
-}
-
-export interface IChatCompatibilityService {
-	_serviceBrand: undefined;
-
-	readonly isChatExtensionIncompatible: boolean;
-	readonly onDidChatExtensionIncompatibilityChange: Event<void>;
 }
 
 export class ChatCompatibilityNotifier implements IWorkbenchContribution {
