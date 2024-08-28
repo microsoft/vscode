@@ -588,13 +588,14 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async getCurrentProfile(workspace: IAnyWorkspaceIdentifier, userDataProfilesService: BrowserUserDataProfilesService, environmentService: IBrowserWorkbenchEnvironmentService): Promise<IUserDataProfile> {
-		if (environmentService.options?.profile) {
-			const profile = userDataProfilesService.profiles.find(p => p.name === environmentService.options?.profile?.name);
+	private async getCurrentProfile(workspace: IAnyWorkspaceIdentifier, userDataProfilesService: BrowserUserDataProfilesService, environmentService: BrowserWorkbenchEnvironmentService): Promise<IUserDataProfile> {
+		const profileName = environmentService.options?.profile?.name ?? environmentService.profile;
+		if (profileName) {
+			const profile = userDataProfilesService.profiles.find(p => p.name === profileName);
 			if (profile) {
 				return profile;
 			}
-			return userDataProfilesService.createNamedProfile(environmentService.options?.profile?.name, undefined, workspace);
+			return userDataProfilesService.createNamedProfile(profileName, undefined, workspace);
 		}
 		return userDataProfilesService.getProfileForWorkspace(workspace) ?? userDataProfilesService.defaultProfile;
 	}

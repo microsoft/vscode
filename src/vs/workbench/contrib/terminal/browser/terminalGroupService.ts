@@ -14,6 +14,7 @@ import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
@@ -35,6 +36,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private _terminalGroupCountContextKey: IContextKey<number>;
 
 	private _container: HTMLElement | undefined;
+
+	private _isQuickInputOpened: boolean = false;
 
 	private readonly _onDidChangeActiveGroup = this._register(new Emitter<ITerminalGroup | undefined>());
 	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
@@ -63,7 +66,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -72,6 +76,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._register(this.onDidDisposeGroup(group => this._removeGroup(group)));
 		this._register(this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length)));
 		this._register(Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances)(() => this.updateVisibility()));
+		this._register(this._quickInputService.onShow(() => this._isQuickInputOpened = true));
+		this._register(this._quickInputService.onHide(() => this._isQuickInputOpened = false));
 	}
 
 	hidePanel(): void {
@@ -209,7 +215,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		if (wasActiveGroup) {
 			// Adjust focus if the group was active
-			if (this.groups.length > 0) {
+			if (this.groups.length > 0 && !this._isQuickInputOpened) {
 				const newIndex = index < this.groups.length ? index : this.groups.length - 1;
 				this.setActiveGroupByIndex(newIndex, true);
 				this.activeInstance?.focus(true);

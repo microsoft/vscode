@@ -307,6 +307,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 							di.body?.instructions.forEach(di => fixSourcePath(false, di.location));
 						}
 						break;
+					case 'locations':
+						fixSourcePath(false, (<DebugProtocol.LocationsResponse>response).body?.source);
+						break;
 					default:
 						break;
 				}

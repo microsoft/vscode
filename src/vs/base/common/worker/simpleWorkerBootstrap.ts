@@ -16,15 +16,15 @@ declare const globalThis: {
 
 let initialized = false;
 
-function initialize<H extends object>(factory: IRequestHandlerFactory<H>) {
+function initialize(factory: IRequestHandlerFactory) {
 	if (initialized) {
 		return;
 	}
 	initialized = true;
 
-	const simpleWorker = new SimpleWorkerServer<H>(
+	const simpleWorker = new SimpleWorkerServer(
 		msg => globalThis.postMessage(msg),
-		host => factory(host)
+		(workerServer) => factory(workerServer)
 	);
 
 	globalThis.onmessage = (e: MessageEvent) => {
@@ -32,7 +32,7 @@ function initialize<H extends object>(factory: IRequestHandlerFactory<H>) {
 	};
 }
 
-export function bootstrapSimpleWorker<H extends object>(factory: IRequestHandlerFactory<H>) {
+export function bootstrapSimpleWorker(factory: IRequestHandlerFactory) {
 	globalThis.onmessage = (_e: MessageEvent) => {
 		// Ignore first message in this case and initialize if not yet initialized
 		if (!initialized) {

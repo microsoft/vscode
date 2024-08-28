@@ -19,6 +19,7 @@
     "contribSourceControlHistoryItemChangesMenu",
     "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
+    "contribSourceControlHistoryTitleMenu",
     "contribSourceControlInputBoxMenu",
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
@@ -1933,6 +1934,28 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        }
+      ],
+      "scm/history/title": [
+        {
+          "command": "git.fetchRef",
+          "group": "navigation@1",
+          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
+        },
+        {
+          "command": "git.pullRef",
+          "group": "navigation@2",
+          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
+        },
+        {
+          "command": "git.pushRef",
+          "when": "scmProvider == git && scmHistoryItemGroupHasRemote",
+          "group": "navigation@3"
+        },
+        {
+          "command": "git.publish",
+          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
+          "group": "navigation@3"
         }
       ],
       "scm/historyItemChanges/title": [

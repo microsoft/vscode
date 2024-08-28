@@ -12,6 +12,7 @@ import { asArray, coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from 'vs/workbench/services/search/common/search';
 import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew, TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 
 // old types that are retained for backward compatibility
@@ -504,13 +505,10 @@ export function newToOldPreviewOptions(options: {
 ): {
 	matchLines: number;
 	charsPerLine: number;
-} | undefined {
-	if (!options || (options.matchLines === undefined && options.charsPerLine === undefined)) {
-		return undefined;
-	}
+} {
 	return {
-		matchLines: options.matchLines ?? 100,
-		charsPerLine: options.charsPerLine ?? 10000
+		matchLines: options?.matchLines ?? DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS.matchLines,
+		charsPerLine: options?.charsPerLine ?? DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS.charsPerLine
 	};
 }
 

@@ -252,18 +252,35 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			await timeout(0); // wait for list to actually render
 
-			for (const editor of this.renderer.editorsInUse() ?? []) {
-				if (extUri.isEqual(editor.uri, resource, true)) {
-					const inner = editor.editor;
+			for (const codeBlockPart of this.renderer.editorsInUse()) {
+				if (extUri.isEqual(codeBlockPart.uri, resource, true)) {
+					const editor = codeBlockPart.editor;
+
+					let relativeTop = 0;
+					const editorDomNode = editor.getDomNode();
+					if (editorDomNode) {
+						const row = dom.findParentWithClass(editorDomNode, 'monaco-list-row');
+						if (row) {
+							relativeTop = dom.getTopLeftOffset(editorDomNode).top - dom.getTopLeftOffset(row).top;
+						}
+					}
+
 					if (input.options?.selection) {
-						inner.setSelection({
+						const editorSelectionTopOffset = editor.getTopForPosition(input.options.selection.startLineNumber, input.options.selection.startColumn);
+						relativeTop += editorSelectionTopOffset;
+
+						editor.focus();
+						editor.setSelection({
 							startLineNumber: input.options.selection.startLineNumber,
 							startColumn: input.options.selection.startColumn,
 							endLineNumber: input.options.selection.endLineNumber ?? input.options.selection.startLineNumber,
 							endColumn: input.options.selection.endColumn ?? input.options.selection.startColumn
 						});
 					}
-					return inner;
+
+					this.reveal(item, relativeTop);
+
+					return editor;
 				}
 			}
 			return null;
@@ -702,8 +719,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.tree.getFocus()[0] ?? undefined;
 	}
 
-	reveal(item: ChatTreeItem): void {
-		this.tree.reveal(item);
+	reveal(item: ChatTreeItem, relativeTop?: number): void {
+		this.tree.reveal(item, relativeTop);
 	}
 
 	focus(item: ChatTreeItem): void {

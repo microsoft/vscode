@@ -11,5 +11,10 @@ declare module 'vscode' {
 		 * where the last cell of the notebook is an input box and the rest are read-only.
 		 */
 		readonly asRepl?: boolean;
+
+		/**
+		 * The label to be used for the editor tab.
+		 */
+		readonly label?: string;
 	}
 }

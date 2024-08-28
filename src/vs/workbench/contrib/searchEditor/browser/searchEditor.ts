@@ -564,7 +564,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
-			excludePattern: config.filesToExclude,
+			excludePattern: [{ pattern: config.filesToExclude }],
 			includePattern: config.filesToInclude,
 			onlyOpenEditors: config.onlyOpenEditors,
 			previewOptions: {

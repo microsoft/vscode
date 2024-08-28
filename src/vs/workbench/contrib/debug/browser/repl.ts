@@ -953,7 +953,7 @@ class FindReplAction extends ViewAction<Repl> {
 			viewId: REPL_VIEW_ID,
 			id: 'repl.action.find',
 			title: localize('repl.action.find', "Debug Console: Focus Find"),
-			precondition: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
+			precondition: CONTEXT_IN_DEBUG_REPL,
 			keybinding: [{
 				when: ContextKeyExpr.or(CONTEXT_IN_DEBUG_REPL, ContextKeyExpr.equals('focusedView', 'workbench.panel.repl.view')),
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,

@@ -53,7 +53,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceContextKey, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IAction } from 'vs/base/common/actions';
-import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/browser/workspaceExtensionsConfig';
+import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import { Schemas } from 'vs/base/common/network';
 import { ShowRuntimeExtensionsAction } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workbench/contrib/extensions/browser/extensionEnablementWorkspaceTrustTransitionParticipant';

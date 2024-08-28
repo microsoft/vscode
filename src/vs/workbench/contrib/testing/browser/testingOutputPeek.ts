@@ -98,13 +98,6 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		target: StorageTarget.USER,
 	}, this.storageService), false));
 
-	/** @inheritdoc */
-	public readonly callStackVisible = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'testCallStackVisible',
-		scope: StorageScope.PROFILE,
-		target: StorageTarget.USER,
-	}, this.storageService), true));
-
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,

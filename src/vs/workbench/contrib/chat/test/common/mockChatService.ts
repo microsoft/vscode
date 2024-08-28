@@ -80,4 +80,8 @@ export class MockChatService implements IChatService {
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
 		throw new Error('Method not implemented.');
 	}
+
+	setChatSessionTitle(sessionId: string, title: string): void {
+		throw new Error('Method not implemented.');
+	}
 }

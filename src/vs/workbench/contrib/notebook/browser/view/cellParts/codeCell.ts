@@ -32,6 +32,7 @@ import { CodeCellViewModel, outputDisplayLimit } from 'vs/workbench/contrib/note
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
+import { NotebookCellEditorPool } from 'vs/workbench/contrib/notebook/browser/view/notebookCellEditorPool';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -49,6 +50,7 @@ export class CodeCell extends Disposable {
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
+		private readonly editorPool: NotebookCellEditorPool,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
@@ -417,7 +419,7 @@ export class CodeCell extends Disposable {
 		}));
 	}
 
-	private shouldUpdateDOMFocus() {
+	private shouldPreserveEditor() {
 		// The DOM focus needs to be adjusted:
 		// when a cell editor should be focused
 		// the document active element is inside the notebook editor or the document body (cell editor being disposed previously)
@@ -427,7 +429,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private updateEditorForFocusModeChange(sync: boolean) {
-		if (this.shouldUpdateDOMFocus()) {
+		if (this.shouldPreserveEditor()) {
 			if (sync) {
 				this.templateData.editor?.focus();
 			} else {
@@ -624,8 +626,9 @@ export class CodeCell extends Disposable {
 		this._isDisposed = true;
 
 		// move focus back to the cell list otherwise the focus goes to body
-		if (this.shouldUpdateDOMFocus()) {
-			this.notebookEditor.focusContainer();
+		if (this.shouldPreserveEditor()) {
+			// now the focus is on the monaco editor for the cell but detached from the rows.
+			this.editorPool.preserveFocusedEditor(this.viewCell);
 		}
 
 		this.viewCell.detachTextEditor();

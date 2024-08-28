@@ -105,6 +105,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			}
 
 			btn.enabled = action.enabled;
+			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
 			if (conifgProvider(action, i)?.showLabel ?? true) {
 				btn.label = action.label;

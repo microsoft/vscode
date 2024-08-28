@@ -293,7 +293,7 @@ suite('Workbench - Test Results Service', () => {
 		} as IUriIdentityService, {
 			completedAt,
 			id: 'some-id',
-			tasks: [{ id: 't', name: undefined, ctrlId: 'ctrl' }],
+			tasks: [{ id: 't', name: undefined, ctrlId: 'ctrl', hasCoverage: false }],
 			name: 'hello world',
 			request: defaultOpts([]),
 			items: [{

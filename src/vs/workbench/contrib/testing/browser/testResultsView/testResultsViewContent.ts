@@ -27,6 +27,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { CustomStackFrame } from 'vs/workbench/contrib/debug/browser/callStackWidget';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestResultStackWidget } from 'vs/workbench/contrib/testing/browser/testResultsView/testMessageStack';
@@ -218,6 +219,7 @@ export class TestResultsViewContent extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
@@ -311,13 +313,35 @@ export class TestResultsViewContent extends Disposable {
 		this.current = opts.subject;
 		return this.contentProvidersUpdateLimiter.queue(async () => {
 			this.currentSubjectStore.clear();
-			const callFrames = (opts.subject instanceof MessageSubject && opts.subject.stack) || [];
+			const callFrames = this.getCallFrames(opts.subject) || [];
 			const topFrame = await this.prepareTopFrame(opts.subject, callFrames);
 			this.callStackWidget.update(topFrame, callFrames);
 
 			this.followupWidget.show(opts.subject);
 			this.populateFloatingClick(opts.subject);
 		});
+	}
+
+	private getCallFrames(subject: InspectSubject) {
+		if (!(subject instanceof MessageSubject)) {
+			return undefined;
+		}
+		const frames = subject.stack;
+		if (!frames?.length || !this.editor) {
+			return frames;
+		}
+
+		// If the test extension just sets the top frame as the same location
+		// where the message is displayed, in the case of a peek in an editor,
+		// don't show it again because it's just a duplicate
+		const topFrame = frames[0];
+		const peekLocation = subject.revealLocation;
+		const isTopFrameSame = peekLocation && topFrame.position && topFrame.uri
+			&& topFrame.position.lineNumber === peekLocation.range.startLineNumber
+			&& topFrame.position.column === peekLocation.range.startColumn
+			&& this.uriIdentityService.extUri.isEqual(topFrame.uri, peekLocation.uri);
+
+		return isTopFrameSame ? frames.slice(1) : frames;
 	}
 
 	private async prepareTopFrame(subject: InspectSubject, callFrames: ITestMessageStackFrame[]) {

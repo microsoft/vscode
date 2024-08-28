@@ -162,6 +162,9 @@ class MainThreadSCMResource implements ISCMResource {
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	readonly currentHistoryItemGroupId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.id);
 	readonly currentHistoryItemGroupName = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.name);
+	readonly currentHistoryItemGroupRevision = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.revision);
+	readonly currentHistoryItemGroupRemoteId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.remote?.id);
+	readonly currentHistoryItemGroupRemoteRevision = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.remote?.revision);
 
 	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: () => false }, undefined);
 	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }

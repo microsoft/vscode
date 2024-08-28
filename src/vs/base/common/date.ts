@@ -199,6 +199,27 @@ export function fromNow(date: number | Date, appendAgoLabel?: boolean, useFullTi
 	}
 }
 
+export function fromNowByDay(date: number | Date, appendAgoLabel?: boolean, useFullTimeWords?: boolean): string {
+	if (typeof date !== 'number') {
+		date = date.getTime();
+	}
+
+	const todayMidnightTime = new Date();
+	todayMidnightTime.setHours(0, 0, 0, 0);
+	const yesterdayMidnightTime = new Date(todayMidnightTime.getTime());
+	yesterdayMidnightTime.setDate(yesterdayMidnightTime.getDate() - 1);
+
+	if (date > todayMidnightTime.getTime()) {
+		return localize('today', 'Today');
+	}
+
+	if (date > yesterdayMidnightTime.getTime()) {
+		return localize('yesterday', 'Yesterday');
+	}
+
+	return fromNow(date, appendAgoLabel, useFullTimeWords);
+}
+
 /**
  * Gets a readable duration with intelligent/lossy precision. For example "40ms" or "3.040s")
  * @param ms The duration to get in milliseconds.

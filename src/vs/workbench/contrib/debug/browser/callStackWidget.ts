@@ -74,7 +74,7 @@ interface IFrameLikeItem {
 }
 
 class WrappedCallStackFrame extends CallStackFrame implements IFrameLikeItem {
-	public readonly editorHeight = observableValue('WrappedCallStackFrame.height', 100);
+	public readonly editorHeight = observableValue('WrappedCallStackFrame.height', this.source ? 100 : 0);
 	public readonly collapsed = observableValue('WrappedCallStackFrame.collapsed', false);
 
 	public readonly height = derived(reader => {
@@ -232,7 +232,7 @@ class StackDelegate implements IListVirtualDelegate<ListItem> {
 			return element.height.get();
 		}
 		if (element instanceof SkippedCallFrames) {
-			return 50;
+			return HEADER_HEIGHT;
 		}
 
 		assertNever(element);
@@ -287,7 +287,7 @@ const makeFrameElements = () => dom.h('div.multiCallStackFrame', [
 	])
 ]);
 
-const HEADER_HEIGHT = 32;
+const HEADER_HEIGHT = 24;
 
 interface IAbstractFrameRendererTemplateData {
 	container: HTMLElement;
@@ -514,7 +514,8 @@ class FrameCodeRenderer extends AbstractFrameRenderer<IStackTemplateData> {
 }
 
 interface IMissingTemplateData {
-	container: HTMLElement;
+	elements: ReturnType<typeof makeFrameElements>;
+	label: ResourceLabel;
 }
 
 /** Renderer for a call frame that's missing a URI */
@@ -522,21 +523,31 @@ class MissingCodeRenderer implements IListRenderer<ListItem, IMissingTemplateDat
 	public static readonly templateId = 'm';
 	public readonly templateId = MissingCodeRenderer.templateId;
 
+	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) { }
+
 	renderTemplate(container: HTMLElement): IMissingTemplateData {
-		return { container };
+		const elements = makeFrameElements();
+		elements.root.classList.add('missing');
+		container.appendChild(elements.root);
+		const label = this.instantiationService.createInstance(ResourceLabel, elements.title, {});
+		return { elements, label };
 	}
 
-	renderElement(element: ListItem, index: number, templateData: IMissingTemplateData, height: number | undefined): void {
-		templateData.container.innerText = (element as CallStackFrame).name;
+	renderElement(element: ListItem, _index: number, templateData: IMissingTemplateData): void {
+		const cast = element as CallStackFrame;
+		templateData.label.element.setResource({
+			name: cast.name,
+			description: localize('stackFrameLocation', 'Line {0} column {1}', cast.line, cast.column),
+			range: { startLineNumber: cast.line, startColumn: cast.column, endColumn: cast.column, endLineNumber: cast.line },
+		}, {
+			icon: Codicon.fileBinary,
+		});
 	}
 
 	disposeTemplate(templateData: IMissingTemplateData): void {
-		dom.clearNode(templateData.container);
+		templateData.label.dispose();
+		templateData.elements.root.remove();
 	}
-}
-
-interface IMissingTemplateData {
-	container: HTMLElement;
 }
 
 /** Renderer for a call frame that's missing a URI */

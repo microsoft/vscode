@@ -217,10 +217,22 @@ export enum ChatAgentVoteDirection {
 	Up = 1
 }
 
+export enum ChatAgentVoteDownReason {
+	IncorrectCode = 'incorrectCode',
+	DidNotFollowInstructions = 'didNotFollowInstructions',
+	IncompleteCode = 'incompleteCode',
+	MissingContext = 'missingContext',
+	PoorlyWrittenOrFormatted = 'poorlyWrittenOrFormatted',
+	RefusedAValidRequest = 'refusedAValidRequest',
+	OffensiveOrUnsafe = 'offensiveOrUnsafe',
+	Other = 'other',
+	WillReportIssue = 'willReportIssue'
+}
+
 export interface IChatVoteAction {
 	kind: 'vote';
 	direction: ChatAgentVoteDirection;
-	reportIssue?: boolean;
+	reason: ChatAgentVoteDownReason | undefined;
 }
 
 export enum ChatCopyKind {
@@ -304,6 +316,8 @@ export interface IChatCompleteResponse {
 export interface IChatDetail {
 	sessionId: string;
 	title: string;
+	lastMessageDate: number;
+	isActive: boolean;
 }
 
 export interface IChatProviderInfo {
@@ -389,6 +403,7 @@ export interface IChatService {
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	getHistory(): IChatDetail[];
+	setChatSessionTitle(sessionId: string, title: string): void;
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
 

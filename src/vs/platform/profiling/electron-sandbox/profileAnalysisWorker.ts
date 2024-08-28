@@ -6,12 +6,16 @@
 import { basename } from 'vs/base/common/path';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
+import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
 import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
 import { IProfileModel, BottomUpSample, buildModel, BottomUpNode, processNode, CdpCallFrame } from 'vs/platform/profiling/common/profilingModel';
 import { BottomUpAnalysis, IProfileAnalysisWorker, ProfilingOutput } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 
-export function create(): IRequestHandler {
+/**
+ * Defines the worker entry point. Must be exported and named `create`.
+ * @skipMangle
+ */
+export function create(workerServer: IWorkerServer): IRequestHandler {
 	return new ProfileAnalysisWorker();
 }
 
@@ -19,7 +23,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 
 	_requestHandlerBrand: any;
 
-	analyseBottomUp(profile: IV8Profile): BottomUpAnalysis {
+	$analyseBottomUp(profile: IV8Profile): BottomUpAnalysis {
 		if (!Utils.isValidProfile(profile)) {
 			return { kind: ProfilingOutput.Irrelevant, samples: [] };
 		}
@@ -37,7 +41,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 		return { kind: ProfilingOutput.Interesting, samples };
 	}
 
-	analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][] {
+	$analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][] {
 
 		// build search tree
 		const searchTree = TernarySearchTree.forUris<string>();

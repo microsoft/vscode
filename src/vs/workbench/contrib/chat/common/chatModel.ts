@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
@@ -111,9 +111,11 @@ export interface IChatResponseModel {
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
+	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
 	setVote(vote: ChatAgentVoteDirection): void;
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 }
 
@@ -351,6 +353,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._vote;
 	}
 
+	public get voteDownReason(): ChatAgentVoteDownReason | undefined {
+		return this._voteDownReason;
+	}
+
 	public get followups(): IChatFollowup[] | undefined {
 		return this._followups;
 	}
@@ -421,6 +427,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: ChatAgentVoteDirection,
+		private _voteDownReason?: ChatAgentVoteDownReason,
 		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
@@ -497,6 +504,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire();
 	}
 
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
+		this._voteDownReason = reason;
+		this._onDidChange.fire();
+	}
+
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean {
 		if (!this.response.value.includes(edit)) {
 			return false;
@@ -548,6 +560,7 @@ export interface ISerializableChatRequestData {
 	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
 	vote: ChatAgentVoteDirection | undefined;
+	voteDownReason?: ChatAgentVoteDownReason;
 	/** For backward compat: should be optional */
 	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
@@ -564,13 +577,63 @@ export interface IExportableChatData {
 	responderAvatarIconUri: ThemeIcon | UriComponents | undefined; // Keeping Uri name for backcompat
 }
 
-export interface ISerializableChatData extends IExportableChatData {
+/*
+	NOTE: every time the serialized data format is updated, we need to create a new interface, because we may need to handle any old data format when parsing.
+*/
+
+export interface ISerializableChatData1 extends IExportableChatData {
 	sessionId: string;
 	creationDate: number;
 	isImported: boolean;
 
 	/** Indicates that this session was created in this window. Is cleared after the chat has been written to storage once. Needed to sync chat creations/deletions between empty windows. */
 	isNew?: boolean;
+}
+
+export interface ISerializableChatData2 extends ISerializableChatData1 {
+	version: 2;
+	lastMessageDate: number;
+	computedTitle: string | undefined;
+}
+
+export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
+	version: 3;
+	customTitle: string | undefined;
+}
+
+/**
+ * Chat data that has been parsed and normalized to the current format.
+ */
+export type ISerializableChatData = ISerializableChatData3;
+
+/**
+ * Chat data that has been loaded but not normalized, and could be any format
+ */
+export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2 | ISerializableChatData3;
+
+/**
+ * Normalize chat data from storage to the current format.
+ * TODO- ChatModel#_deserialize and reviveSerializedAgent also still do some normalization and maybe that should be done in here too.
+ */
+export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISerializableChatData {
+	if (!('version' in raw)) {
+		return {
+			version: 3,
+			...raw,
+			lastMessageDate: raw.creationDate,
+			customTitle: undefined,
+		};
+	}
+
+	if (raw.version === 2) {
+		return {
+			...raw,
+			version: 3,
+			customTitle: raw.computedTitle
+		};
+	}
+
+	return raw;
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
@@ -690,17 +753,26 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get requestInProgress(): boolean {
-		const lastRequest = this._requests[this._requests.length - 1];
-		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
+		const lastRequest = this.lastRequest;
+		return !!lastRequest?.response && !lastRequest.response.isComplete;
 	}
 
 	get hasRequests(): boolean {
 		return this._requests.length > 0;
 	}
 
+	get lastRequest(): ChatRequestModel | undefined {
+		return this._requests.at(-1);
+	}
+
 	private _creationDate: number;
 	get creationDate(): number {
 		return this._creationDate;
+	}
+
+	private _lastMessageDate: number;
+	get lastMessageDate(): number {
+		return this._lastMessageDate;
 	}
 
 	private get _defaultAgent() {
@@ -742,8 +814,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isImported;
 	}
 
+	private _customTitle: string | undefined;
+	get customTitle(): string | undefined {
+		return this._customTitle;
+	}
+
 	get title(): string {
-		return ChatModel.getDefaultTitle(this._requests);
+		return this._customTitle || ChatModel.getDefaultTitle(this._requests);
 	}
 
 	get initialLocation() {
@@ -763,6 +840,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._sessionId = (isSerializableSessionData(initialData) && initialData.sessionId) || generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
+		this._lastMessageDate = (isSerializableSessionData(initialData) && initialData.lastMessageDate) || this._creationDate;
+		this._customTitle = isSerializableSessionData(initialData) ? initialData.customTitle : undefined;
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
@@ -798,7 +877,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					const result = 'responseErrorDetails' in raw ?
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, result, raw.followups);
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(revive(raw.usedContext));
 					}
@@ -898,8 +977,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
 		this._requests.push(request);
+		this._lastMessageDate = Date.now();
 		this._onDidChange.fire({ kind: 'addRequest', request });
 		return request;
+	}
+
+	setCustomTitle(title: string): void {
+		this._customTitle = title;
 	}
 
 	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
@@ -908,7 +992,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	adoptRequest(request: ChatRequestModel): void {
-
 		// this doesn't use `removeRequest` because it must not dispose the request object
 		const oldOwner = request.session;
 		const index = oldOwner._requests.findIndex(candidate => candidate.id === request.id);
@@ -1053,6 +1136,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
+					voteDownReason: r.response?.voteDownReason,
 					agent: agentJson,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
@@ -1065,10 +1149,13 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toJSON(): ISerializableChatData {
 		return {
+			version: 3,
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
-			isImported: this._isImported
+			isImported: this._isImported,
+			lastMessageDate: this._lastMessageDate,
+			customTitle: this._customTitle
 		};
 	}
 

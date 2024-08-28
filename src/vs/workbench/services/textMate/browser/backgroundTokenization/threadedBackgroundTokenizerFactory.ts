@@ -9,28 +9,28 @@ import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } fro
 import { IObservable } from 'vs/base/common/observable';
 import { isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateData, ITextMateWorkerHost, StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { ICreateData, StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { TextMateWorkerHost } from './worker/textMateWorkerHost';
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IRawTheme } from 'vscode-textmate';
+import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;
 
-	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
-	private _worker: MonacoWebWorker<TextMateTokenizationWorker> | null = null;
-	private _workerProxy: TextMateTokenizationWorker | null = null;
+	private _workerProxyPromise: Promise<Proxied<TextMateTokenizationWorker> | null> | null = null;
+	private _worker: IWorkerClient<TextMateTokenizationWorker> | null = null;
+	private _workerProxy: Proxied<TextMateTokenizationWorker> | null = null;
 	private readonly _workerTokenizerControllers = new Map</* backgroundTokenizerId */number, TextMateWorkerTokenizerController>();
 
 	private _currentTheme: IRawTheme | null = null;
@@ -41,8 +41,6 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		private readonly _reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean) => void,
 		private readonly _shouldTokenizeAsync: () => boolean,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IModelService private readonly _modelService: IModelService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -116,18 +114,18 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 		this._currentTheme = theme;
 		this._currentTokenColorMap = colorMap;
 		if (this._currentTheme && this._currentTokenColorMap && this._workerProxy) {
-			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
+			this._workerProxy.$acceptTheme(this._currentTheme, this._currentTokenColorMap);
 		}
 	}
 
-	private _getWorkerProxy(): Promise<TextMateTokenizationWorker | null> {
+	private _getWorkerProxy(): Promise<Proxied<TextMateTokenizationWorker> | null> {
 		if (!this._workerProxyPromise) {
 			this._workerProxyPromise = this._createWorkerProxy();
 		}
 		return this._workerProxyPromise;
 	}
 
-	private async _createWorkerProxy(): Promise<TextMateTokenizationWorker | null> {
+	private async _createWorkerProxy(): Promise<Proxied<TextMateTokenizationWorker> | null> {
 		const onigurumaModuleLocation: AppResourcePath = `${nodeModulesPath}/vscode-oniguruma`;
 		const onigurumaModuleLocationAsar: AppResourcePath = `${nodeModulesAsarPath}/vscode-oniguruma`;
 
@@ -139,12 +137,16 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			grammarDefinitions: this._grammarDefinitions,
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
-		const host: ITextMateWorkerHost = {
-			readFile: async (_resource: UriComponents): Promise<string> => {
+		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(
+			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
+			'TextMateWorker'
+		);
+		TextMateWorkerHost.setChannel(worker, {
+			$readFile: async (_resource: UriComponents): Promise<string> => {
 				const resource = URI.revive(_resource);
 				return this._extensionResourceLoaderService.readExtensionResource(resource);
 			},
-			setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
+			$setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
 				const controller = this._workerTokenizerControllers.get(controllerId);
 				// When a model detaches, it is removed synchronously from the map.
 				// However, the worker might still be sending tokens for that model,
@@ -153,27 +155,21 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 					controller.setTokensAndStates(controllerId, versionId, tokens, lineEndStateDeltas);
 				}
 			},
-			reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void => {
+			$reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void => {
 				this._reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);
 			}
-		};
-		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(this._modelService, this._languageConfigurationService, {
-			createData,
-			label: 'textMateWorker',
-			moduleId: 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
-			host,
 		});
-		const proxy = await worker.getProxy();
+		await worker.proxy.$init(createData);
 
 		if (this._worker !== worker) {
 			// disposed in the meantime
 			return null;
 		}
-		this._workerProxy = proxy;
+		this._workerProxy = worker.proxy;
 		if (this._currentTheme && this._currentTokenColorMap) {
-			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
+			this._workerProxy.$acceptTheme(this._currentTheme, this._currentTokenColorMap);
 		}
-		return proxy;
+		return worker.proxy;
 	}
 
 	private _disposeWorker(): void {

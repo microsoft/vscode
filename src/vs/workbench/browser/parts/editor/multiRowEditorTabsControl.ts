@@ -20,6 +20,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	private readonly stickyEditorTabsControl: IEditorTabsControl;
 	private readonly unstickyEditorTabsControl: IEditorTabsControl;
 
+	private activeControl: IEditorTabsControl | undefined;
+
 	constructor(
 		private readonly parent: HTMLElement,
 		editorPartsView: IEditorPartsView,
@@ -36,10 +38,15 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel));
 		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel));
 
-		this.handlePinnedTabsLayoutChange();
+		this.handleTabBarsStateChange();
 	}
 
-	private handlePinnedTabsLayoutChange(): void {
+	private handleTabBarsStateChange(): void {
+		this.activeControl = this.model.activeEditor ? this.getEditorTabsController(this.model.activeEditor) : undefined;
+		this.handleTabBarsLayoutChange();
+	}
+
+	private handleTabBarsLayoutChange(): void {
 		if (this.groupView.count === 0) {
 			// Do nothing as no tab bar is visible
 			return;
@@ -56,12 +63,19 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		}
 	}
 
+	private didActiveControlChange() {
+		return this.activeControl !== (this.model.activeEditor ? this.getEditorTabsController(this.model.activeEditor) : undefined);
+	}
+
 	private getEditorTabsController(editor: EditorInput): IEditorTabsControl {
 		return this.model.isSticky(editor) ? this.stickyEditorTabsControl : this.unstickyEditorTabsControl;
 	}
 
 	openEditor(editor: EditorInput, options: IInternalEditorOpenOptions): boolean {
-		const didChange = this.getEditorTabsController(editor).openEditor(editor, options);
+		const didActiveControlChange = this.didActiveControlChange();
+		const didOpenEditorChange = this.getEditorTabsController(editor).openEditor(editor, options);
+
+		const didChange = didOpenEditorChange || didActiveControlChange;
 		if (didChange) {
 			this.handleOpenedEditors();
 		}
@@ -72,11 +86,11 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const stickyEditors = editors.filter(e => this.model.isSticky(e));
 		const unstickyEditors = editors.filter(e => !this.model.isSticky(e));
 
+		const didActiveControlChange = this.didActiveControlChange();
 		const didChangeOpenEditorsSticky = this.stickyEditorTabsControl.openEditors(stickyEditors);
 		const didChangeOpenEditorsUnSticky = this.unstickyEditorTabsControl.openEditors(unstickyEditors);
 
-		const didChange = didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky;
-
+		const didChange = didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky || didActiveControlChange;
 		if (didChange) {
 			this.handleOpenedEditors();
 		}
@@ -85,7 +99,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	private handleOpenedEditors(): void {
-		this.handlePinnedTabsLayoutChange();
+		this.handleTabBarsStateChange();
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
@@ -111,7 +125,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	private handleClosedEditors(): void {
-		this.handlePinnedTabsLayoutChange();
+		this.handleTabBarsStateChange();
 	}
 
 	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
@@ -125,7 +139,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 				this.unstickyEditorTabsControl.openEditor(editor);
 			}
 
-			this.handlePinnedTabsLayoutChange();
+			this.handleTabBarsStateChange();
 
 		} else {
 			if (this.model.isSticky(editor)) {
@@ -144,14 +158,14 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		this.unstickyEditorTabsControl.closeEditor(editor);
 		this.stickyEditorTabsControl.openEditor(editor);
 
-		this.handlePinnedTabsLayoutChange();
+		this.handleTabBarsStateChange();
 	}
 
 	unstickEditor(editor: EditorInput): void {
 		this.stickyEditorTabsControl.closeEditor(editor);
 		this.unstickyEditorTabsControl.openEditor(editor);
 
-		this.handlePinnedTabsLayoutChange();
+		this.handleTabBarsStateChange();
 	}
 
 	setActive(isActive: boolean): void {

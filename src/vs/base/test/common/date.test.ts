@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { fromNow, getDurationString } from 'vs/base/common/date';
+import { fromNow, fromNowByDay, getDurationString } from 'vs/base/common/date';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Date', () => {
@@ -25,6 +25,23 @@ suite('Date', () => {
 			strictEqual(fromNow(Date.now() - 5000), 'now');
 			strictEqual(fromNow(Date.now() - 5000, undefined, undefined, false), 'now');
 			strictEqual(fromNow(Date.now() - 5000, undefined, undefined, true), '5 secs');
+		});
+	});
+
+	suite('fromNowByDay', () => {
+		test('today', () => {
+			const now = new Date();
+			strictEqual(fromNowByDay(now), 'Today');
+		});
+		test('yesterday', () => {
+			const yesterday = new Date();
+			yesterday.setDate(yesterday.getDate() - 1);
+			strictEqual(fromNowByDay(yesterday), 'Yesterday');
+		});
+		test('daysAgo', () => {
+			const daysAgo = new Date();
+			daysAgo.setDate(daysAgo.getDate() - 5);
+			strictEqual(fromNowByDay(daysAgo, true), '5 days ago');
 		});
 	});
 

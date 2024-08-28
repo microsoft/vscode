@@ -13,7 +13,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
 import { localize, localize2 } from 'vs/nls';

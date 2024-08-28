@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
+import { fromNowByDay } from 'vs/base/common/date';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -14,7 +16,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
@@ -126,58 +128,91 @@ class ChatHistoryAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const editorService = accessor.get(IEditorService);
 
-		const openInEditorButton: IQuickInputButton = {
-			iconClass: ThemeIcon.asClassName(Codicon.file),
-			tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
-		};
-		const deleteButton: IQuickInputButton = {
-			iconClass: ThemeIcon.asClassName(Codicon.x),
-			tooltip: localize('interactiveSession.history.delete', "Delete"),
-		};
+		const showPicker = () => {
+			const openInEditorButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.file),
+				tooltip: localize('interactiveSession.history.editor', "Open in Editor"),
+			};
+			const deleteButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.x),
+				tooltip: localize('interactiveSession.history.delete', "Delete"),
+			};
+			const renameButton: IQuickInputButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.pencil),
+				tooltip: localize('chat.history.rename', "Rename"),
+			};
 
-		interface IChatPickerItem extends IQuickPickItem {
-			chat: IChatDetail;
-		}
+			interface IChatPickerItem extends IQuickPickItem {
+				chat: IChatDetail;
+			}
 
-		const getPicks = () => {
-			const items = chatService.getHistory();
-			return items.map((i): IChatPickerItem => ({
-				label: i.title,
-				chat: i,
-				buttons: [
-					openInEditorButton,
-					deleteButton
-				]
+			const getPicks = () => {
+				const items = chatService.getHistory();
+				items.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
+
+				let lastDate: string | undefined = undefined;
+				const picks = items.flatMap((i): [IQuickPickSeparator | undefined, IChatPickerItem] => {
+					const timeAgoStr = fromNowByDay(i.lastMessageDate, true, true);
+					const separator: IQuickPickSeparator | undefined = timeAgoStr !== lastDate ? {
+						type: 'separator', label: timeAgoStr,
+					} : undefined;
+					lastDate = timeAgoStr;
+					return [
+						separator,
+						{
+							label: i.title,
+							description: i.isActive ? `(${localize('currentChatLabel', 'current')})` : '',
+							chat: i,
+							buttons: i.isActive ? [renameButton] : [
+								renameButton,
+								openInEditorButton,
+								deleteButton,
+							]
+						}
+					];
+				});
+
+				return coalesce(picks);
+			};
+
+			const store = new DisposableStore();
+			const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>({ useSeparators: true }));
+			picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
+			const picks = getPicks();
+			picker.items = picks;
+			store.add(picker.onDidTriggerItemButton(async context => {
+				if (context.button === openInEditorButton) {
+					const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
+					editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+					picker.hide();
+				} else if (context.button === deleteButton) {
+					chatService.removeHistoryEntry(context.item.chat.sessionId);
+					picker.items = getPicks();
+				} else if (context.button === renameButton) {
+					const title = await quickInputService.input({ title: localize('newChatTitle', "New chat title"), value: context.item.chat.title });
+					if (title) {
+						chatService.setChatSessionTitle(context.item.chat.sessionId, title);
+					}
+
+					// The quick input hides the picker, it gets disposed, so we kick it off from scratch
+					showPicker();
+				}
 			}));
+			store.add(picker.onDidAccept(async () => {
+				try {
+					const item = picker.selectedItems[0];
+					const sessionId = item.chat.sessionId;
+					const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+					view.loadSession(sessionId);
+				} finally {
+					picker.hide();
+				}
+			}));
+			store.add(picker.onDidHide(() => store.dispose()));
+
+			picker.show();
 		};
-
-		const store = new DisposableStore();
-		const picker = store.add(quickInputService.createQuickPick<IChatPickerItem>());
-		picker.placeholder = localize('interactiveSession.history.pick', "Switch to chat");
-		picker.items = getPicks();
-		store.add(picker.onDidTriggerItemButton(context => {
-			if (context.button === openInEditorButton) {
-				const options: IChatEditorOptions = { target: { sessionId: context.item.chat.sessionId }, pinned: true };
-				editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
-				picker.hide();
-			} else if (context.button === deleteButton) {
-				chatService.removeHistoryEntry(context.item.chat.sessionId);
-				picker.items = getPicks();
-			}
-		}));
-		store.add(picker.onDidAccept(async () => {
-			try {
-				const item = picker.selectedItems[0];
-				const sessionId = item.chat.sessionId;
-				const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
-				view.loadSession(sessionId);
-			} finally {
-				picker.hide();
-			}
-		}));
-		store.add(picker.onDidHide(() => store.dispose()));
-
-		picker.show();
+		showPicker();
 	}
 }
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from 'vs/base/common/network';
+import { WorkerDescriptor } from 'vs/base/browser/defaultWorkerFactory';
 import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -19,6 +19,7 @@ export class WorkbenchEditorWorkerService extends EditorWorkerService {
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
+		const workerDescriptor = new WorkerDescriptor('vs/editor/common/services/editorSimpleWorker', 'TextEditorWorker');
+		super(workerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
 	}
 }

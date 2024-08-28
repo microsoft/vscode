@@ -35,6 +35,7 @@ declare module 'vscode' {
 
 	export interface SourceControlHistoryOptions {
 		readonly cursor?: string;
+		readonly skip?: number;
 		readonly limit?: number | { id?: string };
 		readonly historyItemGroupIds?: readonly string[];
 	}

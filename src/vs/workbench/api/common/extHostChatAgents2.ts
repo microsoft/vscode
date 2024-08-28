@@ -24,7 +24,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
@@ -423,7 +423,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	}
 
 	private async prepareHistoryTurns(agentId: string, context: { history: IChatAgentHistoryEntryDto[] }): Promise<(vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]> {
-
 		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 
 		for (const h of context.history) {
@@ -479,7 +478,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			.map(f => typeConvert.ChatFollowup.from(f, request));
 	}
 
-	$acceptFeedback(handle: number, result: IChatAgentResult, vote: ChatAgentVoteDirection, reportIssue?: boolean): void {
+	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
@@ -487,7 +486,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const ehResult = typeConvert.ChatAgentResult.to(result);
 		let kind: extHostTypes.ChatResultFeedbackKind;
-		switch (vote) {
+		switch (voteAction.direction) {
 			case ChatAgentVoteDirection.Down:
 				kind = extHostTypes.ChatResultFeedbackKind.Unhelpful;
 				break;
@@ -495,9 +494,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				kind = extHostTypes.ChatResultFeedbackKind.Helpful;
 				break;
 		}
-		agent.acceptFeedback(reportIssue ?
-			Object.freeze({ result: ehResult, kind, reportIssue }) :
-			Object.freeze({ result: ehResult, kind }));
+
+		const feedback: vscode.ChatResultFeedback = {
+			result: ehResult,
+			kind,
+			unhelpfulReason: isProposedApiEnabled(agent.extension, 'chatParticipantAdditions') ? voteAction.reason : undefined,
+		};
+		agent.acceptFeedback(Object.freeze(feedback));
 	}
 
 	$acceptAction(handle: number, result: IChatAgentResult, event: IChatUserActionEvent): void {
@@ -545,6 +548,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await agent.provideWelcomeMessage(typeConvert.ChatLocation.to(location), token);
 	}
 
+	async $provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+
+		const history = await this.prepareHistoryTurns(agent.id, { history: context });
+		return await agent.provideTitle({ history }, token);
+	}
+
 	async $provideSampleQuestions(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<IChatFollowup[] | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -560,7 +573,6 @@ class ExtHostChatAgent {
 
 	private _followupProvider: vscode.ChatFollowupProvider | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
-	private _isDefault: boolean | undefined;
 	private _helpTextPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextVariablesPrefix: string | vscode.MarkdownString | undefined;
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
@@ -570,6 +582,7 @@ class ExtHostChatAgent {
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatParticipantCompletionItemProvider; triggerCharacters: string[] };
 	private _welcomeMessageProvider?: vscode.ChatWelcomeMessageProvider | undefined;
+	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _supportsSlowReferences: boolean | undefined;
 
@@ -628,6 +641,14 @@ class ExtHostChatAgent {
 				return typeConvert.MarkdownString.from(item);
 			}
 		});
+	}
+
+	async provideTitle(context: vscode.ChatContext, token: CancellationToken): Promise<string | undefined> {
+		if (!this._titleProvider) {
+			return;
+		}
+
+		return await this._titleProvider.provideChatTitle(context, token) ?? undefined;
 	}
 
 	async provideSampleQuestions(location: vscode.ChatLocation, token: CancellationToken): Promise<vscode.ChatFollowup[]> {
@@ -700,15 +721,6 @@ class ExtHostChatAgent {
 			},
 			set followupProvider(v) {
 				that._followupProvider = v;
-				updateMetadataSoon();
-			},
-			get isDefault() {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				return that._isDefault;
-			},
-			set isDefault(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
-				that._isDefault = v;
 				updateMetadataSoon();
 			},
 			get helpTextPrefix() {
@@ -784,6 +796,15 @@ class ExtHostChatAgent {
 			get welcomeMessageProvider() {
 				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
 				return that._welcomeMessageProvider;
+			},
+			set titleProvider(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				that._titleProvider = v;
+				updateMetadataSoon();
+			},
+			get titleProvider() {
+				checkProposedApiEnabled(that.extension, 'defaultChatParticipant');
+				return that._titleProvider;
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatParticipantAdditions')
 				? undefined!

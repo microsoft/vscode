@@ -14,13 +14,14 @@ import { IEditorModel } from 'vs/editor/common/editorCommon';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Breakpoints } from 'vs/workbench/contrib/debug/common/breakpoints';
@@ -71,6 +72,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ITaskService private readonly tasksService: ITaskService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 		this.adapterDescriptorFactories = [];
@@ -405,7 +407,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			}
 		});
 
-		const picks: { label: string; debugger?: Debugger; type?: string }[] = [];
+		const picks: ({ label: string; debugger?: Debugger; type?: string } | MenuItemAction)[] = [];
 		if (suggestedCandidates.length > 0) {
 			picks.push(
 				{ type: 'separator', label: nls.localize('suggestedDebuggers', "Suggested") },
@@ -424,11 +426,20 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			{ type: 'separator', label: '' },
 			{ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
 
+		const contributed = this.menuService.getMenuActions(MenuId.DebugCreateConfiguration, this.contextKeyService);
+		for (const [, action] of contributed) {
+			for (const item of action) {
+				picks.push(item);
+			}
+		}
 		const placeHolder = nls.localize('selectDebug', "Select debugger");
-		return this.quickInputService.pick<{ label: string; debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
-			.then(picked => {
-				if (picked && picked.debugger) {
+		return this.quickInputService.pick<{ label: string; debugger?: Debugger } | IQuickPickItem>(picks, { activeItem: picks[0], placeHolder })
+			.then(async picked => {
+				if (picked && 'debugger' in picked && picked.debugger) {
 					return picked.debugger;
+				} else if (picked instanceof MenuItemAction) {
+					picked.run();
+					return;
 				}
 				if (picked) {
 					this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);

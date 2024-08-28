@@ -94,7 +94,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.experimental.asyncTokenization': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker."),
 			tags: ['experimental'],
 		},

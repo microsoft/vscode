@@ -28,6 +28,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ErrorNoTelemetry, NotSupportedError } from 'vs/base/common/errors';
+import { asArray } from 'vs/base/common/arrays';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -279,7 +280,7 @@ export namespace TaskDTO {
 			isBackground: value.isBackground,
 			group: TaskGroupDTO.from(value.group as vscode.TaskGroup),
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
-			problemMatchers: value.problemMatchers,
+			problemMatchers: asArray(value.problemMatchers),
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
 			detail: value.detail

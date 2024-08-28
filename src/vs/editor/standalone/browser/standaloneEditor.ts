@@ -12,7 +12,7 @@ import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/browser/services/webWorker';
+import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/standalone/browser/standaloneWebWorker';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -21,7 +21,6 @@ import { IRange } from 'vs/editor/common/core/range';
 import { EditorType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
@@ -333,7 +332,7 @@ export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextMo
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
 export function createWebWorker<T extends object>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), StandaloneServices.get(ILanguageConfigurationService), opts);
+	return actualCreateWebWorker<T>(StandaloneServices.get(IModelService), opts);
 }
 
 /**

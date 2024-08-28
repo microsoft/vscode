@@ -183,25 +183,25 @@ export interface TextSearchProviderOptions {
 	/**
 	 * Options to specify the size of the result text preview.
 	 */
-	previewOptions?: {
+	previewOptions: {
 		/**
 		 * The maximum number of lines in the preview.
 		 * Only search providers that support multiline search will ever return more than one line in the match.
 		 * Defaults to 100.
 		 */
-		matchLines?: number;
+		matchLines: number;
 
 		/**
 		 * The maximum number of characters included per line.
 		 * Defaults to 10000.
 		 */
-		charsPerLine?: number;
+		charsPerLine: number;
 	};
 
 	/**
 	 * Exclude files larger than `maxFileSize` in bytes.
 	 */
-	maxFileSize?: number;
+	maxFileSize: number | undefined;
 
 
 	/**

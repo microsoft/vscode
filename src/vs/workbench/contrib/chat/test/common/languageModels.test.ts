@@ -149,7 +149,7 @@ suite('LanguageModels', function () {
 
 		const cts = new CancellationTokenSource();
 
-		const request = await languageModels.sendChatRequest(first, nullExtensionDescription.identifier, [{ role: ChatMessageRole.User, content: { type: 'text', value: 'hello' } }], {}, cts.token);
+		const request = await languageModels.sendChatRequest(first, nullExtensionDescription.identifier, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: 'hello' }] }], {}, cts.token);
 
 		assert.ok(request);
 

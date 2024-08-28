@@ -22,7 +22,7 @@ import { IEditorPane, IEditorPaneWithSelection } from 'vs/workbench/common/edito
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
@@ -362,6 +362,7 @@ export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;
 	readonly indexedCellOptions?: { index: number; selection?: IRange };
+	readonly label?: string;
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature<INotebookEditorContribution, [INotebookEditor]>;
@@ -487,6 +488,7 @@ export interface INotebookEditor {
 	readonly onDidScroll: Event<void>;
 	readonly onDidChangeLayout: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly onDidChangeActiveEditor: Event<INotebookEditor>;
 	readonly onDidChangeActiveKernel: Event<void>;
 	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
 	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
@@ -528,6 +530,7 @@ export interface INotebookEditor {
 	getEditorViewState(): INotebookEditorViewState;
 	restoreListViewState(viewState: INotebookEditorViewState | undefined): void;
 
+	getBaseCellEditorOptions(language: string): IBaseCellEditorOptions;
 
 	/**
 	 * Focus the active cell in notebook cell list
@@ -788,7 +791,6 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	readonly creationOptions: INotebookEditorCreationOptions;
 	readonly onDidChangeOptions: Event<void>;
 	readonly onDidChangeDecorations: Event<void>;
-	getBaseCellEditorOptions(language: string): IBaseCellEditorOptions;
 	createMarkupPreview(cell: ICellViewModel): Promise<void>;
 	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
@@ -889,9 +891,9 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 
 	const input = editorPane.input;
 
-	const isInteractiveEditor = input && isCompositeNotebookEditorInput(input);
+	const isCompositeNotebook = input && isCompositeNotebookEditorInput(input);
 
-	if (isInteractiveEditor || editorPane.getId() === REPL_EDITOR_ID) {
+	if (isCompositeNotebook) {
 		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined } | undefined)?.notebookEditor;
 	}
 

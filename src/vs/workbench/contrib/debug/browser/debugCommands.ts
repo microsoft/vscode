@@ -32,7 +32,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/browser/loadedScriptsPicker';
+import { showLoadedScriptMenu } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
 import { showDebugSessionMenu } from 'vs/workbench/contrib/debug/browser/debugSessionPicker';
 import { TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILocalizedString } from 'vs/platform/action/common/action';

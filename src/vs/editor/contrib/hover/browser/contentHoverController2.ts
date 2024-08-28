@@ -14,7 +14,7 @@ import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';

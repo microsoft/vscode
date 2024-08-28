@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IProductConfiguration } from 'vs/base/common/product';
 import { localize } from 'vs/nls';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
 import { IIssueFormService, IssueReporterData } from 'vs/workbench/contrib/issue/common/issue';
 
@@ -21,9 +22,10 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		},
 		product: IProductConfiguration,
 		window: Window,
-		@IIssueFormService issueFormService: IIssueFormService
+		@IIssueFormService issueFormService: IIssueFormService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService);
+		super(disableExtensions, data, os, product, window, true, issueFormService, themeService);
 
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 

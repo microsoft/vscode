@@ -9,7 +9,7 @@ import { IDebugService, IDebugSession, REPL_VIEW_ID } from 'vs/workbench/contrib
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IPickerDebugItem } from 'vs/workbench/contrib/debug/browser/loadedScriptsPicker';
+import { IPickerDebugItem } from 'vs/workbench/contrib/debug/common/loadedScriptsPicker';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
@@ -120,3 +120,5 @@ function _createPick(session: IDebugSession, filter: string, debugService: IDebu
 	}
 	return undefined;
 }
+
+

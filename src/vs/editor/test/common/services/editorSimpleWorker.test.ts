@@ -8,14 +8,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
-import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/editorSimpleWorker';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { ICommonModel } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 suite('EditorSimpleWorker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	class WorkerWithModels extends EditorSimpleWorker {
+	class WorkerWithModels extends BaseEditorSimpleWorker {
 
 		getModel(uri: string) {
 			return this._getModel(uri);
@@ -23,13 +23,13 @@ suite('EditorSimpleWorker', () => {
 
 		addModel(lines: string[], eol: string = '\n') {
 			const uri = 'test:file#' + Date.now();
-			this.acceptNewModel({
+			this.$acceptNewModel({
 				url: uri,
 				versionId: 1,
 				lines: lines,
 				EOL: eol
 			});
-			return this._getModel(uri);
+			return this._getModel(uri)!;
 		}
 	}
 
@@ -37,7 +37,7 @@ suite('EditorSimpleWorker', () => {
 	let model: ICommonModel;
 
 	setup(() => {
-		worker = new WorkerWithModels(<IEditorWorkerHost>null!, null);
+		worker = new WorkerWithModels();
 		model = worker.addModel([
 			'This is line one', //16
 			'and this is line number two', //27
@@ -93,7 +93,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('MoreMinimal', () => {
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, 'O');
@@ -112,7 +112,7 @@ suite('EditorSimpleWorker', () => {
 		], '\n');
 
 
-		const newEdits = await worker.computeMoreMinimalEdits(model.uri.toString(), [
+		const newEdits = await worker.$computeMoreMinimalEdits(model.uri.toString(), [
 			{
 				range: new Range(1, 1, 2, 1),
 				text: 'one\ntwo\nthree\n',
@@ -144,7 +144,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
 			assert.strictEqual(edits.length, 0);
 		});
 	});
@@ -157,7 +157,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, 'b');
@@ -173,7 +173,7 @@ suite('EditorSimpleWorker', () => {
 			'}'				// 3
 		]);
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }], false).then(edits => {
+		return worker.$computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, '\n');
@@ -184,7 +184,7 @@ suite('EditorSimpleWorker', () => {
 	async function testEdits(lines: string[], edits: TextEdit[]): Promise<unknown> {
 		const model = worker.addModel(lines);
 
-		const smallerEdits = await worker.computeHumanReadableDiff(
+		const smallerEdits = await worker.$computeHumanReadableDiff(
 			model.uri.toString(),
 			edits,
 			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false }
@@ -286,7 +286,7 @@ suite('EditorSimpleWorker', () => {
 			'f f'	// 2
 		]);
 
-		return worker.textualSuggest([model.uri.toString()], 'f', '[a-z]+', 'img').then((result) => {
+		return worker.$textualSuggest([model.uri.toString()], 'f', '[a-z]+', 'img').then((result) => {
 			if (!result) {
 				assert.ok(false);
 			}

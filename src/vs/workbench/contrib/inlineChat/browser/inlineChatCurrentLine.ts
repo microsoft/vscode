@@ -10,16 +10,15 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize, localize2 } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { InlineChatController, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IValidEditOperation } from 'vs/editor/common/model';
 
 
 export const CTX_INLINE_CHAT_EXPANSION = new RawContextKey<boolean>('inlineChatExpansion', false, localize('inlineChatExpansion', "Whether the inline chat expansion is enabled when at the end of a just-typed line"));
@@ -117,15 +116,15 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 			title: localize2('startWithCurrentLine', "Start in Editor with Current Line"),
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE.negate(), CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
-			keybinding: {
-				when: CTX_INLINE_CHAT_EXPANSION,
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.Tab
-			}
+			// keybinding: {
+			// 	when: CTX_INLINE_CHAT_EXPANSION,
+			// 	weight: KeybindingWeight.EditorContrib,
+			// 	primary: KeyCode.Tab
+			// }
 		});
 	}
 
-	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+	override async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		const ctrl = InlineChatController.get(editor);
 		if (!ctrl || !editor.hasModel()) {
 			return;
@@ -139,15 +138,29 @@ export class InlineChatExpandLineAction extends EditorAction2 {
 		const endColumn = model.getLineMaxColumn(lineNumber);
 
 		// clear the line
-		editor.pushUndoStop();
-		editor.executeEdits('inlinePromptCurrentLine', [EditOperation.replace(new Range(lineNumber, startColumn, lineNumber, endColumn), '')]);
-		editor.pushUndoStop();
-
-		// trigger chat
-		return ctrl.run({
-			autoSend: true,
-			message: lineContent.trim(),
-			position: new Position(lineNumber, startColumn)
+		let undoEdits: IValidEditOperation[] = [];
+		model.pushEditOperations(null, [EditOperation.replace(new Range(lineNumber, startColumn, lineNumber, endColumn), '')], (edits) => {
+			undoEdits = edits;
+			return null;
 		});
+
+		let lastState: State | undefined;
+		const d = ctrl.onDidEnterState(e => lastState = e);
+
+		try {
+			// trigger chat
+			await ctrl.run({
+				autoSend: true,
+				message: lineContent.trim(),
+				position: new Position(lineNumber, startColumn)
+			});
+
+		} finally {
+			d.dispose();
+		}
+
+		if (lastState === State.CANCEL) {
+			model.pushEditOperations(null, undoEdits, () => null);
+		}
 	}
 }

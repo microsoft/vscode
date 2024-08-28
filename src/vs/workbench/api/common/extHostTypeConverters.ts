@@ -2041,6 +2041,43 @@ export namespace TestCoverage {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
+	function toLocation(location: IPosition | editorRange.IRange): types.Position | types.Range;
+	function toLocation(location: IPosition | editorRange.IRange | undefined): types.Position | types.Range | undefined;
+	function toLocation(location: IPosition | editorRange.IRange | undefined): types.Position | types.Range | undefined {
+		if (!location) { return undefined; }
+		return 'endLineNumber' in location ? Range.to(location) : Position.to(location);
+	}
+
+	export function to(serialized: CoverageDetails.Serialized): vscode.FileCoverageDetail {
+		if (serialized.type === DetailType.Statement) {
+			const branches: vscode.BranchCoverage[] = [];
+			if (serialized.branches) {
+				for (const branch of serialized.branches) {
+					branches.push({
+						executed: branch.count,
+						location: toLocation(branch.location),
+						label: branch.label
+					});
+				}
+			}
+			return new types.StatementCoverage(
+				serialized.count,
+				toLocation(serialized.location),
+				serialized.branches?.map(b => new types.BranchCoverage(
+					b.count,
+					toLocation(b.location)!,
+					b.label,
+				))
+			);
+		} else {
+			return new types.DeclarationCoverage(
+				serialized.name,
+				serialized.count,
+				toLocation(serialized.location),
+			);
+		}
+	}
+
 	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
 		if (typeof coverage.executed === 'number' && coverage.executed < 0) {
 			throw new Error(`Invalid coverage count ${coverage.executed}`);
@@ -2276,18 +2313,19 @@ export namespace LanguageModelChatMessageRole {
 export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		let content: string = '';
-		let content2: vscode.LanguageModelChatMessageFunctionResultPart | undefined;
-		if (message.content.type === 'text') {
-			content = message.content.value;
-		} else {
-			content2 = new types.LanguageModelFunctionResultPart(message.content.name, message.content.value, message.content.isError);
-		}
+		const content2 = message.content.map(c => {
+			if (c.type === 'text') {
+				return c.value;
+			} else if (c.type === 'tool_result') {
+				return new types.LanguageModelToolResultPart(c.toolCallId, c.value, c.isError);
+			} else {
+				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
+			}
+		});
+		const content = content2.find(c => typeof c === 'string') ?? '';
 		const role = LanguageModelChatMessageRole.to(message.role);
 		const result = new types.LanguageModelChatMessage(role, content, message.name);
-		if (content2 !== undefined) {
-			result.content2 = content2;
-		}
+		result.content2 = content2;
 		return result;
 	}
 
@@ -2296,21 +2334,32 @@ export namespace LanguageModelChatMessage {
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
-		let content: chatProvider.IChatMessagePart;
+		const content = message.content2.map((c): chatProvider.IChatMessagePart => {
+			if (c instanceof types.LanguageModelToolResultPart) {
+				return {
+					type: 'tool_result',
+					toolCallId: c.toolCallId,
+					value: c.content,
+					isError: c.isError
+				};
+			} else if (c instanceof types.LanguageModelToolCallPart) {
+				return {
+					type: 'tool_use',
+					toolCallId: c.toolCallId,
+					name: c.name,
+					parameters: c.parameters
+				};
+			} else {
+				if (typeof c !== 'string') {
+					throw new Error('Unexpected chat message content type');
+				}
 
-		if (message.content2 instanceof types.LanguageModelFunctionResultPart) {
-			content = {
-				type: 'function_result',
-				name: message.content2.name,
-				value: message.content2.content,
-				isError: message.content2.isError
-			};
-		} else {
-			content = {
-				type: 'text',
-				value: message.content
-			};
-		}
+				return {
+					type: 'text',
+					value: c
+				};
+			}
+		});
 
 		return {
 			role,
@@ -2644,6 +2693,7 @@ export namespace ChatAgentRequest {
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
+			isParticipantDetected: request.isParticipantDetected ?? false,
 			references: variableReferences.map(ChatPromptReference.to),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),

@@ -176,7 +176,6 @@ class MenuInfoSnapshot {
 		protected readonly _collectContextKeysForSubmenus: boolean,
 	) {
 		this.refresh();
-		this._allMenuIds.add(_id);
 	}
 
 	get allMenuIds(): ReadonlySet<MenuId> {
@@ -219,6 +218,7 @@ class MenuInfoSnapshot {
 			// keep keys and submenu ids for eventing
 			this._collectContextKeysAndSubmenuIds(item);
 		}
+		this._allMenuIds.add(this._id);
 	}
 
 	protected _sort(menuItems: (IMenuItem | ISubmenuItem)[]) {

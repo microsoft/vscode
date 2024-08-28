@@ -40,7 +40,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat'): stri
 		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', '<keybinding:workbench.action.chat.focusInput>'));
 		content.push(localize('workbench.action.chat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command{0}.', '<keybinding:workbench.action.chat.nextCodeBlock>'));
 		content.push(localize('workbench.action.chat.nextFileTree', 'To focus the next file tree within a response, invoke the Chat: Next File Tree command{0}.', '<keybinding:workbench.action.chat.nextFileTree>'));
-		content.push(localize('workbench.action.chat.clear', 'To clear the request/response list, invoke the Chat Clear command{0}.', '<keybinding:workbench.action.chat.clear>'));
+		content.push(localize('workbench.action.chat.newChat', 'To create a new chat session, invoke the New Chat command{0}.', '<keybinding:workbench.action.chat.new>'));
 	} else {
 		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account the current selection. It is useful for making changes to the current editor. For example, fixing diagnostics, documenting or refactoring code. Keep in mind that AI generated code may be incorrect."));
 		content.push(localize('inlineChat.access', "It can be activated via code actions or directly using the command: Inline Chat: Start Inline Chat{0}.", '<keybinding:inlineChat.start>'));

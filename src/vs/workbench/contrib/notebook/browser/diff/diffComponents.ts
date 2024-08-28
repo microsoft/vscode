@@ -186,23 +186,10 @@ class PropertyHeader extends Disposable {
 
 			const target = e.event.target as HTMLElement;
 
-			if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {
-				const parent = target.parentElement as HTMLElement;
-
-				if (!parent) {
-					return;
-				}
-
-				if (!parent.classList.contains(this.accessor.prefix)) {
-					return;
-				}
-
-				if (!parent.classList.contains('property-folding-indicator')) {
-					return;
-				}
-
-				// folding icon
-
+			if (target === this.propertyHeaderContainer ||
+				target === this._foldingIndicator || this._foldingIndicator.contains(target) ||
+				target === metadataStatus || metadataStatus.contains(target)
+			) {
 				const cellViewModel = e.target;
 
 				if (cellViewModel === this.cell) {
@@ -1579,7 +1566,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			this._outputLeftView?.showOutputs();
 			this._outputRightView?.showOutputs();
-			this._outputMetadataEditor?.layout();
+			this._outputMetadataEditor?.layout({
+				width: this._editor?.getViewWidth() || this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+				height: this.cell.layoutInfo.outputMetadataHeight
+			});
+
 			this._decorate();
 		}
 	}
@@ -1800,13 +1791,19 @@ export class ModifiedElement extends AbstractElementRenderer {
 			if (state.outputTotalHeight || state.outerWidth) {
 				if (this._outputEditorContainer) {
 					this._outputEditorContainer.style.height = `${this.cell.layoutInfo.outputTotalHeight}px`;
-					this._outputEditor?.layout();
+					this._outputEditor?.layout({
+						width: this._editor?.getViewWidth() || this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+						height: this.cell.layoutInfo.outputTotalHeight
+					});
 				}
 
 				if (this._outputMetadataContainer) {
 					this._outputMetadataContainer.style.height = `${this.cell.layoutInfo.outputMetadataHeight}px`;
 					this._outputMetadataContainer.style.top = `${this.cell.layoutInfo.outputTotalHeight - this.cell.layoutInfo.outputMetadataHeight}px`;
-					this._outputMetadataEditor?.layout();
+					this._outputMetadataEditor?.layout({
+						width: this._editor?.getViewWidth() || this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+						height: this.cell.layoutInfo.outputMetadataHeight
+					});
 				}
 			}
 
@@ -1815,6 +1812,12 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	override dispose() {
+		// The editor isn't disposed yet, it can be re-used.
+		// However the model can be disposed before the editor & that causes issues.
+		if (this._editor) {
+			this._editor.setModel(null);
+		}
+
 		if (this._editor && this._editorViewStateChanged) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}

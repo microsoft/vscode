@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';

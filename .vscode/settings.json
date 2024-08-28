@@ -168,5 +168,6 @@
 		"editor.wordWrap": "on"
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
-	"typescript.enablePromptUseWorkspaceTsdk": true
+	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"inlineChat.experimental.onlyZoneWidget": true
 }

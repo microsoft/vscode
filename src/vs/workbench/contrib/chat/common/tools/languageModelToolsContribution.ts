@@ -9,6 +9,7 @@ import { DisposableMap } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -19,8 +20,9 @@ interface IRawToolContribution {
 	id: string;
 	name?: string;
 	icon?: string | { light: string; dark: string };
+	when?: string;
 	displayName?: string;
-	userDescription: string;
+	userDescription?: string;
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
@@ -92,6 +94,10 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 							}
 						}
 					}]
+				},
+				when: {
+					markdownDescription: localize('condition', "Condition which must be true for this tool to be enabled. Note that a tool may still be invoked by another extension even when its `when` condition is false."),
+					type: 'string'
 				}
 			}
 		}
@@ -145,7 +151,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tool: IToolData = {
 						...rawTool,
-						icon
+						icon,
+						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.id), disposable);

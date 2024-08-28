@@ -53,7 +53,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { dirname } from 'vs/base/common/resources';
-import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -1851,7 +1851,7 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 		return;
 	}
 
-	const folderCwdPairs = await Promise.all(folders.map(x => resolveWorkspaceFolderCwd(x, configurationService, configurationResolverService)));
+	const folderCwdPairs = await Promise.all(folders.map(e => resolveWorkspaceFolderCwd(e, configurationService, configurationResolverService)));
 	const shrinkedPairs = shrinkWorkspaceFolderCwdPairs(folderCwdPairs);
 
 	if (shrinkedPairs.length === 1) {
@@ -1891,7 +1891,7 @@ async function resolveWorkspaceFolderCwd(folder: IWorkspaceFolder, configuration
 
 	const resolvedCwdConfig = await configurationResolverService.resolveAsync(folder, cwdConfig);
 	return isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)
-		? { folder, isAbsolute: true, isOverridden: true, cwd: URI.from({ scheme: folder.uri.scheme, path: resolvedCwdConfig }) }
+		? { folder, isAbsolute: true, isOverridden: true, cwd: URI.from({ ...folder.uri, path: resolvedCwdConfig }) }
 		: { folder, isAbsolute: false, isOverridden: true, cwd: URI.joinPath(folder.uri, resolvedCwdConfig) };
 }
 

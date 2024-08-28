@@ -117,8 +117,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-
-		const cli = await import('vs/code/node/cliProcessMain');
+		const cli = await import(['vs', 'code', 'node', 'cliProcessMain'].join('/') /* TODO@esm workaround to prevent esbuild from inlining this */);
 		await cli.main(args);
 
 		return;

@@ -16,7 +16,8 @@ export const enum InlineChatConfigKeys {
 	Mode = 'inlineChat.mode',
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
-	OnlyZoneWidget = 'inlineChat.experimental.onlyZoneWidget',
+	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
+	ZoneToolbar = 'inlineChat.experimental.enableZoneToolbar',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	AccessibleDiffView = 'inlineChat.accessibleDiffView'
 }
@@ -66,8 +67,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
-		[InlineChatConfigKeys.OnlyZoneWidget]: {
-			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, instead of the overlay widget which turns into a zone."),
+		[InlineChatConfigKeys.StartWithOverlayWidget]: {
+			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, or as overlay widget which turns into a zone."),
+			default: false,
+			type: 'boolean',
+		},
+		[InlineChatConfigKeys.ZoneToolbar]: {
+			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
 			default: false,
 			type: 'boolean',
 			tags: ['experimental']
@@ -110,14 +116,18 @@ export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatRespons
 // --- (selected) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
+export const ACTION_DISCARD_CHANGES = 'inlineChat.discardHunkChange';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
+export const ACTION_REPORT_ISSUE = 'inlineChat.reportIssue';
 
 // --- menus
 
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
+export const MENU_INLINE_CHAT_WIDGET_SECONDARY = MenuId.for('inlineChatWidget.secondary');
+export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
 
 // --- colors
 

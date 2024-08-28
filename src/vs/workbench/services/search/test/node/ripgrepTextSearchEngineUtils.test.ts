@@ -10,6 +10,7 @@ import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToP
 import { Range, TextSearchMatchNew, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
+import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from 'vs/workbench/services/search/common/search';
 
 suite('RipgrepTextSearchEngine', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -106,7 +107,7 @@ suite('RipgrepTextSearchEngine', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
 		function testParser(inputData: string[], expectedResults: TextSearchResultNew[]): void {
-			const testParser = new RipgrepParser(1000, TEST_FOLDER);
+			const testParser = new RipgrepParser(1000, TEST_FOLDER, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS);
 
 			const actualResults: TextSearchResultNew[] = [];
 			testParser.on('result', r => {

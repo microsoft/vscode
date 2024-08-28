@@ -210,7 +210,7 @@ export class NotebookCellsLayout implements IRangeMap {
 			return this.count;
 		}
 
-		return this._prefixSumComputer.getIndexOf(offset).index;
+		return this._prefixSumComputer.getIndexOf(Math.trunc(offset)).index;
 	}
 
 	indexAfter(position: number): number {

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.93.0",
-  "distro": "c0357b8e2d9b4097c8f05b64762247bbbd57ad77",
+  "distro": "a2c246f88376de52724ad8d87645866893d1aa49",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -78,12 +78,12 @@
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
-    "@vscode/proxy-agent": "^0.22.0",
+    "@vscode/proxy-agent": "^0.23.0",
     "@vscode/ripgrep": "^1.15.9",
     "@vscode/spdlog": "^0.15.0",
     "@vscode/sqlite3": "5.1.6-vscode",
     "@vscode/sudo-prompt": "9.3.1",
-    "@vscode/tree-sitter-wasm": "^0.0.1",
+    "@vscode/tree-sitter-wasm": "^0.0.2",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
@@ -115,7 +115,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.45.0",
+    "@playwright/test": "^1.46.1",
     "@swc/core": "1.3.62",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
@@ -155,7 +155,7 @@
     "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "30.3.1",
+    "electron": "30.4.0",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
@@ -215,7 +215,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^5.6.0-dev.20240812",
+    "typescript": "^5.7.0-dev.20240826",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^5.91.0",

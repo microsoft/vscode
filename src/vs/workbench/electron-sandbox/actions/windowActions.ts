@@ -13,7 +13,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/browser/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

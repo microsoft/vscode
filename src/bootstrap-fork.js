@@ -22,8 +22,8 @@ performance.mark('code/fork/start');
 // Crash reporter
 configureCrashReporter();
 
-// Remove global paths from the node module lookup (TODO@esm does this work in ESM?)
-bootstrapNode.removeGlobalNodeModuleLookupPaths();
+// Remove global paths from the node module lookup (node.js only)
+bootstrapNode.removeGlobalNodeJsModuleLookupPaths();
 
 // Enable ASAR in our forked processes
 bootstrapNode.enableASARSupport();

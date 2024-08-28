@@ -22,7 +22,7 @@ import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageF
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
+import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/model/provideInlineCompletions';
 import { InlineEdit } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsWidget';
 
 export class InlineEditsModel extends Disposable {

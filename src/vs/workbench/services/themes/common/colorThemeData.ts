@@ -245,7 +245,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return undefined;
 	}
 
-	private getTokenColorIndex(): TokenColorIndex {
+	public getTokenColorIndex(): TokenColorIndex {
 		// collect all colors that tokens can have
 		if (!this.tokenColorIndex) {
 			const index = new TokenColorIndex();

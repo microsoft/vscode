@@ -13,8 +13,8 @@ import { InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel';
 import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
@@ -22,7 +22,7 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Selection } from 'vs/editor/common/core/selection';
-import { computeGhostText } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { computeGhostText } from 'vs/editor/contrib/inlineCompletions/browser/model/singleTextEdit';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

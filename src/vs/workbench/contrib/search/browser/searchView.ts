@@ -1592,7 +1592,7 @@ export class SearchView extends ViewPane {
 			}
 		};
 
-		const excludePattern = this.inputPatternExcludes.getValue();
+		const excludePattern = [{ pattern: this.inputPatternExcludes.getValue() }];
 		const includePattern = this.inputPatternIncludes.getValue();
 
 		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).

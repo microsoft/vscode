@@ -593,6 +593,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getActionsContext(): unknown {
+		if (this.isViewMergedWithContainer()) {
+			return this.panes[0].getActionsContext();
+		}
 		return undefined;
 	}
 

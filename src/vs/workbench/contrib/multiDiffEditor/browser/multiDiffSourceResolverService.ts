@@ -36,6 +36,7 @@ export class MultiDiffEditorItem {
 		readonly originalUri: URI | undefined,
 		readonly modifiedUri: URI | undefined,
 		readonly goToFileUri: URI | undefined,
+		readonly contextKeys?: Record<string, ContextKeyValue>
 	) {
 		if (!originalUri && !modifiedUri) {
 			throw new BugIndicatingError('Invalid arguments');

@@ -6,14 +6,14 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableMap, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IAttachedView } from 'vs/editor/common/model';
@@ -22,6 +22,8 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { AbstractTokens, AttachedViewHandler, AttachedViews } from 'vs/editor/common/model/tokens';
+import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
+import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -43,7 +45,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private readonly tokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+	private _tokens!: AbstractTokens;
+	private readonly _tokensDisposables: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _textModel: TextModel,
@@ -52,16 +55,61 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private readonly _attachedViews: AttachedViews,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 	) {
 		super();
 
-		this._register(this.tokens.onDidChangeTokens(e => {
+		this._register(this._languageConfigurationService.onDidChange(e => {
+			if (e.affects(this._languageId)) {
+				this._onDidChangeLanguageConfiguration.fire({});
+			}
+		}));
+
+		// We just look at registry changes to determine whether to use tree sitter.
+		// This means that removing a language from the setting will not cause a switch to textmate and will require a reload.
+		// Adding a language to the setting will not need a reload, however.
+		this._register(Event.filter(TreeSitterTokenizationRegistry.onDidChange, (e) => e.changedLanguages.includes(this._languageId))(() => {
+			this.createPreferredTokenProvider();
+		}));
+		this.createPreferredTokenProvider();
+	}
+
+	private createGrammarTokens() {
+		return this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
+	}
+
+	private createTreeSitterTokens(): AbstractTokens {
+		return this._register(new TreeSitterTokens(this._treeSitterService, this._languageService.languageIdCodec, this._textModel, () => this._languageId));
+	}
+
+	private createTokens(useTreeSitter: boolean): void {
+		const needsReset = this._tokens !== undefined;
+		this._tokens?.dispose();
+		this._tokens = useTreeSitter ? this.createTreeSitterTokens() : this.createGrammarTokens();
+		this._tokensDisposables.clear();
+		this._tokensDisposables.add(this._tokens.onDidChangeTokens(e => {
 			this._emitModelTokensChangedEvent(e);
 		}));
 
-		this._register(this.tokens.onDidChangeBackgroundTokenizationState(e => {
+		this._tokensDisposables.add(this._tokens.onDidChangeBackgroundTokenizationState(e => {
 			this._bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
 		}));
+		if (needsReset) {
+			// We need to reset the tokenization, as the new token provider otherwise won't have a chance to provide tokens until some action happens in the editor.
+			this._tokens.resetTokenization();
+		}
+	}
+
+	private createPreferredTokenProvider() {
+		if (TreeSitterTokenizationRegistry.get(this._languageId)) {
+			if (!(this._tokens instanceof TreeSitterTokens)) {
+				this.createTokens(true);
+			}
+		} else {
+			if (!(this._tokens instanceof GrammarTokens)) {
+				this.createTokens(false);
+			}
+		}
 	}
 
 	_hasListeners(): boolean {
@@ -93,11 +141,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			}
 		}
 
-		this.tokens.handleDidChangeContent(e);
+		this._tokens.handleDidChangeContent(e);
 	}
 
 	public handleDidChangeAttached(): void {
-		this.tokens.handleDidChangeAttached();
+		this._tokens.handleDidChangeAttached();
 	}
 
 	/**
@@ -105,7 +153,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	 */
 	public getLineTokens(lineNumber: number): LineTokens {
 		this.validateLineNumber(lineNumber);
-		const syntacticTokens = this.tokens.getLineTokens(lineNumber);
+		const syntacticTokens = this._tokens.getLineTokens(lineNumber);
 		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
 	}
 
@@ -125,43 +173,43 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public get hasTokens(): boolean {
-		return this.tokens.hasTokens;
+		return this._tokens.hasTokens;
 	}
 
 	public resetTokenization() {
-		this.tokens.resetTokenization();
+		this._tokens.resetTokenization();
 	}
 
 	public get backgroundTokenizationState() {
-		return this.tokens.backgroundTokenizationState;
+		return this._tokens.backgroundTokenizationState;
 	}
 
 	public forceTokenization(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this.tokens.forceTokenization(lineNumber);
+		this._tokens.forceTokenization(lineNumber);
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return this.tokens.hasAccurateTokensForLine(lineNumber);
+		return this._tokens.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
-		return this.tokens.isCheapToTokenize(lineNumber);
+		return this._tokens.isCheapToTokenize(lineNumber);
 	}
 
 	public tokenizeIfCheap(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
-		this.tokens.tokenizeIfCheap(lineNumber);
+		this._tokens.tokenizeIfCheap(lineNumber);
 	}
 
 	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
-		return this.tokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character);
+		return this._tokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character);
 	}
 
 	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
-		return this.tokens.tokenizeLineWithEdit(position, length, newText);
+		return this._tokens.tokenizeLineWithEdit(position, length, newText);
 	}
 
 	// #endregion
@@ -326,7 +374,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._languageId = languageId;
 
 		this._bracketPairsTextModelPart.handleDidChangeLanguage(e);
-		this.tokens.resetTokenization();
+		this._tokens.resetTokenization();
+		this.createPreferredTokenProvider();
 		this._onDidChangeLanguage.fire(e);
 		this._onDidChangeLanguageConfiguration.fire({});
 	}

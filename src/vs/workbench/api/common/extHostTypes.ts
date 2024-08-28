@@ -4557,14 +4557,14 @@ export enum LanguageModelChatMessageRole {
 	System = 3
 }
 
-export class LanguageModelFunctionResultPart implements vscode.LanguageModelChatMessageFunctionResultPart {
+export class LanguageModelToolResultPart implements vscode.LanguageModelChatMessageToolResultPart {
 
-	name: string;
+	toolCallId: string;
 	content: string;
 	isError: boolean;
 
-	constructor(name: string, content: string, isError?: boolean) {
-		this.name = name;
+	constructor(toolCallId: string, content: string, isError?: boolean) {
+		this.toolCallId = toolCallId;
 		this.content = content;
 		this.isError = isError ?? false;
 	}
@@ -4572,9 +4572,9 @@ export class LanguageModelFunctionResultPart implements vscode.LanguageModelChat
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | LanguageModelFunctionResultPart, name?: string): LanguageModelChatMessage {
+	static User(content: string | LanguageModelToolResultPart, name?: string): LanguageModelChatMessage {
 		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		value.content2 = content;
+		value.content2 = [content];
 		return value;
 	}
 
@@ -4584,23 +4584,25 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
-	content2: string | vscode.LanguageModelChatMessageFunctionResultPart;
+	content2: (string | vscode.LanguageModelChatMessageToolResultPart | vscode.LanguageModelChatResponseToolCallPart)[];
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
 		this.role = role;
 		this.content = content;
-		this.content2 = content;
+		this.content2 = [content];
 		this.name = name;
 	}
 }
 
-export class LanguageModelFunctionUsePart implements vscode.LanguageModelChatResponseFunctionUsePart {
+export class LanguageModelToolCallPart implements vscode.LanguageModelChatResponseToolCallPart {
 	name: string;
+	toolCallId: string;
 	parameters: any;
 
-	constructor(name: string, parameters: any) {
+	constructor(name: string, toolCallId: string, parameters: any) {
 		this.name = name;
+		this.toolCallId = toolCallId;
 		this.parameters = parameters;
 	}
 }

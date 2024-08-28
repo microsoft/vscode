@@ -11,7 +11,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { localize } from 'vs/nls';
+import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
@@ -86,8 +86,8 @@ export class IssueMainService implements IIssueMainService {
 					},
 					product,
 					nls: {
-						messages: globalThis._VSCODE_NLS_MESSAGES,
-						language: globalThis._VSCODE_NLS_LANGUAGE
+						messages: getNLSMessages(),
+						language: getNLSLanguage()
 					},
 					cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 				});

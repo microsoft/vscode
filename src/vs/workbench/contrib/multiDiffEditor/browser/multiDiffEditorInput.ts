@@ -174,6 +174,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 				multiDiffEditorItem: r,
 				original: original?.object.textEditorModel,
 				modified: modified?.object.textEditorModel,
+				contextKeys: r.contextKeys,
 				get options() {
 					return {
 						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),

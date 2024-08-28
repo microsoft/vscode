@@ -6,14 +6,14 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController';
 import { AccessibleViewType, AccessibleViewProviderId, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel';
 
 export class InlineCompletionsAccessibleView implements IAccessibleViewImplentation {
 	readonly type = AccessibleViewType.View;
@@ -77,4 +77,3 @@ class InlineCompletionsAccessibleViewContentProvider extends Disposable implemen
 		this._editor.focus();
 	}
 }
-
