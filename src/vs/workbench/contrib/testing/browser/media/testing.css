@@ -227,7 +227,6 @@
 
 .monaco-editor .zone-widget.test-output-peek .monaco-editor .monaco-editor-background,
 .monaco-editor .zone-widget.test-output-peek .monaco-editor .inputarea.ime-input,
-.monaco-editor .zone-widget.test-output-peek .monaco-editor .ime,
 .monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
 	background-color: var(--vscode-peekViewEditor-background);
 }

@@ -64,7 +64,6 @@
 }
 
 .monaco-editor .reference-zone-widget .preview .monaco-editor .monaco-editor-background,
-.monaco-editor .reference-zone-widget .preview .monaco-editor .ime,
 .monaco-editor .reference-zone-widget .preview .monaco-editor .inputarea.ime-input {
 	background-color: var(--vscode-peekViewEditor-background);
 }

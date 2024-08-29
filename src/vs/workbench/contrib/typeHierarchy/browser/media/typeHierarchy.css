@@ -53,7 +53,6 @@
 }
 
 .monaco-editor .type-hierarchy .editor .monaco-editor .monaco-editor-background,
-.monaco-editor .type-hierarchy .editor .monaco-editor .ime,
 .monaco-editor .type-hierarchy .editor .monaco-editor .inputarea.ime-input {
 	background-color: var(--vscode-peekViewEditor-background);
 }
