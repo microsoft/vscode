@@ -14,7 +14,6 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { FileType } from 'vs/platform/files/common/files';
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import product from 'vs/platform/product/common/product';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -240,8 +239,6 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		if (typeof setting === 'boolean') {
 			return setting;
 		}
-
-		return product.quality !== 'stable'; // disable by default in stable for now (TODO@bpasero TODO@benibenj flip when custom title is default)
 	}
 
 	// Default to true.
