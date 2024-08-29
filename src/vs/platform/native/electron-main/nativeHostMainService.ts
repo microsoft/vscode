@@ -860,7 +860,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		let mode: 'bottom' | undefined = undefined;
 		if (isLinux && useWindowControlsOverlay(this.configurationService)) {
-			mode = 'bottom'; // TODO@electron WCO and devtools collide with default option 'right'
+			mode = 'bottom'; // TODO@bpasero WCO and devtools collide with default option 'right'
 		}
 		window?.win?.webContents.openDevTools(mode ? { mode } : undefined);
 	}
@@ -872,8 +872,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return;
 		}
 
-		if (isLinux && useWindowControlsOverlay(this.configurationService) && webContents.isDevToolsOpened()) {
-			webContents.openDevTools({ mode: 'bottom' }); // TODO@electron WCO and devtools collide with default option 'right'
+		if (isLinux && useWindowControlsOverlay(this.configurationService) && !webContents.isDevToolsOpened()) {
+			webContents.openDevTools({ mode: 'bottom' }); // TODO@bpasero WCO and devtools collide with default option 'right'
 		} else {
 			webContents.toggleDevTools();
 		}
