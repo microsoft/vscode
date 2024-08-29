@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -20,6 +19,8 @@ import { DebugEditContext } from 'vs/editor/browser/controller/editContext/nativ
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
 import * as browser from 'vs/base/browser/browser';
+import { editContextAddDisposableListener } from 'vs/editor/browser/controller/editContext/native/nativeEditContextUtils';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
 
 // Boolean which controls whether we should show the control, selection and character bounds
 const showControlBounds = false;
@@ -375,14 +376,5 @@ export class NativeEditContext extends Disposable {
 		);
 		this._clipboardService.writeText(dataToCopy.text);
 	}
-}
-
-function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {
-	target.addEventListener(type, listener as any, options);
-	return {
-		dispose() {
-			target.removeEventListener(type, listener as any);
-		}
-	};
 }
 

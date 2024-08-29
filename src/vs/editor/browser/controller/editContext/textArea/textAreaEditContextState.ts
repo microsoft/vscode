@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 

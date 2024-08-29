@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
-import { ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { ISimpleModel, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';

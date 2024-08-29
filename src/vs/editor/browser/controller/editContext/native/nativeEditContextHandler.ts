@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./nativeEditContext';
-import { AbstractEditContext, ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewController } from 'vs/editor/browser/view/viewController';
