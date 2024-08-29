@@ -9,6 +9,7 @@ import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { localize2 } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
@@ -170,16 +171,20 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 			// If completions are requested, pause and queue input events until completions are
 			// received. This fixing some problems in PowerShell, particularly enter not executing
-			// when typing quickly and some characters being printed twice.
-			let barrier: AutoOpenBarrier | undefined;
-			this.add(addon.onDidRequestCompletions(() => {
-				barrier = new AutoOpenBarrier(2000);
-				this._instance.pauseInputEvents(barrier);
-			}));
-			this.add(addon.onDidReceiveCompletions(() => {
-				barrier?.open();
-				barrier = undefined;
-			}));
+			// when typing quickly and some characters being printed twice. On Windows this isn't
+			// needed because inputs are _not_ echoed when not handled immediately.
+			// TODO: This should be based on the OS of the pty host, not the client
+			if (!isWindows) {
+				let barrier: AutoOpenBarrier | undefined;
+				this.add(addon.onDidRequestCompletions(() => {
+					barrier = new AutoOpenBarrier(2000);
+					this._instance.pauseInputEvents(barrier);
+				}));
+				this.add(addon.onDidReceiveCompletions(() => {
+					barrier?.open();
+					barrier = undefined;
+				}));
+			}
 		}
 	}
 }

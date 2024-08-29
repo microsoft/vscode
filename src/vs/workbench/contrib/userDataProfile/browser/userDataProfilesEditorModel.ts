@@ -713,8 +713,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private _onDidChange = this._register(new Emitter<AbstractUserDataProfileElement | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _templates: IProfileTemplateInfo[] | undefined;
-	get templates(): readonly IProfileTemplateInfo[] { return this._templates ?? []; }
+	private templates: Promise<readonly IProfileTemplateInfo[]> | undefined;
 
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -761,9 +760,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
-	override async resolve(): Promise<void> {
-		await super.resolve();
-		this._templates = await this.userDataProfileManagementService.getBuiltinProfileTemplates();
+	getTemplates(): Promise<readonly IProfileTemplateInfo[]> {
+		if (!this.templates) {
+			this.templates = this.userDataProfileManagementService.getBuiltinProfileTemplates();
+		}
+		return this.templates;
 	}
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
@@ -771,7 +772,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		const activateAction = disposables.add(new Action(
 			'userDataProfile.activate',
-			localize('active', "Use for Current Window"),
+			localize('active', "Use this Profile for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
 			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
@@ -808,25 +809,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			() => this.openWindow(profileElement.profile)
 		));
 
-		const useAsNewWindowProfileAction = disposables.add(new Action(
-			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows"),
-			undefined,
-			true,
-			() => profileElement.toggleNewWindowProfile()
-		));
-
 		const primaryActions: IAction[] = [];
+		primaryActions.push(activateAction);
 		primaryActions.push(newWindowAction);
-		if (!profile.isDefault) {
-			primaryActions.push(deleteAction);
-		}
 		const secondaryActions: IAction[] = [];
-		secondaryActions.push(activateAction);
-		secondaryActions.push(useAsNewWindowProfileAction);
-		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
+		if (!profile.isDefault) {
+			secondaryActions.push(new Separator());
+			secondaryActions.push(deleteAction);
+		}
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
@@ -834,16 +826,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id;
+		activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id));
-
-		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-		disposables.add(profileElement.onDidChange(e => {
-			if (e.newWindowProfile) {
-				useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-			}
-		}));
+			activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id));
 
 		return [profileElement, disposables];
 	}

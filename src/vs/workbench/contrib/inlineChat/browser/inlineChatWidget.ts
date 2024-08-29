@@ -385,7 +385,7 @@ export class InlineChatWidget {
 	}
 
 	protected _getExtraHeight(): number {
-		return 4 /* padding */ + 2 /*border*/ + 4 /*shadow*/;
+		return 2 /*border*/ + 4 /*shadow*/;
 	}
 
 	get value(): string {

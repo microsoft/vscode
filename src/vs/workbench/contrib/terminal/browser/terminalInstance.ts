@@ -2305,7 +2305,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async handleMouseEvent(event: MouseEvent, contextMenu: IMenu): Promise<{ cancelContextMenu: boolean } | void> {
 		// Don't handle mouse event if it was on the scroll bar
-		if (dom.isHTMLElement(event.target) && event.target.classList.contains('scrollbar')) {
+		if (dom.isHTMLElement(event.target) && (event.target.classList.contains('scrollbar') || event.target.classList.contains('slider'))) {
 			return { cancelContextMenu: true };
 		}
 

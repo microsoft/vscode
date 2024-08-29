@@ -779,7 +779,7 @@ suite('InteractiveChatController', function () {
 
 	});
 
-	test('Stopping/cancelling a request should undo its changes', async function () {
+	test('Stopping/cancelling a request should NOT undo its changes', async function () {
 
 		model.setValue('World');
 
@@ -819,7 +819,7 @@ suite('InteractiveChatController', function () {
 		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionId);
 		assert.strictEqual(await p2, undefined);
 
-		assert.strictEqual(model.getValue(), 'World');
+		assert.strictEqual(model.getValue(), 'HelloWorld'); // CANCEL just stops the request and progressive typing but doesn't undo
 
 	});
 

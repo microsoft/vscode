@@ -180,6 +180,12 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			return;
 		}
 
+
+		const selection = this._editor.getSelection();
+		if (selection?.startLineNumber !== newState.position.lineNumber) {
+			return;
+		}
+
 		this._lightBulbWidget.value?.update(actions, newState.trigger, newState.position);
 
 		if (newState.trigger.type === CodeActionTriggerType.Invoke) {

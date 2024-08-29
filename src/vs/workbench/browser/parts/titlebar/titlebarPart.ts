@@ -249,7 +249,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	//#endregion
 
 	protected rootContainer!: HTMLElement;
-	protected primaryWindowControls: HTMLElement | undefined;
+	protected windowControlsContainer: HTMLElement | undefined;
 	protected dragRegion: HTMLElement | undefined;
 	private title!: HTMLElement;
 
@@ -476,21 +476,31 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.createActionToolBarMenus();
 		}
 
-		let primaryControlLocation = isMacintosh ? 'left' : 'right';
-		if (isMacintosh && isNative) {
-
-			// Check if the locale is RTL, macOS will move traffic lights in RTL locales
-			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
-
-			const localeInfo = new Intl.Locale(platformLocale) as any;
-			if (localeInfo?.textInfo?.direction === 'rtl') {
-				primaryControlLocation = 'right';
-			}
-		}
-
+		// Window Controls Container
 		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
-			this.primaryWindowControls = append(primaryControlLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container.primary'));
-			append(primaryControlLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.secondary'));
+			let windowControlsLocation = isMacintosh ? 'left' : 'right';
+			if (isMacintosh && isNative) {
+
+				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
+				// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
+
+				const localeInfo = new Intl.Locale(platformLocale) as any;
+				if (localeInfo?.textInfo?.direction === 'rtl') {
+					windowControlsLocation = 'right';
+				}
+			}
+
+			if (isMacintosh && isNative && windowControlsLocation === 'left') {
+				// macOS native: controls are on the left and the container is not needed to make room
+				// for something, except for web where a custom menu being supported). not putting the
+				// container helps with allowing to move the window when clicking very close to the
+				// window control buttons.
+			} else {
+				this.windowControlsContainer = append(windowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				if (isWCOEnabled()) {
+					this.windowControlsContainer.classList.add('wco-enabled');
+				}
+			}
 		}
 
 		// Context menu over title bar: depending on the OS and the location of the click this will either be

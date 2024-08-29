@@ -116,6 +116,7 @@ export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatRespons
 // --- (selected) action identifier
 
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
+export const ACTION_DISCARD_CHANGES = 'inlineChat.discardHunkChange';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';
 export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';

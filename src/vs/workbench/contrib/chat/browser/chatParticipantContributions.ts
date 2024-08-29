@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { localize, localize2 } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -21,7 +20,9 @@ import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer
 import { CHAT_VIEW_ID } from 'vs/workbench/contrib/chat/browser/chat';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IRawChatParticipantContribution } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
+import { showExtensionsWithIdsCommandId } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -160,35 +161,6 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 	},
 });
 
-export class ChatCompatibilityNotifier implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.chatCompatNotifier';
-
-	constructor(
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@INotificationService notificationService: INotificationService,
-		@ICommandService commandService: ICommandService
-	) {
-		// It may be better to have some generic UI for this, for any extension that is incompatible,
-		// but this is only enabled for Copilot Chat now and it needs to be obvious.
-		extensionsWorkbenchService.queryLocal().then(exts => {
-			const chat = exts.find(ext => ext.identifier.id === 'github.copilot-chat');
-			if (chat?.local?.validations.some(v => v[0] === Severity.Error)) {
-				notificationService.notify({
-					severity: Severity.Error,
-					message: localize('chatFailErrorMessage', "Chat failed to load. Please ensure that the GitHub Copilot Chat extension is up to date."),
-					actions: {
-						primary: [
-							new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
-								return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', ['GitHub.copilot-chat']);
-							})
-						]
-					}
-				});
-			}
-		});
-	}
-}
-
 export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatExtensionPointHandler';
@@ -198,9 +170,10 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	constructor(
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this._viewContainer = this.registerViewContainer();
+		this.registerDefaultParticipantView();
 		this.handleAndRegisterChatExtensions();
 	}
 
@@ -239,11 +212,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					const store = new DisposableStore();
-					if (providerDescriptor.isDefault && (!providerDescriptor.locations || providerDescriptor.locations?.includes(ChatAgentLocation.Panel))) {
-						store.add(this.registerDefaultParticipantView(providerDescriptor));
-					}
-
 					const participantsAndCommandsDisambiguation: {
 						categoryName: string;
 						description: string;
@@ -260,6 +228,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						}
 					}
 
+					const store = new DisposableStore();
 					store.add(this._chatAgentService.registerAgent(
 						providerDescriptor.id,
 						{
@@ -318,15 +287,9 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		return viewContainer;
 	}
 
-	private hasRegisteredDefaultParticipantView = false;
-	private registerDefaultParticipantView(defaultParticipantDescriptor: IRawChatParticipantContribution): IDisposable {
-		if (this.hasRegisteredDefaultParticipantView) {
-			this.logService.warn(`Tried to register a second default chat participant view for "${defaultParticipantDescriptor.id}"`);
-			return Disposable.None;
-		}
-
-		// Register View
-		const name = defaultParticipantDescriptor.fullName ?? defaultParticipantDescriptor.name;
+	private registerDefaultParticipantView(): IDisposable {
+		// Register View. Name must be hardcoded because we want to show it even when the extension fails to load due to an API version incompatibility.
+		const name = 'GitHub Copilot';
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: CHAT_VIEW_ID,
 			containerIcon: this._viewContainer.icon,
@@ -336,12 +299,11 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			canToggleVisibility: false,
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane),
+			when: ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID)
 		}];
-		this.hasRegisteredDefaultParticipantView = true;
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
 
 		return toDisposable(() => {
-			this.hasRegisteredDefaultParticipantView = false;
 			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, this._viewContainer);
 		});
 	}
@@ -349,4 +311,40 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 function getParticipantKey(extensionId: ExtensionIdentifier, participantName: string): string {
 	return `${extensionId.value}_${participantName}`;
+}
+
+export class ChatCompatibilityNotifier implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chatCompatNotifier';
+
+	constructor(
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+	) {
+		// It may be better to have some generic UI for this, for any extension that is incompatible,
+		// but this is only enabled for Copilot Chat now and it needs to be obvious.
+
+		const showExtensionLabel = localize('showExtension', "Show Extension");
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
+			content: localize('chatFailErrorMessage', "Chat failed to load. Please ensure that the GitHub Copilot Chat extension is up to date.") + `\n\n[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`,
+			when: CONTEXT_CHAT_EXTENSION_INVALID,
+		});
+
+		const isInvalid = CONTEXT_CHAT_EXTENSION_INVALID.bindTo(contextKeyService);
+		extensionsWorkbenchService.queryLocal().then(exts => {
+			const chat = exts.find(ext => ext.identifier.id === 'github.copilot-chat');
+			if (chat?.local?.validations.some(v => v[0] === Severity.Error)) {
+				// This catches vscode starting up with the invalid extension, but the extension may still get updated by vscode after this.
+				isInvalid.set(true);
+			}
+		});
+
+		const listener = chatAgentService.onDidChangeAgents(() => {
+			if (chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+				isInvalid.set(false);
+				listener.dispose();
+			}
+		});
+	}
 }
