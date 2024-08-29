@@ -214,9 +214,13 @@ export interface IPartsSplash {
 		foreground: string | undefined;
 		editorBackground: string | undefined;
 		titleBarBackground: string | undefined;
+		titleBarBorder: string | undefined;
 		activityBarBackground: string | undefined;
+		activityBarBorder: string | undefined;
 		sideBarBackground: string | undefined;
+		sideBarBorder: string | undefined;
 		statusBarBackground: string | undefined;
+		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
 		windowBorder: string | undefined;
 	};
