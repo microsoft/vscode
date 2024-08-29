@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { addDisposableListener, Dimension } from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -29,6 +29,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	readonly widget: EditorBasedInlineChatWidget;
 
+	private readonly _scrollUp = this._disposables.add(new ScrollUpState(this.editor));
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
 
@@ -165,6 +166,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.widget.focus();
 
 		revealZone();
+		this._scrollUp.enable();
 	}
 
 	override updatePositionAndHeight(position: Position): void {
@@ -186,14 +188,15 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			return isResponseVM(candidate) && candidate.response.value.length > 0;
 		});
 
-		if (hasResponse && zoneTop < scrollTop) {
+		if (hasResponse && zoneTop < scrollTop || this._scrollUp.didScrollUp) {
 			// don't reveal the zone if it is already out of view (unless we are still getting ready)
-			return () => {
+			// or if an outside scroll-up happened (e.g the user scrolled up to see the new content)
+			return this._scrollUp.runIgnored(() => {
 				scrollState.restore(this.editor);
-			};
+			});
 		}
 
-		return () => {
+		return this._scrollUp.runIgnored(() => {
 			scrollState.restore(this.editor);
 
 			const scrollTop = this.editor.getScrollTop();
@@ -216,7 +219,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				this._logService.trace('[IE] REVEAL zone', { zoneTop, lineTop, lineBottom, scrollTop, newScrollTop, forceScrollTop });
 				this.editor.setScrollTop(newScrollTop, ScrollType.Immediate);
 			}
-		};
+		});
 	}
 
 	protected override revealRange(range: Range, isLastLine: boolean): void {
@@ -229,6 +232,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	override hide(): void {
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
+		this._scrollUp.disable();
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		this.widget.chatWidget.setVisible(false);
@@ -236,4 +240,55 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
 		scrollState.restore(this.editor);
 	}
+}
+
+class ScrollUpState {
+
+	private _lastScrollTop: number = this._editor.getScrollTop();
+	private _didScrollUp?: boolean;
+	private _ignoreEvents = false;
+
+	private readonly _listener = new MutableDisposable();
+
+	constructor(private readonly _editor: ICodeEditor) { }
+
+	dispose(): void {
+		this._listener.dispose();
+	}
+
+	enable(): void {
+		this._didScrollUp = undefined;
+		this._listener.value = this._editor.onDidScrollChange(e => {
+			if (!e.scrollTopChanged || this._ignoreEvents) {
+				return;
+			}
+			const currentScrollTop = e.scrollTop;
+			if (currentScrollTop > this._lastScrollTop) {
+				this._listener.clear();
+				this._didScrollUp = true;
+			}
+			this._lastScrollTop = currentScrollTop;
+		});
+	}
+
+	disable(): void {
+		this._listener.clear();
+		this._didScrollUp = undefined;
+	}
+
+	runIgnored(callback: () => void): () => void {
+		return () => {
+			this._ignoreEvents = true;
+			try {
+				return callback();
+			} finally {
+				this._ignoreEvents = false;
+			}
+		};
+	}
+
+	get didScrollUp(): boolean | undefined {
+		return this._didScrollUp;
+	}
+
 }
