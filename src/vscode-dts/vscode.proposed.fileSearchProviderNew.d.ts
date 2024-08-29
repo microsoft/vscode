@@ -57,7 +57,7 @@ declare module 'vscode' {
 		 * and searches with the same session object can search the same cache. When the object is garbage-collected, the session is complete and the cache can be cleared.
 		 * Please do not store any references to the session object, except via a weak reference (e.g. `WeakRef` or `WeakMap`).
 		 */
-		session: unknown;
+		session: object;
 
 		/**
 		 * The maximum number of results to be returned.
