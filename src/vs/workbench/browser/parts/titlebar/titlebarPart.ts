@@ -478,7 +478,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Window Controls Container
 		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
-			let windowControlsLocation = isMacintosh ? 'left' : 'right';
+			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
 			if (isMacintosh && isNative) {
 
 				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
@@ -486,17 +486,23 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 				const localeInfo = new Intl.Locale(platformLocale) as any;
 				if (localeInfo?.textInfo?.direction === 'rtl') {
-					windowControlsLocation = 'right';
+					primaryWindowControlsLocation = 'right';
 				}
 			}
 
-			if (isMacintosh && isNative && windowControlsLocation === 'left') {
+			if (isMacintosh && isNative && primaryWindowControlsLocation === 'left') {
 				// macOS native: controls are on the left and the container is not needed to make room
 				// for something, except for web where a custom menu being supported). not putting the
 				// container helps with allowing to move the window when clicking very close to the
 				// window control buttons.
 			} else {
-				this.windowControlsContainer = append(windowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				if (isWeb) {
+					// Web: its possible to have control overlays on both sides, for example on macOS
+					// with window controls on the left and PWA controls on the right.
+					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
+				}
+
 				if (isWCOEnabled()) {
 					this.windowControlsContainer.classList.add('wco-enabled');
 
