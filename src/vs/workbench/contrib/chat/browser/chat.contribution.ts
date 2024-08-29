@@ -36,7 +36,7 @@ import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
-import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
+import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
 import { QuickChatService } from 'vs/workbench/contrib/chat/browser/chatQuick';
 import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/chatResponseAccessibleView';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
@@ -261,9 +261,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlas
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
-
-// Disabled until https://github.com/microsoft/vscode/issues/218646 is fixed
-// registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();

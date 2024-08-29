@@ -9,17 +9,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IToolData, IToolImpl, IToolInvocation, LanguageModelToolsService } from '../../common/languageModelToolsService';
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let extensionService: IExtensionService;
 	let contextKeyService: IContextKeyService;
 	let service: LanguageModelToolsService;
 
 	setup(() => {
+		const extensionService = new TestExtensionService();
 		contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService));
 	});

@@ -67,6 +67,7 @@
       ],
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -129,6 +130,7 @@
       followups: [  ],
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "testAgent",
         id: "testAgent",

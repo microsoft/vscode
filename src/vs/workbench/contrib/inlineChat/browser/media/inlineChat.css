@@ -20,7 +20,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
-	padding: 4px 6px 0 6px;
+	padding: 2px 6px 0 6px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -31,6 +31,12 @@
 	width: 100%;
 	border-radius: 2px;
 }
+
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin: 2px 0 0 4px;
+}
+
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list {
 	padding: 4px 0 0 0;
@@ -70,7 +76,15 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 6px 6px 0 6px
+	padding-left: 6px;
+	padding-right: 6px;
+}
+
+.monaco-workbench .inline-chat > .status {
+	.label,
+	.actions {
+		padding-top: 6px;
+	}
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -92,7 +106,8 @@
 
 .monaco-workbench .inline-chat .status .label.status {
 	margin-left: auto;
-	padding: 0 6px;
+	padding-right: 6px;
+	padding-left: 6px;
 }
 
 .monaco-workbench .inline-chat .status .label.hidden,
@@ -154,6 +169,16 @@
 
 .monaco-workbench .inline-chat .status .actions {
 	gap: 4px;
+}
+
+.monaco-workbench .inline-chat .status .actions.secondary {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .status:hover .actions.secondary,
+.monaco-workbench .inline-chat:focus .status .actions.secondary,
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+	display: inherit;
 }
 
 .monaco-workbench .inline-chat-diff-overlay {

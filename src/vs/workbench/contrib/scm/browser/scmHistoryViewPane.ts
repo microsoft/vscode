@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { $, append } from 'vs/base/browser/dom';
 import { IHoverOptions, IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
@@ -243,9 +243,6 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 
 		templateData.labelContainer.textContent = '';
 		if (historyItem.labels) {
-			const instantHoverDelegate = createInstantHoverDelegate();
-			templateData.elementDisposables.add(instantHoverDelegate);
-
 			// Get lits of labels to render (current, remote, base)
 			const labels = this.getLabels(node.element.repository);
 
@@ -253,9 +250,6 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				if (label.icon && ThemeIcon.isThemeIcon(label.icon) && labels.includes(label.title)) {
 					const icon = append(templateData.labelContainer, $('div.label'));
 					icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
-
-					const hover = this.hoverService.setupManagedHover(instantHoverDelegate, icon, label.title);
-					templateData.elementDisposables.add(hover);
 				}
 			}
 		}
@@ -267,7 +261,11 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			return [];
 		}
 
-		return [currentHistoryItemGroup.name, currentHistoryItemGroup.remote?.name ?? '', currentHistoryItemGroup.base?.name ?? ''];
+		return [
+			currentHistoryItemGroup.name,
+			currentHistoryItemGroup.remote?.name,
+			currentHistoryItemGroup.base?.name]
+			.filter(l => l !== undefined);
 	}
 
 	private getTooltip(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
@@ -312,7 +310,11 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			}
 		}
 
-		if (historyItem.labels) {
+		const labels = this.getLabels(element.repository);
+		const historyItemLabels = (historyItem.labels ?? [])
+			.filter(l => labels.includes(l.title));
+
+		if (historyItemLabels.length > 0) {
 			const historyItemGroupLocalColor = colorTheme.getColor(historyItemGroupLocal);
 			const historyItemGroupRemoteColor = colorTheme.getColor(historyItemGroupRemote);
 			const historyItemGroupBaseColor = colorTheme.getColor(historyItemGroupBase);
@@ -320,7 +322,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			const historyItemGroupHoverLabelForegroundColor = colorTheme.getColor(historyItemGroupHoverLabelForeground);
 
 			markdown.appendMarkdown(`\n\n---\n\n`);
-			markdown.appendMarkdown(historyItem.labels.map(label => {
+			markdown.appendMarkdown(historyItemLabels.map(label => {
 				const historyItemGroupHoverLabelBackgroundColor =
 					label.title === currentHistoryItemGroup?.name ? historyItemGroupLocalColor :
 						label.title === currentHistoryItemGroup?.remote?.name ? historyItemGroupRemoteColor :
@@ -754,7 +756,7 @@ export class SCMHistoryViewPane extends ViewPane {
 						this._visibilityDisposables)
 						(() => {
 							this.updateActions();
-							this._updateChildren();
+							this.refresh();
 						}, this, this._visibilityDisposables);
 
 					// Add visible repositories
@@ -846,6 +848,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 			if (repositoryCount > 1 || alwaysShowRepositories) {
 				this._loadMoreCallback(e.element.repository);
+				this._tree.setSelection([]);
 			}
 		}
 	}
@@ -967,7 +970,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		return loadMore;
 	}
 
-	private _loadMoreCallback(repository: ISCMRepository): void {
+	private async _loadMoreCallback(repository: ISCMRepository): Promise<void> {
 		const loadMore = this._getLoadMore(repository);
 		if (loadMore.get()) {
 			return;
@@ -976,8 +979,8 @@ export class SCMHistoryViewPane extends ViewPane {
 		loadMore.set(true, undefined);
 		this._treeDataSource.loadMore(repository);
 
-		this._updateChildren(repository)
-			.finally(() => loadMore.set(false, undefined));
+		await this._updateChildren(repository);
+		loadMore.set(false, undefined);
 	}
 
 	private _getRepositoryDescription(repository: ISCMRepository): ISettableObservable<string> {

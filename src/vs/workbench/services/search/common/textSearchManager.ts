@@ -132,6 +132,9 @@ export class TextSearchManager {
 		const progress = {
 			report: (result: TextSearchResultNew) => {
 
+				if (result.uri === undefined) {
+					throw Error('Text search result URI is undefined. Please check provider implementation.');
+				}
 				const folderQuery = folderMappings.findSubstr(result.uri)!;
 				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
 					hasSiblingPromiseFn(() => {

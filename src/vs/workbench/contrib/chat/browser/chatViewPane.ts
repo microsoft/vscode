@@ -88,8 +88,9 @@ export class ChatViewPane extends ViewPane {
 			} else if (this._widget?.viewModel?.initState === ChatModelInitState.Initialized) {
 				// Model is initialized, and the default agent disappeared, so show welcome view
 				this.didUnregisterProvider = true;
-				this._onDidChangeViewWelcomeState.fire();
 			}
+
+			this._onDidChangeViewWelcomeState.fire();
 		}));
 	}
 
@@ -114,6 +115,10 @@ export class ChatViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
+		if (!this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+			return true;
+		}
+
 		const noPersistedSessions = !this.chatService.hasSessions();
 		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
 	}

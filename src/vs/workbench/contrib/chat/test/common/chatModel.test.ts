@@ -17,7 +17,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ISerializableChatData1, ISerializableChatData2, normalizeSerializableChatData, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -229,5 +229,54 @@ suite('normalizeSerializableChatData', () => {
 		assert.strictEqual(newData.creationDate, v2Data.creationDate);
 		assert.strictEqual(newData.lastMessageDate, v2Data.lastMessageDate);
 		assert.strictEqual(newData.customTitle, v2Data.computedTitle);
+	});
+
+	test('old bad data', () => {
+		const v1Data: ISerializableChatData1 = {
+			// Testing the scenario where these are missing
+			sessionId: undefined!,
+			creationDate: undefined!,
+
+			initialLocation: undefined,
+			isImported: false,
+			requesterAvatarIconUri: undefined,
+			requesterUsername: 'me',
+			requests: [],
+			responderAvatarIconUri: undefined,
+			responderUsername: 'bot',
+			welcomeMessage: []
+		};
+
+		const newData = normalizeSerializableChatData(v1Data);
+		assert.strictEqual(newData.version, 3);
+		assert.ok(newData.creationDate > 0);
+		assert.ok(newData.lastMessageDate > 0);
+		assert.ok(newData.sessionId);
+	});
+
+	test('v3 with bug', () => {
+		const v3Data: ISerializableChatData3 = {
+			// Test case where old data was wrongly normalized and these fields were missing
+			creationDate: undefined!,
+			lastMessageDate: undefined!,
+
+			version: 3,
+			initialLocation: undefined,
+			isImported: false,
+			requesterAvatarIconUri: undefined,
+			requesterUsername: 'me',
+			requests: [],
+			responderAvatarIconUri: undefined,
+			responderUsername: 'bot',
+			sessionId: 'session1',
+			welcomeMessage: [],
+			customTitle: 'computed title'
+		};
+
+		const newData = normalizeSerializableChatData(v3Data);
+		assert.strictEqual(newData.version, 3);
+		assert.ok(newData.creationDate > 0);
+		assert.ok(newData.lastMessageDate > 0);
+		assert.ok(newData.sessionId);
 	});
 });

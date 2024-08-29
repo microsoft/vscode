@@ -94,6 +94,13 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new CancellationError();
 		}
 
+		for (const key of Object.keys(extensionResult)) {
+			const value = extensionResult[key];
+			if (value instanceof Promise) {
+				throw new Error(`Tool result for '${key}' cannot be a Promise`);
+			}
+		}
+
 		return typeConvert.LanguageModelToolResult.from(extensionResult);
 	}
 

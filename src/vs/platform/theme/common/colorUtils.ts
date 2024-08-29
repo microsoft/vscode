@@ -159,7 +159,7 @@ class ColorRegistry implements IColorRegistry {
 	public registerColor(id: string, defaults: ColorDefaults | ColorValue | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		const colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
-		const propertySchema: IJSONSchemaWithSnippets = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		const propertySchema: IJSONSchemaWithSnippets = { type: 'string', format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
@@ -168,6 +168,7 @@ class ColorRegistry implements IColorRegistry {
 			propertySchema.patternErrorMessage = nls.localize('transparecyRequired', 'This color must be transparent or it will obscure content');
 		}
 		this.colorSchema.properties[id] = {
+			description,
 			oneOf: [
 				propertySchema,
 				{ type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') }

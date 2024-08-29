@@ -50,6 +50,7 @@ export type ChangeEvent = {
 	readonly copyFromInfo?: boolean;
 	readonly copyFlags?: boolean;
 	readonly preview?: boolean;
+	readonly profile?: boolean;
 	readonly disabled?: boolean;
 	readonly newWindowProfile?: boolean;
 };
@@ -353,15 +354,20 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		}
 		));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.active = this.userDataProfileService.currentProfile.id === this.profile.id));
-		this._register(this.userDataProfilesService.onDidChangeProfiles(() => {
-			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.profile.id);
+		this._register(this.userDataProfilesService.onDidChangeProfiles(({ updated }) => {
+			const profile = updated.find(p => p.id === this.profile.id);
 			if (profile) {
 				this._profile = profile;
-				this.name = profile.name;
-				this.icon = profile.icon;
-				this.flags = profile.useDefaultFlags;
+				this.reset();
+				this._onDidChange.fire({ profile: true });
 			}
 		}));
+	}
+
+	reset(): void {
+		this.name = this._profile.name;
+		this.icon = this._profile.icon;
+		this.flags = this._profile.useDefaultFlags;
 	}
 
 	public async toggleNewWindowProfile(): Promise<void> {
@@ -707,8 +713,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private _onDidChange = this._register(new Emitter<AbstractUserDataProfileElement | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _templates: IProfileTemplateInfo[] | undefined;
-	get templates(): readonly IProfileTemplateInfo[] { return this._templates ?? []; }
+	private templates: Promise<readonly IProfileTemplateInfo[]> | undefined;
 
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -755,9 +760,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
-	override async resolve(): Promise<void> {
-		await super.resolve();
-		this._templates = await this.userDataProfileManagementService.getBuiltinProfileTemplates();
+	getTemplates(): Promise<readonly IProfileTemplateInfo[]> {
+		if (!this.templates) {
+			this.templates = this.userDataProfileManagementService.getBuiltinProfileTemplates();
+		}
+		return this.templates;
 	}
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
@@ -765,7 +772,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		const activateAction = disposables.add(new Action(
 			'userDataProfile.activate',
-			localize('active', "Use for Current Window"),
+			localize('active', "Use this Profile for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
 			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
@@ -783,7 +790,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('export', "Export..."),
 			ThemeIcon.asClassName(Codicon.export),
 			true,
-			() => this.exportProfile(profileElement.profile)
+			() => this.userDataProfileImportExportService.exportProfile(profile)
 		));
 
 		const deleteAction = disposables.add(new Action(
@@ -802,25 +809,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			() => this.openWindow(profileElement.profile)
 		));
 
-		const useAsNewWindowProfileAction = disposables.add(new Action(
-			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows"),
-			undefined,
-			true,
-			() => profileElement.toggleNewWindowProfile()
-		));
-
 		const primaryActions: IAction[] = [];
+		primaryActions.push(activateAction);
 		primaryActions.push(newWindowAction);
-		if (!profile.isDefault) {
-			primaryActions.push(deleteAction);
-		}
 		const secondaryActions: IAction[] = [];
-		secondaryActions.push(activateAction);
-		secondaryActions.push(useAsNewWindowProfileAction);
-		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
+		if (!profile.isDefault) {
+			secondaryActions.push(new Separator());
+			secondaryActions.push(deleteAction);
+		}
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
@@ -828,16 +826,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id;
+		activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id));
-
-		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-		disposables.add(profileElement.onDidChange(e => {
-			if (e.newWindowProfile) {
-				useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-			}
-		}));
+			activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id));
 
 		return [profileElement, disposables];
 	}
@@ -906,11 +897,18 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			if (!isWeb) {
 				secondaryActions.push(previewProfileAction);
 			}
+			const exportAction = disposables.add(new Action(
+				'userDataProfile.export',
+				localize('export', "Export..."),
+				ThemeIcon.asClassName(Codicon.export),
+				isUserDataProfile(copyFrom),
+				() => this.exportNewProfile(cancellationTokenSource.token)
+			));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
-				[primaryActions, [cancelAction, previewProfileAction]],
-				[[cancelAction], []],
+				[primaryActions, secondaryActions],
+				[[cancelAction], [exportAction]],
 			));
 			const updateCreateActionLabel = () => {
 				if (createAction.enabled) {
@@ -931,6 +929,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				}
 				if (e.name || e.copyFrom) {
 					updateCreateActionLabel();
+					exportAction.enabled = isUserDataProfile(this.newProfileElement?.copyFrom);
 				}
 			}));
 			disposables.add(this.userDataProfilesService.onDidChangeProfiles((e) => {
@@ -970,6 +969,27 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			this.newProfileElement.previewProfile = profile;
 			await this.openWindow(profile);
 		}
+	}
+
+	private async exportNewProfile(token: CancellationToken): Promise<void> {
+		if (!this.newProfileElement) {
+			return;
+		}
+		if (!isUserDataProfile(this.newProfileElement.copyFrom)) {
+			return;
+		}
+		const profile = toUserDataProfile(
+			generateUuid(),
+			this.newProfileElement.name,
+			this.newProfileElement.copyFrom.location,
+			this.newProfileElement.copyFrom.cacheHome,
+			{
+				icon: this.newProfileElement.icon,
+				useDefaultFlags: this.newProfileElement.flags,
+			},
+			this.userDataProfilesService.defaultProfile
+		);
+		await this.userDataProfileImportExportService.exportProfile(profile, this.newProfileElement.copyFlags);
 	}
 
 	async saveNewProfile(transient?: boolean, token?: CancellationToken): Promise<IUserDataProfile | undefined> {
@@ -1096,9 +1116,5 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 	private async openWindow(profile: IUserDataProfile): Promise<void> {
 		await this.hostService.openWindow({ forceProfile: profile.name });
-	}
-
-	private async exportProfile(profile: IUserDataProfile): Promise<void> {
-		return this.userDataProfileImportExportService.exportProfile(profile);
 	}
 }

@@ -201,7 +201,7 @@ export default class FileConfigurationManager extends Disposable {
 			interactiveInlayHints: true,
 			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
 			...getInlayHintsPreferences(config),
-			...this.getOrganizeImportsPreferences(config),
+			...this.getOrganizeImportsPreferences(preferencesConfig),
 		};
 
 		return preferences;

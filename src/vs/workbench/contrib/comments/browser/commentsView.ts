@@ -172,7 +172,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.filters = this._register(new CommentsFilters({
 			showResolved: this.viewState['showResolved'] !== false,
 			showUnresolved: this.viewState['showUnresolved'] !== false,
-			sortBy: this.viewState['sortBy'],
+			sortBy: this.viewState['sortBy'] ?? CommentsSortOrder.ResourceAscending,
 		}, this.contextKeyService));
 		this.filter = new Filter(new FilterOptions(this.filterWidget.getFilterText(), this.filters.showResolved, this.filters.showUnresolved));
 

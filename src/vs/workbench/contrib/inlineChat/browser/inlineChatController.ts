@@ -39,7 +39,7 @@ import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
-import { HunkInformation, Session, StashedSession } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { HunkInformation, HunkState, Session, StashedSession } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 import { EditModeStrategy, HunkAction, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -622,6 +622,7 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 			if (e.kind === 'move') {
+				assertType(this._session);
 				const log: typeof this._log = (msg: string, ...args: any[]) => this._log('state=_showRequest) moving inline chat', msg, ...args);
 
 				log('move was requested', e.target, e.range);
@@ -636,13 +637,13 @@ export class InlineChatController implements IEditorContribution {
 				}
 
 				const newEditor = editorPane.getControl();
-				if (!newEditor || !isCodeEditor(newEditor) || !newEditor.hasModel()) {
+				if (!isCodeEditor(newEditor) || !newEditor.hasModel()) {
 					log('new editor is either missing or not a code editor or does not have a model');
 					return;
 				}
 
-				if (!this._session) {
-					log('controller does not have a session');
+				if (this._inlineChatSessionService.getSession(newEditor, e.target)) {
+					log('new editor ALREADY has a session');
 					return;
 				}
 
@@ -741,7 +742,7 @@ export class InlineChatController implements IEditorContribution {
 		await responsePromise.p;
 		await progressiveEditsQueue.whenIdle();
 
-		if (response.isCanceled) {
+		if (response.result?.errorDetails) {
 			await this._session.undoChangesUntil(response.requestId);
 		}
 
@@ -758,7 +759,6 @@ export class InlineChatController implements IEditorContribution {
 
 		if (response.result?.errorDetails) {
 			//
-			await this._session.undoChangesUntil(response.requestId);
 
 		} else if (response.response.value.length === 0) {
 			// empty -> show message
@@ -990,8 +990,21 @@ export class InlineChatController implements IEditorContribution {
 	// ---- controller API
 
 	showSaveHint(): void {
-		const status = localize('savehint', "Accept or discard changes to continue saving");
+		if (!this._session) {
+			return;
+		}
+
+		const status = localize('savehint', "Accept or discard changes to continue saving.");
 		this._ui.value.zone.widget.updateStatus(status, { classes: ['warn'] });
+
+		if (this._ui.value.zone.position) {
+			this._editor.revealLineInCenterIfOutsideViewport(this._ui.value.zone.position.lineNumber);
+		} else {
+			const hunk = this._session.hunkData.getInfo().find(info => info.getState() === HunkState.Pending);
+			if (hunk) {
+				this._editor.revealLineInCenterIfOutsideViewport(hunk.getRangesN()[0].startLineNumber);
+			}
+		}
 	}
 
 	acceptInput() {

@@ -3,34 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { Terminal } from '@xterm/xterm';
 import { strictEqual } from 'assert';
+import { importAMDNodeModule } from 'vs/amdX';
 import { IAction } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, gitPull, GitPullOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
-import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
-import { URI } from 'vs/base/common/uri';
-import type { Terminal } from '@xterm/xterm';
-import { Event } from 'vs/base/common/event';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
-import { importAMDNodeModule } from 'vs/amdX';
-import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { getQuickFixesForCommand, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
+import { freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, gitPull, GitPullOutputRegex, GitPushOutputRegex, gitPushSetUpstream, gitSimilar, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('QuickFixAddon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,8 +36,8 @@ suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
 	let commandDetection: CommandDetectionCapability;
 	let commandService: TestCommandService;
-	let openerService: OpenerService;
-	let labelService: LabelService;
+	let openerService: IOpenerService;
+	let labelService: ILabelService;
 	let terminal: Terminal;
 	let instantiationService: TestInstantiationService;
 
@@ -59,13 +57,13 @@ suite('QuickFixAddon', () => {
 			extensionQuickFixes: Promise.resolve([])
 		} as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
+		labelService = instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
 		const capabilities = store.add(new TerminalCapabilityStore());
 		instantiationService.stub(ILogService, new NullLogService());
 		commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, terminal));
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
-		instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
+		openerService = instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
 		commandService = new TestCommandService(instantiationService);
 
 		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, [], capabilities);

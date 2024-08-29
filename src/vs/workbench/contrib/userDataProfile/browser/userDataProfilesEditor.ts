@@ -92,6 +92,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	private profileWidget: ProfileWidget | undefined;
 
 	private model: UserDataProfilesEditorModel | undefined;
+	private templates: readonly IProfileTemplateInfo[] = [];
 
 	constructor(
 		group: IEditorGroup,
@@ -207,7 +208,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			actions: {
 				getActions: () => {
 					const actions: IAction[] = [];
-					if (this.model?.templates.length) {
+					if (this.templates.length) {
 						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"), this.getCreateFromTemplateActions()));
 						actions.push(new Separator());
 					}
@@ -225,15 +226,13 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	}
 
 	private getCreateFromTemplateActions(): IAction[] {
-		return this.model
-			? this.model.templates.map(template =>
-				new Action(
-					`template:${template.url}`,
-					template.name,
-					undefined,
-					true,
-					() => this.createNewProfile(URI.parse(template.url))))
-			: [];
+		return this.templates.map(template =>
+			new Action(
+				`template:${template.url}`,
+				template.name,
+				undefined,
+				true,
+				() => this.createNewProfile(URI.parse(template.url))));
 	}
 
 	private registerListeners(): void {
@@ -343,9 +342,12 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	override async setInput(input: UserDataProfilesEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.model = await input.resolve();
-		if (this.profileWidget) {
-			this.profileWidget.templates = this.model.templates;
-		}
+		this.model.getTemplates().then(templates => {
+			this.templates = templates;
+			if (this.profileWidget) {
+				this.profileWidget.templates = templates;
+			}
+		});
 		this.updateProfilesList();
 		this._register(this.model.onDidChange(element =>
 			this.updateProfilesList(element)));
@@ -574,6 +576,13 @@ class ProfileWidget extends Disposable {
 	}
 
 	render(profileElement: AbstractUserDataProfileElement): void {
+		if (this._profileElement.value?.element === profileElement) {
+			return;
+		}
+
+		if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+			this._profileElement.value.element.reset();
+		}
 		this.profileTree.setInput(profileElement);
 
 		const disposables = new DisposableStore();
@@ -703,7 +712,6 @@ class ProfileTreeDataSource implements IAsyncDataSource<AbstractUserDataProfileE
 					children.push({ element: 'name', root: element });
 					children.push({ element: 'icon', root: element });
 				}
-				children.push({ element: 'useForCurrent', root: element });
 				children.push({ element: 'useAsDefault', root: element });
 				children.push({ element: 'contents', root: element });
 			}
@@ -907,7 +915,6 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				}
 			}
 		));
-		disposables.add(this.userDataProfilesService.onDidChangeProfiles(() => nameInput.validate()));
 		nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
@@ -937,6 +944,9 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				elementDisposables.add(profileElement.root.onDidChange(e => {
 					if (e.name || e.disabled) {
 						renderName(element);
+					}
+					if (e.profile) {
+						nameInput.validate();
 					}
 				}));
 			},
@@ -1720,6 +1730,15 @@ export class UserDataProfilesEditorInput extends EditorInput {
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean { return otherInput instanceof UserDataProfilesEditorInput; }
+
+	override dispose(): void {
+		for (const profile of this.model.profiles) {
+			if (profile instanceof UserDataProfileElement) {
+				profile.reset();
+			}
+		}
+		super.dispose();
+	}
 }
 
 export class UserDataProfilesEditorInputSerializer implements IEditorSerializer {

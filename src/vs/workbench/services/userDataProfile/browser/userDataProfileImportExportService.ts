@@ -17,7 +17,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { ITreeItem, ITreeViewDataProvider } from 'vs/workbench/common/views';
 import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SettingsResource, SettingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/settingsResource';
 import { KeybindingsResource, KeybindingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
 import { SnippetsResource, SnippetsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/snippetsResource';
@@ -74,7 +73,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -220,10 +218,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	async exportProfile(profile: IUserDataProfile): Promise<void> {
+	async exportProfile(profile: IUserDataProfile, exportFlags?: ProfileResourceTypeFlags): Promise<void> {
 		const disposables = new DisposableStore();
 		try {
-			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, profile, undefined));
+			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, profile, exportFlags));
 			await this.doExportProfile(userDataProfilesExportState, ProgressLocation.Notification);
 		} finally {
 			disposables.dispose();
