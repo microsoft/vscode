@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
@@ -33,7 +33,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -855,14 +855,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Development
 
-	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
+	async openDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.webContents.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
+
+		let mode: 'bottom' | undefined = undefined;
+		if (isLinux && useWindowControlsOverlay(this.configurationService)) {
+			mode = 'bottom'; // TODO@bpasero WCO and devtools collide with default option 'right'
+		}
+		window?.win?.webContents.openDevTools(mode ? { mode } : undefined);
 	}
 
 	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.win?.webContents.toggleDevTools();
+		const webContents = window?.win?.webContents;
+		if (!webContents) {
+			return;
+		}
+
+		if (isLinux && useWindowControlsOverlay(this.configurationService) && !webContents.isDevToolsOpened()) {
+			webContents.openDevTools({ mode: 'bottom' }); // TODO@bpasero WCO and devtools collide with default option 'right'
+		} else {
+			webContents.toggleDevTools();
+		}
 	}
 
 	//#endregion

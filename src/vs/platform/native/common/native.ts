@@ -6,7 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -178,7 +178,7 @@ export interface ICommonNativeHostService {
 	exit(code: number): Promise<void>;
 
 	// Development
-	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
+	openDevTools(options?: INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 
 	// Perf Introspection
