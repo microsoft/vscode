@@ -139,7 +139,7 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 					},
 				],
 			*/
-			content: new MarkdownString().appendText(editor.getTitle(Verbosity.LONG)).appendMarkdown(' _([preview mode](https://code.visualstudio.com/docs/getstarted/userinterface#_preview-mode))_'),
+			content: new MarkdownString('', { supportThemeIcons: true }).appendText(editor.getTitle(Verbosity.LONG)).appendMarkdown(' (_preview_ [$(question)](https://code.visualstudio.com/docs/getstarted/userinterface#_preview-mode))'),
 		};
 	}
 }
