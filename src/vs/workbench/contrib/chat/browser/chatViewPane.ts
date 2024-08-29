@@ -115,7 +115,7 @@ export class ChatViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		if (!this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+		if (!this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel)) {
 			return true;
 		}
 
