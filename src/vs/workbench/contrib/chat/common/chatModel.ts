@@ -806,9 +806,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get requesterUsername(): string {
-		return (this._defaultAgent ?
-			this._defaultAgent.metadata.requester?.name :
-			this.initialData?.requesterUsername) ?? '';
+		return this._defaultAgent?.metadata.requester?.name ??
+			this.initialData?.requesterUsername ??
+			'';
 	}
 
 	get responderUsername(): string {
@@ -819,7 +819,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	private readonly _initialRequesterAvatarIconUri: URI | undefined;
 	get requesterAvatarIconUri(): URI | undefined {
-		return this._defaultAgent ?
+		return this._defaultAgent?.metadata.requester ?
 			this._defaultAgent.metadata.requester?.icon :
 			this._initialRequesterAvatarIconUri;
 	}
