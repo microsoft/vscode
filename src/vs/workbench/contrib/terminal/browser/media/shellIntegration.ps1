@@ -389,7 +389,7 @@ function Send-Completions {
 				# Add `../ relative to the top completion
 				$firstCompletion = $completions.CompletionMatches[0]
 				if ($firstCompletion.CompletionText.StartsWith("..$([System.IO.Path]::DirectorySeparatorChar)")) {
-					if ($completionPrefix -match "(\.\.$([System.IO.Path]::DirectorySeparatorChar))+") {
+					if ($completionPrefix -match "(\.\.\$([System.IO.Path]::DirectorySeparatorChar))+") {
 						$parentDir = "$($matches[0])..$([System.IO.Path]::DirectorySeparatorChar)"
 						$currentPath = Split-Path -Parent $firstCompletion.ToolTip
 						try {
