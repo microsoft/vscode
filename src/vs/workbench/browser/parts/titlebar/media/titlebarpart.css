@@ -388,7 +388,6 @@
 	z-index: 2500;
 	-webkit-app-region: no-drag;
 	height: 100%;
-	min-width: 28px;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
