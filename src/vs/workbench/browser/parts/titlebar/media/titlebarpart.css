@@ -326,7 +326,7 @@
 }
 
 .monaco-workbench.linux:not(.web) .part.titlebar .window-controls-container.wco-enabled {
-	width: calc(var(--title-wco-width, 138px) / var(--zoom-factor, 1));
+	width: calc(var(--title-wco-width, 138px));
 }
 
 .monaco-workbench.linux:not(.web) .part.titlebar .titlebar-container.counter-zoom .window-controls-container.wco-enabled {
