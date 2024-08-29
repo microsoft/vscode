@@ -144,6 +144,7 @@ export class CallStackWidget extends Disposable {
 				multipleSelectionSupport: false,
 				mouseSupport: false,
 				keyboardSupport: false,
+				setRowLineHeight: false,
 				accessibilityProvider: instantiationService.createInstance(StackAccessibilityProvider),
 			}
 		) as WorkbenchList<ListItem>);
