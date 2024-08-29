@@ -393,14 +393,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 					return;
 				}
 
-				e.veto((async () => {
-					const didSave = await this.save();
-					if (!didSave) {
-						// Veto
-						return true;
-					}
-					return false; // Don't veto
-				})(), localize('vetoExtHostRestart', "Custom editor '{0}' could not be saved.", this.name));
+				e.veto(true, localize('vetoExtHostRestart', "Custom editor '{0}' is dirty/unsaved.", this.name));
 			}));
 		}
 
