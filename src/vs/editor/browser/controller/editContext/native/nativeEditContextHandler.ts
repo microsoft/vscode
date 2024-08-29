@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./nativeEditContext';
-import { AbstractEditContextHandler, ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewController } from 'vs/editor/browser/view/viewController';
@@ -30,7 +30,7 @@ interface ScreenReaderContentInfo {
 	selectionOffsetEnd: number;
 }
 
-export class NativeEditContextHandler extends AbstractEditContextHandler {
+export class NativeEditContextHandler extends AbstractEditContext {
 
 	static NATIVE_EDIT_CONTEXT_CLASS_NAME = 'native-edit-context';
 
@@ -85,6 +85,7 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 	public prepareRender(ctx: RenderingContext): void {
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
 		this._nativeEditContext.setRenderingContext(ctx);
+		// Should place the control bounds here
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -93,18 +94,17 @@ export class NativeEditContextHandler extends AbstractEditContextHandler {
 		this._render();
 	}
 
+	// Will always call render after this, so can place all the code inside of render, no need to place it twice
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
 		this.writeScreenReaderContent();
 		this._nativeEditContext.onCursorStateChanged(e);
-		this._render();
 		return true;
 	}
 
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollTop = e.scrollTop;
 		this._nativeEditContext.onScrollChanged(e);
-		this._render();
 		return true;
 	}
 

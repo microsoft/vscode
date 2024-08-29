@@ -14,7 +14,7 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
 
-export abstract class AbstractEditContextHandler extends ViewPart {
+export abstract class AbstractEditContext extends ViewPart {
 	abstract domNode: FastDomNode<HTMLElement>;
 	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;
 	abstract writeScreenReaderContent(reason: string): void;

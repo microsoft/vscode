@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./textAreaEditContextHandler';
+import 'vs/css!./textAreaEditContext';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
-import { AbstractEditContextHandler, ariaLabelForScreenReaderContent, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { AbstractEditContext, ariaLabelForScreenReaderContent, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -108,7 +108,7 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
 
-export class TextAreaEditContextHandler extends AbstractEditContextHandler {
+export class TextAreaEditContext extends AbstractEditContext {
 
 	private readonly _viewController: ViewController;
 	private readonly _visibleRangeProvider: IVisibleRangeProvider;

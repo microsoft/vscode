@@ -13,7 +13,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { IVisibleRangeProvider, TextAreaEditContextHandler } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextHandler';
+import { IVisibleRangeProvider, TextAreaEditContext } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContext';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
@@ -56,7 +56,7 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { AbstractEditContextHandler } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { NativeEditContextHandler } from 'vs/editor/browser/controller/editContext/native/nativeEditContextHandler';
 
 
@@ -106,7 +106,7 @@ export class View extends ViewEventHandler {
 
 	// Edit context
 	private _editContextType: EditContextType;
-	private _editContextHandler: AbstractEditContextHandler;
+	private _editContextHandler: AbstractEditContext;
 
 	constructor(
 		commandDelegate: ICommandDelegate,
@@ -355,12 +355,12 @@ export class View extends ViewEventHandler {
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
-	private _instantiateEditContext(editContextType: EditContextType): AbstractEditContextHandler {
-		let editContextHandler: AbstractEditContextHandler;
+	private _instantiateEditContext(editContextType: EditContextType): AbstractEditContext {
+		let editContextHandler: AbstractEditContext;
 		if (editContextType === 'native') {
 			editContextHandler = this._instantiationService.createInstance(NativeEditContextHandler, this._context, this._viewController);
 		} else {
-			editContextHandler = this._instantiationService.createInstance(TextAreaEditContextHandler, this._context, this._viewController, this._createTextAreaHandlerHelper());
+			editContextHandler = this._instantiationService.createInstance(TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
 		}
 		return editContextHandler;
 	}
