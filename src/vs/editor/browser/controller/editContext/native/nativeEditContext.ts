@@ -71,6 +71,7 @@ export class NativeEditContext extends Disposable {
 			if (standardKeyboardEvent.keyCode === KeyCode.Enter) {
 				this._emitAddNewLineEvent();
 			}
+			// See: https://issues.chromium.org/issues/40642681
 			// The dom node on which edit context is set does not allow text modifications directly, as modifications should be done programmatically,
 			// hence paste and cut requests are blocked and the events are not emitted. The paste and cut events are handled in the keydown event.
 			if (standardKeyboardEvent.metaKey && standardKeyboardEvent.keyCode === KeyCode.KeyV) {
