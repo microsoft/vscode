@@ -228,7 +228,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		const wcoEnabled = isWeb && isWCOEnabled();
 		let value = this.isCommandCenterVisible || wcoEnabled ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 30;
 		if (wcoEnabled) {
-			value = Math.max(value, getWCOTitlebarAreaRect()?.height ?? 0);
+			value = Math.max(value, getWCOTitlebarAreaRect(getWindow(this.element))?.height ?? 0);
 		}
 
 		return value / (this.preventZoom ? getZoomFactor(getWindow(this.element)) : 1);
@@ -500,9 +500,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				if (isWCOEnabled()) {
 					this.windowControlsContainer.classList.add('wco-enabled');
 
-					const wcoTitlebarAreaRect = getWCOTitlebarAreaRect();
+					const targetWindow = getWindow(this.element);
+					const wcoTitlebarAreaRect = getWCOTitlebarAreaRect(targetWindow);
 					if (wcoTitlebarAreaRect) {
-						const wcoWidth = getWindow(this.element).innerWidth - wcoTitlebarAreaRect.width - wcoTitlebarAreaRect.x;
+						const wcoWidth = targetWindow.innerWidth - wcoTitlebarAreaRect.width - wcoTitlebarAreaRect.x;
 						this.windowControlsContainer.style.setProperty('--title-wco-width', `${wcoWidth}px`);
 					}
 				}
