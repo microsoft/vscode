@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { splice, tail2 } from 'vs/base/common/arrays';
 import { Delayer } from 'vs/base/common/async';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { ISpliceable } from 'vs/base/common/sequence';
 
 // Exported for tests
 export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFilterData> {
@@ -97,6 +96,12 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private root: IIndexTreeNode<T, TFilterData>;
 	private eventBufferer = new EventBufferer();
 
+	private readonly _onDidSpliceModel = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
+	readonly onDidSpliceModel = this._onDidSpliceModel.event;
+
+	private readonly _onDidSpliceRenderedNodes = new Emitter<ITreeListSpliceData<T, TFilterData>>();
+	readonly onDidSpliceRenderedNodes = this._onDidSpliceRenderedNodes.event;
+
 	private readonly _onDidChangeCollapseState = new Emitter<ICollapseStateChangeEvent<T, TFilterData>>();
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>> = this.eventBufferer.wrapEvent(this._onDidChangeCollapseState.event);
 
@@ -108,14 +113,10 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	private filter?: ITreeFilter<T, TFilterData>;
 	private autoExpandSingleChildren: boolean;
 
-	private readonly _onDidSplice = new Emitter<ITreeModelSpliceEvent<T, TFilterData>>();
-	readonly onDidSplice = this._onDidSplice.event;
-
 	private readonly refilterDelayer = new Delayer(MicrotaskDelay);
 
 	constructor(
 		private user: string,
-		private list: ISpliceable<ITreeNode<T, TFilterData>>,
 		rootElement: T,
 		options: IIndexTreeModelOptions<T, TFilterData> = {}
 	) {
@@ -301,7 +302,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + (node.visible ? node.renderNodeCount : 0), 0);
 
 			this._updateAncestorsRenderNodeCount(parentNode, renderNodeCount - visibleDeleteCount);
-			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
+			this._onDidSpliceRenderedNodes.fire({ start: listIndex, deleteCount: visibleDeleteCount, elements: treeListElementsToInsert });
 		}
 
 		if (deletedNodes.length > 0 && onDidDeleteNode) {
@@ -313,7 +314,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			deletedNodes.forEach(visit);
 		}
 
-		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
+		this._onDidSpliceModel.fire({ insertedNodes: nodesToInsert, deletedNodes });
 
 		let node: IIndexTreeNode<T, TFilterData> | undefined = parentNode;
 
@@ -336,7 +337,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const { node, listIndex, revealed } = this.getTreeNodeWithListIndex(location);
 
 		if (node.visible && revealed) {
-			this.list.splice(listIndex, 1, [node]);
+			this._onDidSpliceRenderedNodes.fire({ start: listIndex, deleteCount: 1, elements: [node] });
 		}
 	}
 
@@ -422,7 +423,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		const previousRenderNodeCount = node.renderNodeCount;
 		const toInsert = this.updateNodeAfterCollapseChange(node);
 		const deleteCount = previousRenderNodeCount - (listIndex === -1 ? 0 : 1);
-		this.list.splice(listIndex + 1, deleteCount, toInsert.slice(1));
+		this._onDidSpliceRenderedNodes.fire({ start: listIndex + 1, deleteCount: deleteCount, elements: toInsert.slice(1) });
 
 		return result;
 	}
@@ -475,7 +476,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 	refilter(): void {
 		const previousRenderNodeCount = this.root.renderNodeCount;
 		const toInsert = this.updateNodeAfterFilterChange(this.root);
-		this.list.splice(0, previousRenderNodeCount, toInsert);
+		this._onDidSpliceRenderedNodes.fire({ start: 0, deleteCount: previousRenderNodeCount, elements: toInsert });
 		this.refilterDelayer.cancel();
 	}
 

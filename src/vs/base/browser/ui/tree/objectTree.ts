@@ -11,7 +11,6 @@ import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeNode, I
 import { memoize } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { ISpliceable } from 'vs/base/common/sequence';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -82,8 +81,8 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		return this.model.has(element);
 	}
 
-	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(user, view, options);
+	protected createModel(user: string, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+		return new ObjectTreeModel(user, options);
 	}
 }
 
@@ -301,8 +300,8 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		this.model.setChildren(element, children, options);
 	}
 
-	protected override createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new CompressibleObjectTreeModel(user, view, options);
+	protected override createModel(user: string, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+		return new CompressibleObjectTreeModel(user, options);
 	}
 
 	override updateOptions(optionsUpdate: ICompressibleObjectTreeOptionsUpdate = {}): void {

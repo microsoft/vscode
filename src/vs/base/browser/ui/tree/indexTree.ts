@@ -6,9 +6,8 @@
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, TreeError } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeModel, ITreeRenderer, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
-import { ISpliceable } from 'vs/base/common/sequence';
 import 'vs/css!./media/tree';
 
 export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
@@ -54,7 +53,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		this.view.updateElementHeight(elementIndex, height);
 	}
 
-	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
-		return new IndexTreeModel(user, view, this.rootElement, options);
+	protected createModel(user: string, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
+		return new IndexTreeModel(user, this.rootElement, options);
 	}
 }
