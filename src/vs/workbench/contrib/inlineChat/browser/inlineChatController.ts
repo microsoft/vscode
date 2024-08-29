@@ -622,6 +622,7 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 			if (e.kind === 'move') {
+				assertType(this._session);
 				const log: typeof this._log = (msg: string, ...args: any[]) => this._log('state=_showRequest) moving inline chat', msg, ...args);
 
 				log('move was requested', e.target, e.range);
@@ -636,13 +637,13 @@ export class InlineChatController implements IEditorContribution {
 				}
 
 				const newEditor = editorPane.getControl();
-				if (!newEditor || !isCodeEditor(newEditor) || !newEditor.hasModel()) {
+				if (!isCodeEditor(newEditor) || !newEditor.hasModel()) {
 					log('new editor is either missing or not a code editor or does not have a model');
 					return;
 				}
 
-				if (!this._session) {
-					log('controller does not have a session');
+				if (this._inlineChatSessionService.getSession(newEditor, e.target)) {
+					log('new editor ALREADY has a session');
 					return;
 				}
 
