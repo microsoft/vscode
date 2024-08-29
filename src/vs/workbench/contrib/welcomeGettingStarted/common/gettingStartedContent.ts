@@ -192,8 +192,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: 'Type in the chat box (CMD+L, CTRL+L on Windows) to ask questions about your code. PearAI uses Retrival Augmented Generation to add context to your prompts, but you can also directly reference code by including other files in the chat by adding  @filename. This also works for folders, docs, terminal content, codebase, and more!',
 					media: {
 						type: 'image',
-						path: 'pearai-explain-codebase.png', // Todo: Fill in with gif
-						altText: 'Empty image'
+						path: '../media/talkToCode.gif',
+						altText: 'talkToCodebase GIF'
 					},
 					completionEvents: []
 				},
@@ -203,8 +203,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: 'Directly make changes inline by pressing (CMD+I, CTRL+L on Windows), and choose what you want to keep.',
 					media: {
 						type: 'image',
-						path: 'pearai-explain-codebase.png', // Todo: Fill in with gif
-						altText: 'Empty image'
+						path: '../media/inlineEdit.gif',
+						altText: 'inlineEdit GIF'
 					},
 					completionEvents: []
 				},
@@ -214,8 +214,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: 'Directly bring your code to the chat by selecting it and pressing (CMD+L, CTRL+L on Windows). Prompt it right away',
 					media: {
 						type: 'image',
-						path: 'pearai-explain-codebase.png', // Todo: Fill in with gif
-						altText: 'Empty image'
+						path: '../media/noCopyPaste.gif',
+						altText: 'noCopyPaste GIF'
 					},
 					completionEvents: []
 				}
