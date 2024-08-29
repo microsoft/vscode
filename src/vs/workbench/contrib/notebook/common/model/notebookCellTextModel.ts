@@ -419,6 +419,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
+		if (this.outputs.length !== b.outputs.length) {
+			return false;
+		}
+
 		if (this.getTextLength() !== b.getTextLength()) {
 			return false;
 		}
