@@ -172,9 +172,9 @@ function Set-MappedKeyHandler {
 
 function Get-KeywordCompletionResult(
 	$Keyword,
-	$Description = $null
+	$Description = $Keyword
 ) {
-	[System.Management.Automation.CompletionResult]::new($Keyword, $Keyword, [System.Management.Automation.CompletionResultType]::Keyword, $null -ne $Description ? $Description : $Keyword)
+	[System.Management.Automation.CompletionResult]::new($Keyword, $Keyword, [System.Management.Automation.CompletionResultType]::Keyword, $Description)
 }
 
 function Set-MappedKeyHandlers {
@@ -360,7 +360,7 @@ function Send-Completions {
 		# completions are consistent regardless of where it was requested
 		elseif ($lastWord -match '[/\\]') {
 			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
-			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+			if ($lastSlashIndex -ne -1 -and $lastSlashIndex -lt $cursorIndex) {
 				$newCursorIndex = $lastSlashIndex + 1
 				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
 				$prefixCursorDelta = $cursorIndex - $newCursorIndex
@@ -430,7 +430,7 @@ function Send-Completions {
 		# completions are consistent regardless of where it was requested
 		if ($completionPrefix -match '[/\\]') {
 			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
-			if ($lastSlashIndex -ne -1 && $lastSlashIndex -lt $cursorIndex) {
+			if ($lastSlashIndex -ne -1 -and $lastSlashIndex -lt $cursorIndex) {
 				$newCursorIndex = $lastSlashIndex + 1
 				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
 				$prefixCursorDelta = $cursorIndex - $newCursorIndex
