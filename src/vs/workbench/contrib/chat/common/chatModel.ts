@@ -616,6 +616,8 @@ export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChat
  * TODO- ChatModel#_deserialize and reviveSerializedAgent also still do some normalization and maybe that should be done in here too.
  */
 export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISerializableChatData {
+	normalizeOldFields(raw);
+
 	if (!('version' in raw)) {
 		return {
 			version: 3,
@@ -634,6 +636,30 @@ export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISe
 	}
 
 	return raw;
+}
+
+function normalizeOldFields(raw: ISerializableChatDataIn): void {
+	// Fill in fields that very old chat data may be missing
+	if (!raw.sessionId) {
+		raw.sessionId = generateUuid();
+	}
+
+	if (!raw.creationDate) {
+		raw.creationDate = getLastYearDate();
+	}
+
+	if ('version' in raw && (raw.version === 2 || raw.version === 3)) {
+		if (!raw.lastMessageDate) {
+			// A bug led to not porting creationDate properly, and that was copied to lastMessageDate, so fix that up if missing.
+			raw.lastMessageDate = getLastYearDate();
+		}
+	}
+}
+
+function getLastYearDate(): number {
+	const lastYearDate = new Date();
+	lastYearDate.setFullYear(lastYearDate.getFullYear() - 1);
+	return lastYearDate.getTime();
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
