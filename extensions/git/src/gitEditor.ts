@@ -36,7 +36,7 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 		if (commitMessagePath) {
 			const uri = Uri.file(commitMessagePath);
 			const doc = await workspace.openTextDocument(uri);
-			const docLinkProvider = languages.registerDocumentLinkProvider({ pattern: '**/.git/COMMIT_EDITMSG' }, new GitEditorDocumentLinkProvider(commitMessagePath));
+			const docLinkProvider = languages.registerDocumentLinkProvider('git-commit', new GitEditorDocumentLinkProvider(commitMessagePath));
 			await window.showTextDocument(doc, { preview: false });
 
 			return new Promise((c) => {
