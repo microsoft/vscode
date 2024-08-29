@@ -13,6 +13,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -320,21 +321,24 @@ export class ChatCompatibilityNotifier implements IWorkbenchContribution {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IProductService productService: IProductService,
 	) {
 		// It may be better to have some generic UI for this, for any extension that is incompatible,
 		// but this is only enabled for Copilot Chat now and it needs to be obvious.
-
-		const showExtensionLabel = localize('showExtension', "Show Extension");
-		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
-			content: localize('chatFailErrorMessage', "Chat failed to load. Please ensure that the GitHub Copilot Chat extension is up to date.") + `\n\n[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`,
-			when: CONTEXT_CHAT_EXTENSION_INVALID,
-		});
-
 		const isInvalid = CONTEXT_CHAT_EXTENSION_INVALID.bindTo(contextKeyService);
 		extensionsWorkbenchService.queryLocal().then(exts => {
 			const chat = exts.find(ext => ext.identifier.id === 'github.copilot-chat');
 			if (chat?.local?.validations.some(v => v[0] === Severity.Error)) {
+				const showExtensionLabel = localize('showExtension', "Show Extension");
+				const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the {0} extension is not compatible with this version of {1}. Please ensure that the GitHub Copilot Chat extension is up to date.", 'GitHub Copilot Chat', productService.nameLong);
+				const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`;
+				const versionMessage = `GitHub Copilot Chat version: ${chat.version}`;
+				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+				viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
+					content: [mainMessage, commandButton, versionMessage].join('\n\n'),
+					when: CONTEXT_CHAT_EXTENSION_INVALID,
+				});
+
 				// This catches vscode starting up with the invalid extension, but the extension may still get updated by vscode after this.
 				isInvalid.set(true);
 			}
