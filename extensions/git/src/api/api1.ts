@@ -322,6 +322,10 @@ export class ApiImpl implements API {
 	}
 
 	async openRepository(root: Uri): Promise<Repository | null> {
+		if (root.scheme !== 'file') {
+			return null;
+		}
+
 		await this._model.openRepository(root.fsPath);
 		return this.getRepository(root) || null;
 	}

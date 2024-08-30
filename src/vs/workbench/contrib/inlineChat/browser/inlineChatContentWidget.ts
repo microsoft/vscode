@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/inlineChatContentWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import * as dom from 'vs/base/browser/dom';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { inlineChatBackground, InlineChatConfigKeys, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_EXECUTE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { Range } from 'vs/editor/common/core/range';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import './media/inlineChatContentWidget.css';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { inlineChatBackground, MENU_INLINE_CHAT_CONTENT_STATUS } from '../common/inlineChat.js';
+import { Session } from './inlineChatSession.js';
+import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
+import { editorBackground, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ChatModel } from '../../chat/common/chatModel.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { TextOnlyMenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -38,7 +38,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _inputContainer = document.createElement('div');
 	private readonly _toolbarContainer = document.createElement('div');
 
-	private _position?: IPosition;
+	private _position?: IContentWidgetPosition;
 
 	private readonly _onDidBlur = this._store.add(new Emitter<void>());
 	readonly onDidBlur: Event<void> = this._onDidBlur.event;
@@ -71,7 +71,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._widget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
-			{ resource: true },
+			undefined,
 			{
 				defaultElementHeight: 32,
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
@@ -81,7 +81,7 @@ export class InlineChatContentWidget implements IContentWidget {
 				supportsFileReferences: configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
 				menus: {
 					telemetrySource: 'inlineChat-content',
-					executeToolbar: MENU_INLINE_CHAT_EXECUTE,
+					executeToolbar: MenuId.ChatExecute,
 				},
 				filter: _item => false
 			},
@@ -103,10 +103,6 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._domNode.appendChild(this._inputContainer);
 
 		this._toolbarContainer.classList.add('toolbar');
-		if (configurationService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons)) {
-			this._toolbarContainer.style.display = 'inherit';
-			this._domNode.style.paddingBottom = '4px';
-		}
 		this._domNode.appendChild(this._toolbarContainer);
 
 		const toolbar = this._store.add(scopedInstaService.createInstance(MenuWorkbenchToolBar, this._toolbarContainer, MENU_INLINE_CHAT_CONTENT_STATUS, {
@@ -152,13 +148,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		if (!this._position) {
-			return null;
-		}
-		return {
-			position: this._position,
-			preference: [ContentWidgetPositionPreference.ABOVE]
-		};
+		return this._position ?? null;
 	}
 
 	beforeRender(): IDimension | null {
@@ -167,7 +157,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		const inputEditorHeight = this._widget.contentHeight;
 
 		const height = Math.min(maxHeight, inputEditorHeight);
-		const width = 390;
+		const width = 400;
 		this._widget.layout(height, width);
 
 		dom.size(this._domNode, width, null);
@@ -195,7 +185,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		return this._widget.inputEditor.getValue();
 	}
 
-	show(position: IPosition) {
+	show(position: IPosition, below: boolean) {
 		if (!this._visible) {
 			this._visible = true;
 			this._focusNext = true;
@@ -204,7 +194,11 @@ export class InlineChatContentWidget implements IContentWidget {
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
 
-			this._position = wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position;
+			this._position = {
+				position: wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position,
+				preference: [below ? ContentWidgetPositionPreference.BELOW : ContentWidgetPositionPreference.ABOVE]
+			};
+
 			this._editor.addContentWidget(this);
 			this._widget.setContext(true);
 			this._widget.setVisible(true);

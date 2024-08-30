@@ -20,7 +20,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
-	padding: 4px 6px 0 6px;
+	padding: 2px 6px 0 6px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -31,6 +31,12 @@
 	width: 100%;
 	border-radius: 2px;
 }
+
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin: 2px 0 0 4px;
+}
+
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list {
 	padding: 4px 0 0 0;
@@ -60,6 +66,7 @@
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.minimal > .header {
 	top: 5px;
 	right: 10px;
+	display: none;
 }
 
 
@@ -69,7 +76,15 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 4px 6px 0 6px
+	padding-left: 6px;
+	padding-right: 6px;
+}
+
+.monaco-workbench .inline-chat > .status {
+	.label,
+	.actions {
+		padding-top: 6px;
+	}
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -91,9 +106,12 @@
 
 .monaco-workbench .inline-chat .status .label.status {
 	margin-left: auto;
+	padding-right: 6px;
+	padding-left: 6px;
 }
 
-.monaco-workbench .inline-chat .status .label.hidden {
+.monaco-workbench .inline-chat .status .label.hidden,
+.monaco-workbench .inline-chat .status .label:empty {
 	display: none;
 }
 
@@ -113,7 +131,8 @@
 
 
 .monaco-workbench .inline-chat .status .actions,
-.monaco-workbench .inline-chat-content-widget .toolbar  {
+.monaco-workbench .inline-chat-content-widget .toolbar,
+.monaco-workbench .inline-chat-diff-overlay {
 
 	display: flex;
 	height: 18px;
@@ -122,71 +141,71 @@
 		gap: 3px
 	}
 
-	.action-item.text-only .action-label {
-		font-size: 12px;
-		line-height: 16px;
+	.monaco-button-dropdown > .monaco-dropdown-button {
+		display: flex;
+		align-items: center;
 		padding: 0 4px;
-		border-radius: 2px;
 	}
 
-	.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
-		font-size: 12px;
-		line-height: 16px;
-		width: unset;
-		height: unset;
+	.monaco-button.codicon {
+		display: flex;
 	}
-}
 
-.monaco-workbench .inline-chat .status .actions,
-.monaco-workbench .inline-chat-content-widget.contents .toolbar  {
-
-	.monaco-action-bar .action-item.menu-entry.text-only:first-of-type .action-label{
+	.monaco-button.codicon::before {
+		align-self: center;
 		color: var(--vscode-button-foreground);
-		background-color: var(--vscode-button-background);
+	}
+
+	.monaco-button.secondary.codicon::before {
+		align-self: center;
+		color: var(--vscode-button-secondaryForeground);
+	}
+
+	.monaco-text-button {
+		padding: 0 2px;
+		white-space: nowrap;
 	}
 }
 
-.monaco-workbench .inline-chat .status {
-	.actions.text-style {
-		display: none;
+.monaco-workbench .inline-chat .status .actions {
+	gap: 4px;
+}
+
+.monaco-workbench .inline-chat .status .actions.secondary {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .status:hover .actions.secondary,
+.monaco-workbench .inline-chat:focus .status .actions.secondary,
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+	display: inherit;
+}
+
+.monaco-workbench .inline-chat-diff-overlay {
+
+	.monaco-button {
+		border-radius: 0;
 	}
-	.actions.button-style {
-		display: inherit;
+
+	.monaco-button.secondary.checked {
+		background-color: var(--vscode-button-secondaryHoverBackground);
+	}
+
+	.monaco-button:first-child {
+		border-top-left-radius: 2px;
+		border-bottom-left-radius: 2px;
+	}
+
+	.monaco-button:last-child {
+		border-top-right-radius: 2px;
+		border-bottom-right-radius: 2px;
+	}
+
+	.monaco-button:not(:last-child) {
+		border-right: 1px solid var(--vscode-button-foreground);
 	}
 }
 
-.monaco-workbench .inline-chat .status.text {
-	.actions.text-style {
-		display: inherit;
-	}
-	.actions.button-style {
-		display: none;
-	}
-}
-
-.monaco-workbench .inline-chat .status .actions > .monaco-button,
-.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown {
-	margin-right: 4px;
-}
-
-.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
-	display: flex;
-	align-items: center;
-	padding: 0 4px;
-}
-
-.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon {
-	display: flex;
-}
-
-.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon::before {
-	align-self: center;
-}
-
-.monaco-workbench .inline-chat .status .actions .monaco-text-button {
-	padding: 0 2px;
-	white-space: nowrap;
-}
 
 /* TODO@jrieken not needed? */
 .monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {
@@ -229,11 +248,6 @@
 .monaco-workbench .inline-chat-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
-
-.monaco-workbench .inline-chat-block-selection {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-}
-
 
 /* gutter decoration */
 

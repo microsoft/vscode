@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageIdCodec } from '../languages.js';
+import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from '../encodedTokenAttributes.js';
+import { IPosition } from '../core/position.js';
+import { ITextModel } from '../model.js';
 
 export interface IViewLineTokens {
 	languageIdCodec: ILanguageIdCodec;

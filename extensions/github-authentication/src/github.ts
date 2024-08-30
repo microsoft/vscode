@@ -11,7 +11,7 @@ import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
 import { crypto } from './node/crypto';
-import { CANCELLATION_ERROR, TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 
 interface SessionData {
 	id: string;
@@ -316,39 +316,13 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			const sessions = await this._sessionsPromise;
 
-			const forcedLogin = options?.account?.label;
-			const backupLogin = sessions[0]?.account.label;
-			this._logger.info(`Logging in with '${forcedLogin ? forcedLogin : 'any'}' account...`);
+			// First we use the account specified in the options, otherwise we use the first account we have to seed auth.
+			const loginWith = options?.account?.label ?? sessions[0]?.account.label;
+			this._logger.info(`Logging in with '${loginWith ? loginWith : 'any'}' account...`);
 
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString, forcedLogin ?? backupLogin);
+			const token = await this._githubServer.login(scopeString, loginWith);
 			const session = await this.tokenToSession(token, scopes);
-
-			// If an account was specified, we should ensure that the token we got back is for that account.
-			if (forcedLogin) {
-				if (session.account.label !== forcedLogin) {
-					const keepNewAccount = vscode.l10n.t('Keep {0}', session.account.label);
-					const tryAgain = vscode.l10n.t('Login with {0}', forcedLogin);
-					const result = await vscode.window.showWarningMessage(
-						vscode.l10n.t('Incorrect account detected'),
-						{ modal: true, detail: vscode.l10n.t('The chosen account, {0}, does not match the requested account, {1}.', session.account.label, forcedLogin) },
-						keepNewAccount,
-						tryAgain
-					);
-					if (result === tryAgain) {
-						return await this.createSession(scopes, {
-							...options,
-							// The id doesn't matter here, we just need to pass the label through
-							account: { id: forcedLogin, label: forcedLogin }
-						});
-					}
-					// Cancelled result
-					if (!result) {
-						throw new Error(CANCELLATION_ERROR);
-					}
-					// Keep result continues on
-				}
-			}
 			this.afterSessionLoad(session);
 
 			const sessionIndex = sessions.findIndex(

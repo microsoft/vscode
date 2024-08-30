@@ -16,9 +16,8 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribDiffEditorGutterToolBarMenus",
-    "contribSourceControlHistoryItemChangesMenu",
-    "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
+    "contribSourceControlHistoryTitleMenu",
     "contribSourceControlInputBoxMenu",
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
@@ -35,7 +34,6 @@
     "scmValidation",
     "tabInputMultiDiff",
     "tabInputTextMerge",
-    "terminalShellIntegration",
     "timeline"
   ],
   "categories": [
@@ -1936,7 +1934,7 @@
           "group": "1_modification@3"
         }
       ],
-      "scm/historyItemChanges/title": [
+      "scm/history/title": [
         {
           "command": "git.fetchRef",
           "group": "navigation@1",
@@ -1968,102 +1966,6 @@
           "command": "git.copyCommitMessage",
           "when": "scmProvider == git && !listMultiSelection",
           "group": "1_copy@2"
-        }
-      ],
-      "scm/incomingChanges": [
-        {
-          "command": "git.fetchRef",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pullRef",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        }
-      ],
-      "scm/incomingChanges/context": [
-        {
-          "command": "git.fetchRef",
-          "group": "1_modification@1",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pullRef",
-          "group": "1_modification@2",
-          "when": "scmProvider == git"
-        }
-      ],
-      "scm/incomingChanges/allChanges/context": [
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/incomingChanges/historyItem/context": [
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/outgoingChanges": [
-        {
-          "command": "git.pushRef",
-          "group": "navigation",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.publish",
-          "group": "navigation",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote"
-        }
-      ],
-      "scm/outgoingChanges/context": [
-        {
-          "command": "git.pushRef",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote",
-          "group": "1_modification@1"
-        },
-        {
-          "command": "git.publish",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
-          "group": "1_modification@1"
-        }
-      ],
-      "scm/outgoingChanges/allChanges/context": [
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/outgoingChanges/historyItem/context": [
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
         }
       ],
       "editor/title": [

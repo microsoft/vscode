@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
-import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
-import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { isIterable } from 'vs/base/common/types';
+import { IDragAndDropData } from '../../dnd.js';
+import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from '../list/list.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
+import { IListStyles } from '../list/listWidget.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart } from './abstractTree.js';
+import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
+import { getVisibleState, isFilterResult } from './indexTreeModel.js';
+import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
+import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
+import { CancelablePromise, createCancelablePromise, Promises, timeout } from '../../../common/async.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { isCancellationError, onUnexpectedError } from '../../../common/errors.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Iterable } from '../../../common/iterator.js';
+import { DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { ScrollEvent } from '../../../common/scrollable.js';
+import { isIterable } from '../../../common/types.js';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;

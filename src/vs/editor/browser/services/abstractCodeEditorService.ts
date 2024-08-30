@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorOpenHandler, ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/base/common/themables';
+import * as dom from '../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IDisposable, DisposableStore, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import * as strings from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { ICodeEditor, IDiffEditor } from '../editorBrowser.js';
+import { ICodeEditorOpenHandler, ICodeEditorService } from './codeEditorService.js';
+import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from '../../common/editorCommon.js';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from '../../common/model.js';
+import { IResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
+import { ThemeColor } from '../../../base/common/themables.js';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 

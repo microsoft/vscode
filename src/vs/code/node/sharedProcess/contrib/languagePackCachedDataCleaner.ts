@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 interface IExtensionEntry {
 	version: string;

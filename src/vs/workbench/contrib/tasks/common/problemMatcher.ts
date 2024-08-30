@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls.js';
 
-import * as Objects from 'vs/base/common/objects';
-import * as Strings from 'vs/base/common/strings';
-import * as Assert from 'vs/base/common/assert';
-import { join, normalize } from 'vs/base/common/path';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
-import * as Platform from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { asArray } from 'vs/base/common/arrays';
-import { Schemas as NetworkSchemas } from 'vs/base/common/network';
+import * as Objects from '../../../../base/common/objects.js';
+import * as Strings from '../../../../base/common/strings.js';
+import * as Assert from '../../../../base/common/assert.js';
+import { join, normalize } from '../../../../base/common/path.js';
+import * as Types from '../../../../base/common/types.js';
+import * as UUID from '../../../../base/common/uuid.js';
+import * as Platform from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { ValidationStatus, ValidationState, IProblemReporter, Parser } from '../../../../base/common/parsers.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { asArray } from '../../../../base/common/arrays.js';
+import { Schemas as NetworkSchemas } from '../../../../base/common/network.js';
 
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { Event, Emitter } from 'vs/base/common/event';
-import { FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider } from 'vs/platform/files/common/files';
+import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ExtensionsRegistry, ExtensionMessageCollector } from '../../../services/extensions/common/extensionsRegistry.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 
 export enum FileLocationKind {
 	Default,

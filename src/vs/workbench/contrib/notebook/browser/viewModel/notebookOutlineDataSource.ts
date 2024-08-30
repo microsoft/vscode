@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { OutlineChangeEvent, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
-import { OutlineEntry } from './OutlineEntry';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { IActiveNotebookEditor, INotebookEditor } from '../notebookBrowser.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { OutlineChangeEvent, OutlineConfigKeys } from '../../../../services/outline/browser/outline.js';
+import { OutlineEntry } from './OutlineEntry.js';
+import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { NotebookOutlineEntryFactory } from './notebookOutlineEntryFactory.js';
 
 export interface INotebookCellOutlineDataSource {
 	readonly activeElement: OutlineEntry | undefined;

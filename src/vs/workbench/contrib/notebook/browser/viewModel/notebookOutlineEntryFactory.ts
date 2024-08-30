@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { localize } from 'vs/nls';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { OutlineEntry } from './OutlineEntry';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind } from 'vs/editor/common/languages';
+import { renderMarkdownAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IOutlineModelService, OutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { localize } from '../../../../../nls.js';
+import { ICellViewModel } from '../notebookBrowser.js';
+import { getMarkdownHeadersInCell } from './foldingModel.js';
+import { OutlineEntry } from './OutlineEntry.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { SymbolKind } from '../../../../../editor/common/languages.js';
 
 export const enum NotebookOutlineConstants {
 	NonHeaderOutlineLevel = 7,

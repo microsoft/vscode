@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { dispose } from 'vs/base/common/lifecycle';
-import { getLeadingWhitespace } from 'vs/base/common/strings';
-import 'vs/css!./snippetSession';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
-import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
+import { groupBy } from '../../../../base/common/arrays.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { dispose } from '../../../../base/common/lifecycle.js';
+import { getLeadingWhitespace } from '../../../../base/common/strings.js';
+import './snippetSession.css';
+import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { IPosition } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { TextChange } from '../../../common/core/textChange.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser.js';
+import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables.js';
 
 export class OneSnippet {
 

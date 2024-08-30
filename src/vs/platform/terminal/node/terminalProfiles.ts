@@ -5,18 +5,18 @@
 
 import * as fs from 'fs';
 import * as cp from 'child_process';
-import { Codicon } from 'vs/base/common/codicons';
-import { basename, delimiter, normalize } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from '../../../base/common/codicons.js';
+import { basename, delimiter, normalize } from '../../../base/common/path.js';
+import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { isString } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import * as pfs from '../../../base/node/pfs.js';
+import { enumeratePowerShellInstallations } from '../../../base/node/powershell.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ILogService } from '../../log/common/log.js';
+import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from '../common/terminal.js';
+import { findExecutable, getWindowsBuildNumber } from './terminalEnvironment.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { dirname, resolve } from 'path';
 
 const enum Constants {

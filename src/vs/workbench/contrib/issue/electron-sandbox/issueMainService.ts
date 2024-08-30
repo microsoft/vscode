@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IProcessMainService, IIssueMainService } from 'vs/platform/issue/common/issue';
+import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { IProcessMainService, IIssueMainService } from '../../../../platform/issue/common/issue.js';
 
 registerMainProcessRemoteService(IIssueMainService, 'issue');
 registerMainProcessRemoteService(IProcessMainService, 'process');

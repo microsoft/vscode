@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { getIconRegistry, IconContribution, IconFontDefinition } from 'vs/platform/theme/common/iconRegistry';
-import { IProductIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { asCSSPropertyValue, asCSSUrl } from '../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { getIconRegistry, IconContribution, IconFontDefinition } from '../common/iconRegistry.js';
+import { IProductIconTheme, IThemeService } from '../common/themeService.js';
 
 export interface IIconsStyleSheet extends IDisposable {
 	getCSS(): string;

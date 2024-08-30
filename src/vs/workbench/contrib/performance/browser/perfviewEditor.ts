@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { LoaderEventType, LoaderStats, isESM } from 'vs/base/common/amd';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { isWeb } from 'vs/base/common/platform';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import * as perf from 'vs/base/common/performance';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, getWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILifecycleService, LifecyclePhase, StartupKindToString } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITimerService } from '../../../services/timer/browser/timerService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { writeTransientState } from '../../codeEditor/browser/toggleWordWrap.js';
+import { LoaderEventType, LoaderStats, isESM } from '../../../../base/common/amd.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ByteSize, IFileService } from '../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ITerminalService } from '../../terminal/browser/terminal.js';
+import * as perf from '../../../../base/common/performance.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, getWorkbenchContribution } from '../../../common/contributions.js';
+import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 
 export class PerfviewContrib {
 
@@ -200,13 +200,13 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		const table: Array<Array<string | number | undefined>> = [];
 		table.push(['start => app.isReady', metrics.timers.ellapsedAppReady, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['nls:start => nls:end', metrics.timers.ellapsedNlsGeneration, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['require(main.bundle.js)', metrics.timers.ellapsedLoadMainBundle, '[main]', `initial startup: ${metrics.initialStartup}`]);
+		table.push(['import(main.bundle.js)', metrics.timers.ellapsedLoadMainBundle, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['start crash reporter', metrics.timers.ellapsedCrashReporter, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['serve main IPC handle', metrics.timers.ellapsedMainServer, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['create window', metrics.timers.ellapsedWindowCreate, '[main]', `initial startup: ${metrics.initialStartup}, ${metrics.initialStartup ? `state: ${metrics.timers.ellapsedWindowRestoreState}ms, widget: ${metrics.timers.ellapsedBrowserWindowCreate}ms, show: ${metrics.timers.ellapsedWindowMaximize}ms` : ''}`]);
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
-		table.push(['window.loadUrl() => begin to require(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
-		table.push(['require(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
+		table.push(['window.loadUrl() => begin to import(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
+		table.push(['import(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
 		table.push(['wait for window config', metrics.timers.ellapsedWaitForWindowConfig, '[renderer]', undefined]);
 		table.push(['init storage (global & workspace)', metrics.timers.ellapsedStorageInit, '[renderer]', undefined]);
 		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
@@ -332,7 +332,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		map.set(LoaderEventType.CachedDataFound, []);
 		map.set(LoaderEventType.CachedDataMissed, []);
 		map.set(LoaderEventType.CachedDataRejected, []);
-		if (typeof require.getStats === 'function') {
+		if (!isESM && typeof require.getStats === 'function') {
 			for (const stat of require.getStats()) {
 				if (map.has(stat.type)) {
 					map.get(stat.type)!.push(stat.detail);
