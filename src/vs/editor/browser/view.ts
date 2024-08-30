@@ -57,7 +57,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { NativeEditContextHandler } from 'vs/editor/browser/controller/editContext/native/nativeEditContextHandler';
+import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 
 
 export interface IContentWidgetData {
@@ -358,7 +358,7 @@ export class View extends ViewEventHandler {
 	private _instantiateEditContext(editContextType: EditContextType): AbstractEditContext {
 		let editContextHandler: AbstractEditContext;
 		if (editContextType === 'native') {
-			editContextHandler = this._instantiationService.createInstance(NativeEditContextHandler, this._context, this._viewController);
+			editContextHandler = this._instantiationService.createInstance(NativeEditContext, this._context, this._viewController);
 		} else {
 			editContextHandler = this._instantiationService.createInstance(TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
 		}
@@ -622,7 +622,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public focus(): void {
-		this._editContextHandler.focusScreenReaderContent();
+		this._editContextHandler.focus();
 	}
 
 	public isFocused(): boolean {
@@ -630,7 +630,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public refreshFocusState() {
-		this._editContextHandler.refreshFocusState();
+		this._editContextHandler.refreshFocus();
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {

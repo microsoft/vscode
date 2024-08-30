@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./nativeEditContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,24 +19,26 @@ import { DebugEditContext } from 'vs/editor/browser/controller/editContext/nativ
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
 import * as browser from 'vs/base/browser/browser';
-import { editContextAddDisposableListener } from 'vs/editor/browser/controller/editContext/native/nativeEditContextUtils';
+import { editContextAddDisposableListener, EditContextState } from 'vs/editor/browser/controller/editContext/native/nativeEditContextUtils';
 import { ITypeData } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { ScreenReaderSupport } from 'vs/editor/browser/controller/editContext/native/screenReaderSupport';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Position } from 'vs/editor/common/core/position';
 
 // Boolean which controls whether we should show the control, selection and character bounds
 const showControlBounds = false;
 
-interface EditContextState {
-	content: string;
-	selectionStartOffset: number;
-	selectionEndOffset: number;
-	rangeOfContent: Range;
-}
+export class NativeEditContext extends AbstractEditContext {
 
-export class NativeEditContext extends Disposable {
+	static NATIVE_EDIT_CONTEXT_CLASS_NAME = 'native-edit-context';
+
+	// Dom element which holds screen reader content and handles key presses
+	public readonly domNode: FastDomNode<HTMLDivElement>;
 
 	// Edit Context
 	private readonly _editContext: EditContext;
-	private _previousEditContextState: EditContextState | undefined;
 	private _currentEditContextState: EditContextState | undefined;
 
 	private _decorations: string[] = [];
@@ -44,21 +46,36 @@ export class NativeEditContext extends Disposable {
 	private _compositionRange: Range | undefined;
 	private _renderingContext: RenderingContext | undefined;
 
+	// Screen reader support
+	private readonly _screenReaderSupport: ScreenReaderSupport;
+
+	// Field indicating whether dom element is focused
+	private _hasFocus: boolean = false;
+
 	constructor(
-		domElement: FastDomNode<HTMLDivElement>,
-		private readonly _context: ViewContext,
+		context: ViewContext,
 		private readonly _viewController: ViewController,
-		@IClipboardService private readonly _clipboardService: IClipboardService
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super();
+		super(context);
+
+		this.domNode = new FastDomNode(document.createElement('div'));
+		this.domNode.setClassName(`${NativeEditContext.NATIVE_EDIT_CONTEXT_CLASS_NAME} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 
 		this._editContext = showControlBounds ? new DebugEditContext() : new EditContext();
-		domElement.domNode.editContext = this._editContext;
+		this.domNode.domNode.editContext = this._editContext;
 
-		this._register(dom.addDisposableListener(domElement.domNode, 'copy', async (e) => {
+		this._screenReaderSupport = new ScreenReaderSupport(this.domNode, context, keybindingService);
+
+		this._updateDomAttributes();
+
+		this._register(dom.addDisposableListener(this.domNode.domNode, 'focus', () => this._setHasFocus(true)));
+		this._register(dom.addDisposableListener(this.domNode.domNode, 'blur', () => this._setHasFocus(false)));
+		this._register(dom.addDisposableListener(this.domNode.domNode, 'copy', async (e) => {
 			this._ensureClipboardGetsEditorSelection();
 		}));
-		this._register(dom.addDisposableListener(domElement.domNode, 'keydown', async (e) => {
+		this._register(dom.addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 
@@ -97,10 +114,11 @@ export class NativeEditContext extends Disposable {
 			}
 			this._viewController.emitKeyDown(standardKeyboardEvent);
 		}));
-		this._register(dom.addDisposableListener(domElement.domNode, 'keyup', (e) => {
+		this._register(dom.addDisposableListener(this.domNode.domNode, 'keyup', (e) => {
 			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
+			console.log('textupdate');
 			if (this._compositionRange) {
 				const position = this._context.viewModel.getPrimaryCursorState().viewState.position;
 				this._compositionRange = this._compositionRange.setEndPosition(position.lineNumber, position.column);
@@ -136,6 +154,11 @@ export class NativeEditContext extends Disposable {
 		super.dispose();
 	}
 
+	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
+		overflowGuardContainer.appendChild(this.domNode);
+		this._parent = overflowGuardContainer.domNode;
+	}
+
 	private _emitAddNewLineEvent(): void {
 		const textBeforeSelection = this._editContext.text.substring(0, this._editContext.selectionStart);
 		const textAfterSelection = this._editContext.text.substring(this._editContext.selectionEnd);
@@ -150,24 +173,28 @@ export class NativeEditContext extends Disposable {
 	}
 
 	private _emitTypeEvent(e: { text: string; updateRangeStart: number; updateRangeEnd: number }) {
-		if (!this._previousEditContextState) {
+		console.log('_emitTypeEvent');
+		if (!this._currentEditContextState) {
+			console.log('early return');
 			return;
 		}
+		console.log('e : ', e);
+		console.log('this._currentEditContextState : ', this._currentEditContextState);
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
-		if (e.updateRangeEnd > this._previousEditContextState.selectionEndOffset) {
-			replaceNextCharCnt = e.updateRangeEnd - this._previousEditContextState.selectionEndOffset;
+		if (e.updateRangeEnd > this._currentEditContextState.selectionEndOffset) {
+			replaceNextCharCnt = e.updateRangeEnd - this._currentEditContextState.selectionEndOffset;
 		}
-		if (e.updateRangeStart < this._previousEditContextState.selectionStartOffset) {
-			replacePrevCharCnt = this._previousEditContextState.selectionStartOffset - e.updateRangeStart;
+		if (e.updateRangeStart < this._currentEditContextState.selectionStartOffset) {
+			replacePrevCharCnt = this._currentEditContextState.selectionStartOffset - e.updateRangeStart;
 		}
 		let text = '';
-		if (this._previousEditContextState.selectionStartOffset < e.updateRangeStart) {
-			text += this._previousEditContextState.content.substring(this._previousEditContextState.selectionStartOffset, e.updateRangeStart);
+		if (this._currentEditContextState.selectionStartOffset < e.updateRangeStart) {
+			text += this._currentEditContextState.content.substring(this._currentEditContextState.selectionStartOffset, e.updateRangeStart);
 		}
 		text += e.text;
-		if (this._previousEditContextState.selectionEndOffset > e.updateRangeEnd) {
-			text += this._previousEditContextState.content.substring(e.updateRangeEnd, this._previousEditContextState.selectionEndOffset);
+		if (this._currentEditContextState.selectionEndOffset > e.updateRangeEnd) {
+			text += this._currentEditContextState.content.substring(e.updateRangeEnd, this._currentEditContextState.selectionEndOffset);
 		}
 		const typeInput: ITypeData = {
 			text,
@@ -175,42 +202,97 @@ export class NativeEditContext extends Disposable {
 			replaceNextCharCnt,
 			positionDelta: 0,
 		};
+		console.log('typeInput : ', typeInput);
 		this._onType(typeInput);
 	}
 
-	public onRender(): void {
+	public setAriaOptions(): void {
+		this._screenReaderSupport.setAriaOptions();
+	}
+
+	public getLastRenderData(): Position | null {
+		return this._screenReaderSupport.getLastRenderData();
+	}
+
+	public prepareRender(ctx: RenderingContext): void {
+		console.log('prepareRender');
+		this._screenReaderSupport.prepareRender(ctx);
 		this._updateEditContext();
+		this._updateBounds();
+	}
+
+	public render(ctx: RestrictedRenderingContext): void {
+		this._screenReaderSupport.render(ctx);
+	}
+
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._screenReaderSupport.onCursorStateChanged(e);
+		return true;
+	}
+
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this._screenReaderSupport.onScrollChanged(e);
+		return true;
+	}
+
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._screenReaderSupport.onConfigurationChanged(e);
+		this._updateDomAttributes();
+		return true;
+	}
+
+	private _updateDomAttributes(): void {
+		const options = this._context.configuration.options;
+		this.domNode.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 	}
 
 	private _updateEditContext(): void {
-		if (this._previousEditContextState) {
-			this._previousEditContextState = this._currentEditContextState;
-		}
+		console.log('_updateEditContext');
 		this._currentEditContextState = this._getEditContextState();
-		if (!this._previousEditContextState) {
-			this._previousEditContextState = this._currentEditContextState;
-		}
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._currentEditContextState.content);
 		this._editContext.updateSelection(this._currentEditContextState.selectionStartOffset, this._currentEditContextState.selectionEndOffset);
+		console.log('this._editContext.text : ', this._editContext.text);
+		console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
+		console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
+		console.log('this._currentEditContextState : ', this._currentEditContextState);
 	}
 
 	public setRenderingContext(renderingContext: RenderingContext): void {
 		this._renderingContext = renderingContext;
 	}
 
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._updateEditContext();
-		this._updateBounds();
-		return true;
+	public writeScreenReaderContent(): void {
+		this._screenReaderSupport.writeScreenReaderContent();
 	}
 
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._updateBounds();
-		return true;
+	public isFocused(): boolean {
+		return this._hasFocus;
 	}
 
-	public setParent(parent: HTMLElement): void {
-		this._parent = parent;
+	public focus(): void {
+		this._setHasFocus(true);
+		this.refreshFocus();
+	}
+
+	public refreshFocus(): void {
+		const hasFocus = dom.getActiveElement() === this.domNode.domNode;
+		this._setHasFocus(hasFocus);
+	}
+
+	private _setHasFocus(newHasFocus: boolean): void {
+		console.log('_setHasFocus');
+		console.log('newHasFocus : ', newHasFocus);
+		if (this._hasFocus === newHasFocus) {
+			// no change
+			return;
+		}
+		this._hasFocus = newHasFocus;
+		if (this._hasFocus) {
+			this.domNode.domNode.focus();
+			this._context.viewModel.setHasFocus(true);
+		} else {
+			this._context.viewModel.setHasFocus(false);
+		}
 	}
 
 	private _onType(typeInput: ITypeData): void {

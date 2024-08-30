@@ -247,7 +247,7 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 }
 
 export function isInputElement(e: HTMLElement): boolean {
-	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA' || e.editContext !== undefined;
+	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
 function isListElementDescendantOfClass(e: HTMLElement, className: string): boolean {

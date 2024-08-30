@@ -647,11 +647,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 		return this._textAreaInput.isFocused();
 	}
 
-	public focusScreenReaderContent(): void {
+	public focus(): void {
 		this._textAreaInput.focusTextArea();
 	}
 
-	public refreshFocusState() {
+	public refreshFocus() {
 		this._textAreaInput.refreshFocusState();
 	}
 

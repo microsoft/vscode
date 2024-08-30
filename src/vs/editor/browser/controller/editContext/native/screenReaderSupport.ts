@@ -3,17 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./nativeEditContext';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
 import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import * as dom from 'vs/base/browser/dom';
@@ -24,6 +17,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
 interface ScreenReaderContentInfo {
 	value: string;
@@ -31,18 +26,13 @@ interface ScreenReaderContentInfo {
 	selectionOffsetEnd: number;
 }
 
-export class NativeEditContextHandler extends AbstractEditContext {
+export class ScreenReaderSupport extends Disposable {
 
-	static NATIVE_EDIT_CONTEXT_CLASS_NAME = 'native-edit-context';
+	// HTMLElement
+	private _domNode: FastDomNode<HTMLElement>;
 
-	// Dom element which holds screen reader content and handles key presses
-	public readonly domNode: FastDomNode<HTMLDivElement>;
-
-	// Field indicating whether dom element is focused
-	private _hasFocus: boolean = false;
-
-	// Class which handles the native edit context API
-	private readonly _nativeEditContext: NativeEditContext;
+	// View Context
+	private _context: ViewContext;
 
 	// Configuration values
 	private _contentLeft!: number;
@@ -59,57 +49,55 @@ export class NativeEditContextHandler extends AbstractEditContext {
 	private _screenReaderContentInfo: ScreenReaderContentInfo | null = null;
 
 	constructor(
+		domNode: FastDomNode<HTMLElement>,
 		context: ViewContext,
-		viewController: ViewController,
-		@IClipboardService clipboardService: IClipboardService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		super(context);
-
-		this.domNode = new FastDomNode(document.createElement('div'));
-		this.domNode.setClassName(`${NativeEditContextHandler.NATIVE_EDIT_CONTEXT_CLASS_NAME} ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-
-		this._nativeEditContext = new NativeEditContext(this.domNode, context, viewController, clipboardService);
-
-		this._register(dom.addDisposableListener(this.domNode.domNode, 'focus', () => this._setHasFocus(true)));
-		this._register(dom.addDisposableListener(this.domNode.domNode, 'blur', () => this._setHasFocus(false)));
-
+		super();
+		this._domNode = domNode;
+		this._context = context;
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 	}
 
-	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
-		overflowGuardContainer.appendChild(this.domNode);
-		this._nativeEditContext.setParent(overflowGuardContainer.domNode);
-	}
-
 	public prepareRender(ctx: RenderingContext): void {
 		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
-		this._nativeEditContext.setRenderingContext(ctx);
-		// Should place the control bounds here
+		this.writeScreenReaderContent();
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this.writeScreenReaderContent();
-		this._nativeEditContext.onRender();
-		this._render();
+		if (!this._primaryCursorVisibleRange || !this._screenReaderContentInfo) {
+			return;
+		}
+		// For correct alignment of the screen reader content, we need to apply the correct font
+		applyFontInfo(this._domNode, this._fontInfo);
+
+		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
+		const top = verticalOffsetForPrimaryLineNumber - this._scrollTop;
+		this._domNode.setTop(top);
+		this._domNode.setLeft(this._contentLeft);
+		this._domNode.setWidth(this._contentWidth);
+		this._domNode.setHeight(this._lineHeight);
+
+		// Setting position within the screen reader content
+		const textContent = this._screenReaderContentInfo.value;
+		const textContentBeforeSelection = textContent.substring(0, this._screenReaderContentInfo.selectionOffsetStart);
+		this._domNode.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
+		this._domNode.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 	}
 
 	// Will always call render after this, so can place all the code inside of render, no need to place it twice
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
-		this.writeScreenReaderContent();
-		this._nativeEditContext.onCursorStateChanged(e);
 		return true;
 	}
 
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollTop = e.scrollTop;
-		this._nativeEditContext.onScrollChanged(e);
 		return true;
 	}
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -131,39 +119,10 @@ export class NativeEditContextHandler extends AbstractEditContext {
 
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
-		this.domNode.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
-		this.domNode.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
+		this._domNode.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
-		this.domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
-	}
-
-	public isFocused(): boolean {
-		return this._hasFocus;
-	}
-
-	public focusScreenReaderContent(): void {
-		this._setHasFocus(true);
-		this.refreshFocusState();
-	}
-
-	public refreshFocusState(): void {
-		const hasFocus = dom.getActiveElement() === this.domNode.domNode;
-		this._setHasFocus(hasFocus);
-	}
-
-	private _setHasFocus(newHasFocus: boolean): void {
-		if (this._hasFocus === newHasFocus) {
-			// no change
-			return;
-		}
-		this._hasFocus = newHasFocus;
-		if (this._hasFocus) {
-			this.domNode.domNode.focus();
-			this._context.viewModel.setHasFocus(true);
-		} else {
-			this._context.viewModel.setHasFocus(false);
-		}
+		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 	}
 
 	public setAriaOptions(): void { }
@@ -173,8 +132,8 @@ export class NativeEditContextHandler extends AbstractEditContext {
 		if (!screenReaderContentInfo) {
 			return;
 		}
-		if (this.domNode.domNode.textContent !== screenReaderContentInfo.value) {
-			this.domNode.domNode.textContent = screenReaderContentInfo.value;
+		if (this._domNode.domNode.textContent !== screenReaderContentInfo.value) {
+			this._domNode.domNode.textContent = screenReaderContentInfo.value;
 		}
 		this._setSelectionOfScreenReaderContent(screenReaderContentInfo.selectionOffsetStart, screenReaderContentInfo.selectionOffsetEnd);
 		this._screenReaderContentInfo = screenReaderContentInfo;
@@ -210,7 +169,7 @@ export class NativeEditContextHandler extends AbstractEditContext {
 		if (!activeDocumentSelection) {
 			return;
 		}
-		const textContent = this.domNode.domNode.firstChild;
+		const textContent = this._domNode.domNode.firstChild;
 		if (!textContent) {
 			return;
 		}
@@ -219,27 +178,6 @@ export class NativeEditContextHandler extends AbstractEditContext {
 		range.setEnd(textContent, selectionOffsetEnd);
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
-	}
-
-	private _render(): void {
-		if (!this._primaryCursorVisibleRange || !this._screenReaderContentInfo) {
-			return;
-		}
-		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this.domNode, this._fontInfo);
-
-		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
-		const top = verticalOffsetForPrimaryLineNumber - this._scrollTop;
-		this.domNode.setTop(top);
-		this.domNode.setLeft(this._contentLeft);
-		this.domNode.setWidth(this._contentWidth);
-		this.domNode.setHeight(this._lineHeight);
-
-		// Setting position within the screen reader content
-		const textContent = this._screenReaderContentInfo.value;
-		const textContentBeforeSelection = textContent.substring(0, this._screenReaderContentInfo.selectionOffsetStart);
-		this.domNode.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
-		this.domNode.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
 	}
 
 	/* Last rendered data needed for correct hit-testing and determining the mouse position.

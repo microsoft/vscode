@@ -11,10 +11,10 @@ import { Position } from 'vs/editor/common/core/position';
 export abstract class AbstractEditContext extends ViewPart {
 	abstract domNode: FastDomNode<HTMLElement>;
 	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;
-	abstract writeScreenReaderContent(reason: string): void;
-	abstract focusScreenReaderContent(): void;
-	abstract setAriaOptions(options: IEditorAriaOptions): void;
-	abstract refreshFocusState(): void;
+	abstract focus(): void;
 	abstract isFocused(): boolean;
+	abstract refreshFocus(): void;
+	abstract setAriaOptions(options: IEditorAriaOptions): void;
 	abstract getLastRenderData(): Position | null;
+	abstract writeScreenReaderContent(reason: string): void;
 }
