@@ -67,11 +67,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
-		[InlineChatConfigKeys.StartWithOverlayWidget]: {
-			description: localize('onlyZone', "Whether inline chat opens directly as zone widget, between the lines, or as overlay widget which turns into a zone."),
-			default: false,
-			type: 'boolean',
-		},
 		[InlineChatConfigKeys.ZoneToolbar]: {
 			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
 			default: false,
@@ -124,7 +119,6 @@ export const ACTION_REPORT_ISSUE = 'inlineChat.reportIssue';
 
 // --- menus
 
-export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
 export const MENU_INLINE_CHAT_WIDGET_SECONDARY = MenuId.for('inlineChatWidget.secondary');
 export const MENU_INLINE_CHAT_ZONE = MenuId.for('inlineChatWidget.changesZone');
