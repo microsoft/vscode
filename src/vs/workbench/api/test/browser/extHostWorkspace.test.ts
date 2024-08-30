@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { basename } from 'vs/base/common/path';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
-import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
-import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from 'vs/workbench/api/common/extHost.protocol';
-import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { mock } from 'vs/base/test/common/mock';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo } from 'vs/workbench/services/search/common/search';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { nullExtensionDescription as extensionDescriptor } from 'vs/workbench/services/extensions/common/extensions';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { basename } from '../../../../base/common/path.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
+import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from '../../common/extHost.protocol.js';
+import { RelativePattern } from '../../common/extHostTypes.js';
+import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { ExtHostRpcService } from '../../common/extHostRpcService.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../../services/search/common/queryBuilder.js';
+import { IPatternInfo } from '../../../services/search/common/search.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
+import { FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
+import { nullExtensionDescription as extensionDescriptor } from '../../../services/extensions/common/extensions.js';
+import { IURITransformerService } from '../../common/extHostUriTransformerService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(

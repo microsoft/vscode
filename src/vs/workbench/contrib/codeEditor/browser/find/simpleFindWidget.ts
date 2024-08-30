@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./simpleFindWidget';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Delayer } from 'vs/base/common/async';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { FindReplaceState, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from 'vs/editor/contrib/find/browser/findWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import * as strings from 'vs/base/common/strings';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import type { IHoverService } from 'vs/platform/hover/browser/hover';
+import './simpleFindWidget.css';
+import * as nls from '../../../../../nls.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { FindInput } from '../../../../../base/browser/ui/findinput/findInput.js';
+import { Widget } from '../../../../../base/browser/ui/widget.js';
+import { Delayer } from '../../../../../base/common/async.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { FindReplaceState, INewFindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
+import { IMessage as InputBoxMessage } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from '../../../../../editor/contrib/find/browser/findWidget.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextScopedFindInput } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { widgetClose } from '../../../../../platform/theme/common/iconRegistry.js';
+import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { showHistoryKeybindingHint } from '../../../../../platform/history/browser/historyWidgetKeybindingHint.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../../base/browser/ui/sash/sash.js';
+import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
+import type { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IPathService, AbstractPathService } from 'vs/workbench/services/path/common/pathService';
-import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { dirname } from 'vs/base/common/resources';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { IPathService, AbstractPathService } from '../common/pathService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { firstOrDefault } from '../../../../base/common/arrays.js';
+import { dirname } from '../../../../base/common/resources.js';
 
 export class BrowserPathService extends AbstractPathService {
 

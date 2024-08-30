@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/toggle/toggle';
-import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import 'vs/css!./dialog';
-import * as nls from 'vs/nls';
+import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isActiveElement, isAncestor, show } from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { ActionBar } from '../actionbar/actionbar.js';
+import { ButtonBar, ButtonWithDescription, IButtonStyles } from '../button/button.js';
+import { ICheckboxStyles, Checkbox } from '../toggle/toggle.js';
+import { IInputBoxStyles, InputBox } from '../inputbox/inputBox.js';
+import { Action } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { KeyCode, KeyMod } from '../../../common/keyCodes.js';
+import { mnemonicButtonLabel } from '../../../common/labels.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import { isLinux, isMacintosh, isWindows } from '../../../common/platform.js';
+import './dialog.css';
+import * as nls from '../../../../nls.js';
 
 export interface IDialogInputOptions {
 	readonly placeholder?: string;

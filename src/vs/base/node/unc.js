@@ -7,8 +7,8 @@
 'use strict';
 
 // ESM-uncomment-begin
-// /** @type any */
-// const module = { exports: {} };
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
@@ -153,9 +153,9 @@
 })();
 
 // ESM-uncomment-begin
-// export const getUNCHost = module.exports.getUNCHost;
-// export const getUNCHostAllowlist = module.exports.getUNCHostAllowlist;
-// export const addUNCHostToAllowlist = module.exports.addUNCHostToAllowlist;
-// export const disableUNCAccessRestrictions = module.exports.disableUNCAccessRestrictions;
-// export const isUNCAccessRestrictionsDisabled = module.exports.isUNCAccessRestrictionsDisabled;
+export const getUNCHost = module.exports.getUNCHost;
+export const getUNCHostAllowlist = module.exports.getUNCHostAllowlist;
+export const addUNCHostToAllowlist = module.exports.addUNCHostToAllowlist;
+export const disableUNCAccessRestrictions = module.exports.disableUNCAccessRestrictions;
+export const isUNCAccessRestrictionsDisabled = module.exports.isUNCAccessRestrictionsDisabled;
 // ESM-uncomment-end

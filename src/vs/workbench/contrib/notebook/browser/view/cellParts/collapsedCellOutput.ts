@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { EXPAND_CELL_OUTPUT_COMMAND_ID, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { localize } from '../../../../../../nls.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { EXPAND_CELL_OUTPUT_COMMAND_ID, INotebookEditor } from '../../notebookBrowser.js';
+import { CellContentPart } from '../cellPart.js';
 
 const $ = DOM.$;
 

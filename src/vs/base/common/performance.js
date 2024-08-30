@@ -7,8 +7,8 @@
 'use strict';
 
 // ESM-uncomment-begin
-// /** @type any */
-// const module = { exports: {} };
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
@@ -131,6 +131,6 @@
 })();
 
 // ESM-uncomment-begin
-// export const mark = module.exports.mark;
-// export const getMarks = module.exports.getMarks;
+export const mark = module.exports.mark;
+export const getMarks = module.exports.getMarks;
 // ESM-uncomment-end

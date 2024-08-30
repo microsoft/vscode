@@ -31,7 +31,7 @@ const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('
 const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
-const { isESM } = require('./lib/esm');
+const { isAMD } = require('./lib/amd');
 const buildfile = require('./buildfile');
 
 const REPO_ROOT = path.dirname(__dirname);
@@ -88,7 +88,7 @@ const serverResources = [
 	...serverResourceExcludes
 ];
 
-const serverWithWebResourceIncludes = isESM() ? [
+const serverWithWebResourceIncludes = !isAMD() ? [
 	...serverResourceIncludes,
 	'out-build/vs/code/browser/workbench/*.html',
 	...vscodeWebResourceIncludes
@@ -131,7 +131,7 @@ const serverEntryPoints = [
 	}
 ];
 
-const webEntryPoints = isESM() ? [
+const webEntryPoints = !isAMD() ? [
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -343,7 +343,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...(isESM(`Setting 'type: module' in top level package.json`) ? { type: 'module' } : {}) })) // TODO@esm this should be configured in the top level package.json
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...(!isAMD() ? { type: 'module' } : {}) })) // TODO@esm this should be configured in the top level package.json
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);

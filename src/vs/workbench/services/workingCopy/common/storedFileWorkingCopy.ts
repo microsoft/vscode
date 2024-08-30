@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { hash } from 'vs/base/common/hash';
-import { isErrorWithActions, toErrorMessage } from 'vs/base/common/errorMessage';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { isWindows } from 'vs/base/common/platform';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from '../../../../platform/files/common/files.js';
+import { ISaveOptions, IRevertOptions, SaveReason } from '../../../common/editor.js';
+import { IWorkingCopyService } from './workingCopyService.js';
+import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy.js';
+import { raceCancellation, TaskSequentializer, timeout } from '../../../../base/common/async.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { IWorkingCopyFileService } from './workingCopyFileService.js';
+import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from './workingCopyBackup.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { hash } from '../../../../base/common/hash.js';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { IWorkingCopyEditorService } from './workingCopyEditorService.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IElevatedFileService } from '../../files/common/elevatedFileService.js';
+import { IResourceWorkingCopy, ResourceWorkingCopy } from './resourceWorkingCopy.js';
+import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from './fileWorkingCopy.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 /**
  * Stored file specific working copy model factory.

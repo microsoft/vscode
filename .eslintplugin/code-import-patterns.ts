@@ -44,7 +44,9 @@ export = new class implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization',
-			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json'
+			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json',
+			badAbsolute: 'Imports have to be relative to support ESM',
+			badExtension: 'Imports have to end with `.js` or `.css` to support ESM',
 		},
 		docs: {
 			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
@@ -181,8 +183,8 @@ export = new class implements eslint.Rule.RuleModule {
 
 			if (targetIsVS) {
 				// Always add "vs/nls" and "vs/amdX"
-				restrictions.push('vs/nls');
-				restrictions.push('vs/amdX'); // TODO@jrieken remove after ESM is real
+				restrictions.push('vs/nls.js');
+				restrictions.push('vs/amdX.js'); // TODO@jrieken remove after ESM is real
 			}
 
 			if (targetIsVS && option.layer) {
@@ -212,6 +214,25 @@ export = new class implements eslint.Rule.RuleModule {
 	}
 
 	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, importPath: string) {
+		const targetIsVS = /^src\/vs\//.test(getRelativeFilename(context));
+		if (targetIsVS) {
+
+			// ESM: check for import ending with ".js" or ".css"
+			if (importPath[0] === '.' && !importPath.endsWith('.js') && !importPath.endsWith('.css')) {
+				context.report({
+					loc: node.loc,
+					messageId: 'badExtension',
+				});
+			}
+
+			// check for import being relative
+			if (importPath.startsWith('vs/')) {
+				context.report({
+					loc: node.loc,
+					messageId: 'badAbsolute',
+				});
+			}
+		}
 
 		// resolve relative paths
 		if (importPath[0] === '.') {

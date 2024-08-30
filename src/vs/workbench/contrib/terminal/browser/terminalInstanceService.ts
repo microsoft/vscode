@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalProfile, TerminalExtensions, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { promiseWithResolvers } from 'vs/base/common/async';
+import { ITerminalInstance, ITerminalInstanceService } from './terminal.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalProfile, TerminalExtensions, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { TerminalInstance } from './terminalInstance.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;

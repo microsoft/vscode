@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError, transformErrorForSerialization } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { CharCode } from '../charCode.js';
+import { onUnexpectedError, transformErrorForSerialization } from '../errors.js';
+import { Emitter, Event } from '../event.js';
+import { Disposable, IDisposable } from '../lifecycle.js';
+import { AppResourcePath, FileAccess } from '../network.js';
+import { isWeb } from '../platform.js';
+import * as strings from '../strings.js';
+import { URI } from '../uri.js';
 
 // ESM-comment-begin
-const isESM = false;
+// const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
-// const isESM = true;
+const isESM = true;
 // ESM-uncomment-end
 
 const DEFAULT_CHANNEL = 'default';
@@ -591,10 +591,10 @@ export class SimpleWorkerServer implements IWorkerServer {
 			// Use the global require to be sure to get the global config
 
 			// ESM-comment-begin
-			const req = (globalThis.require || require);
+			// const req = (globalThis.require || require);
 			// ESM-comment-end
 			// ESM-uncomment-begin
-			// const req = globalThis.require;
+			const req = globalThis.require;
 			// ESM-uncomment-end
 
 			req([moduleId], (module: { create: IRequestHandlerFactory }) => {

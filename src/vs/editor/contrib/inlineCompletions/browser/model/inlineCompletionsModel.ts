@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, Permutation } from 'vs/base/common/arrays';
-import { mapFindFirst } from 'vs/base/common/arraysFind';
-import { itemsEquals } from 'vs/base/common/equals';
-import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
-import { commonPrefixLength, splitLinesIncludeSeparators } from 'vs/base/common/strings';
-import { isDefined } from 'vs/base/common/types';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { SingleTextEdit, TextEdit } from 'vs/editor/common/core/textEdit';
-import { TextLength } from 'vs/editor/common/core/textLength';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { Command, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from 'vs/editor/contrib/inlineCompletions/browser/model/ghostText';
-import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource';
-import { computeGhostText, singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/model/singleTextEdit';
-import { SuggestItemInfo } from 'vs/editor/contrib/inlineCompletions/browser/model/suggestWidgetAdaptor';
-import { addPositions, subtractPositions } from 'vs/editor/contrib/inlineCompletions/browser/utils';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { compareBy, Permutation } from '../../../../../base/common/arrays.js';
+import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
+import { itemsEquals } from '../../../../../base/common/equals.js';
+import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
+import { commonPrefixLength, splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditOperation } from '../../../../common/core/editOperation.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
+import { TextLength } from '../../../../common/core/textLength.js';
+import { ScrollType } from '../../../../common/editorCommon.js';
+import { Command, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
+import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
+import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
+import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
+import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
+import { computeGhostText, singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEdit.js';
+import { SuggestItemInfo } from './suggestWidgetAdaptor.js';
+import { addPositions, subtractPositions } from '../utils.js';
+import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));

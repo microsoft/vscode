@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
-import { randomPath } from 'vs/base/common/extpath';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { listProcesses } from 'vs/base/node/ps';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
-import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
-import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { IStateService } from 'vs/platform/state/node/state';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { IWindowState } from 'vs/platform/window/electron-main/window';
-import { isESM } from 'vs/base/common/amd';
+import { randomPath } from '../../../base/common/extpath.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.js';
+import { listProcesses } from '../../../base/node/ps.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
+import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
+import { IDiagnosticsMainService } from '../../diagnostics/electron-main/diagnosticsMainService.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
+import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from '../common/issue.js';
+import { ILogService } from '../../log/common/log.js';
+import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
+import product from '../../product/common/product.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { IStateService } from '../../state/node/state.js';
+import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
+import { zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { IWindowState } from '../../window/electron-main/window.js';
+import { isESM } from '../../../base/common/amd.js';
 
 const processExplorerWindowState = 'issue.processExplorerWindowState';
 

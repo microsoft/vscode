@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { WorkspaceFileEditOptions } from 'vs/editor/common/languages';
-import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { tail } from 'vs/base/common/arrays';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { Schemas } from 'vs/base/common/network';
+import { WorkspaceFileEditOptions } from '../../../../editor/common/languages.js';
+import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from '../../../services/workingCopy/common/workingCopyFileService.js';
+import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { tail } from '../../../../base/common/arrays.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 interface IFileOperation {
 	uris: URI[];

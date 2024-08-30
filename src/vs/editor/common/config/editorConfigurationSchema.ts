@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
-import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { diffEditorDefaultOptions } from './diffEditor.js';
+import { editorOptionsRegistry } from './editorOptions.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import * as nls from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
