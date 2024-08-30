@@ -188,9 +188,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			return isResponseVM(candidate) && candidate.response.value.length > 0;
 		});
 
-		if (hasResponse && zoneTop < scrollTop || this._scrollUp.didScrollUp) {
+		if (hasResponse && zoneTop < scrollTop || this._scrollUp.didScrollUpOrDown) {
 			// don't reveal the zone if it is already out of view (unless we are still getting ready)
-			// or if an outside scroll-up happened (e.g the user scrolled up to see the new content)
+			// or if an outside scroll-up happened (e.g the user scrolled up/down to see the new content)
 			return this._scrollUp.runIgnored(() => {
 				scrollState.restore(this.editor);
 			});
@@ -244,8 +244,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 class ScrollUpState {
 
-	private _lastScrollTop: number = this._editor.getScrollTop();
-	private _didScrollUp?: boolean;
+	private _didScrollUpOrDown?: boolean;
 	private _ignoreEvents = false;
 
 	private readonly _listener = new MutableDisposable();
@@ -257,23 +256,19 @@ class ScrollUpState {
 	}
 
 	enable(): void {
-		this._didScrollUp = undefined;
+		this._didScrollUpOrDown = undefined;
 		this._listener.value = this._editor.onDidScrollChange(e => {
 			if (!e.scrollTopChanged || this._ignoreEvents) {
 				return;
 			}
-			const currentScrollTop = e.scrollTop;
-			if (currentScrollTop > this._lastScrollTop) {
-				this._listener.clear();
-				this._didScrollUp = true;
-			}
-			this._lastScrollTop = currentScrollTop;
+			this._listener.clear();
+			this._didScrollUpOrDown = true;
 		});
 	}
 
 	disable(): void {
 		this._listener.clear();
-		this._didScrollUp = undefined;
+		this._didScrollUpOrDown = undefined;
 	}
 
 	runIgnored(callback: () => void): () => void {
@@ -287,8 +282,8 @@ class ScrollUpState {
 		};
 	}
 
-	get didScrollUp(): boolean | undefined {
-		return this._didScrollUp;
+	get didScrollUpOrDown(): boolean | undefined {
+		return this._didScrollUpOrDown;
 	}
 
 }
