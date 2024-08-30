@@ -83,7 +83,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns A list of matching URIs, where each URI is associated with a workspace folder.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<{ uri: Uri; folder: Uri }[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<SearchResultFromFolder<Uri>[]>;
 	}
 
 	export namespace workspace {

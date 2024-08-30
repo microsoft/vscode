@@ -154,7 +154,7 @@ class FileSearchEngine {
 
 			if (results) {
 				results.forEach(resultInfo => {
-					const result = resultInfo.uri;
+					const result = resultInfo.result;
 					const fqFolderInfo = folderMappings.get(resultInfo.folder)!;
 					const relativePath = path.posix.relative(fqFolderInfo.folder.path, result.path);
 

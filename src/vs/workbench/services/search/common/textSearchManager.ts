@@ -6,13 +6,13 @@
 import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from 'vs/workbench/services/search/common/search';
-import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { AITextSearchProviderNew, SearchResultFromFolder, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -122,7 +122,7 @@ export class TextSearchManager {
 	}
 
 	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
-		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
+		const folderMappings: ResourceMap<FolderQueryInfo> = new ResourceMap<FolderQueryInfo>();
 		folderQueries.forEach((fq, i) => {
 			const queryTester = new QueryGlobTester(this.query, fq);
 			folderMappings.set(fq.folder, { queryTester, folder: fq.folder, folderIdx: i });
@@ -130,12 +130,12 @@ export class TextSearchManager {
 
 		const testingPs: Promise<void>[] = [];
 		const progress = {
-			report: (result: TextSearchResultNew) => {
-
+			report: (resultInfo: SearchResultFromFolder<TextSearchResultNew>) => {
+				const result = resultInfo.result;
 				if (result.uri === undefined) {
 					throw Error('Text search result URI is undefined. Please check provider implementation.');
 				}
-				const folderQuery = folderMappings.findSubstr(result.uri)!;
+				const folderQuery = folderMappings.get(result.uri)!;
 				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
 					hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));

@@ -382,7 +382,7 @@ export interface FileSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<{ uri: URI; folder: URI }[]>;
+	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<SearchResultFromFolder<URI>[]>;
 }
 
 /**
@@ -396,7 +396,7 @@ export interface TextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 }
 
 /**
@@ -502,5 +502,13 @@ export interface AITextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 }
+
+/**
+ * A wrapper for a search result that indicates the original workspace folder that this result was found for.
+ */
+export type SearchResultFromFolder<T> = {
+	result: T;
+	folder: URI;
+};
