@@ -86,10 +86,10 @@ function hygiene(some, linting = true) {
 			} else if (/^[\t]* \*/.test(line)) {
 				// block comment using an extra space
 			} else {
-				// console.error(
-				// 	file.relative + '(' + (i + 1) + ',1): Bad whitespace indentation'
-				// );
-				// errorCount++;
+				console.error(
+					file.relative + '(' + (i + 1) + ',1): Bad whitespace indentation'
+				);
+				errorCount++;
 			}
 		});
 
@@ -118,11 +118,11 @@ function hygiene(some, linting = true) {
 			const original = rawInput.replace(/\r\n/gm, '\n');
 			const formatted = rawOutput.replace(/\r\n/gm, '\n');
 			if (original !== formatted) {
-				// console.error(
-				// 	`File not formatted. Run the 'Format Document' command to fix it:`,
-				// 	file.relative
-				// );
-				// errorCount++;
+				console.error(
+					`File not formatted. Run the 'Format Document' command to fix it:`,
+					file.relative
+				);
+				errorCount++;
 			}
 			cb(null, file);
 		} catch (err) {

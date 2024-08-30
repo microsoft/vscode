@@ -258,9 +258,6 @@ steps:
         displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
-    - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-      - script: node migrate.mjs --disable-watch --enable-in-place
-        displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
     - script: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"

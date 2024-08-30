@@ -104,9 +104,6 @@ steps:
   - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
     - script: node migrate.mjs --disable-watch --enable-esm-to-amd
       displayName: Migrate ESM -> AMD
-  - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
-    - script: node migrate.mjs --disable-watch --enable-in-place
-      displayName: TEMP Migrate AMD -> ESM (!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO@bpasero do not ship !!!!!!!!!!!!!!!!)
 
   - template: common/install-builtin-extensions.yml@self
 
