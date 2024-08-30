@@ -8,10 +8,15 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
 import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, IMainCellDto, INotebookDiffResult, NotebookCellsChangeType, NotebookRawContentEventDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModel } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { isEqual } from 'vs/base/common/resources';
 
 export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
 	declare readonly _serviceBrand: undefined;
@@ -19,11 +24,12 @@ export class NotebookEditorWorkerServiceImpl extends Disposable implements INote
 	private readonly _workerManager: WorkerManager;
 
 	constructor(
-		@INotebookService notebookService: INotebookService
+		@INotebookService notebookService: INotebookService,
+		@IModelService modelService: IModelService,
 	) {
 		super();
 
-		this._workerManager = this._register(new WorkerManager(notebookService));
+		this._workerManager = this._register(new WorkerManager(notebookService, modelService));
 	}
 	canComputeDiff(original: URI, modified: URI): boolean {
 		throw new Error('Method not implemented.');
@@ -47,7 +53,8 @@ class WorkerManager extends Disposable {
 	// private _lastWorkerUsedTime: number;
 
 	constructor(
-		private readonly _notebookService: INotebookService
+		private readonly _notebookService: INotebookService,
+		private readonly _modelService: IModelService,
 	) {
 		super();
 		this._editorWorkerClient = null;
@@ -57,7 +64,7 @@ class WorkerManager extends Disposable {
 	withWorker(): Promise<NotebookWorkerClient> {
 		// this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService);
+			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService, this._modelService);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -69,7 +76,8 @@ class NotebookEditorModelManager extends Disposable {
 
 	constructor(
 		private readonly _proxy: Proxied<NotebookEditorSimpleWorker>,
-		private readonly _notebookService: INotebookService
+		private readonly _notebookService: INotebookService,
+		private readonly _modelService: IModelService,
 	) {
 		super();
 	}
@@ -97,21 +105,20 @@ class NotebookEditorModelManager extends Disposable {
 
 		this._proxy.$acceptNewModel(
 			model.uri.toString(),
-			{
-				cells: model.cells.map(cell => ({
-					handle: cell.handle,
-					uri: cell.uri,
-					source: cell.getValue(),
-					eol: cell.textBuffer.getEOL(),
-					language: cell.language,
-					mime: cell.mime,
-					cellKind: cell.cellKind,
-					outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
-					metadata: cell.metadata,
-					internalMetadata: cell.internalMetadata,
-				})),
-				metadata: model.metadata
-			}
+			model.metadata,
+			model.cells.map(cell => ({
+				handle: cell.handle,
+				url: cell.uri.toString(),
+				source: cell.textBuffer.getLinesContent(),
+				eol: cell.textBuffer.getEOL(),
+				versionId: cell.textModel?.getVersionId() ?? 0,
+				language: cell.language,
+				mime: cell.mime,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
+				metadata: cell.metadata,
+				internalMetadata: cell.internalMetadata,
+			}))
 		);
 
 		const toDispose = new DisposableStore();
@@ -119,9 +126,10 @@ class NotebookEditorModelManager extends Disposable {
 		const cellToDto = (cell: NotebookCellTextModel): IMainCellDto => {
 			return {
 				handle: cell.handle,
-				uri: cell.uri,
+				url: cell.uri.toString(),
 				source: cell.textBuffer.getLinesContent(),
 				eol: cell.textBuffer.getEOL(),
+				versionId: 0, // TODO:
 				language: cell.language,
 				cellKind: cell.cellKind,
 				outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
@@ -129,6 +137,33 @@ class NotebookEditorModelManager extends Disposable {
 				internalMetadata: cell.internalMetadata,
 			};
 		};
+
+		const cellHandlers = new Set<NotebookCellTextModel>();
+		const addCellContentChangeHandler = (cell: NotebookCellTextModel) => {
+			if (!cellHandlers.has(cell) && cell.textModel) {
+				cellHandlers.add(cell);
+				toDispose.add(cell.textModel.onDidChangeContent((e) => this._proxy.$acceptCellModelChanged(modelUrl, cell.handle, e)));
+			}
+		};
+
+		model.cells.forEach(cell => addCellContentChangeHandler(cell));
+		// Possible some of the models have not yet been loaded.
+		// If all have been loaded, for all cells, then no need to listen to model add events.
+		if (model.cells.length !== cellHandlers.size) {
+			toDispose.add(this._modelService.onModelAdded((textModel: ITextModel) => {
+				if (textModel.uri.scheme !== Schemas.vscodeNotebookCell || !(textModel instanceof TextModel)) {
+					return;
+				}
+				const cellUri = CellUri.parse(textModel.uri);
+				if (!cellUri || !isEqual(cellUri.notebook, model.uri)) {
+					return;
+				}
+				const cell = model.cells.find(cell => cell.handle === cellUri.handle);
+				if (cell) {
+					addCellContentChangeHandler(cell);
+				}
+			}));
+		}
 
 		toDispose.add(model.onDidChangeContent((event) => {
 			const dto: NotebookRawContentEventDto[] = [];
@@ -154,15 +189,8 @@ class NotebookEditorModelManager extends Disposable {
 							break;
 						}
 						case NotebookCellsChangeType.ChangeCellContent:
-							if (e.index < model.cells.length) {
-								dto.push({
-									kind: NotebookCellsChangeType.ModelChange,
-									changes: [[e.index, 1, [cellToDto(model.cells[e.index])]]],
-								});
-								break;
-							} else {
-								dto.push(e);
-							}
+							// Changes to cell content are handled by the cell model change listener.
+							break;
 						default:
 							dto.push(e);
 					}
@@ -197,7 +225,7 @@ class NotebookWorkerClient extends Disposable {
 	private _modelManager: NotebookEditorModelManager | null;
 
 
-	constructor(private readonly _notebookService: INotebookService) {
+	constructor(private readonly _notebookService: INotebookService, private readonly _modelService: IModelService) {
 		super();
 		this._worker = null;
 		this._modelManager = null;
@@ -217,7 +245,7 @@ class NotebookWorkerClient extends Disposable {
 
 	private _getOrCreateModelManager(proxy: Proxied<NotebookEditorSimpleWorker>): NotebookEditorModelManager {
 		if (!this._modelManager) {
-			this._modelManager = this._register(new NotebookEditorModelManager(proxy, this._notebookService));
+			this._modelManager = this._register(new NotebookEditorModelManager(proxy, this._notebookService, this._modelService));
 		}
 		return this._modelManager;
 	}
