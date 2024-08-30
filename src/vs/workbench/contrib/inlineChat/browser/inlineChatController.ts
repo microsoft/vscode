@@ -629,7 +629,8 @@ export class InlineChatController implements IEditorContribution {
 
 				// if there's already a tab open for targetUri, show it and move inline chat to that tab
 				// otherwise, open the tab to the side
-				const editorPane = await this._editorService.openEditor({ resource: e.target }, SIDE_GROUP);
+				const initialSelection = Selection.fromRange(Range.lift(e.range), SelectionDirection.LTR);
+				const editorPane = await this._editorService.openEditor({ resource: e.target, options: { selection: initialSelection } }, SIDE_GROUP);
 
 				if (!editorPane) {
 					log('opening editor failed');
@@ -655,9 +656,8 @@ export class InlineChatController implements IEditorContribution {
 					},
 					CancellationToken.None); // TODO@ulugbekna: add proper cancellation?
 
-				const initialSelection = Selection.fromRange(Range.lift(e.range), SelectionDirection.LTR);
 
-				InlineChatController.get(newEditor)?.run({ initialSelection, existingSession: newSession });
+				InlineChatController.get(newEditor)?.run({ existingSession: newSession });
 
 				next = State.CANCEL;
 				responsePromise.complete();
