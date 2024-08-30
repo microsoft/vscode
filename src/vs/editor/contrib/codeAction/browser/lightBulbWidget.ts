@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Gesture } from 'vs/base/browser/touch';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./lightBulbWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
-import * as nls from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Range } from 'vs/editor/common/core/range';
+import * as dom from '../../../../base/browser/dom.js';
+import { Gesture } from '../../../../base/browser/touch.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import './lightBulbWidget.css';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IPosition } from '../../../common/core/position.js';
+import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { computeIndentLevel } from '../../../common/model/utils.js';
+import { autoFixCommandId, quickFixCommandId } from './codeAction.js';
+import { CodeActionSet, CodeActionTrigger } from '../common/types.js';
+import * as nls from '../../../../nls.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Range } from '../../../common/core/range.js';
 
 const GUTTER_LIGHTBULB_ICON = registerIcon('gutter-lightbulb', Codicon.lightBulb, nls.localize('gutterLightbulbWidget', 'Icon which spawns code actions menu from the gutter when there is no space in the editor.'));
 const GUTTER_LIGHTBULB_AUTO_FIX_ICON = registerIcon('gutter-lightbulb-auto-fix', Codicon.lightbulbAutofix, nls.localize('gutterLightbulbAutoFixWidget', 'Icon which spawns code actions menu from the gutter when there is no space in the editor and a quick fix is available.'));

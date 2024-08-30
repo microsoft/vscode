@@ -4,52 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { Promises, Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { joinPath } from 'vs/base/common/resources';
-import * as semver from 'vs/base/common/semver/semver';
-import { isBoolean } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as pfs from 'vs/base/node/pfs';
-import { extract, IFile, zip } from 'vs/base/node/zip';
-import * as nls from 'vs/nls';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { Promises, Queue } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
+import { Emitter } from '../../../base/common/event.js';
+import { hash } from '../../../base/common/hash.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
+import { Schemas } from '../../../base/common/network.js';
+import * as path from '../../../base/common/path.js';
+import { joinPath } from '../../../base/common/resources.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { isBoolean } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import * as pfs from '../../../base/node/pfs.js';
+import { extract, IFile, zip } from '../../../base/node/zip.js';
+import * as nls from '../../../nls.js';
+import { IDownloadService } from '../../download/common/download.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../common/abstractExtensionManagementService.js';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
 	Metadata, InstallOptions,
 	IProductVersion,
 	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT,
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionsProfileScannerService, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IExtensionsScannerService, IScannedExtension, ScanOptions } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
-import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
-import { fromExtractError, getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
-import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
-import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { IInstantiationService, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+} from '../common/extensionManagement.js';
+import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
+import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
+import { IExtensionsScannerService, IScannedExtension, ScanOptions } from '../common/extensionsScannerService.js';
+import { ExtensionsDownloader } from './extensionDownloader.js';
+import { ExtensionsLifecycle } from './extensionLifecycle.js';
+import { fromExtractError, getManifest } from './extensionManagementUtil.js';
+import { ExtensionsManifestCache } from './extensionsManifestCache.js';
+import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from './extensionsWatcher.js';
+import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
+import { isEngineValid } from '../../extensions/common/extensionValidator.js';
+import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { IInstantiationService, refineServiceDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {

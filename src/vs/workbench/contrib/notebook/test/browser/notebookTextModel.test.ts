@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, ICellEditOperation, MOVE_CURSOR_1_LINE_COMMAND, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellEditType, CellKind, ICellEditOperation, MOVE_CURSOR_1_LINE_COMMAND, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from '../../common/notebookCommon.js';
+import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookTextModel', () => {
 	let disposables: DisposableStore;

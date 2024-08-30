@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { compress, CompressedObjectTreeModel, decompress, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { compress, CompressedObjectTreeModel, decompress, ICompressedTreeElement, ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { IList } from '../../../../browser/ui/tree/indexTreeModel.js';
+import { IObjectTreeModelSetChildrenOptions } from '../../../../browser/ui/tree/objectTreeModel.js';
+import { ITreeNode } from '../../../../browser/ui/tree/tree.js';
+import { Iterable } from '../../../../common/iterator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 	readonly element: T;

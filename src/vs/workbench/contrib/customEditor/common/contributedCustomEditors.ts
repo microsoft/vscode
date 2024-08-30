@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { CustomEditorDescriptor, CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../common/memento.js';
+import { CustomEditorDescriptor, CustomEditorInfo } from './customEditor.js';
+import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from './extensionPoint.js';
+import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
 
 export class ContributedCustomEditors extends Disposable {
 

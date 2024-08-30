@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CodeCellViewModel, outputDisplayLimit } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
+import { CellKind } from '../../../common/notebookCommon.js';
+import { cellRangesToIndexes } from '../../../common/notebookRange.js';
+import { INotebookService } from '../../../common/notebookService.js';
 
 class NotebookViewportContribution extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.viewportWarmup';

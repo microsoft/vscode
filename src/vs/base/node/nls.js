@@ -14,12 +14,12 @@
  */
 
 // ESM-uncomment-begin
-// import * as path from 'path';
-// import * as fs from 'fs';
-// import * as perf from '../common/performance.js';
-//
-// /** @type any */
-// const module = { exports: {} };
+import * as path from 'path';
+import * as fs from 'fs';
+import * as perf from '../common/performance.js';
+
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
@@ -259,9 +259,9 @@
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
 		// commonjs
 		// ESM-comment-begin
-		const path = require('path');
-		const fs = require('fs');
-		const perf = require('../common/performance');
+		// const path = require('path');
+		// const fs = require('fs');
+		// const perf = require('../common/performance');
 		// ESM-comment-end
 		module.exports = factory(path, fs, perf);
 	} else {
@@ -270,5 +270,5 @@
 })();
 
 // ESM-uncomment-begin
-// export const resolveNLSConfiguration = module.exports.resolveNLSConfiguration;
+export const resolveNLSConfiguration = module.exports.resolveNLSConfiguration;
 // ESM-uncomment-end

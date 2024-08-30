@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MessagePortMain, isUtilityProcess, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { Emitter, Event } from 'vs/base/common/event';
-import { assertType } from 'vs/base/common/types';
-import { firstOrDefault } from 'vs/base/common/arrays';
+import { MessagePortMain, isUtilityProcess, MessageEvent } from '../../sandbox/node/electronTypes.js';
+import { VSBuffer } from '../../../common/buffer.js';
+import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from '../common/ipc.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { assertType } from '../../../common/types.js';
+import { firstOrDefault } from '../../../common/arrays.js';
 
 /**
  * The MessagePort `Protocol` leverages MessagePortMain style IPC communication

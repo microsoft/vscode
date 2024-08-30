@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { importAMDNodeModule } from '../../../amdX.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { IGalleryExtension } from '../common/extensionManagement.js';
+import { TargetPlatform } from '../../extensions/common/extensions.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export const IExtensionSignatureVerificationService = createDecorator<IExtensionSignatureVerificationService>('IExtensionSignatureVerificationService');
 
@@ -104,13 +104,13 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private async resolveVsceSign(): Promise<typeof vsceSign> {
 		// ESM-uncomment-begin
-		// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
-		// const mod = '@vscode/vsce-sign';
-		// return import(mod);
+		if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */ }
+		const mod = '@vscode/vsce-sign';
+		return import(mod);
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
-		return importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
+		// return importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
 		// ESM-comment-end
 	}
 

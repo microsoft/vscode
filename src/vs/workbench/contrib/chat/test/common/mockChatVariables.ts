@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IParsedChatRequest } from '../../common/chatParserTypes.js';
+import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;

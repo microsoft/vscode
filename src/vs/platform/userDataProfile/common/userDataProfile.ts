@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hash } from 'vs/base/common/hash';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { URI, UriDto } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ResourceMap } from 'vs/base/common/map';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Promises } from 'vs/base/common/async';
-import { generateUuid } from 'vs/base/common/uuid';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
+import { hash } from '../../../base/common/hash.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { basename, joinPath } from '../../../base/common/resources.js';
+import { URI, UriDto } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IAnyWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { Promises } from '../../../base/common/async.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { escapeRegExpCharacters } from '../../../base/common/strings.js';
+import { isString } from '../../../base/common/types.js';
 
 export const enum ProfileResourceType {
 	Settings = 'settings',

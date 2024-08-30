@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent } from './capabilities/capabilities.js';
+import { ReplayEntry } from './terminalProcess.js';
 
 const enum Constants {
 	MaxRecorderDataSize = 10 * 1024 * 1024 // 10MB

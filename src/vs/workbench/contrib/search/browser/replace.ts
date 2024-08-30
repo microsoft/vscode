@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/contrib/search/browser/searchModel';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { Match, FileMatch, FileMatchOrMatch } from './searchModel.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 
 export const IReplaceService = createDecorator<IReplaceService>('replaceService');
 

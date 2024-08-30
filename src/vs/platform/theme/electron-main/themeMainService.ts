@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStateService } from 'vs/platform/state/node/state';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme } from 'vs/platform/window/common/window';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IStateService } from '../../state/node/state.js';
+import { IPartsSplash } from '../common/themeService.js';
+import { IColorScheme } from '../../window/common/window.js';
 
 const DEFAULT_BG_LIGHT = '#FFFFFF';
 const DEFAULT_BG_DARK = '#1E1E1E';

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { GraphemeIterator, forAnsiStringParts, removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import 'vs/css!./media/testMessageColorizer';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { renderStringAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { GraphemeIterator, forAnsiStringParts, removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
+import './media/testMessageColorizer.css';
+import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 const colorAttrRe = /^\x1b\[([0-9]+)m$/;
 

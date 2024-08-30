@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/assert';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import * as nls from 'vs/nls';
+import { assertNever } from '../../../base/common/assert.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IJSONSchema, IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import * as platform from '../../registry/common/platform.js';
+import { IColorTheme } from './themeService.js';
+import * as nls from '../../../nls.js';
 
 //  ------ API types
 

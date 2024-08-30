@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { request } from 'vs/base/parts/request/browser/request';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { request } from '../../../base/parts/request/browser/request.js';
+import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ILoggerService } from '../../log/common/log.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
 
 /**
  * This service exposes the `request` API, while using the global

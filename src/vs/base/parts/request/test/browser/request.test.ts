@@ -8,11 +8,11 @@ import * as http from 'http';
 // eslint-disable-next-line local/code-import-patterns
 import { AddressInfo } from 'net';
 import assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { request } from 'vs/base/parts/request/browser/request';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { flakySuite } from 'vs/base/test/common/testUtils';
+import { CancellationToken, CancellationTokenSource } from '../../../../common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
+import { request } from '../../browser/request.js';
+import { streamToBuffer } from '../../../../common/buffer.js';
+import { flakySuite } from '../../../../test/common/testUtils.js';
 
 flakySuite('Request', () => {
 
