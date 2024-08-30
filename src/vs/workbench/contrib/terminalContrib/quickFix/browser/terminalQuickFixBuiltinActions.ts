@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from './quickFix.js';
 
 export const GitCommandLineRegex = /git/;
 export const GitPullOutputRegex = /and can be fast-forwarded/;

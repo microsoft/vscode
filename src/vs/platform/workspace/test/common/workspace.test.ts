@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { join } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IRawFileWorkspaceFolder, Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { join } from '../../../../base/common/path.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRawFileWorkspaceFolder, Workspace, WorkspaceFolder } from '../../common/workspace.js';
+import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
 
 suite('Workspace', () => {
 

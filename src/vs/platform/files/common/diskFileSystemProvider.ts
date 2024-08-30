@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { insert } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { removeTrailingPathSeparator } from 'vs/base/common/extpath';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalize } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, reviveFileChanges } from 'vs/platform/files/common/watcher';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { insert } from '../../../base/common/arrays.js';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { Emitter } from '../../../base/common/event.js';
+import { removeTrailingPathSeparator } from '../../../base/common/extpath.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { normalize } from '../../../base/common/path.js';
+import { URI } from '../../../base/common/uri.js';
+import { IFileChange, IFileSystemProvider, IWatchOptions } from './files.js';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, reviveFileChanges } from './watcher.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
 
 export interface IDiskFileSystemProviderOptions {
 	watcher?: {

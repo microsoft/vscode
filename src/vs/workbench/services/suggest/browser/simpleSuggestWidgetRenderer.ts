@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, show } from 'vs/base/browser/dom';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { $, append, show } from '../../../../base/browser/dom.js';
+import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { SimpleCompletionItem } from './simpleCompletionItem.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { createMatches } from '../../../../base/common/filters.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export function getAriaId(index: number): string {
 	return `simple-suggest-aria-id:${index}`;

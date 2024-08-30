@@ -6,23 +6,23 @@
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
-import { URI } from 'vs/base/common/uri';
-import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { randomPath, isEqual, isEqualOrParent } from 'vs/base/common/extpath';
-import { GLOBSTAR, patternsEquals } from 'vs/base/common/glob';
-import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { dirname, normalize } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
-import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from 'vs/platform/files/common/watcher';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from '../../../../../base/common/uri.js';
+import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { randomPath, isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
+import { GLOBSTAR, patternsEquals } from '../../../../../base/common/glob.js';
+import { BaseWatcher } from '../baseWatcher.js';
+import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
+import { normalizeNFC } from '../../../../../base/common/normalization.js';
+import { dirname, normalize } from '../../../../../base/common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
+import { realcaseSync, realpathSync } from '../../../../../base/node/extpath.js';
+import { NodeJSFileWatcherLibrary } from '../nodejs/nodejsWatcherLib.js';
+import { FileChangeType, IFileChange } from '../../../common/files.js';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 
 export class ParcelWatcherInstance extends Disposable {
 

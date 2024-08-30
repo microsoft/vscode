@@ -6,19 +6,19 @@
 import * as http from 'http';
 import * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Promises } from 'vs/base/common/async';
-import { streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import * as streams from 'vs/base/common/stream';
-import { isBoolean, isNumber } from 'vs/base/common/types';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
-import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
+import { Promises } from '../../../base/common/async.js';
+import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
+import * as streams from '../../../base/common/stream.js';
+import { isBoolean, isNumber } from '../../../base/common/types.js';
+import { IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import { ILogService, ILoggerService } from '../../log/common/log.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
+import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
 interface IHTTPConfiguration {

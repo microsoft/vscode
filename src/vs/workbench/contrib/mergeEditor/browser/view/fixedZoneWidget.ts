@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IOverlayWidget, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { Event } from 'vs/base/common/event';
+import { h } from '../../../../../base/browser/dom.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ICodeEditor, IOverlayWidget, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export abstract class FixedZoneWidget extends Disposable {
 	private static counter = 0;

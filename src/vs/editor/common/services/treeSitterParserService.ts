@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { ITextModel } from '../model.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 

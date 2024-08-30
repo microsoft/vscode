@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/commands';
-import { INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST, CONTEXT_CHAT_LOCATION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { localize } from '../../../../../nls.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { IChatWidgetService } from '../chat.js';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
+import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST, CONTEXT_CHAT_LOCATION } from '../../common/chatContextKeys.js';
+import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 
 export class ChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 107;

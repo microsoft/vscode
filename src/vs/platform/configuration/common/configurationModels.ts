@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as json from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getOrSet, ResourceMap } from 'vs/base/common/map';
-import * as objects from 'vs/base/common/objects';
-import { IExtUri } from 'vs/base/common/resources';
-import * as types from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import * as arrays from '../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import * as json from '../../../base/common/json.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { getOrSet, ResourceMap } from '../../../base/common/map.js';
+import * as objects from '../../../base/common/objects.js';
+import { IExtUri } from '../../../base/common/resources.js';
+import * as types from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from './configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from './configurationRegistry.js';
+import { FileOperation, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { Registry } from '../../registry/common/platform.js';
+import { Workspace } from '../../workspace/common/workspace.js';
 
 function freeze<T>(data: T): T {
 	return Object.isFrozen(data) ? data : objects.deepFreeze(data);

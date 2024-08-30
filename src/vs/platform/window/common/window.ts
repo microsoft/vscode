@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { FileType } from 'vs/platform/files/common/files';
-import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
-import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { PerformanceMark } from '../../../base/common/performance.js';
+import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditorOptions } from '../../editor/common/editor.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FileType } from '../../files/common/files.js';
+import { ILoggerResource, LogLevel } from '../../log/common/log.js';
+import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
