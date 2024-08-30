@@ -1547,6 +1547,7 @@ export interface SCMHistoryItemDto {
 	readonly id: string;
 	readonly parentIds: string[];
 	readonly message: string;
+	readonly displayId?: string;
 	readonly author?: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	readonly timestamp?: number;
