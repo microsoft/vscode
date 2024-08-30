@@ -85,7 +85,6 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	set range(range: T | undefined) {
 		this._range = range;
-		this._onDidChangeRange.fire(this._range);
 	}
 
 	get range(): T | undefined {
@@ -102,9 +101,6 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	get canReply() {
 		return this._canReply;
 	}
-
-	private readonly _onDidChangeRange = new Emitter<T | undefined>();
-	public onDidChangeRange = this._onDidChangeRange.event;
 
 	private _collapsibleState: languages.CommentThreadCollapsibleState | undefined;
 	get collapsibleState() {
@@ -222,7 +218,6 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();
-		this._onDidChangeRange.dispose();
 		this._onDidChangeState.dispose();
 	}
 
