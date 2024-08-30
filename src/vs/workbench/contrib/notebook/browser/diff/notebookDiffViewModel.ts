@@ -74,7 +74,6 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	private originalCellViewModels: DiffElementCellViewModelBase[] = [];
 	constructor(private readonly model: INotebookDiffEditorModel,
 		private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
-		private readonly instantiationService: IInstantiationService,
 		private readonly configurationService: IConfigurationService,
 		private readonly eventDispatcher: NotebookDiffEditorEventDispatcher,
 		private readonly notebookService: INotebookService,
@@ -195,7 +194,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	}
 
 	private updateViewModels(cellDiffInfo: CellDiffInfo[]) {
-		const cellViewModels = createDiffViewModels(this.instantiationService, this.configurationService, this.model, this.eventDispatcher, cellDiffInfo, this.fontInfo, this.notebookService);
+		const cellViewModels = createDiffViewModels(this.configurationService, this.model, this.eventDispatcher, cellDiffInfo, this.fontInfo, this.notebookService);
 		const oldLength = this._items.length;
 		this.clear();
 		this._items.splice(0, oldLength);
@@ -393,7 +392,7 @@ function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: DiffElementCellViewMo
 	return true;
 }
 
-function createDiffViewModels(instantiationService: IInstantiationService, configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, computedCellDiffs: CellDiffInfo[], fontInfo: FontInfo | undefined, notebookService: INotebookService) {
+function createDiffViewModels(configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, computedCellDiffs: CellDiffInfo[], fontInfo: FontInfo | undefined, notebookService: INotebookService) {
 	const originalModel = model.original.notebook;
 	const modifiedModel = model.modified.notebook;
 	const initData = {
