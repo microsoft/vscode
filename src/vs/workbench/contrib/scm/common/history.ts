@@ -11,10 +11,6 @@ import { ColorIdentifier } from '../../../../platform/theme/common/colorUtils.js
 import { ISCMRepository } from './scm.js';
 
 export interface ISCMHistoryProviderMenus {
-	getHistoryItemGroupMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
-	getHistoryItemGroupContextMenu(historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu;
-
-	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
 }
 
@@ -49,19 +45,6 @@ export interface ISCMHistoryItemGroup {
 	readonly remote?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
 }
 
-export interface SCMHistoryItemGroupTreeElement {
-	readonly id: string;
-	readonly label: string;
-	readonly ariaLabel?: string;
-	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	readonly description?: string;
-	readonly direction: 'incoming' | 'outgoing';
-	readonly ancestor?: string;
-	readonly count?: number;
-	readonly repository: ISCMRepository;
-	readonly type: 'historyItemGroup';
-}
-
 export interface ISCMHistoryItemStatistics {
 	readonly files: number;
 	readonly insertions: number;
@@ -77,6 +60,7 @@ export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
 	readonly message: string;
+	readonly displayId?: string;
 	readonly author?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
@@ -107,26 +91,9 @@ export interface SCMHistoryItemLoadMoreTreeElement {
 	readonly type: 'historyItemLoadMore';
 }
 
-export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
-	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
-	readonly type: 'allChanges' | 'historyItem';
-}
-
 export interface ISCMHistoryItemChange {
 	readonly uri: URI;
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
 	readonly renameUri?: URI;
-}
-
-export interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
-	readonly historyItem: SCMHistoryItemTreeElement;
-	readonly type: 'historyItemChange';
-}
-
-export interface SCMViewSeparatorElement {
-	readonly label: string;
-	readonly ariaLabel?: string;
-	readonly repository: ISCMRepository;
-	readonly type: 'separator';
 }
