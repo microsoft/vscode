@@ -131,29 +131,42 @@ class NotebookEditorModelManager extends Disposable {
 		};
 
 		toDispose.add(model.onDidChangeContent((event) => {
-			const dto = event.rawEvents.map(e => {
-				const data =
-					e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
-						? {
-							kind: e.kind,
-							versionId: event.versionId,
-							changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
+			const dto: NotebookRawContentEventDto[] = [];
+			event.rawEvents
+				.forEach(e => {
+					switch (e.kind) {
+						case NotebookCellsChangeType.ModelChange:
+						case NotebookCellsChangeType.Initialize: {
+							dto.push({
+								kind: e.kind,
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
+							});
+							break;
 						}
-						: (
-							e.kind === NotebookCellsChangeType.Move
-								? {
-									kind: e.kind,
-									index: e.index,
-									length: e.length,
-									newIdx: e.newIdx,
-									versionId: event.versionId,
-									cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
-								}
-								: e
-						);
-
-				return data;
-			});
+						case NotebookCellsChangeType.Move: {
+							dto.push({
+								kind: NotebookCellsChangeType.Move,
+								index: e.index,
+								length: e.length,
+								newIdx: e.newIdx,
+								cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
+							});
+							break;
+						}
+						case NotebookCellsChangeType.ChangeCellContent:
+							if (e.index < model.cells.length) {
+								dto.push({
+									kind: NotebookCellsChangeType.ModelChange,
+									changes: [[e.index, 1, [cellToDto(model.cells[e.index])]]],
+								});
+								break;
+							} else {
+								dto.push(e);
+							}
+						default:
+							dto.push(e);
+					}
+				});
 
 			this._proxy.$acceptModelChanged(modelUrl.toString(), {
 				rawEvents: dto,
@@ -193,6 +206,7 @@ class NotebookWorkerClient extends Disposable {
 
 	computeDiff(original: URI, modified: URI) {
 		const proxy = this._ensureSyncedResources([original, modified]);
+		console.error('Hello World');
 		return proxy.$computeDiff(original.toString(), modified.toString());
 	}
 
