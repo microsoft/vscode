@@ -222,7 +222,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 			layoutState: CellLayoutState.Uninitialized
 		};
 
-		this.cellFoldingState = modified?.textModel?.getValue() !== original?.textModel?.getValue() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
+		this.cellFoldingState = modified?.getTextBufferHash() !== original?.getTextBufferHash() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
