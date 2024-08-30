@@ -47,6 +47,16 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { coalesce } from 'vs/base/common/arrays';
 import { AsyncIterableObject } from 'vs/base/common/async';
 
+const shellLangIds = [
+	'fish',
+	'ps1',
+	'pwsh',
+	'powershell',
+	'sh',
+	'shellscript',
+	'zsh'
+];
+
 export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
 }
@@ -409,7 +419,10 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+					),
 					order: 10
 				},
 				keybinding: {
@@ -566,15 +579,6 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	const shellLangIds = [
-		'fish',
-		'ps1',
-		'pwsh',
-		'powershell',
-		'sh',
-		'shellscript',
-		'zsh'
-	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
