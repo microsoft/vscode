@@ -60,6 +60,7 @@ export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
 	readonly message: string;
+	readonly displayId?: string;
 	readonly author?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
