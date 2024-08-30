@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { DiffElementCellViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel } from './diffElementViewModel.js';
+import { DiffElementCellViewModelBase, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel } from './diffElementViewModel.js';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, CellDiffPlaceholderRenderTemplate, IDiffCellMarginOverlay, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE } from './notebookDiffEditorBrowser.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -47,6 +47,7 @@ import { DiffNestedCellViewModel } from './diffNestedCellViewModel.js';
 import { localize } from '../../../../../nls.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { getFormattedMetadataJSON } from '../../common/model/notebookCellTextModel.js';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -179,6 +180,9 @@ class PropertyHeader extends Disposable {
 		this._updateFoldingIcon();
 
 		const metadataChanged = this.accessor.checkIfModified(this.cell);
+		if (this._propertyChanged) {
+			this._propertyChanged.set(!!metadataChanged);
+		}
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
@@ -549,7 +553,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					return;
 				}
 
-				const modifiedMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
+				const modifiedMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel?.transientOptions.transientCellMetadata, this.cell.modified?.metadata || {}, this.cell.modified?.language);
 				modifiedMetadataModel.object.textEditorModel.setValue(modifiedMetadataSource);
 			}));
 
@@ -568,7 +572,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
 			const mode = this.languageService.createById('jsonc');
-			const originalMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel!,
+			const originalMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel?.transientOptions.transientCellMetadata,
 				this.cell.type === 'insert'
 					? this.cell.modified!.metadata || {}
 					: this.cell.original!.metadata || {});
