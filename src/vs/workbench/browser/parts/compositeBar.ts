@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { IActivity } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor, getWindow } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Emitter } from 'vs/base/common/event';
-import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IComposite } from 'vs/workbench/common/composite';
-import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
+import { localize } from '../../../nls.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
+import { IActivity } from '../../services/activity/common/activity.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from './compositeBarActions.js';
+import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor, getWindow } from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { Widget } from '../../../base/browser/ui/widget.js';
+import { isUndefinedOrNull } from '../../../base/common/types.js';
+import { IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { Emitter } from '../../../base/common/event.js';
+import { ViewContainerLocation, IViewDescriptorService } from '../../common/views.js';
+import { IPaneComposite } from '../../common/panecomposite.js';
+import { IComposite } from '../../common/composite.js';
+import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect } from '../dnd.js';
+import { Gesture, EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
 
 export interface ICompositeBarItem {
 

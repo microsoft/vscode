@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { PaneCompositeDescriptor } from '../../../browser/panecomposite.js';
+import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
+import { IPaneComposite } from '../../../common/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
 
 export const IPaneCompositePartService = createDecorator<IPaneCompositePartService>('paneCompositePartService');
 

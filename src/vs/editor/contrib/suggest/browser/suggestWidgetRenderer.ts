@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, hide, show } from 'vs/base/browser/dom';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import * as nls from 'vs/nls';
-import { FileKind } from 'vs/platform/files/common/files';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CompletionItem } from './suggest';
-import { canExpandCompletionItem } from './suggestWidgetDetails';
+import { $, append, hide, show } from '../../../../base/browser/dom.js';
+import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { createMatches } from '../../../../base/common/filters.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from '../../../common/languages.js';
+import { getIconClasses } from '../../../common/services/getIconClasses.js';
+import { IModelService } from '../../../common/services/model.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import * as nls from '../../../../nls.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { CompletionItem } from './suggest.js';
+import { canExpandCompletionItem } from './suggestWidgetDetails.js';
 
 export function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;

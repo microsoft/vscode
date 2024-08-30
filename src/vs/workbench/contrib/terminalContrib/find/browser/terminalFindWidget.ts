@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDetachedTerminalInstance, ITerminalInstance, IXtermTerminal, XtermTerminalConstants } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Event } from 'vs/base/common/event';
+import * as dom from '../../../../../base/browser/dom.js';
+import { SimpleFindWidget } from '../../../codeEditor/browser/find/simpleFindWidget.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService, IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDetachedTerminalInstance, ITerminalInstance, IXtermTerminal, XtermTerminalConstants } from '../../../terminal/browser/terminal.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { Event } from '../../../../../base/common/event.js';
 import type { ISearchOptions } from '@xterm/addon-search';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { openContextMenu } from 'vs/workbench/contrib/terminalContrib/find/browser/textInputContextMenu';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { TerminalFindCommandId } from 'vs/workbench/contrib/terminalContrib/find/common/terminal.find';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { openContextMenu } from './textInputContextMenu.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { TerminalFindCommandId } from '../common/terminal.find.js';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 

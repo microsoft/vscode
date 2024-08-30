@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import * as arrays from 'vs/base/common/arrays';
-import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType, isDefined } from 'vs/base/common/types';
-import 'vs/css!./renameWidget';
-import * as domFontInfo from 'vs/editor/browser/config/domFontInfo';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { NewSymbolName, NewSymbolNameTag, NewSymbolNameTriggerKind, ProviderResult } from 'vs/editor/common/languages';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import * as arrays from '../../../../base/common/arrays.js';
+import { DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { assertType, isDefined } from '../../../../base/common/types.js';
+import './renameWidget.css';
+import * as domFontInfo from '../../../browser/config/domFontInfo.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
+import { IDimension } from '../../../common/core/dimension.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ScrollType } from '../../../common/editorCommon.js';
+import { NewSymbolName, NewSymbolNameTag, NewSymbolNameTriggerKind, ProviderResult } from '../../../common/languages.js';
+import * as nls from '../../../../nls.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import {
 	editorWidgetBackground,
 	inputBackground,
@@ -45,8 +45,8 @@ import {
 	quickInputListFocusForeground,
 	widgetBorder,
 	widgetShadow
-} from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+} from '../../../../platform/theme/common/colorRegistry.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 
 /** for debugging */
 const _sticky = false

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { DISABLED_EXTENSIONS_STORAGE_PATH, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isUndefinedOrNull } from '../../../base/common/types.js';
+import { DISABLED_EXTENSIONS_STORAGE_PATH, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from './extensionManagement.js';
+import { areSameExtensions } from './extensionManagementUtil.js';
+import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 
 export class GlobalExtensionEnablementService extends Disposable implements IGlobalExtensionEnablementService {
 

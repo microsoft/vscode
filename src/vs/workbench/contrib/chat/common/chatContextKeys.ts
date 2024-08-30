@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { localize } from '../../../../nls.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatAgentLocation } from './chatAgents.js';
 
 export const CONTEXT_RESPONSE_VOTE = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
 export const CONTEXT_VOTE_UP_ENABLED = new RawContextKey<boolean>('chatVoteUpEnabled', false, { type: 'boolean', description: localize('chatVoteUpEnabled', "True when the chat vote up action is enabled.") });

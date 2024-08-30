@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { IWorkerServer, IWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { StateDeltas } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { UriComponents } from '../../../../../../base/common/uri.js';
+import { IWorkerServer, IWorkerClient } from '../../../../../../base/common/worker/simpleWorker.js';
+import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 
 export abstract class TextMateWorkerHost {
 	public static CHANNEL_NAME = 'textMateWorkerHost';

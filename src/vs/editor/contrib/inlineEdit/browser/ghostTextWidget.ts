@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import 'vs/css!./inlineEdit';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { AdditionalLinesWidget, LineData } from 'vs/editor/contrib/inlineCompletions/browser/view/ghostTextView';
-import { GhostText } from 'vs/editor/contrib/inlineCompletions/browser/model/ghostText';
-import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
-import { diffDeleteDecoration, diffLineDeleteDecorationBackgroundWithIndicator } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import './inlineEdit.css';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../../../common/model.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { InlineDecorationType } from '../../../common/viewModel.js';
+import { AdditionalLinesWidget, LineData } from '../../inlineCompletions/browser/view/ghostTextView.js';
+import { GhostText } from '../../inlineCompletions/browser/model/ghostText.js';
+import { ColumnRange, applyObservableDecorations } from '../../inlineCompletions/browser/utils.js';
+import { diffDeleteDecoration, diffLineDeleteDecorationBackgroundWithIndicator } from '../../../browser/widget/diffEditor/registrations.contribution.js';
 
 export const INLINE_EDIT_DESCRIPTION = 'inline-edit';
 export interface IGhostTextWidgetModel {

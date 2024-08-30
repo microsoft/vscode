@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import 'vs/css!./table';
+import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from '../../dom.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IListRenderer, IListVirtualDelegate } from '../list/list.js';
+import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from '../list/listWidget.js';
+import { ISplitViewDescriptor, IView, Orientation, SplitView } from '../splitview/splitview.js';
+import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from './table.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import { ISpliceable } from '../../../common/sequence.js';
+import './table.css';
 
 // TODO@joao
 type TCell = any;

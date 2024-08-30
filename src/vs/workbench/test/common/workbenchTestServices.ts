@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace, IWorkspaceFoldersWillChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IBaseFileStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions, SaveReason, GroupIdentifier } from 'vs/workbench/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import product from 'vs/platform/product/common/product';
-import { IActivity, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from 'vs/platform/log/common/log';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { join } from '../../../base/common/path.js';
+import { basename, isEqual, isEqualOrParent } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { Event, Emitter } from '../../../base/common/event.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace, IWorkspaceFoldersWillChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
+import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
+import { ITextResourcePropertiesService } from '../../../editor/common/services/textResourceConfiguration.js';
+import { isLinux, isMacintosh } from '../../../base/common/platform.js';
+import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
+import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from '../../services/workingCopy/common/workingCopy.js';
+import { NullExtensionService } from '../../services/extensions/common/extensions.js';
+import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
+import { IBaseFileStat, IFileStatWithMetadata } from '../../../platform/files/common/files.js';
+import { ISaveOptions, IRevertOptions, SaveReason, GroupIdentifier } from '../../common/editor.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import product from '../../../platform/product/common/product.js';
+import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
+import { IStoredFileWorkingCopySaveEvent } from '../../services/workingCopy/common/storedFileWorkingCopy.js';
+import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from '../../../platform/log/common/log.js';
+import { IResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../common/editor/editorInput.js';
+import { IHistoryService } from '../../services/history/common/history.js';
+import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
+import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerStatistics } from '../../../platform/markers/common/markers.js';
+import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {

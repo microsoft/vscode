@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { fromNowByDay } from 'vs/base/common/date';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IsLinuxContext, IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
-import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNowByDay } from '../../../../../base/common/date.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { clearChatEditor } from './chatClear.js';
+import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from '../chat.js';
+import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
+import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
+import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export interface IChatViewTitleActionContext {
 	chatView: ChatViewPane;

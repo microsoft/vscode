@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { constObservable } from 'vs/base/common/observable';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
-import { InlineEditHintsContentWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
-import * as nls from 'vs/nls';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../hover/browser/hoverTypes.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { InlineEditController } from './inlineEditController.js';
+import { InlineEditHintsContentWidget } from './inlineEditHintsWidget.js';
+import * as nls from '../../../../nls.js';
 
 export class InlineEditHover implements IHoverPart {
 	constructor(

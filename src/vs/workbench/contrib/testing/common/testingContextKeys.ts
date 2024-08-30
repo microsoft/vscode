@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TestExplorerViewMode, TestExplorerViewSorting } from 'vs/workbench/contrib/testing/common/constants';
-import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { localize } from '../../../../nls.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TestExplorerViewMode, TestExplorerViewSorting } from './constants.js';
+import { TestRunProfileBitset } from './testTypes.js';
 
 export namespace TestingContextKeys {
 	export const providerCount = new RawContextKey('testing.providerCount', 0);

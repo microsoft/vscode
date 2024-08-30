@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { Position } from 'vs/editor/common/core/position';
-import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { InsertButton } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { Emitter } from 'vs/base/common/event';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IColorInformation } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IRange } from 'vs/editor/common/core/range';
-import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
-import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./colorPicker';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IEditorHoverRenderContext } from '../../hover/browser/hoverTypes.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { PositionAffinity } from '../../../common/model.js';
+import { Position } from '../../../common/core/position.js';
+import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from './colorHoverParticipant.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorHoverStatusBar } from '../../hover/browser/contentHoverStatusBar.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { InsertButton } from './colorPickerWidget.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IColorInformation } from '../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IRange } from '../../../common/core/range.js';
+import { DefaultDocumentColorProvider } from './defaultDocumentColorProvider.js';
+import * as dom from '../../../../base/browser/dom.js';
+import './colorPicker.css';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 

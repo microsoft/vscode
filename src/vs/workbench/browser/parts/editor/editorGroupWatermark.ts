@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { append, clearNode, $, h } from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from '../../../../nls.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { append, clearNode, $, h } from '../../../../base/browser/dom.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { editorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 
 registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));
 

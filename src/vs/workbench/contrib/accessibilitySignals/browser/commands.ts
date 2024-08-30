@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize, localize2 } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { AccessibilitySignal, AcknowledgeDocCommentsToken, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { AccessibilitySignal, AcknowledgeDocCommentsToken, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export class ShowSignalSoundHelp extends Action2 {
 	static readonly ID = 'signals.sounds.help';

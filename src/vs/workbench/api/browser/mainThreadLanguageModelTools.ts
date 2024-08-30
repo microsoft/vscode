@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {

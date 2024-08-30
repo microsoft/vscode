@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IProcessEnvironment, isLinux, OperatingSystem } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IProcessEnvironment, isLinux, OperatingSystem } from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IFixedTerminalDimensions, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IProcessReadyWindowsPty, IShellLaunchConfig, ITerminalBackend, ITerminalContributions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ProcessPropertyType, TerminalIcon, TerminalLocationString, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { IEnvironmentVariableInfo } from './environmentVariable.js';
+import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
 
 // Import commands to skip shell from terminalContrib - this is an exception to the eslint rule
 // since they need to be included in the terminal module
-import { defaultTerminalAccessibilityCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility'; // eslint-disable-line local/code-import-patterns
-import { defaultTerminalFindCommandToSkipShell } from 'vs/workbench/contrib/terminalContrib/find/common/terminal.find'; // eslint-disable-line local/code-import-patterns
-import { defaultTerminalSuggestCommandsToSkipShell } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalAccessibilityCommandsToSkipShell } from '../../terminalContrib/accessibility/common/terminal.accessibility.js'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalFindCommandToSkipShell } from '../../terminalContrib/find/common/terminal.find.js'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalSuggestCommandsToSkipShell } from '../../terminalContrib/suggest/common/terminal.suggest.js'; // eslint-disable-line local/code-import-patterns
 
 export const TERMINAL_VIEW_ID = 'terminal';
 

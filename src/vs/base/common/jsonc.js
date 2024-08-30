@@ -9,8 +9,8 @@
 'use strict';
 
 // ESM-uncomment-begin
-// /** @type any */
-// const module = { exports: {} };
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
@@ -85,6 +85,6 @@
 })();
 
 // ESM-uncomment-begin
-// export const stripComments = module.exports.stripComments;
-// export const parse = module.exports.parse;
+export const stripComments = module.exports.stripComments;
+export const parse = module.exports.parse;
 // ESM-uncomment-end
