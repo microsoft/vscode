@@ -34,7 +34,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
-import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IEditorMinimapOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -1319,6 +1319,26 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
+		const setMinimap = (minimapEnabled?: boolean) => {
+			for (const editor of this.mainPartEditorService.visibleTextEditorControls) {
+				let minimap: IEditorMinimapOptions | undefined = undefined;
+
+				if (minimapEnabled === undefined && isCodeEditor(editor) && editor.hasModel()) {
+					const model = editor.getModel();
+					minimap = this.configurationService.getValue('editor.minimap', { resource: model.uri, overrideIdentifier: model.getLanguageId() });
+				}
+				if (!minimap) {
+					minimap = this.configurationService.getValue('editor.minimap');
+				}
+
+				if (minimapEnabled !== undefined && minimap) {
+					minimap.enabled = minimapEnabled;
+				}
+
+				editor.updateOptions({ minimap });
+			}
+		};
+
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
 		let toggleMainWindowFullScreen = false;
@@ -1355,6 +1375,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (config.hideLineNumbers) {
 				setLineNumbers('off');
 				this.state.runtime.zenMode.transitionDisposables.set(ZenModeSettings.HIDE_LINENUMBERS, this.mainPartEditorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
+			}
+
+			if (config.hideMinimap) {
+				setMinimap(false);
+				this.state.runtime.zenMode.transitionDisposables.set(ZenModeSettings.HIDE_MINIMAP, this.mainPartEditorService.onDidVisibleEditorsChange(() => setMinimap(false)));
 			}
 
 			if (config.showTabs !== this.editorGroupService.partOptions.showTabs) {
@@ -1403,11 +1428,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 				}
 
-				// Center Layout
+				// Line Numbers
 				if (e.affectsConfiguration(ZenModeSettings.HIDE_LINENUMBERS)) {
 					const lineNumbersType = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_LINENUMBERS) ? 'off' : undefined;
 					setLineNumbers(lineNumbersType);
 					this.state.runtime.zenMode.transitionDisposables.set(ZenModeSettings.HIDE_LINENUMBERS, this.mainPartEditorService.onDidVisibleEditorsChange(() => setLineNumbers(lineNumbersType)));
+				}
+
+				// Minimap
+				if (e.affectsConfiguration(ZenModeSettings.HIDE_MINIMAP)) {
+					const hideMinimap = this.configurationService.getValue<boolean>(ZenModeSettings.HIDE_MINIMAP);
+					const minimapEnabled = hideMinimap === true ? false : undefined;
+
+					setMinimap(minimapEnabled);
+					this.state.runtime.zenMode.transitionDisposables.set(ZenModeSettings.HIDE_MINIMAP, this.mainPartEditorService.onDidVisibleEditorsChange(() => setMinimap(minimapEnabled)));
 				}
 			}));
 		}
@@ -1443,6 +1477,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			setLineNumbers();
+			setMinimap();
 
 			this.focus();
 
@@ -2452,6 +2487,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 }
 
 type ZenModeConfiguration = {
+	hideMinimap: boolean;
 	centerLayout: boolean;
 	fullScreen: boolean;
 	hideActivityBar: boolean;
