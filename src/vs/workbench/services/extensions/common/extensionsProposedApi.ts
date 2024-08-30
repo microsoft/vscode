@@ -16,8 +16,8 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from '../../extensionManagement/common/extensionFeatures.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Mutable } from '../../../../base/common/types.js';
-import { IFileService } from '../../../../platform/files/common/files';
-import { parse } from '../../../../base/common/jsonc';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { parse } from '../../../../base/common/jsonc.js';
 
 export class ExtensionsProposedApi {
 
