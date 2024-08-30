@@ -22,7 +22,7 @@ import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ITextModel } from '../../../common/model.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
-import { FoldingRange, FoldingRangeKind, FoldingRangeProvider } from '../../../common/languages.js';
+import { FoldingContext, FoldingRange, FoldingRangeKind, FoldingRangeProvider } from '../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from './foldingModel.js';
 import { HiddenRangeModel } from './hiddenRangeModel.js';
@@ -543,10 +543,11 @@ export class RangesLimitReporter implements FoldingLimitReporter {
 
 abstract class FoldingAction<T> extends EditorAction {
 
-	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T, languageConfigurationService: ILanguageConfigurationService): void;
+	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T, languageConfigurationService: ILanguageConfigurationService, languageFeaturesService: ILanguageFeaturesService): void;
 
 	public override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | Promise<void> {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return;
@@ -556,7 +557,7 @@ abstract class FoldingAction<T> extends EditorAction {
 			this.reportTelemetry(accessor, editor);
 			return foldingModelPromise.then(foldingModel => {
 				if (foldingModel) {
-					this.invoke(foldingController, foldingModel, editor, args, languageConfigurationService);
+					this.invoke(foldingController, foldingModel, editor, args, languageConfigurationService, languageFeaturesService);
 					const selection = editor.getSelection();
 					if (selection) {
 						foldingController.reveal(selection.getStartPosition());
@@ -1231,6 +1232,41 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 }
 
 
+class FoldImportAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.foldImport',
+			label: nls.localize('foldImport.label', "Fold Import"),
+			alias: 'Fold Import',
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	async invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: void, languageConfigurationService: ILanguageConfigurationService, languageFeaturesService: ILanguageFeaturesService): Promise<void> {
+		const providers = FoldingController.getFoldingRangeProviders(languageFeaturesService, foldingModel.textModel);
+		const foldingContext: FoldingContext = {};
+		const regionsToToggle = new Map<number, FoldingRegion>();
+		for (const provider of providers) {
+			const ranges = await provider.provideFoldingRanges(foldingModel.textModel, foldingContext, CancellationToken.None) || [];
+			const importRanges = ranges.filter(range => range.kind?.value === FoldingRangeKind.Imports.value);
+			for (const range of importRanges) {
+				const region = foldingModel.getRegionAtLine(range.start);
+				if (region) {
+					regionsToToggle.set(range.start, region);
+				}
+			}
+		}
+		foldingModel.toggleCollapseState(Array.from(regionsToToggle.values()));
+		foldingController.triggerFoldingModelChanged();
+	}
+}
+
+
 registerEditorContribution(FoldingController.ID, FoldingController, EditorContributionInstantiation.Eager); // eager because it uses `saveViewState`/`restoreViewState`
 registerEditorAction(UnfoldAction);
 registerEditorAction(UnFoldRecursivelyAction);
@@ -1250,6 +1286,7 @@ registerEditorAction(GotoPreviousFoldAction);
 registerEditorAction(GotoNextFoldAction);
 registerEditorAction(FoldRangeFromSelectionAction);
 registerEditorAction(RemoveFoldRangeFromSelectionAction);
+registerEditorAction(FoldImportAction);
 
 for (let i = 1; i <= 7; i++) {
 	registerInstantiatedEditorAction(
