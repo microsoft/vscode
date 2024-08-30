@@ -470,13 +470,22 @@ function newToOldFileProviderOptions(options: FileSearchProviderOptions): FileSe
 export class OldFileSearchProviderConverter implements FileSearchProviderNew {
 	constructor(private provider: FileSearchProvider) { }
 
-	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]> {
-		const getResult = async () => {
+	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<{ uri: URI; folder: URI }[]> {
+		const getResult: () => Promise<{
+			uris: URI[] | null | undefined;
+			folder: URI;
+		}[]> = async () => {
 			const newOpts = newToOldFileProviderOptions(options);
 			return Promise.all(newOpts.map(
-				o => this.provider.provideFileSearchResults({ pattern }, o, token)));
+				async o => ({ uris: await this.provider.provideFileSearchResults({ pattern }, o, token), folder: o.folder })));
 		};
-		return getResult().then(e => coalesce(e).flat());
+		return getResult().then(rawResult =>
+			coalesce(rawResult.flatMap(e => (
+				e.uris?.map(uri => (
+					{ uri, folder: e.folder }
+				)))
+			))
+		);
 	}
 }
 

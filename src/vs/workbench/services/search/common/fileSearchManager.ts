@@ -12,9 +12,9 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
 import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OldFileSearchProviderConverter } from 'vs/workbench/services/search/common/searchExtConversionTypes';
+import { ResourceMap } from 'vs/base/common/map';
 
 interface IInternalFileMatch {
 	base: URI;
@@ -126,7 +126,7 @@ class FileSearchEngine {
 		};
 
 
-		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
+		const folderMappings = new ResourceMap<FolderQueryInfo>();
 		fqs.forEach(fq => {
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
@@ -153,9 +153,9 @@ class FileSearchEngine {
 
 
 			if (results) {
-				results.forEach(result => {
-
-					const fqFolderInfo = folderMappings.findSubstr(result)!;
+				results.forEach(resultInfo => {
+					const result = resultInfo.uri;
+					const fqFolderInfo = folderMappings.get(resultInfo.folder)!;
 					const relativePath = path.posix.relative(fqFolderInfo.folder.path, result.path);
 
 					if (fqFolderInfo.noSiblingsClauses) {
