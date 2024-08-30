@@ -2,27 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { ResourceSet, ResourceMap } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
-import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
-import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, pathIncludedInQuery, ISearchService, IFolderQuery, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
-import * as arrays from 'vs/base/common/arrays';
-import { isNumber } from 'vs/base/common/types';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
-import { INotebookExclusiveDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import * as glob from '../../../../../base/common/glob.js';
+import { ResourceSet, ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { INotebookSearchService } from '../../common/notebookSearch.js';
+import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers.js';
+import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, pathIncludedInQuery, ISearchService, IFolderQuery, DEFAULT_MAX_SEARCH_RESULTS } from '../../../../services/search/common/search.js';
+import * as arrays from '../../../../../base/common/arrays.js';
+import { isNumber } from '../../../../../base/common/types.js';
+import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
+import { INotebookFileMatchNoModel } from '../../common/searchNotebookHelpers.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { NotebookPriorityInfo } from '../../common/search.js';
+import { INotebookExclusiveDocumentFilter } from '../../../notebook/common/notebookCommon.js';
+import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 interface IOpenNotebookSearchResults {
 	results: ResourceMap<INotebookFileMatchWithModel | null>;

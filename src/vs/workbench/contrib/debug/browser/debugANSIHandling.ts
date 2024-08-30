@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { RGBA, Color } from 'vs/base/common/color';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { LinkDetector } from './linkDetector.js';
+import { RGBA, Color } from '../../../../base/common/color.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 
 /**
  * @param text The content to stylize.

@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken, cancelOnDispose } from 'vs/base/common/cancellation';
-import { itemsEquals, structuralEquals } from 'vs/base/common/equals';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ISettableObservable, ITransaction, ObservablePromise, derived, derivedHandleChanges, derivedOpts, disposableObservableValue, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction } from 'vs/base/common/observable';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Command, InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/model/provideInlineCompletions';
-import { InlineEdit } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsWidget';
+import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { itemsEquals, structuralEquals } from '../../../../base/common/equals.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, ITransaction, ObservablePromise, derived, derivedHandleChanges, derivedOpts, disposableObservableValue, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction } from '../../../../base/common/observable.js';
+import { derivedDisposable } from '../../../../base/common/observableInternal/derived.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
+import { LineRange } from '../../../common/core/lineRange.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { Command, InlineCompletionContext, InlineCompletionTriggerKind } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { IFeatureDebounceInformation } from '../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IModelService } from '../../../common/services/model.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from '../../inlineCompletions/browser/model/provideInlineCompletions.js';
+import { InlineEdit } from './inlineEditsWidget.js';
 
 export class InlineEditsModel extends Disposable {
 	private static _modelId = 0;

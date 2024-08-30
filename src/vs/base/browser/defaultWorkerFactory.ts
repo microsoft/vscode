@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { coalesce } from 'vs/base/common/arrays';
-import { getNLSLanguage, getNLSMessages } from 'vs/nls';
+import { createTrustedTypesPolicy } from './trustedTypes.js';
+import { onUnexpectedError } from '../common/errors.js';
+import { AppResourcePath, COI, FileAccess } from '../common/network.js';
+import { URI } from '../common/uri.js';
+import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
+import { Disposable, toDisposable } from '../common/lifecycle.js';
+import { coalesce } from '../common/arrays.js';
+import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 
 // ESM-comment-begin
 // const isESM = false;

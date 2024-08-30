@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { mergeCurrentHeaderBackground, mergeIncomingHeaderBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from '../../../../../nls.js';
+import { mergeCurrentHeaderBackground, mergeIncomingHeaderBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 
 export const diff = registerColor(
 	'mergeEditor.change.background',

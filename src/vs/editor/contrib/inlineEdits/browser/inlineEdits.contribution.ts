@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import {
 	TriggerInlineEditAction, ShowNextInlineEditAction, ShowPreviousInlineEditAction,
 	AcceptInlineEdit, HideInlineEdit,
-} from 'vs/editor/contrib/inlineEdits/browser/commands';
-import { InlineEditsController } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsController';
+} from './commands.js';
+import { InlineEditsController } from './inlineEditsController.js';
 
 registerEditorContribution(InlineEditsController.ID, InlineEditsController, EditorContributionInstantiation.Eventually);
 

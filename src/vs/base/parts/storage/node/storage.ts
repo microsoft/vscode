@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { mapToString, setToString } from 'vs/base/common/map';
-import { basename } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
+import { timeout } from '../../../common/async.js';
+import { Event } from '../../../common/event.js';
+import { mapToString, setToString } from '../../../common/map.js';
+import { basename } from '../../../common/path.js';
+import { Promises } from '../../../node/pfs.js';
+import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from '../common/storage.js';
 import type { Database, Statement } from '@vscode/sqlite3';
 
 interface IDatabaseConnection {

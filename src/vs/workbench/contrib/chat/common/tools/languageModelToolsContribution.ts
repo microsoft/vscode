@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableMap } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ILanguageModelToolsService, IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
+import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize } from '../../../../../nls.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
+import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 
 interface IRawToolContribution {
 	id: string;

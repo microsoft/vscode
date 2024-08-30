@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { findFirstMax } from 'vs/base/common/arraysFind';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { ITransaction, disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./style';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ObservableElementSizeObserver } from 'vs/editor/browser/widget/diffEditor/utils';
-import { RevealOptions } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
-import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
-import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
-import { ObjectPool } from './objectPool';
-import { localize } from 'vs/nls';
-import { IDocumentDiffItem } from 'vs/editor/browser/widget/multiDiffEditor/model';
+import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
+import { findFirstMax } from '../../../../base/common/arraysFind.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { ITransaction, disposableObservableValue, globalTransaction, transaction } from '../../../../base/common/observableInternal/base.js';
+import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { URI } from '../../../../base/common/uri.js';
+import './style.css';
+import { ICodeEditor } from '../../editorBrowser.js';
+import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
+import { RevealOptions } from './multiDiffEditorWidget.js';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { IRange } from '../../../common/core/range.js';
+import { ISelection, Selection } from '../../../common/core/selection.js';
+import { IDiffEditor } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate.js';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
+import { ObjectPool } from './objectPool.js';
+import { localize } from '../../../../nls.js';
+import { IDocumentDiffItem } from './model.js';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _scrollableElements = h('div.scrollContent', [

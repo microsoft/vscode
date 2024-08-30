@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, InstallExtensionResult, InstallExtensionInfo, IProductVersion, UninstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient, ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { Emitter } from 'vs/base/common/event';
-import { delta } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, InstallExtensionResult, InstallExtensionInfo, IProductVersion, UninstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient, ExtensionEventResult } from '../../../../platform/extensionManagement/common/extensionManagementIpc.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { delta } from '../../../../base/common/arrays.js';
+import { compare } from '../../../../base/common/strings.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from './extensionManagement.js';
 
 export abstract class ProfileAwareExtensionManagementChannelClient extends BaseExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 

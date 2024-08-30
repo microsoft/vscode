@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { flakySuite } from 'vs/base/test/common/testUtils';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;

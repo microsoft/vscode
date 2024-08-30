@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { IExpression } from 'vs/base/common/glob';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { TestPathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IExpression } from '../../../../../base/common/glob.js';
+import { join } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { URI, URI as uri } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { toWorkspaceFolders } from '../../../../../platform/workspaces/common/workspaces.js';
+import { ISearchPathsInfo, QueryBuilder } from '../../common/queryBuilder.js';
+import { IPathService } from '../../../path/common/pathService.js';
+import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from '../../common/search.js';
+import { TestPathService, TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
