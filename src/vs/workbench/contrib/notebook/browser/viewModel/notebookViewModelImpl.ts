@@ -205,6 +205,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
 		this.replView = !!this.options.inRepl;
+		if (this.replView) {
+			_notebook.onOpenedInRepl();
+		}
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {

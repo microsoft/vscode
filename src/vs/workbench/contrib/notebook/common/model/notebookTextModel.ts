@@ -184,6 +184,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private readonly _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[] = [];
 	private _defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
+	private _inRepl = false;
 
 	metadata: NotebookDocumentMetadata = {};
 	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} };
@@ -288,6 +289,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._overwriteAlternativeVersionId(alternativeVersionId);
 			}
 		);
+	}
+
+	onOpenedInRepl() {
+		this._inRepl = true;
 	}
 
 	setCellCollapseDefault(collapseConfig: NotebookCellDefaultCollapseConfig | undefined) {
@@ -719,6 +724,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		if (count === 0 && cellDtos.length === 0) {
 			return;
+		}
+
+		// the final cell in a REPL is the input box and should not be replaced or appended beyond
+		if (this._inRepl) {
+			if (index >= this.cells.length) {
+				// we can just ajust the index to be the last cell to simplify appending
+				index = this.cells.length - 1;
+			}
+			if (index + count >= this.cells.length) {
+				throw new Error('Cannot replace the input cell in a REPL.');
+			}
 		}
 
 		const oldViewCells = this._cells.slice(0);
