@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { Emitter } from 'vs/base/common/event';
+import { CodeWindow, mainWindow } from './window.js';
+import { Emitter } from '../common/event.js';
 
 class WindowManager {
 

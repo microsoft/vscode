@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { stringDiff } from 'vs/base/common/diff/diff';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { IMirrorTextModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
-import { computeLinks } from 'vs/editor/common/languages/linkComputer';
-import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
-import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
-import { EditorWorkerHost } from './editorWorkerHost';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping } from '../diff/rangeMapping';
-import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
-import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
-import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
-import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
-import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSync/textModelSync.protocol';
-import { ICommonModel, WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
+import { stringDiff } from '../../../base/common/diff/diff.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IRequestHandler, IWorkerServer } from '../../../base/common/worker/simpleWorker.js';
+import { Position } from '../core/position.js';
+import { IRange, Range } from '../core/range.js';
+import { EndOfLineSequence, ITextModel } from '../model.js';
+import { IMirrorTextModel, IModelChangedEvent } from '../model/mirrorTextModel.js';
+import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from '../languages.js';
+import { computeLinks } from '../languages/linkComputer.js';
+import { BasicInplaceReplace } from '../languages/supports/inplaceReplaceSupport.js';
+import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from './editorWorker.js';
+import { createMonacoBaseAPI } from './editorBaseApi.js';
+import { EditorWorkerHost } from './editorWorkerHost.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
+import { DiffComputer, IChange } from '../diff/legacyLinesDiffComputer.js';
+import { ILinesDiffComputer, ILinesDiffComputerOptions } from '../diff/linesDiffComputer.js';
+import { DetailedLineRangeMapping } from '../diff/rangeMapping.js';
+import { linesDiffComputers } from '../diff/linesDiffComputers.js';
+import { createProxyObject, getAllMethodNames } from '../../../base/common/objects.js';
+import { IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { AppResourcePath, FileAccess } from '../../../base/common/network.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
+import { computeDefaultDocumentColors } from '../languages/defaultDocumentColorsComputer.js';
+import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from './findSectionHeaders.js';
+import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSync/textModelSync.protocol.js';
+import { ICommonModel, WorkerTextModelSyncServer } from './textModelSync/textModelSync.impl.js';
 
 // ESM-comment-begin
-const isESM = false;
+// const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
-// const isESM = true;
+const isESM = true;
 // ESM-uncomment-end
 
 export interface IMirrorModel extends IMirrorTextModel {

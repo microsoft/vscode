@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/processExplorer';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { localize } from 'vs/nls';
-import { $, append, createStyleSheet } from 'vs/base/browser/dom';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ProcessItem } from 'vs/base/common/processes';
-import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { mainWindow } from 'vs/base/browser/window';
+import './media/processExplorer.css';
+import '../../../base/browser/ui/codicons/codiconStyles.js'; // make sure codicon css is loaded
+import { localize } from '../../../nls.js';
+import { $, append, createStyleSheet } from '../../../base/browser/dom.js';
+import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { DataTree } from '../../../base/browser/ui/tree/dataTree.js';
+import { IDataSource, ITreeNode, ITreeRenderer } from '../../../base/browser/ui/tree/tree.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { ProcessItem } from '../../../base/common/processes.js';
+import { IContextMenuItem } from '../../../base/parts/contextmenu/common/contextmenu.js';
+import { popup } from '../../../base/parts/contextmenu/electron-sandbox/contextmenu.js';
+import { ipcRenderer } from '../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { IRemoteDiagnosticError, isRemoteDiagnosticError } from '../../../platform/diagnostics/common/diagnostics.js';
+import { ByteSize } from '../../../platform/files/common/files.js';
+import { ElectronIPCMainProcessService } from '../../../platform/ipc/electron-sandbox/mainProcessService.js';
+import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from '../../../platform/issue/common/issue.js';
+import { INativeHostService } from '../../../platform/native/common/native.js';
+import { NativeHostService } from '../../../platform/native/common/nativeHostService.js';
+import { getIconsStyleSheet } from '../../../platform/theme/browser/iconsStyleSheet.js';
+import { applyZoom, zoomIn, zoomOut } from '../../../platform/window/electron-sandbox/window.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ILanguagePackItem } from 'vs/platform/languagePacks/common/languagePacks';
-import { IActiveLanguagePackService, ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getCookieValue } from 'vs/base/browser/dom';
+import { localize } from '../../../../nls.js';
+import { Language, LANGUAGE_DEFAULT } from '../../../../base/common/platform.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILanguagePackItem } from '../../../../platform/languagePacks/common/languagePacks.js';
+import { IActiveLanguagePackService, ILocaleService } from '../common/locale.js';
+import { IHostService } from '../../host/browser/host.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { getCookieValue } from '../../../../base/browser/dom.js';
 
 const localeStorage = new class LocaleStorage {
 

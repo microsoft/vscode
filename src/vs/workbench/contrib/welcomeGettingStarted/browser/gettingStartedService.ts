@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { FileAccess } from 'vs/base/common/network';
-import { EXTENSION_INSTALL_DEP_PACK_CONTEXT, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
-import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedExtensionPoint';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { dirname } from 'vs/base/common/path';
-import { coalesce } from 'vs/base/common/arrays';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { localize, localize2 } from 'vs/nls';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../common/memento.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { EXTENSION_INSTALL_DEP_PACK_CONTEXT, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { walkthroughs } from '../common/gettingStartedContent.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILink, LinkedText, parseLinkedText } from '../../../../base/common/linkedText.js';
+import { walkthroughsExtensionPoint } from './gettingStartedExtensionPoint.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { dirname } from '../../../../base/common/path.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { checkGlobFileExists } from '../../../services/extensions/common/workspaceContains.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 

@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { doHash, hash, numberHash } from 'vs/base/common/hash';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRequestHandler, IWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import * as model from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { doHash, hash, numberHash } from '../../../../../base/common/hash.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
+import * as model from '../../../../../editor/common/model.js';
+import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from '../notebookCommon.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
 
 function bufferHash(buffer: VSBuffer): number {
 	let initialHashVal = numberHash(104579, 0);

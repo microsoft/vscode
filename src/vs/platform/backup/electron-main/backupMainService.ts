@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { isEqual } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IStateService } from 'vs/platform/state/node/state';
-import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { createEmptyWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
+import { isEqual } from '../../../base/common/extpath.js';
+import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { Promises, RimRafMode } from '../../../base/node/pfs.js';
+import { IBackupMainService } from './backup.js';
+import { ISerializedBackupWorkspaces, IEmptyWindowBackupInfo, isEmptyWindowBackupInfo, deserializeWorkspaceInfos, deserializeFolderInfos, ISerializedWorkspaceBackupInfo, ISerializedFolderBackupInfo, ISerializedEmptyWindowBackupInfo } from '../node/backup.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { IStateService } from '../../state/node/state.js';
+import { HotExitConfiguration, IFilesConfiguration } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from '../common/backup.js';
+import { isWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { createEmptyWorkspaceIdentifier } from '../../workspaces/node/workspaces.js';
 
 export class BackupMainService implements IBackupMainService {
 

@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import * as collections from 'vs/base/common/collections';
-import * as glob from 'vs/base/common/glob';
-import { untildify } from 'vs/base/common/labels';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { isEqual, basename, relativePath, isAbsolutePath } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import { assertIsDefined, isDefined } from 'vs/base/common/types';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ExcludeGlobPattern, getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { GlobPattern } from 'vs/workbench/services/search/common/searchExtTypes';
+import * as arrays from '../../../../base/common/arrays.js';
+import * as collections from '../../../../base/common/collections.js';
+import * as glob from '../../../../base/common/glob.js';
+import { untildify } from '../../../../base/common/labels.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import * as path from '../../../../base/common/path.js';
+import { isEqual, basename, relativePath, isAbsolutePath } from '../../../../base/common/resources.js';
+import * as strings from '../../../../base/common/strings.js';
+import { assertIsDefined, isDefined } from '../../../../base/common/types.js';
+import { URI, URI as uri } from '../../../../base/common/uri.js';
+import { isMultilineRegexSource } from '../../../../editor/common/model/textModelSearch.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { ExcludeGlobPattern, getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
+import { GlobPattern } from './searchExtTypes.js';
 
 /**
  * One folder to search and a glob expression that should be applied.

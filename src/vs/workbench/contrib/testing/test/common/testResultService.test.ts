@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { HydratedTestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
-import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestResultStorage, InMemoryResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { makeEmptyCounts } from 'vs/workbench/contrib/testing/common/testingStates';
-import { TestTestCollection, getInitializedMainTestCollection, testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { TestId } from '../../common/testId.js';
+import { TestProfileService } from '../../common/testProfileService.js';
+import { HydratedTestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from '../../common/testResult.js';
+import { TestResultService } from '../../common/testResultService.js';
+import { ITestResultStorage, InMemoryResultStorage } from '../../common/testResultStorage.js';
+import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from '../../common/testTypes.js';
+import { makeEmptyCounts } from '../../common/testingStates.js';
+import { TestTestCollection, getInitializedMainTestCollection, testStubs } from './testStubs.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<TestResultItem>) => [...it].map(t => t.item.label).sort();

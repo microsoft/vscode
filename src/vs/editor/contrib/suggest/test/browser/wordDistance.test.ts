@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { BaseEditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
-import { createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IPosition } from '../../../../common/core/position.js';
+import { IRange } from '../../../../common/core/range.js';
+import { DEFAULT_WORD_REGEXP } from '../../../../common/core/wordHelper.js';
+import * as languages from '../../../../common/languages.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { BaseEditorSimpleWorker } from '../../../../common/services/editorSimpleWorker.js';
+import { EditorWorkerService } from '../../../../browser/services/editorWorkerService.js';
+import { IModelService } from '../../../../common/services/model.js';
+import { ITextResourceConfigurationService } from '../../../../common/services/textResourceConfiguration.js';
+import { CompletionItem } from '../../browser/suggest.js';
+import { WordDistance } from '../../browser/wordDistance.js';
+import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { instantiateTextModel } from '../../../../test/common/testTextModel.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('suggest, word distance', function () {
 

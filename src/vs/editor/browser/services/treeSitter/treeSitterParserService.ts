@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from 'vs/base/common/network';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from 'vs/editor/common/services/treeSitterParserService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IModelContentChange } from 'vs/editor/common/textModelEvents';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { setTimeout0 } from 'vs/base/common/platform';
-import { importAMDNodeModule } from 'vs/amdX';
-import { Emitter, Event } from 'vs/base/common/event';
-import { CancellationToken, cancelOnDispose } from 'vs/base/common/cancellation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { canASAR } from 'vs/base/common/amd';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { PromiseResult } from 'vs/base/common/observableInternal/promise';
+import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../common/services/treeSitterParserService.js';
+import { IModelService } from '../../../common/services/model.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ITextModel } from '../../../common/model.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IModelContentChange } from '../../../common/textModelEvents.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { setTimeout0 } from '../../../../base/common/platform.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { canASAR } from '../../../../base/common/amd.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { PromiseResult } from '../../../../base/common/observableInternal/promise.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
