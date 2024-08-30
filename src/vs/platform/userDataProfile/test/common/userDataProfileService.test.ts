@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import product from 'vs/platform/product/common/product';
-import { InMemoryUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { FileService } from '../../../files/common/fileService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { AbstractNativeEnvironmentService } from '../../../environment/common/environmentService.js';
+import product from '../../../product/common/product.js';
+import { InMemoryUserDataProfilesService, UserDataProfilesService } from '../../common/userDataProfile.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 

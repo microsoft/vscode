@@ -5,33 +5,33 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { isDefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from 'vs/workbench/api/common/extHostTestItem';
-import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { FileCoverage, TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
-import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
-import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
-import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { createSingleCallFunction } from '../../../base/common/functional.js';
+import { hash } from '../../../base/common/hash.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { isDefined } from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IPosition } from '../../../editor/common/core/position.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from './extHost.protocol.js';
+import { IExtHostCommands } from './extHostCommands.js';
+import { IExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from './extHostTestItem.js';
+import * as Convert from './extHostTypeConverters.js';
+import { FileCoverage, TestRunProfileKind, TestRunRequest } from './extHostTypes.js';
+import { TestCommandId } from '../../contrib/testing/common/constants.js';
+import { TestId, TestPosition } from '../../contrib/testing/common/testId.js';
+import { InvalidTestItemError } from '../../contrib/testing/common/testItemCollection.js';
+import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from '../../contrib/testing/common/testTypes.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {

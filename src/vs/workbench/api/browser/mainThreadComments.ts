@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ICommentController, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
-import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { localize } from 'vs/nls';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { Schemas } from 'vs/base/common/network';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { MarshalledCommentThread } from 'vs/workbench/common/comments';
-import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IRange, Range } from '../../../editor/common/core/range.js';
+import * as languages from '../../../editor/common/languages.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ICommentController, ICommentService } from '../../contrib/comments/browser/commentService.js';
+import { CommentsPanel } from '../../contrib/comments/browser/commentsView.js';
+import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol.js';
+import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from '../../contrib/comments/browser/commentsTreeViewer.js';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewDescriptorService } from '../../common/views.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { ViewPaneContainer } from '../../browser/parts/views/viewPaneContainer.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
+import { localize } from '../../../nls.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
+import { MarshalledCommentThread } from '../../common/comments.js';
+import { revealCommentThread } from '../../contrib/comments/browser/commentsController.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;

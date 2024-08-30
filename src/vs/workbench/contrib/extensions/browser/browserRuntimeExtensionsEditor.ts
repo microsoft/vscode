@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
-import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/common/reportExtensionIssueAction';
+import { Action } from '../../../../base/common/actions.js';
+import { IExtensionHostProfile } from '../../../services/extensions/common/extensions.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from './abstractRuntimeExtensionsEditor.js';
+import { ReportExtensionIssueAction } from '../common/reportExtensionIssueAction.js';
 
 export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 

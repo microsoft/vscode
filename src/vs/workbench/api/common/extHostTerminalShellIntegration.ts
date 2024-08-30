@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { Emitter, type Event } from 'vs/base/common/event';
-import { URI, type UriComponents } from 'vs/base/common/uri';
-import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from 'vs/base/common/async';
+import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from './extHost.protocol.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { IExtHostTerminalService } from './extHostTerminalService.js';
+import { Emitter, type Event } from '../../../base/common/event.js';
+import { URI, type UriComponents } from '../../../base/common/uri.js';
+import { AsyncIterableObject, Barrier, type AsyncIterableEmitter } from '../../../base/common/async.js';
 
 export interface IExtHostTerminalShellIntegration extends ExtHostTerminalShellIntegrationShape {
 	readonly _serviceBrand: undefined;

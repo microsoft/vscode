@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
-import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from 'vs/platform/quickinput/browser/quickInput';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { mainWindow } from 'vs/base/browser/window';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import 'vs/platform/quickinput/browser/quickInputActions';
+import * as dom from '../../../base/browser/dom.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Button } from '../../../base/browser/ui/button/button.js';
+import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
+import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
+import Severity from '../../../base/common/severity.js';
+import { isString } from '../../../base/common/types.js';
+import { localize } from '../../../nls.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from '../common/quickInput.js';
+import { QuickInputBox } from './quickInputBox.js';
+import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from './quickInput.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { QuickInputTree } from './quickInputTree.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import './quickInputActions.js';
 
 const $ = dom.$;
 

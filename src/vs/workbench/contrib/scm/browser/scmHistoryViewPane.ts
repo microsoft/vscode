@@ -3,60 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { Event } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
-import { $, append } from 'vs/base/browser/dom';
-import { IHoverOptions, IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
-import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { fromNow } from 'vs/base/common/date';
-import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, IObservable, ISettableObservable, observableValue } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenEvent, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ColorIdentifier, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder } from 'vs/workbench/contrib/scm/browser/scmHistory';
-import { RepositoryActionRunner } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { collectContextMenuActions, connectPrimaryMenu, getActionViewItemProvider, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository, isSCMViewService } from 'vs/workbench/contrib/scm/browser/util';
-import { ISCMHistoryItem, ISCMHistoryItemGroup, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from 'vs/workbench/contrib/scm/common/history';
-import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IMenuService, MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Iterable } from 'vs/base/common/iterator';
-import { Sequencer, Throttler } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
-import { tail } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { ContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewPane';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import './media/scm.css';
+import { Event } from '../../../../base/common/event.js';
+import * as platform from '../../../../base/common/platform.js';
+import { $, append } from '../../../../base/browser/dom.js';
+import { IHoverOptions, IManagedHover, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, autorunWithStore, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ColorIdentifier, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IViewPaneOptions, ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder } from './scmHistory.js';
+import { RepositoryActionRunner } from './scmRepositoryRenderer.js';
+import { collectContextMenuActions, connectPrimaryMenu, getActionViewItemProvider, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository, isSCMViewService } from './util.js';
+import { ISCMHistoryItem, ISCMHistoryItemGroup, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from '../common/scm.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { Sequencer, Throttler } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
+import { tail } from '../../../../base/common/arrays.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ContextKeys } from './scmViewPane.js';
+import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 
+registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
@@ -87,6 +88,59 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 		const repository = provider ? scmService.getRepository(provider.id) : undefined;
 
 		view.refresh(repository);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.scm.viewChanges',
+			title: localize('viewChanges', "View Changes"),
+			f1: false,
+			menu: [
+				{
+					id: MenuId.SCMChangesContext,
+					group: '0_view',
+					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true)
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, provider: ISCMProvider, ...historyItems: ISCMHistoryItem[]) {
+		const commandService = accessor.get(ICommandService);
+
+		if (!provider || historyItems.length === 0) {
+			return;
+		}
+
+		const historyItem = historyItems[0];
+		const historyItemLast = historyItems[historyItems.length - 1];
+		const historyProvider = provider.historyProvider.get();
+
+		if (historyItems.length > 1) {
+			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor2([historyItem.id, historyItemLast.id]);
+			if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
+				return;
+			}
+		}
+
+		const historyItemParentId = historyItemLast.parentIds.length > 0 ? historyItemLast.parentIds[0] : undefined;
+		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+
+		if (!historyItemChanges?.length) {
+			return;
+		}
+
+		const title = historyItems.length === 1 ?
+			`${historyItems[0].displayId ?? historyItems[0].id} - ${historyItems[0].message}` :
+			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItemLast.displayId ?? historyItemLast.id, historyItem.displayId ?? historyItem.id);
+
+		const rootUri = provider.rootUri;
+		const path = rootUri ? rootUri.path : provider.label;
+		const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
+
+		commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 	}
 });
 
@@ -274,6 +328,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const currentHistoryItemGroup = element.repository.provider.historyProvider.get()?.currentHistoryItemGroup?.get();
 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		markdown.appendMarkdown(`$(git-commit) \`${historyItem.displayId ?? historyItem.id}\`\n\n`);
 
 		if (historyItem.author) {
 			markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
@@ -439,6 +494,7 @@ class HistoryItemActionRunner extends ActionRunner {
 					id: h.historyItemViewModel.historyItem.id,
 					parentIds: h.historyItemViewModel.historyItem.parentIds,
 					message: h.historyItemViewModel.historyItem.message,
+					displayId: h.historyItemViewModel.historyItem.displayId,
 					author: h.historyItemViewModel.historyItem.author,
 					icon: h.historyItemViewModel.historyItem.icon,
 					timestamp: h.historyItemViewModel.historyItem.timestamp,
@@ -449,6 +505,7 @@ class HistoryItemActionRunner extends ActionRunner {
 				id: context.historyItemViewModel.historyItem.id,
 				parentIds: context.historyItemViewModel.historyItem.parentIds,
 				message: context.historyItemViewModel.historyItem.message,
+				displayId: context.historyItemViewModel.historyItem.displayId,
 				author: context.historyItemViewModel.historyItem.author,
 				icon: context.historyItemViewModel.historyItem.icon,
 				timestamp: context.historyItemViewModel.historyItem.timestamp,
@@ -832,7 +889,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			const historyProvider = e.element.repository.provider.historyProvider.get();
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 			if (historyItemChanges) {
-				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
+				const title = `${historyItem.displayId ?? historyItem.id} - ${historyItem.message}`;
 
 				const rootUri = e.element.repository.provider.rootUri;
 				const path = rootUri ? rootUri.path : e.element.repository.provider.label;

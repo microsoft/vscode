@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/path';
-import * as process from 'vs/base/common/process';
-import * as types from 'vs/base/common/types';
-import * as objects from 'vs/base/common/objects';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { localize } from 'vs/nls';
-import { URI as uri } from 'vs/base/common/uri';
-import { IConfigurationResolverService, VariableError, VariableKind } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { replaceAsync } from 'vs/base/common/strings';
+import * as paths from '../../../../base/common/path.js';
+import * as process from '../../../../base/common/process.js';
+import * as types from '../../../../base/common/types.js';
+import * as objects from '../../../../base/common/objects.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from '../../../../base/common/platform.js';
+import { normalizeDriveLetter } from '../../../../base/common/labels.js';
+import { localize } from '../../../../nls.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { IConfigurationResolverService, VariableError, VariableKind } from './configurationResolver.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { replaceAsync } from '../../../../base/common/strings.js';
 
 interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;

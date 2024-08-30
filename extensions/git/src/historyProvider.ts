@@ -173,6 +173,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					message: emojify(subject),
 					author: commit.authorName,
 					icon: new ThemeIcon('git-commit'),
+					displayId: commit.hash.substring(0, 8),
 					timestamp: commit.authorDate?.getTime(),
 					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
 					labels: labels.length !== 0 ? labels : undefined

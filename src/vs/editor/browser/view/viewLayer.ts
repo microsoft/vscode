@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNode.js';
+import { createTrustedTypesPolicy } from '../../../base/browser/trustedTypes.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
+import { StringBuilder } from '../../common/core/stringBuilder.js';
+import * as viewEvents from '../../common/viewEvents.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 
 /**
  * Represents a visible line

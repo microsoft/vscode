@@ -21,7 +21,7 @@ const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
-const { isESM } = require('./lib/esm');
+const { isAMD } = require('./lib/amd');
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -31,7 +31,7 @@ const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-const vscodeWebResourceIncludes = isESM() ? [
+const vscodeWebResourceIncludes = !isAMD() ? [
 
 	// NLS
 	'out-build/nls.messages.js',
@@ -96,7 +96,7 @@ const vscodeWebResources = [
 
 const buildfile = require('./buildfile');
 
-const vscodeWebEntryPoints = isESM() ? [
+const vscodeWebEntryPoints = !isAMD() ? [
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,

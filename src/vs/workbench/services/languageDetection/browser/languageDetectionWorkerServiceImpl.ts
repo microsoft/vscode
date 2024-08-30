@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionStatsClassification, LanguageDetectionStatsId } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { URI } from 'vs/base/common/uri';
-import { isWeb } from 'vs/base/common/platform';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { LRUCache } from 'vs/base/common/map';
-import { ILogService } from 'vs/platform/log/common/log';
-import { canASAR } from 'vs/base/common/amd';
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { WorkerTextModelSyncClient } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
-import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorker.protocol';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionStatsClassification, LanguageDetectionStatsId } from '../common/languageDetectionWorkerService.js';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas } from '../../../../base/common/network.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { IWorkerClient } from '../../../../base/common/worker/simpleWorker.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IDiagnosticsService } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { canASAR } from '../../../../base/common/amd.js';
+import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
+import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from './languageDetectionWorker.protocol.js';
 
 const TOP_LANG_COUNTS = 12;
 
