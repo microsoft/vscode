@@ -16,9 +16,10 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -307,18 +308,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		const filteredMetadata: { [key: string]: any } = {};
-		const transientCellMetadata = this.transientOptions.transientCellMetadata;
-
-		const keys = new Set([...Object.keys(this.metadata)]);
-		for (const key of keys) {
-			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
-			) {
-				filteredMetadata[key] = this.metadata[key as keyof NotebookCellMetadata];
-			}
-		}
-
-		return filteredMetadata;
+		return getFormattedMetadataJSON(this.transientOptions.transientCellMetadata, this.metadata, this.language);
 	}
 
 	getTextLength(): number {
@@ -509,4 +499,35 @@ function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata
 	} else {
 		return newMetadata.runStartTimeAdjustment;
 	}
+}
+
+
+export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string) {
+	let filteredMetadata: { [key: string]: any } = {};
+
+	if (transientCellMetadata) {
+		const keys = new Set([...Object.keys(metadata)]);
+		for (const key of keys) {
+			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
+			) {
+				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+			}
+		}
+	} else {
+		filteredMetadata = metadata;
+	}
+
+	const obj = {
+		language,
+		...filteredMetadata
+	};
+	// Give preference to the language we have been given.
+	// Metadata can contain `language` due to round-tripping of cell metadata.
+	// I.e. we add it here, and then from SCM when we revert the cell, we get this same metadata back with the `language` property.
+	if (language) {
+		obj.language = language;
+	}
+	const metadataSource = toFormattedString(obj, {});
+
+	return metadataSource;
 }
