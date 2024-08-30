@@ -860,6 +860,7 @@ registerAction2(class extends Action2 {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const newOrientation = (editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		editorGroupService.setGroupOrientation(newOrientation);
+		editorGroupService.activeGroup.focus();
 	}
 });
 
