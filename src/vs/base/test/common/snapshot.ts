@@ -63,7 +63,7 @@ export class SnapshotContext {
 		try {
 			expected = await __readFileInTests(fpath);
 		} catch {
-			console.info(`Creating new snapshot in: ${fpath}`);
+			// console.info(`Creating new snapshot in: ${fpath}`);
 			await __mkdirPInTests(this.snapshotsDir.fsPath);
 			await __writeFileInTests(fpath, actual);
 			return;
