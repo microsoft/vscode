@@ -89,7 +89,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
 	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'capabilities'> | IDetachedTerminalInstance,
+		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'shellLaunchConfig'> | IDetachedTerminalInstance,
 		processManager: ITerminalProcessManager | ITerminalProcessInfo | undefined,
 		widgetManager: TerminalWidgetManager | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -110,11 +110,16 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		// Don't show is the terminal was launched by an extension or a feature like debug
+		if ('shellLaunchConfig' in this._instance && (this._instance.shellLaunchConfig.isExtensionOwnedTerminal || this._instance.shellLaunchConfig.isFeatureTerminal)) {
+			return;
+		}
+		// Don't show if disabled
 		if (this._storageService.getBoolean(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION, false)) {
 			return;
 		}
+		// Only show for the first terminal
 		if (this._terminalGroupService.instances.length + this._terminalEditorService.instances.length !== 1) {
-			// only show for the first terminal
 			return;
 		}
 		this._xterm = xterm;
