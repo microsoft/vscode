@@ -17,7 +17,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+		provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: Progress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 	}
 
 	export namespace workspace {
