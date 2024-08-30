@@ -582,9 +582,9 @@ export class LiveStrategy extends EditModeStrategy {
 
 								data.lensActionsViewZoneIds?.forEach(viewZoneAccessor.removeZone);
 								data.lensActionsViewZoneIds = undefined;
-								lensActions?.dispose();
 							});
 
+							lensActions?.dispose();
 							overlay?.dispose();
 						};
 

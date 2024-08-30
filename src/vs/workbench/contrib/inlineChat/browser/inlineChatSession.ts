@@ -263,7 +263,7 @@ export class StashedSession {
 		// keep session for a little bit, only release when user continues to work (type, move cursor, etc.)
 		this._session = session;
 		this._ctxHasStashedSession.set(true);
-		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel))(() => {
+		this._listener = Event.once(Event.any(editor.onDidChangeCursorSelection, editor.onDidChangeModelContent, editor.onDidChangeModel, editor.onDidBlurEditorWidget))(() => {
 			this._session = undefined;
 			this._sessionService.releaseSession(session);
 			this._ctxHasStashedSession.reset();

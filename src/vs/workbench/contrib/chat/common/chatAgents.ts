@@ -262,6 +262,7 @@ export class ChatAgentService implements IChatAgentService {
 		};
 		const entry = { data };
 		this._agents.set(id, entry);
+		this._onDidChangeAgents.fire(undefined);
 		return toDisposable(() => {
 			this._agents.delete(id);
 			if (data.isDefault) {

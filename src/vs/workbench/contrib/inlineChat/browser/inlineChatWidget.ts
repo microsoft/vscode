@@ -96,9 +96,9 @@ export class InlineChatWidget {
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
-				h('div.actions.button-style.hidden@toolbar1'),
+				h('div.actions.hidden@toolbar1'),
 				h('div.label.status.hidden@statusLabel'),
-				h('div.actions.button-style.hidden@toolbar2'),
+				h('div.actions.secondary.hidden@toolbar2'),
 			]),
 		]
 	);

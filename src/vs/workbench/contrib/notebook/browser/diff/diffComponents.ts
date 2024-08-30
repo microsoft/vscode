@@ -1074,7 +1074,7 @@ export class DeletedElement extends SingleSideDiffElement {
 
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
-			if (state.editorHeight || state.outerWidth) {
+			if ((state.editorHeight || state.outerWidth) && this._editor) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -1254,7 +1254,7 @@ export class InsertElement extends SingleSideDiffElement {
 
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
-			if (state.editorHeight || state.outerWidth) {
+			if ((state.editorHeight || state.outerWidth) && this._editor) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor.layout({
 					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -1644,7 +1644,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 			{
 				updateInfoRendering: () => renderSourceEditor(),
 				checkIfModified: (cell) => {
-					return cell.modified?.textModel.getValue() !== cell.original?.textModel.getValue() ? { reason: undefined } : false;
+					return cell.modified?.textModel.getTextBufferHash() !== cell.original?.textModel.getTextBufferHash() ? { reason: undefined } : false;
 				},
 				getFoldingState: (cell) => cell.cellFoldingState,
 				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
@@ -1660,7 +1660,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.templateData.inputToolbarContainer);
 		this._register(scopedContextKeyService);
 		const inputChanged = NOTEBOOK_DIFF_CELL_INPUT.bindTo(scopedContextKeyService);
-		inputChanged.set(this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue());
+		inputChanged.set(this.cell.modified.textModel.getTextBufferHash() !== this.cell.original.textModel.getTextBufferHash());
 
 		const ignoreWhitespace = NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE.bindTo(scopedContextKeyService);
 		const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');
@@ -1675,7 +1675,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const refreshToolbar = () => {
 			const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');
 			ignoreWhitespace.set(ignore);
-			const hasChanges = this.cell.modified.textModel.getValue() !== this.cell.original.textModel.getValue();
+			const hasChanges = this.cell.modified.textModel.getTextBufferHash() !== this.cell.original.textModel.getTextBufferHash();
 			inputChanged.set(hasChanges);
 
 			if (hasChanges) {

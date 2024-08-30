@@ -516,7 +516,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		onDidChangeCursorPosition();
 	}
 
-	private initAttachedContext(container: HTMLElement) {
+	private initAttachedContext(container: HTMLElement, isLayout = false) {
 		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
@@ -578,7 +578,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.attachedContextDisposables.add(disp);
 		});
 
-		if (oldHeight !== container.offsetHeight) {
+		if (oldHeight !== container.offsetHeight && !isLayout) {
 			this._onDidChangeHeight.fire();
 		}
 	}
@@ -609,7 +609,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
-		this.initAttachedContext(this.attachedContextContainer);
+		this.initAttachedContext(this.attachedContextContainer, true);
 
 		const data = this.getLayoutData();
 
