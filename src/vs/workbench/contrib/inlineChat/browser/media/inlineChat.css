@@ -171,6 +171,16 @@
 	gap: 4px;
 }
 
+.monaco-workbench .inline-chat .status .actions.secondary {
+	display: none;
+}
+
+.monaco-workbench .inline-chat .status:hover .actions.secondary,
+.monaco-workbench .inline-chat:focus .status .actions.secondary,
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+	display: inherit;
+}
+
 .monaco-workbench .inline-chat-diff-overlay {
 
 	.monaco-button {

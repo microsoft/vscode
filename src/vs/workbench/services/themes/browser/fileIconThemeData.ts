@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { mainWindow } from 'vs/base/browser/window';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import * as paths from '../../../../base/common/path.js';
+import * as resources from '../../../../base/common/resources.js';
+import * as Json from '../../../../base/common/json.js';
+import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from '../common/workbenchThemeService.js';
+import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
+import { asCSSUrl } from '../../../../base/browser/dom.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 

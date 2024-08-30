@@ -5,21 +5,21 @@
 
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { GroupIdentifier, IEditorCloseEvent, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { GroupIdentifier, IEditorCloseEvent, IEditorWillMoveEvent } from '../../../../common/editor.js';
+import { NotebookEditorWidget } from '../../browser/notebookEditorWidget.js';
+import { NotebookEditorWidgetService } from '../../browser/services/notebookEditorServiceImpl.js';
+import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
+import { setupInstantiationService } from './testNotebookEditor.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 class TestNotebookEditorWidgetService extends NotebookEditorWidgetService {
 	constructor(
@@ -86,7 +86,7 @@ suite('NotebookEditorWidgetService', () => {
 			override groups = [editorGroup1, editorGroup2];
 			override getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 			override getPart(container: unknown): IEditorPart;
-			override getPart(container: unknown): import("vs/workbench/services/editor/common/editorGroupsService").IEditorPart {
+			override getPart(container: unknown): import("../../../../services/editor/common/editorGroupsService.js").IEditorPart {
 				return { windowId: 0 } as any;
 			}
 		});

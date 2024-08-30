@@ -7,20 +7,21 @@
 'use strict';
 
 // ESM-comment-begin
-const path = require('path');
-const fs = require('fs');
-const Module = require('module');
+// const path = require('path');
+// const fs = require('fs');
+// const Module = require('module');
 // ESM-comment-end
 // ESM-uncomment-begin
-// import * as path from 'path';
-// import * as fs from 'fs';
-// import { fileURLToPath } from 'url';
-// import { createRequire } from 'node:module';
-//
-// const require = createRequire(import.meta.url);
-// /** @type any */
-// const module = { exports: {} };
-// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import * as path from 'path';
+import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'node:module';
+
+/** @ts-ignore */
+const require = createRequire(import.meta.url);
+/** @type any */
+const module = { exports: {} };
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -84,29 +85,29 @@ module.exports.devInjectNodeModuleLookupPath = function (injectPath) {
 
 	const Module = require('node:module');
 	// ESM-uncomment-begin
-	// // register a loader hook
-	// Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
+	// register a loader hook
+	Module.register('./bootstrap-import.js', { parentURL: import.meta.url, data: injectPath });
 	// ESM-uncomment-end
 	// ESM-comment-begin
-	const nodeModulesPath = path.join(__dirname, '../node_modules');
-
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
-				}
-			}
-		}
-
-		return paths;
-	};
+	// const nodeModulesPath = path.join(__dirname, '../node_modules');
+	//
+	// // @ts-ignore
+	// const originalResolveLookupPaths = Module._resolveLookupPaths;
+	//
+	// // @ts-ignore
+	// Module._resolveLookupPaths = function (moduleName, parent) {
+	// const paths = originalResolveLookupPaths(moduleName, parent);
+	// if (Array.isArray(paths)) {
+	// for (let i = 0, len = paths.length; i < len; i++) {
+	// if (paths[i] === nodeModulesPath) {
+	// paths.splice(i, 0, injectPath);
+	// break;
+	// }
+	// }
+	// }
+	//
+	// return paths;
+	// };
 	// ESM-comment-end
 };
 
@@ -208,26 +209,26 @@ module.exports.configurePortable = function (product) {
  */
 module.exports.enableASARSupport = function () {
 	// ESM-comment-begin
-	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-	const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
-
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (request, parent) {
-		const paths = originalResolveLookupPaths(request, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-					break;
-				}
-			}
-		}
-
-		return paths;
-	};
+	// const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+	// const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
+	//
+	// // @ts-ignore
+	// const originalResolveLookupPaths = Module._resolveLookupPaths;
+	//
+	// // @ts-ignore
+	// Module._resolveLookupPaths = function (request, parent) {
+	// const paths = originalResolveLookupPaths(request, parent);
+	// if (Array.isArray(paths)) {
+	// for (let i = 0, len = paths.length; i < len; i++) {
+	// if (paths[i] === NODE_MODULES_PATH) {
+	// paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+	// break;
+	// }
+	// }
+	// }
+	//
+	// return paths;
+	// };
 	// ESM-comment-end
 };
 
@@ -270,9 +271,9 @@ module.exports.fileUriFromPath = function (path, config) {
 //#endregion
 
 // ESM-uncomment-begin
-// export const devInjectNodeModuleLookupPath = module.exports.devInjectNodeModuleLookupPath;
-// export const removeGlobalNodeJsModuleLookupPaths = module.exports.removeGlobalNodeJsModuleLookupPaths;
-// export const configurePortable = module.exports.configurePortable;
-// export const enableASARSupport = module.exports.enableASARSupport;
-// export const fileUriFromPath = module.exports.fileUriFromPath;
+export const devInjectNodeModuleLookupPath = module.exports.devInjectNodeModuleLookupPath;
+export const removeGlobalNodeJsModuleLookupPaths = module.exports.removeGlobalNodeJsModuleLookupPaths;
+export const configurePortable = module.exports.configurePortable;
+export const enableASARSupport = module.exports.enableASARSupport;
+export const fileUriFromPath = module.exports.fileUriFromPath;
 // ESM-uncomment-end

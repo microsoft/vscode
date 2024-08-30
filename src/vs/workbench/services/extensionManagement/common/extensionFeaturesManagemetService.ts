@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { Extensions, IExtensionFeatureAccessData, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Mutable, isBoolean } from 'vs/base/common/types';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { localize } from 'vs/nls';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IStorageChangeEvent } from 'vs/base/parts/storage/common/storage';
-import { distinct } from 'vs/base/common/arrays';
-import { equals } from 'vs/base/common/objects';
+import { Emitter } from '../../../../base/common/event.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { Extensions, IExtensionFeatureAccessData, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from './extensionFeatures.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Mutable, isBoolean } from '../../../../base/common/types.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { localize } from '../../../../nls.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IStorageChangeEvent } from '../../../../base/parts/storage/common/storage.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { equals } from '../../../../base/common/objects.js';
 
 interface IExtensionFeatureState {
 	disabled?: boolean;

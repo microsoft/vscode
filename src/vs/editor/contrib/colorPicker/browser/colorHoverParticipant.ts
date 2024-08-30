@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color, RGBA } from 'vs/base/common/color';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
-import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/browser/color';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { Dimension } from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
+import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { IModelDecoration, ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
+import { DocumentColorProvider, IColorInformation } from '../../../common/languages.js';
+import { getColorPresentations, getColors } from './color.js';
+import { ColorDetector } from './colorDetector.js';
+import { ColorPickerModel } from './colorPickerModel.js';
+import { ColorPickerWidget } from './colorPickerWidget.js';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../hover/browser/hoverTypes.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
 
 export class ColorHover implements IHoverPart {
 

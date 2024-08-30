@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { create } from './outputLinkComputer';
-import { bootstrapSimpleWorker } from 'vs/base/common/worker/simpleWorkerBootstrap';
+import { create } from './outputLinkComputer.js';
+import { bootstrapSimpleWorker } from '../../../../base/common/worker/simpleWorkerBootstrap.js';
 
 bootstrapSimpleWorker(create);

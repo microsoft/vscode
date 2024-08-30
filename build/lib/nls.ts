@@ -10,7 +10,7 @@ import * as File from 'vinyl';
 import * as sm from 'source-map';
 import * as path from 'path';
 import * as sort from 'gulp-sort';
-import { isESM } from './esm';
+import { isAMD } from './amd';
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
@@ -233,7 +233,7 @@ module _nls {
 			.map(n => <ts.ImportEqualsDeclaration>n)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
 			.filter(d => {
-				if (isESM()) {
+				if (!isAMD()) {
 					return (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`);
 				}
 				return (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'';
@@ -245,7 +245,7 @@ module _nls {
 			.map(n => <ts.ImportDeclaration>n)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
 			.filter(d => {
-				if (isESM()) {
+				if (!isAMD()) {
 					return d.moduleSpecifier.getText().endsWith(`/nls.js'`);
 				}
 				return d.moduleSpecifier.getText() === '\'vs/nls\'';

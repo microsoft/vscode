@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IStringDictionary } from 'vs/base/common/collections';
-import { localize } from 'vs/nls';
-import type { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import type { IStringDictionary } from '../../../../../base/common/collections.js';
+import { localize } from '../../../../../nls.js';
+import type { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum TerminalSuggestSettingId {
 	Enabled = 'terminal.integrated.suggest.enabled',

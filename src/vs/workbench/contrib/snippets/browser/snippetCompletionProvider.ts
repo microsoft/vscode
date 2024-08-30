@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare, compareSubstring } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel, Command } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { localize } from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { isPatternInWord } from 'vs/base/common/filters';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { compare, compareSubstring } from '../../../../base/common/strings.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel, Command } from '../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { SnippetParser } from '../../../../editor/contrib/snippet/browser/snippetParser.js';
+import { localize } from '../../../../nls.js';
+import { ISnippetsService } from './snippets.js';
+import { Snippet, SnippetSource } from './snippetsFile.js';
+import { isPatternInWord } from '../../../../base/common/filters.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IWordAtPosition } from '../../../../editor/common/core/wordHelper.js';
 
 
 const markSnippetAsUsed = '_snippet.markAsUsed';

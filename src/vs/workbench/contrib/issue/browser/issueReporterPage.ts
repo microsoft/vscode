@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escape } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
+import { escape } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
 
 const sendSystemInfoLabel = escape(localize('sendSystemInfo', "Include my system information"));
 const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my currently running processes"));

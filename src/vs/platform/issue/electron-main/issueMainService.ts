@@ -5,25 +5,25 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, Display, screen } from 'electron';
 import { arch, release, type } from 'os';
-import { raceTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { getNLSLanguage, getNLSMessages, localize } from 'vs/nls';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import product from 'vs/platform/product/common/product';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isESM } from 'vs/base/common/amd';
-import { ICSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
+import { raceTimeout } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from '../common/issue.js';
+import { ILogService } from '../../log/common/log.js';
+import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
+import product from '../../product/common/product.js';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { ICodeWindow, IWindowState } from '../../window/electron-main/window.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { isESM } from '../../../base/common/amd.js';
+import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;

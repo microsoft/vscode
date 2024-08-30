@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { DEBUG_SCHEME, IDebugService, IDebugSession } from './debug.js';
+import { Source } from './debugSource.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 
 /**
  * Debug URI format

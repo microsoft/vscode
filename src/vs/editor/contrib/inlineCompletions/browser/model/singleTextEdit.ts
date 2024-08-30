@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
-import { commonPrefixLength, getLeadingWhitespace } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/model/ghostText';
+import { IDiffChange, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { commonPrefixLength, getLeadingWhitespace } from '../../../../../base/common/strings.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { TextLength } from '../../../../common/core/textLength.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
+import { GhostText, GhostTextPart } from './ghostText.js';
 
 export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextModel, validModelRange?: Range): SingleTextEdit {
 	const modelRange = validModelRange ? edit.range.intersectRanges(validModelRange) : edit.range;
