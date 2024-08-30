@@ -388,9 +388,10 @@ function Send-Completions {
 			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
 				# Add `../ relative to the top completion
 				$firstCompletion = $completions.CompletionMatches[0]
-				if ($firstCompletion.CompletionText.StartsWith("..$([System.IO.Path]::DirectorySeparatorChar)")) {
-					if ($completionPrefix -match "(\.\.\$([System.IO.Path]::DirectorySeparatorChar))+") {
-						$parentDir = "$($matches[0])..$([System.IO.Path]::DirectorySeparatorChar)"
+				if ($firstCompletion.CompletionText -match "^\.\.[\/\\]") {
+					if ($completionPrefix -match "(\.\.[\/\\])+") {
+						$normalizedPrefix = $matches[0] -replace '[\\/]', [System.IO.Path]::DirectorySeparatorChar
+						$parentDir = "$($normalizedPrefix)..$([System.IO.Path]::DirectorySeparatorChar)"
 						$currentPath = Split-Path -Parent $firstCompletion.ToolTip
 						try {
 							$parentDirPath = Split-Path -Parent $currentPath
