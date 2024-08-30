@@ -117,6 +117,7 @@
 			}
 		}
 	</script>
+
 	<script>
 		function serializeSuite(suite) {
 			return {
@@ -194,7 +195,7 @@
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
 				const m = await new Promise((resolve, reject) => import(`../../../${out}/${file}.js`).then(resolve, err => {
-					console.log("BAD" + file + JSON.stringify(err, undefined, '\t'));
+					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
 					resolve({});
 				}));
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
@@ -219,9 +220,7 @@
 		}
 	</script>
 
-
 	<script type="text" id="bootstrap">
-
 		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
 
 		// load
@@ -240,7 +239,6 @@
 		});
 
 		_resolveTestRun();
-
 	</script>
 </body>
 
