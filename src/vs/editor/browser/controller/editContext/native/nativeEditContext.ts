@@ -118,7 +118,6 @@ export class NativeEditContext extends AbstractEditContext {
 			this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', e => {
-			console.log('textupdate');
 			if (this._compositionRange) {
 				const position = this._context.viewModel.getPrimaryCursorState().viewState.position;
 				this._compositionRange = this._compositionRange.setEndPosition(position.lineNumber, position.column);
@@ -173,13 +172,9 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _emitTypeEvent(e: { text: string; updateRangeStart: number; updateRangeEnd: number }) {
-		console.log('_emitTypeEvent');
 		if (!this._currentEditContextState) {
-			console.log('early return');
 			return;
 		}
-		console.log('e : ', e);
-		console.log('this._currentEditContextState : ', this._currentEditContextState);
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
 		if (e.updateRangeEnd > this._currentEditContextState.selectionEndOffset) {
@@ -202,7 +197,6 @@ export class NativeEditContext extends AbstractEditContext {
 			replaceNextCharCnt,
 			positionDelta: 0,
 		};
-		console.log('typeInput : ', typeInput);
 		this._onType(typeInput);
 	}
 
@@ -215,7 +209,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		console.log('prepareRender');
 		this._screenReaderSupport.prepareRender(ctx);
 		this._updateEditContext();
 		this._updateBounds();
@@ -247,14 +240,9 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _updateEditContext(): void {
-		console.log('_updateEditContext');
 		this._currentEditContextState = this._getEditContextState();
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, this._currentEditContextState.content);
 		this._editContext.updateSelection(this._currentEditContextState.selectionStartOffset, this._currentEditContextState.selectionEndOffset);
-		console.log('this._editContext.text : ', this._editContext.text);
-		console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
-		console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
-		console.log('this._currentEditContextState : ', this._currentEditContextState);
 	}
 
 	public setRenderingContext(renderingContext: RenderingContext): void {
@@ -280,8 +268,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _setHasFocus(newHasFocus: boolean): void {
-		console.log('_setHasFocus');
-		console.log('newHasFocus : ', newHasFocus);
 		if (this._hasFocus === newHasFocus) {
 			// no change
 			return;
