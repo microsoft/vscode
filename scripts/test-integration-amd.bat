@@ -29,7 +29,7 @@ echo Storing log files into '%VSCODELOGSDIR%'.
 
 echo.
 echo ### node.js integration tests
-call .\scripts\test-esm.bat --runGlob **\*.integrationTest.js %*
+call .\scripts\test-amd.bat --runGlob **\*.integrationTest.js %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 

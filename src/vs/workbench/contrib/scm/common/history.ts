@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorUtils';
-import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { IObservable } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IMenu } from '../../../../platform/actions/common/actions.js';
+import { ColorIdentifier } from '../../../../platform/theme/common/colorUtils.js';
+import { ISCMRepository } from './scm.js';
 
 export interface ISCMHistoryProviderMenus {
 	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
@@ -17,7 +17,10 @@ export interface ISCMHistoryProviderMenus {
 export interface ISCMHistoryProvider {
 	readonly currentHistoryItemGroupId: IObservable<string | undefined>;
 	readonly currentHistoryItemGroupName: IObservable<string | undefined>;
+	readonly currentHistoryItemGroupRevision: IObservable<string | undefined>;
 	readonly currentHistoryItemGroup: IObservable<ISCMHistoryItemGroup | undefined>;
+	readonly currentHistoryItemGroupRemoteId: IObservable<string | undefined>;
+	readonly currentHistoryItemGroupRemoteRevision: IObservable<string | undefined>;
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
@@ -83,8 +86,7 @@ export interface SCMHistoryItemViewModelTreeElement {
 
 export interface SCMHistoryItemLoadMoreTreeElement {
 	readonly repository: ISCMRepository;
-	readonly cursor: string;
-	readonly graphColumnCount: number;
+	readonly graphColumns: ISCMHistoryItemGraphNode[];
 	readonly type: 'historyItemLoadMore';
 }
 

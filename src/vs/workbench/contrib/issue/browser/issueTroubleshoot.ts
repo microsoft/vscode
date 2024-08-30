@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { INotificationHandle, INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { RemoteNameContext } from 'vs/workbench/common/contextkeys';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { localize, localize2 } from '../../../../nls.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchIssueService } from '../common/issue.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IExtensionBisectService } from '../../../services/extensionManagement/browser/extensionBisect.js';
+import { INotificationHandle, INotificationService, IPromptChoice, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ServicesAccessor, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../base/common/uri.js';
+import { RemoteNameContext } from '../../../common/contextkeys.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 const ITroubleshootIssueService = createDecorator<ITroubleshootIssueService>('ITroubleshootIssueService');
 

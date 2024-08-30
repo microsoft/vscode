@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AsyncIterableObject, DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionServiceImpl';
-import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/services/notebookExecutionStateServiceImpl';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata, NotebookExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { AsyncIterableObject, DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { insertCellAtIndex } from '../../browser/controller/cellOperations.js';
+import { NotebookExecutionService } from '../../browser/services/notebookExecutionServiceImpl.js';
+import { NotebookExecutionStateService } from '../../browser/services/notebookExecutionStateServiceImpl.js';
+import { NotebookKernelService } from '../../browser/services/notebookKernelServiceImpl.js';
+import { NotebookViewModel } from '../../browser/viewModel/notebookViewModelImpl.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata, NotebookExecutionState } from '../../common/notebookCommon.js';
+import { CellExecutionUpdateType, INotebookExecutionService } from '../../common/notebookExecutionService.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../common/notebookExecutionStateService.js';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from '../../common/notebookKernelService.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { setupInstantiationService, withTestNotebook as _withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookExecutionStateService', () => {
 

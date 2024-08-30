@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { transaction } from 'vs/base/common/observable';
-import { asyncTransaction } from 'vs/base/common/observableInternal/base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { inlineEditAcceptId, inlineEditVisible, showNextInlineEditActionId, showPreviousInlineEditActionId } from 'vs/editor/contrib/inlineEdits/browser/consts';
-import { InlineEditsController } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsController';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { transaction } from '../../../../base/common/observable.js';
+import { asyncTransaction } from '../../../../base/common/observableInternal/base.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { inlineEditAcceptId, inlineEditVisible, showNextInlineEditActionId, showPreviousInlineEditActionId } from './consts.js';
+import { InlineEditsController } from './inlineEditsController.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 
 function labelAndAlias(str: nls.ILocalizedString): { label: string; alias: string } {

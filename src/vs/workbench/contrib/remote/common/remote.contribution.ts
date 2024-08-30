@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
-import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { localize, localize2 } from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
-import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILabelService, ResourceLabelFormatting } from '../../../../platform/label/common/label.js';
+import { OperatingSystem, isWeb, OS } from '../../../../base/common/platform.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { firstOrDefault } from '../../../../base/common/arrays.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { PersistentConnection } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { IDownloadService } from '../../../../platform/download/common/download.js';
+import { DownloadServiceChannel } from '../../../../platform/download/common/downloadIpc.js';
+import { RemoteLoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
 
 export class LabelContribution implements IWorkbenchContribution {
 

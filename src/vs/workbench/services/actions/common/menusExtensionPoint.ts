@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import * as resources from 'vs/base/common/resources';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { index } from 'vs/base/common/arrays';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { platform } from 'vs/base/common/process';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
+import { localize } from '../../../../nls.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import * as resources from '../../../../base/common/resources.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from '../../../../platform/actions/common/actions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { index } from '../../../../base/common/arrays.js';
+import { isProposedApiEnabled } from '../../extensions/common/extensions.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from '../../extensionManagement/common/extensionFeatures.js';
+import { IExtensionManifest, IKeyBinding } from '../../../../platform/extensions/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { platform } from '../../../../base/common/process.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ApiProposalName } from '../../../../platform/extensions/common/extensionsApiProposals.js';
 
 interface IAPIMenu {
 	readonly key: string;

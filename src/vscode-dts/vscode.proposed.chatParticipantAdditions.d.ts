@@ -332,4 +332,8 @@ declare module 'vscode' {
 		 */
 		readonly name: string;
 	}
+
+	export interface ChatResultFeedback {
+		readonly unhelpfulReason?: string;
+	}
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { isESM } = require('../build/lib/esm');
+const { isAMD } = require('./lib/amd');
 
 /**
  * @param {string} name
  * @param {string[]=} exclude
- * @returns {import('../build/lib/bundle').IEntryPoint}
+ * @returns {import('./lib/bundle').IEntryPoint}
  */
 function createModuleDescription(name, exclude) {
 
@@ -71,7 +71,7 @@ exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/co
 exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker');
 
 exports.workbenchDesktop = function () {
-	return isESM() ? [
+	return !isAMD() ? [
 		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -90,7 +90,7 @@ exports.workbenchDesktop = function () {
 };
 
 exports.workbenchWeb = function () {
-	return isESM() ? [
+	return !isAMD() ? [
 		createModuleDescription('vs/workbench/workbench.web.main')
 	] : [
 		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),

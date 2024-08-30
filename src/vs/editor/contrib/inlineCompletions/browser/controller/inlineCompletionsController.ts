@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheetFromObservable } from 'vs/base/browser/domObservable';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { timeout } from 'vs/base/common/async';
-import { cancelOnDispose } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, constObservable, derived, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { ISettableObservable } from 'vs/base/common/observableInternal/base';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
-import { derivedObservableWithCache, mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
-import { isUndefined } from 'vs/base/common/types';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor, reactToChange, reactToChangeWithStore } from 'vs/editor/browser/observableCodeEditor';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
-import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
-import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { createStyleSheetFromObservable } from '../../../../../base/browser/domObservable.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, ITransaction, autorun, constObservable, derived, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { ISettableObservable } from '../../../../../base/common/observableInternal/base.js';
+import { derivedDisposable } from '../../../../../base/common/observableInternal/derived.js';
+import { derivedObservableWithCache, mapObservableArrayCached } from '../../../../../base/common/observableInternal/utils.js';
+import { isUndefined } from '../../../../../base/common/types.js';
+import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { observableCodeEditor, reactToChange, reactToChangeWithStore } from '../../../../browser/observableCodeEditor.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { CursorChangeReason } from '../../../../common/cursorEvents.js';
+import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { inlineSuggestCommitId } from './commandIds.js';
+import { GhostTextView } from '../view/ghostTextView.js';
+import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
+import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
+import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
+import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
+import { localize } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -105,7 +105,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
 
 	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) =>
-		store.add(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
+		store.add(this._instantiationService.createInstance(GhostTextView, this.editor, {
 			ghostText: ghostText,
 			minReservedLineCount: constObservable(0),
 			targetTextModel: this.model.map(v => v?.textModel),

@@ -1048,8 +1048,9 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(false), () => this.repository.config('local', key, value));
 	}
 
-	log(options?: LogOptions): Promise<Commit[]> {
-		return this.run(Operation.Log, () => this.repository.log(options));
+	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
+		const showProgress = !options || options.silent !== true;
+		return this.run(Operation.Log(showProgress), () => this.repository.log(options));
 	}
 
 	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
@@ -1834,7 +1835,7 @@ export class Repository implements Disposable {
 			return true;
 		}
 
-		const maybeRebased = await this.run(Operation.Log, async () => {
+		const maybeRebased = await this.run(Operation.Log(true), async () => {
 			try {
 				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {

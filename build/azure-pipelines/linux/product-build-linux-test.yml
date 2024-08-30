@@ -10,7 +10,7 @@ parameters:
   - name: PUBLISH_TASK_NAME
     type: string
     default: PublishPipelineArtifact@0
-  - name: VSCODE_BUILD_ESM
+  - name: VSCODE_BUILD_AMD
     type: boolean
     default: false
 
@@ -36,21 +36,21 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
-        - script: ./scripts/test-esm.sh --tfs "Unit Tests"
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+        - script: ./scripts/test-amd.sh --tfs "Unit Tests"
           env:
             DISPLAY: ":10"
-          displayName: Run unit tests (Electron) [ESM]
+          displayName: Run unit tests (Electron) [AMD]
           timeoutInMinutes: 15
-        - script: yarn test-node-esm
-          displayName: Run unit tests (node.js) [ESM]
+        - script: yarn test-node-amd
+          displayName: Run unit tests (node.js) [AMD]
           timeoutInMinutes: 15
-        - script: yarn test-browser-esm-no-install --browser chromium --tfs "Browser Unit Tests"
+        - script: yarn test-browser-amd-no-install --browser chromium --tfs "Browser Unit Tests"
           env:
             DEBUG: "*browser*"
-          displayName: Run unit tests (Browser, Chromium) [ESM]
+          displayName: Run unit tests (Browser, Chromium) [AMD]
           timeoutInMinutes: 15
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
         - script: ./scripts/test.sh --tfs "Unit Tests"
           env:
             DISPLAY: ":10"
@@ -67,19 +67,19 @@ steps:
 
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
-        - script: ./scripts/test-esm.sh --build --tfs "Unit Tests"
-          displayName: Run unit tests (Electron) [ESM]
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+        - script: ./scripts/test-amd.sh --build --tfs "Unit Tests"
+          displayName: Run unit tests (Electron) [AMD]
           timeoutInMinutes: 15
-        - script: yarn test-node-esm --build
-          displayName: Run unit tests (node.js) [ESM]
+        - script: yarn test-node-amd --build
+          displayName: Run unit tests (node.js) [AMD]
           timeoutInMinutes: 15
-        - script: yarn test-browser-esm-no-install --build --browser chromium --tfs "Browser Unit Tests"
+        - script: yarn test-browser-amd-no-install --build --browser chromium --tfs "Browser Unit Tests"
           env:
             DEBUG: "*browser*"
-          displayName: Run unit tests (Browser, Chromium) [ESM]
+          displayName: Run unit tests (Browser, Chromium) [AMD]
           timeoutInMinutes: 15
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
         - script: ./scripts/test.sh --build --tfs "Unit Tests"
           displayName: Run unit tests (Electron)
           timeoutInMinutes: 15
@@ -116,13 +116,13 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
-        - script: ./scripts/test-integration-esm.sh --tfs "Integration Tests"
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+        - script: ./scripts/test-integration-amd.sh --tfs "Integration Tests"
           env:
             DISPLAY: ":10"
-          displayName: Run integration tests (Electron) [ESM]
+          displayName: Run integration tests (Electron) [AMD]
           timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
         - script: ./scripts/test-integration.sh --tfs "Integration Tests"
           env:
             DISPLAY: ":10"
@@ -138,7 +138,7 @@ steps:
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
         - script: |
             # Figure out the full absolute path of the product we just built
             # including the remote server and configure the integration tests
@@ -148,12 +148,12 @@ steps:
             APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
             INTEGRATION_TEST_APP_NAME="$APP_NAME" \
             INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-            ./scripts/test-integration-esm.sh --build --tfs "Integration Tests"
+            ./scripts/test-integration-amd.sh --build --tfs "Integration Tests"
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-          displayName: Run integration tests (Electron) [ESM]
+          displayName: Run integration tests (Electron) [AMD]
           timeoutInMinutes: 20
-      - ${{ if eq(parameters.VSCODE_BUILD_ESM, false) }}:
+      - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
         - script: |
             # Figure out the full absolute path of the product we just built
             # including the remote server and configure the integration tests

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { localize, localize2 } from 'vs/nls';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { InlineChatController, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IValidEditOperation } from 'vs/editor/common/model';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { InlineChatController, State } from './inlineChatController.js';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_VISIBLE } from '../common/inlineChat.js';
+import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { AbstractInlineChatAction } from './inlineChatActions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { IValidEditOperation } from '../../../../editor/common/model.js';
 
 
 export const CTX_INLINE_CHAT_EXPANSION = new RawContextKey<boolean>('inlineChatExpansion', false, localize('inlineChatExpansion', "Whether the inline chat expansion is enabled when at the end of a just-typed line"));

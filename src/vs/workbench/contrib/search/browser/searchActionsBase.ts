@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import * as nls from 'vs/nls';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
-import { ISearchConfigurationProperties, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import * as DOM from '../../../../base/browser/dom.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import * as nls from '../../../../nls.js';
+import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { SearchView } from './searchView.js';
+import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer } from './searchModel.js';
+import { ISearchConfigurationProperties, VIEW_ID } from '../../../services/search/common/search.js';
 
 export const category = nls.localize2('search', "Search");
 

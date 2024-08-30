@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./viewCursors';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IViewCursorRenderData, ViewCursor, CursorPlurality } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
+import './viewCursors.css';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { IViewCursorRenderData, ViewCursor, CursorPlurality } from './viewCursor.js';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
 import {
 	editorCursorBackground, editorCursorForeground,
 	editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground,
 	editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground
-} from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { WindowIntervalTimer, getWindow } from 'vs/base/browser/dom';
+} from '../../../common/core/editorColorRegistry.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { CursorChangeReason } from '../../../common/cursorEvents.js';
+import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom.js';
 
 export class ViewCursors extends ViewPart {
 

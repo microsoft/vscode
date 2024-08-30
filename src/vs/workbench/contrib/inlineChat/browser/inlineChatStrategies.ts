@@ -3,47 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getTotalWidth, WindowIntervalTimer } from 'vs/base/browser/dom';
-import { coalesceInPlace } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { themeColorFromId } from 'vs/base/common/themables';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { HunkInformation, Session, HunkState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { assertType } from 'vs/base/common/types';
-import { IModelService } from 'vs/editor/common/services/model';
-import { performAsyncTextEdit, asProgressiveEdit } from './utils';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { Schemas } from 'vs/base/common/network';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DefaultChatTextEditor } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { isEqual } from 'vs/base/common/resources';
-import { generateUuid } from 'vs/base/common/uuid';
-import { MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Iterable } from 'vs/base/common/iterator';
+import { getTotalWidth, WindowIntervalTimer } from '../../../../base/browser/dom.js';
+import { coalesceInPlace } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from '../../../../editor/browser/editorBrowser.js';
+import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
+import { LineSource, RenderOptions, renderLines } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
+import { ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
+import { SaveReason } from '../../../common/editor.js';
+import { countWords } from '../../chat/common/chatWordCounter.js';
+import { HunkInformation, Session, HunkState } from './inlineChatSession.js';
+import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
+import { ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, MENU_INLINE_CHAT_ZONE, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from '../common/inlineChat.js';
+import { assertType } from '../../../../base/common/types.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { performAsyncTextEdit, asProgressiveEdit } from './utils.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IUntitledTextEditorModel } from '../../../services/untitled/common/untitledTextEditorModel.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { DefaultChatTextEditor } from '../../chat/browser/codeBlockPart.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';
+import { observableValue } from '../../../../base/common/observable.js';
+import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 
 export interface IEditObserver {
 	start(): void;
@@ -217,8 +219,10 @@ type HunkDisplayData = {
 
 	decorationIds: string[];
 
-	viewZoneId: string | undefined;
-	viewZone: IViewZone;
+	diffViewZoneId: string | undefined;
+	diffViewZone: IViewZone;
+
+	lensActionsViewZoneIds?: string[];
 
 	distance: number;
 	position: Position;
@@ -258,6 +262,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
+	private readonly _lensActionsFactory: ConflictActionsFactory;
 	private _editCount: number = 0;
 
 	constructor(
@@ -269,6 +274,8 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextService: IContextKeyService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instaService: IInstantiationService
 	) {
@@ -277,6 +284,7 @@ export class LiveStrategy extends EditModeStrategy {
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
 		this._progressiveEditingDecorations = this._editor.createDecorationsCollection();
+		this._lensActionsFactory = this._store.add(new ConflictActionsFactory(this._editor));
 
 	}
 
@@ -370,9 +378,18 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override performHunkAction(hunk: HunkInformation | undefined, action: HunkAction) {
 		const displayData = this._findDisplayData(hunk);
+
 		if (!displayData) {
+			// no hunks (left or not yet) found, make sure to
+			// finish the sessions
+			if (action === HunkAction.Accept) {
+				this._onDidAccept.fire();
+			} else if (action === HunkAction.Discard) {
+				this._onDidDiscard.fire();
+			}
 			return;
 		}
+
 		if (action === HunkAction.Accept) {
 			displayData.acceptHunk();
 		} else if (action === HunkAction.Discard) {
@@ -479,30 +496,77 @@ export class LiveStrategy extends EditModeStrategy {
 							afterLineNumber: -1,
 							heightInLines: result.heightInLines,
 							domNode,
+							ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
 						};
 
 						const toggleDiff = () => {
 							const scrollState = StableEditorScrollState.capture(this._editor);
 							changeDecorationsAndViewZones(this._editor, (_decorationsAccessor, viewZoneAccessor) => {
 								assertType(data);
-								if (!data.viewZoneId) {
+								if (!data.diffViewZoneId) {
 									const [hunkRange] = hunkData.getRangesN();
 									viewZoneData.afterLineNumber = hunkRange.startLineNumber - 1;
-									data.viewZoneId = viewZoneAccessor.addZone(viewZoneData);
+									data.diffViewZoneId = viewZoneAccessor.addZone(viewZoneData);
 									overlay?.updateExtraTop(result.heightInLines);
 								} else {
-									viewZoneAccessor.removeZone(data.viewZoneId!);
+									viewZoneAccessor.removeZone(data.diffViewZoneId!);
 									overlay?.updateExtraTop(0);
-									data.viewZoneId = undefined;
+									data.diffViewZoneId = undefined;
 								}
 							});
-							this._ctxCurrentChangeShowsDiff.set(typeof data?.viewZoneId === 'string');
+							this._ctxCurrentChangeShowsDiff.set(typeof data?.diffViewZoneId === 'string');
 							scrollState.restore(this._editor);
 						};
 
-						const overlay = this._showOverlayToolbar
+						const overlay = this._showOverlayToolbar && false
 							? this._instaService.createInstance(InlineChangeOverlay, this._editor, hunkData)
 							: undefined;
+
+
+						let lensActions: DisposableStore | undefined;
+						const lensActionsViewZoneIds: string[] = [];
+
+						if (this._showOverlayToolbar && hunkData.getState() === HunkState.Pending) {
+
+							lensActions = new DisposableStore();
+
+							const menu = this._menuService.createMenu(MENU_INLINE_CHAT_ZONE, this._contextService);
+							const makeActions = () => {
+								const actions: IContentWidgetAction[] = [];
+								const tuples = menu.getActions();
+								for (const [, group] of tuples) {
+									for (const item of group) {
+										if (item instanceof MenuItemAction) {
+
+											let text = item.label;
+
+											if (item.id === ACTION_TOGGLE_DIFF) {
+												text = item.checked ? 'Hide Changes' : 'Show Changes';
+											} else if (ThemeIcon.isThemeIcon(item.item.icon)) {
+												text = `$(${item.item.icon.id}) ${text}`;
+											}
+
+											actions.push({
+												text,
+												tooltip: item.tooltip,
+												action: async () => item.run(),
+											});
+										}
+									}
+								}
+								return actions;
+							};
+
+							const obs = observableValue(this, makeActions());
+							lensActions.add(menu.onDidChange(() => obs.set(makeActions(), undefined)));
+							lensActions.add(menu);
+
+							lensActions.add(this._lensActionsFactory.createWidget(viewZoneAccessor,
+								hunkRanges[0].startLineNumber - 1,
+								obs,
+								lensActionsViewZoneIds
+							));
+						}
 
 						const remove = () => {
 							changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
@@ -510,13 +574,17 @@ export class LiveStrategy extends EditModeStrategy {
 								for (const decorationId of data.decorationIds) {
 									decorationsAccessor.removeDecoration(decorationId);
 								}
-								if (data.viewZoneId) {
-									viewZoneAccessor.removeZone(data.viewZoneId);
+								if (data.diffViewZoneId) {
+									viewZoneAccessor.removeZone(data.diffViewZoneId);
 								}
 								data.decorationIds = [];
-								data.viewZoneId = undefined;
+								data.diffViewZoneId = undefined;
+
+								data.lensActionsViewZoneIds?.forEach(viewZoneAccessor.removeZone);
+								data.lensActionsViewZoneIds = undefined;
 							});
 
+							lensActions?.dispose();
 							overlay?.dispose();
 						};
 
@@ -539,8 +607,9 @@ export class LiveStrategy extends EditModeStrategy {
 						data = {
 							hunk: hunkData,
 							decorationIds,
-							viewZoneId: '',
-							viewZone: viewZoneData,
+							diffViewZoneId: '',
+							diffViewZone: viewZoneData,
+							lensActionsViewZoneIds,
 							distance: myDistance,
 							position: hunkRanges[0].getStartPosition().delta(-1),
 							acceptHunk,
@@ -582,9 +651,6 @@ export class LiveStrategy extends EditModeStrategy {
 			if (widgetData) {
 				this._zone.updatePositionAndHeight(widgetData.position);
 
-				const remainingHunks = this._session.hunkData.pending;
-				this._updateSummaryMessage(remainingHunks, this._session.hunkData.size);
-
 
 				const mode = this._configService.getValue<'on' | 'off' | 'auto'>(InlineChatConfigKeys.AccessibleDiffView);
 				if (mode === 'on' || mode === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
@@ -615,30 +681,6 @@ export class LiveStrategy extends EditModeStrategy {
 		return renderHunks()?.position;
 	}
 
-	private _updateSummaryMessage(remaining: number, total: number) {
-
-		const needsReview = this._configService.getValue<boolean>(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave);
-		let message: string;
-		if (total === 0) {
-			message = localize('change.0', "Nothing changed.");
-		} else if (remaining === 1) {
-			message = needsReview
-				? localize('review.1', "$(info) Accept or Discard change")
-				: localize('change.1', "1 change");
-		} else {
-			message = needsReview
-				? localize('review.N', "$(info) Accept or Discard {0} changes", remaining)
-				: localize('change.N', "{0} changes", total);
-		}
-
-		let title: string | undefined;
-		if (needsReview) {
-			title = localize('review', "Review (accept or discard) all changes before continuing");
-		}
-
-		this._zone.widget.updateStatus(message, { title });
-	}
-
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
 	}
@@ -660,7 +702,7 @@ function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor:
 
 class InlineChangeOverlay implements IOverlayWidget {
 
-	readonly allowEditorOverflow: boolean = true;
+	readonly allowEditorOverflow: boolean = false;
 
 	private readonly _id: string = `inline-chat-diff-overlay-` + generateUuid();
 	private readonly _domNode: HTMLElement = document.createElement('div');
@@ -678,7 +720,7 @@ class InlineChangeOverlay implements IOverlayWidget {
 
 		if (_hunkInfo.getState() === HunkState.Pending) {
 
-			this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
+			const menuBar = this._store.add(this._instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MENU_INLINE_CHAT_ZONE, {
 				menuOptions: { arg: _hunkInfo },
 				telemetrySource: 'inlineChat-changesZone',
 				buttonConfigProvider: (_action, idx) => {
@@ -689,6 +731,8 @@ class InlineChangeOverlay implements IOverlayWidget {
 					};
 				},
 			}));
+
+			this._store.add(menuBar.onDidChange(() => this._editor.layoutOverlayWidget(this)));
 		}
 
 		this._editor.addOverlayWidget(this);

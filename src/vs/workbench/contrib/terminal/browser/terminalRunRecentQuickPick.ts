@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { isMacintosh, OperatingSystem } from 'vs/base/common/platform';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { URI } from 'vs/base/common/uri';
-import { fromNow } from 'vs/base/common/date';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { isMacintosh, OperatingSystem } from '../../../../base/common/platform.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { collapseTildePath } from '../../../../platform/terminal/common/terminalEnvironment.js';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITerminalInstance } from './terminal.js';
+import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from './terminalIcons.js';
+import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from '../common/history.js';
+import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { showWithPinnedItems } from '../../../../platform/quickinput/browser/quickPickPin.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,

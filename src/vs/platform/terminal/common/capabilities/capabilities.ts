@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import type { IPromptInputModel, ISerializedPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
-import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import type { IPromptInputModel, ISerializedPromptInputModel } from './commandDetection/promptInputModel.js';
+import { ICurrentPartialCommand } from './commandDetection/terminalCommand.js';
+import { ITerminalOutputMatch, ITerminalOutputMatcher } from '../terminal.js';
+import { ReplayEntry } from '../terminalProcess.js';
 
 interface IEvent<T, U = void> {
 	(listener: (arg1: T, arg2: U) => any): IDisposable;
