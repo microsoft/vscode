@@ -17,6 +17,7 @@ const Module = require('module');
 // import { fileURLToPath } from 'url';
 // import { createRequire } from 'node:module';
 //
+// /** @ts-ignore */
 // const require = createRequire(import.meta.url);
 // /** @type any */
 // const module = { exports: {} };
