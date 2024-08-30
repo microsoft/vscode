@@ -221,8 +221,7 @@ export class GettingStartedDetailsRenderer {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
 			if (useModuleId && moduleId) {
-				// built-in interactive media are in modules in the common/media folder
-				const module = await import('../common/media/' + moduleId);
+				const module = await import(moduleId);
 				const contents = module.default();
 				return contents;
 			}
