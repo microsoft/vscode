@@ -132,7 +132,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
-flakySuite('Disk File Service', function () {
+(!isESM && isLinux ? suite.skip : flakySuite /* somehow fails in AMD on Linux with ENOENT for fixtures dir */)('Disk File Service', function () {
 
 	const testSchema = 'test';
 
@@ -168,7 +168,7 @@ flakySuite('Disk File Service', function () {
 		return Promises.rm(testDir);
 	});
 
-	(!isESM && isLinux ? test.skip : test /* somehow fails in AMD on Linux with ENOENT for fixtures dir */)('createFolder', async () => {
+	test('createFolder', async () => {
 		let event: FileOperationEvent | undefined;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
@@ -188,7 +188,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(event.target!.isDirectory, true);
 	});
 
-	(!isESM && isLinux ? test.skip : test /* somehow fails in AMD on Linux with ENOENT for fixtures dir */)('createFolder: creating multiple folders at once', async () => {
+	test('createFolder: creating multiple folders at once', async () => {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
