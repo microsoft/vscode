@@ -31,7 +31,7 @@ import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/br
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { ColorIdentifier, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
@@ -57,6 +57,7 @@ import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/a
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 
+registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
