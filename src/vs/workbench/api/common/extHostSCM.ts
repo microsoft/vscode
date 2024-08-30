@@ -210,6 +210,10 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 		return -1;
 	}
 
+	if (result !== 0) {
+		return result;
+	}
+
 	if (a.multiFileDiffEditorModifiedUri && b.multiFileDiffEditorModifiedUri) {
 		result = comparePaths(a.multiFileDiffEditorModifiedUri.fsPath, b.multiFileDiffEditorModifiedUri.fsPath, true);
 	} else if (a.multiFileDiffEditorModifiedUri) {
@@ -217,6 +221,11 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	} else if (b.multiFileDiffEditorModifiedUri) {
 		return -1;
 	}
+
+	if (result !== 0) {
+		return result;
+	}
+
 	if (a.multiDiffEditorOriginalUri && b.multiDiffEditorOriginalUri) {
 		result = comparePaths(a.multiDiffEditorOriginalUri.fsPath, b.multiDiffEditorOriginalUri.fsPath, true);
 	} else if (a.multiDiffEditorOriginalUri) {
