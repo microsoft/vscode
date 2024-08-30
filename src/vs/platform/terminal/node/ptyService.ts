@@ -32,12 +32,12 @@ import { join } from 'path';
 import { memoize } from 'vs/base/common/decorators';
 import * as performance from 'vs/base/common/performance';
 // ESM-comment-begin
-import { Terminal as XtermTerminal } from '@xterm/headless';
+// import { Terminal as XtermTerminal } from '@xterm/headless';
 // ESM-comment-end
 // ESM-uncomment-begin
-// import pkg from '@xterm/headless';
-// type XtermTerminal = pkg.Terminal;
-// const { Terminal: XtermTerminal } = pkg;
+import pkg from '@xterm/headless';
+type XtermTerminal = pkg.Terminal;
+const { Terminal: XtermTerminal } = pkg;
 // ESM-uncomment-end
 
 export function traceRpc(_target: any, key: string, descriptor: any) {

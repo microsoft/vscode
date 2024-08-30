@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 // ESM-comment-begin
-import * as http from 'http';
-import * as https from 'https';
-import * as tls from 'tls';
-import * as net from 'net';
+// import * as http from 'http';
+// import * as https from 'https';
+// import * as tls from 'tls';
+// import * as net from 'net';
 // ESM-comment-end
 
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
@@ -22,12 +22,12 @@ import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySu
 import { AuthInfo } from 'vs/platform/request/common/request';
 
 // ESM-uncomment-begin
-// import { createRequire } from 'node:module';
-// const require = createRequire(import.meta.url);
-// const http = require('http');
-// const https = require('https');
-// const tls = require('tls');
-// const net = require('net');
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const http = require('http');
+const https = require('https');
+const tls = require('tls');
+const net = require('net');
 // ESM-uncomment-end
 
 const systemCertificatesV2Default = false;

@@ -226,12 +226,12 @@ export class GettingStartedDetailsRenderer {
 					const provider = gettingStartedContentRegistry.getProvider(moduleId);
 					if (!provider) {
 						// ESM-comment-begin
-						require([moduleId], content => {
-							resolve(content.default());
-						});
+						// require([moduleId], content => {
+						// resolve(content.default());
+						// });
 						// ESM-comment-end
 						// ESM-uncomment-begin
-						// reject(`Getting started: no provider registered for ${moduleId}`);
+						reject(`Getting started: no provider registered for ${moduleId}`);
 						// ESM-uncomment-end
 					} else {
 						resolve(provider());

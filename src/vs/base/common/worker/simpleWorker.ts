@@ -13,10 +13,10 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
 // ESM-comment-begin
-const isESM = false;
+// const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
-// const isESM = true;
+const isESM = true;
 // ESM-uncomment-end
 
 const DEFAULT_CHANNEL = 'default';
@@ -591,10 +591,10 @@ export class SimpleWorkerServer implements IWorkerServer {
 			// Use the global require to be sure to get the global config
 
 			// ESM-comment-begin
-			const req = (globalThis.require || require);
+			// const req = (globalThis.require || require);
 			// ESM-comment-end
 			// ESM-uncomment-begin
-			// const req = globalThis.require;
+			const req = globalThis.require;
 			// ESM-uncomment-end
 
 			req([moduleId], (module: { create: IRequestHandlerFactory }) => {

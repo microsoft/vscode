@@ -104,13 +104,13 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 	private async resolveVsceSign(): Promise<typeof vsceSign> {
 		// ESM-uncomment-begin
-		// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
-		// const mod = '@vscode/vsce-sign';
-		// return import(mod);
+		if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */ }
+		const mod = '@vscode/vsce-sign';
+		return import(mod);
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
-		return importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
+		// return importAMDNodeModule('@vscode/vsce-sign', 'src/main.js');
 		// ESM-comment-end
 	}
 

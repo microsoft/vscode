@@ -31,14 +31,14 @@ export class SignService extends AbstractSignService implements ISignService {
 
 	private async vsda(): Promise<typeof vsda> {
 		// ESM-uncomment-begin
-		// if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */}
-		// const mod = 'vsda';
-		// const { default: vsda } = await import(mod);
-		// return vsda;
+		if (typeof importAMDNodeModule === 'function') { /* fixes unused import, remove me */ }
+		const mod = 'vsda';
+		const { default: vsda } = await import(mod);
+		return vsda;
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
-		return importAMDNodeModule('vsda', 'index.js');
+		// return importAMDNodeModule('vsda', 'index.js');
 		// ESM-comment-end
 	}
 }

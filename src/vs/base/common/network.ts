@@ -257,10 +257,10 @@ class FileAccessImpl {
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
 		// ESM-comment-begin
-		const uri = this.toUri(resourcePath, require);
+		// const uri = this.toUri(resourcePath, require);
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const uri = this.toUri(resourcePath);
+		const uri = this.toUri(resourcePath);
 		// ESM-uncomment-end
 		return this.uriToBrowserUri(uri);
 	}
@@ -309,10 +309,10 @@ class FileAccessImpl {
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
 		// ESM-comment-begin
-		const uri = this.toUri(resourcePath, require);
+		// const uri = this.toUri(resourcePath, require);
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const uri = this.toUri(resourcePath);
+		const uri = this.toUri(resourcePath);
 		// ESM-uncomment-end
 		return this.uriToFileUri(uri);
 	}
