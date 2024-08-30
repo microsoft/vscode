@@ -158,49 +158,6 @@
 	padding: 2px
 }
 
-.scm-view .monaco-list-row .history-item .stats-container {
-	display: flex;
-	font-size: 11px;
-	line-height: 11px;
-	margin-left: 6px;
-	gap: 4px;
-}
-
-.scm-view .monaco-list-row .history-item .stats-container {
-	min-height: 18px;
-	padding: 0 4px;
-	border-radius: 2px;
-	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
-}
-
-.scm-view .monaco-list-row.focused .history-item .stats-container,
-.scm-view .monaco-list-row.selected .history-item .stats-container {
-	border: 1px solid var(--vscode-scm-historyItemSelectedStatisticsBorder);
-}
-
-.scm-view .monaco-list-row .history-item .stats-container > .files-label,
-.scm-view .monaco-list-row .history-item .stats-container > .insertions-label,
-.scm-view .monaco-list-row .history-item .stats-container > .deletions-label {
-	display: flex;
-	align-items: center;
-	opacity: 0.75;
-}
-
-.scm-view .monaco-list-row .history-item .stats-container > .insertions-label {
-	color: var(--vscode-scm-historyItemAdditionsForeground);
-}
-
-.scm-view .monaco-list-row .history-item .stats-container > .deletions-label {
-	color: var(--vscode-scm-historyItemDeletionsForeground);
-}
-
-.scm-view .monaco-list-row .history-item .stats-container.hidden,
-.scm-view .monaco-list-row .history-item .stats-container > .insertions-label.hidden,
-.scm-view .monaco-list-row .history-item .stats-container > .deletions-label.hidden {
-	display: none;
-}
-
-.scm-view .monaco-list-row .history-item-group .monaco-icon-label .icon-container,
 .scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
 	display: flex;
 	padding-right: 4px;
@@ -212,37 +169,7 @@
 	border-radius: 14px;
 }
 
-.scm-view .monaco-list-row .separator-container {
-	display: flex;
-	align-items: center;
-	padding-left: 11px;
-}
-
-.scm-view .monaco-list-row .separator-container .label-name {
-	font-size: 10px;
-}
-
-.scm-view .monaco-list-row.focused .separator-container .label-name,
-.scm-view .monaco-list-row.selected .separator-container .label-name,
-.scm-view .monaco-list-row.focused .separator-container .action-label::before,
-.scm-view .monaco-list-row.selected .separator-container .action-label::before {
-	color: var(--vscode-foreground);
-}
-
-.scm-view .monaco-list-row .separator-container .separator {
-	display: flex;
-	flex-grow: 1;
-	height: 0;
-	margin-left: 6px;
-	border-top: 1px solid var(--vscode-sideBar-border);
-}
-
-.scm-view .monaco-list-row .separator-container .actions {
-	padding-left: 6px;
-}
-
 .scm-view .monaco-list-row .history > .name,
-.scm-view .monaco-list-row .history-item-group > .name,
 .scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
 	overflow: hidden;
@@ -286,8 +213,6 @@
 
 .scm-view .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
-.scm-view .monaco-list .monaco-list-row .separator-container > .actions,
-.scm-view .monaco-list .monaco-list-row .history-item-group > .actions,
 .scm-view .monaco-list .monaco-list-row .history-item > .actions {
 	display: none;
 	max-width: fit-content;
@@ -298,10 +223,6 @@
 .scm-view .monaco-list .monaco-list-row:hover .resource > .name > .monaco-icon-label > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .resource > .name > .monaco-icon-label > .actions,
 .scm-view .monaco-list:not(.selection-multiple) .monaco-list-row .resource:hover > .actions,
-.scm-view .monaco-list .monaco-list-row:hover .separator-container > .actions,
-.scm-view .monaco-list .monaco-list-row.focused .separator-container > .actions,
-.scm-view .monaco-list .monaco-list-row:hover .history-item-group > .actions,
-.scm-view .monaco-list .monaco-list-row.focused .history-item-group > .actions,
 .scm-view .monaco-list .monaco-list-row:hover .history-item > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .history-item > .actions {
 	display: block;
@@ -322,8 +243,6 @@
 .scm-view.show-actions > .monaco-list .monaco-list-row .scm-input > .scm-editor > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions,
-.scm-view.show-actions > .monaco-list .monaco-list-row .separator-container > .actions,
-.scm-view.show-actions > .monaco-list .monaco-list-row .history-item-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .history-item > .actions {
 	display: block;
 }

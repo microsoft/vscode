@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { TestCodeEditorService, TestGlobalStyleSheet } from 'vs/editor/test/browser/editorTestServices';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import * as platform from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IDecorationRenderOptions } from '../../../common/editorCommon.js';
+import { TestCodeEditorService, TestGlobalStyleSheet } from '../editorTestServices.js';
+import { TestColorTheme, TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 
 suite('Decoration Render Options', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

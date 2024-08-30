@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/base/common/range';
-import { ListView } from 'vs/base/browser/ui/list/listView';
-import { IItem, IRangeMap } from 'vs/base/browser/ui/list/rangeMap';
-import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
+import { IRange } from '../../../../../base/common/range.js';
+import { ListView } from '../../../../../base/browser/ui/list/listView.js';
+import { IItem, IRangeMap } from '../../../../../base/browser/ui/list/rangeMap.js';
+import { ConstantTimePrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
 
 export interface IWhitespace {
 	id: string;

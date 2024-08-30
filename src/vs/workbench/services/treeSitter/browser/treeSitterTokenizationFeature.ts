@@ -5,22 +5,22 @@
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-import { FontStyle, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from 'vs/editor/common/services/treeSitterParserService';
-import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ColumnRange } from 'vs/editor/contrib/inlineCompletions/browser/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
+import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
+import { ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../../editor/common/services/treeSitterParserService.js';
+import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
+import { ColumnRange } from '../../../../editor/contrib/inlineCompletions/browser/utils.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { TokenStyle } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
+import { ColorThemeData } from '../../themes/common/colorThemeData.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;

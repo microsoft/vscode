@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as event from 'vs/base/common/event';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { hash } from 'vs/base/common/hash';
-import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
-import { isPointWithinTriangle } from 'vs/base/common/numbers';
+import * as browser from './browser.js';
+import { BrowserFeatures } from './canIUse.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
+import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
+import { onUnexpectedError } from '../common/errors.js';
+import * as event from '../common/event.js';
+import * as dompurify from './dompurify/dompurify.js';
+import { KeyCode } from '../common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
+import { FileAccess, RemoteAuthorities, Schemas } from '../common/network.js';
+import * as platform from '../common/platform.js';
+import { URI } from '../common/uri.js';
+import { hash } from '../common/hash.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
+import { isPointWithinTriangle } from '../common/numbers.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as glob from 'vs/base/common/glob';
-import * as resources from 'vs/base/common/resources';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
-import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OldFileSearchProviderConverter } from 'vs/workbench/services/search/common/searchExtConversionTypes';
+import * as path from '../../../../base/common/path.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import * as glob from '../../../../base/common/glob.js';
+import * as resources from '../../../../base/common/resources.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
+import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes.js';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
 
 interface IInternalFileMatch {
 	base: URI;

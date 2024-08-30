@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as resources from 'vs/base/common/resources';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { Promises, ThrottledDelayer } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { Disposable, toDisposable, IDisposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
-import { isCancellationError } from 'vs/base/common/errors';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import * as resources from '../../../../base/common/resources.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Promises, ThrottledDelayer } from '../../../../base/common/async.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageSelection } from '../../../../editor/common/languages/language.js';
+import { Disposable, toDisposable, IDisposable, dispose, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isNumber } from '../../../../base/common/types.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ILogger, ILoggerService, ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { OutputChannelUpdateMode } from '../../../services/output/common/output.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;

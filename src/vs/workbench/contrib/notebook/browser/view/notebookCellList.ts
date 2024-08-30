@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { clamp } from 'vs/base/common/numbers';
-import { ISplice } from 'vs/base/common/sequence';
-import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListViewOptions, IListView } from 'vs/base/browser/ui/list/listView';
-import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookCellAnchor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellAnchor';
-import { NotebookViewZones } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookViewZones';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IListRenderer, IListVirtualDelegate, ListError } from '../../../../../base/browser/ui/list/list.js';
+import { IListStyles, IStyleController } from '../../../../../base/browser/ui/list/listWidget.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
+import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { PrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IListService, IWorkbenchListOptions, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { CellViewModel, NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from '../../common/notebookCommon.js';
+import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from '../../common/notebookRange.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../common/notebookContextKeys.js';
+import { clamp } from '../../../../../base/common/numbers.js';
+import { ISplice } from '../../../../../base/common/sequence.js';
+import { BaseCellRenderTemplate, INotebookCellList } from './notebookRenderingCommon.js';
+import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { MarkupCellViewModel } from '../viewModel/markupCellViewModel.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IListViewOptions, IListView } from '../../../../../base/browser/ui/list/listView.js';
+import { NotebookCellListView } from './notebookCellListView.js';
+import { NotebookOptions } from '../notebookOptions.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { NotebookCellAnchor } from './notebookCellAnchor.js';
+import { NotebookViewZones } from '../viewParts/notebookViewZones.js';
 
 const enum CellRevealPosition {
 	Top,

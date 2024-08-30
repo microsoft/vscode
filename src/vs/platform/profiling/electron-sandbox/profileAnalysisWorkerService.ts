@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { URI } from 'vs/base/common/uri';
-import { Proxied } from 'vs/base/common/worker/simpleWorker';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { BottomUpSample } from 'vs/platform/profiling/common/profilingModel';
-import { reportSample } from 'vs/platform/profiling/common/profilingTelemetrySpec';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { createWebWorker } from '../../../base/browser/defaultWorkerFactory.js';
+import { URI } from '../../../base/common/uri.js';
+import { Proxied } from '../../../base/common/worker/simpleWorker.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IV8Profile } from '../common/profiling.js';
+import { BottomUpSample } from '../common/profilingModel.js';
+import { reportSample } from '../common/profilingTelemetrySpec.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export const enum ProfilingOutput {
 	Failure,

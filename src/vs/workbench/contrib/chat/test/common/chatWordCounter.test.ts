@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getNWords } from '../../common/chatWordCounter.js';
 
 suite('ChatWordCounter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
