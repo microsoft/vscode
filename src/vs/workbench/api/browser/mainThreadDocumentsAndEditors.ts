@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
-import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { extHostCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
-import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { diffSets, diffMaps } from 'vs/base/common/collections';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Event } from '../../../base/common/event.js';
+import { combinedDisposable, DisposableStore, DisposableMap } from '../../../base/common/lifecycle.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from '../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+import { IEditor } from '../../../editor/common/editorCommon.js';
+import { ITextModel, shouldSynchronizeModel } from '../../../editor/common/model.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../editor/common/services/resolverService.js';
+import { IFileService } from '../../../platform/files/common/files.js';
+import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { MainThreadDocuments } from './mainThreadDocuments.js';
+import { MainThreadTextEditor } from './mainThreadEditor.js';
+import { MainThreadTextEditors } from './mainThreadEditors.js';
+import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, ITextEditorAddData, MainContext } from '../common/extHost.protocol.js';
+import { AbstractTextEditor } from '../../browser/parts/editor/textEditor.js';
+import { IEditorPane } from '../../common/editor.js';
+import { EditorGroupColumn, editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IWorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { diffSets, diffMaps } from '../../../base/common/collections.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../common/views.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 
 class TextEditorSnapshot {

@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/inlineChatContentWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import * as dom from 'vs/base/browser/dom';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { inlineChatBackground, MENU_INLINE_CHAT_CONTENT_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { Range } from 'vs/editor/common/core/range';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import './media/inlineChatContentWidget.css';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { inlineChatBackground, MENU_INLINE_CHAT_CONTENT_STATUS } from '../common/inlineChat.js';
+import { Session } from './inlineChatSession.js';
+import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
+import { editorBackground, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ChatModel } from '../../chat/common/chatModel.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { TextOnlyMenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 export class InlineChatContentWidget implements IContentWidget {
 

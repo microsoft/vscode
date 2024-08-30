@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { score } from 'vs/editor/common/languageSelector';
-import { localize } from 'vs/nls';
-import { ISubmenuItem } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IShareProvider, IShareService, IShareableItem } from 'vs/workbench/contrib/share/common/share';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { score } from '../../../../editor/common/languageSelector.js';
+import { localize } from '../../../../nls.js';
+import { ISubmenuItem } from '../../../../platform/actions/common/actions.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IShareProvider, IShareService, IShareableItem } from '../common/share.js';
 
 export const ShareProviderCountContext = new RawContextKey<number>('shareProviderCount', 0, localize('shareProviderCount', "The number of available share providers"));
 

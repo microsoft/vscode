@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor, workbenchTeardown, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorNavigationStack, HistoryService } from 'vs/workbench/services/history/browser/historyService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IResolvedTextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor, workbenchTeardown, registerTestSideBySideEditor } from '../../../../test/browser/workbenchTestServices.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IEditorGroupsService, GroupDirection } from '../../../editor/common/editorGroupsService.js';
+import { EditorNavigationStack, HistoryService } from '../../browser/historyService.js';
+import { IEditorService, SIDE_GROUP } from '../../../editor/common/editorService.js';
+import { EditorService } from '../../../editor/browser/editorService.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { GoFilter, GoScope, IHistoryService } from '../../common/history.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from '../../../../common/editor.js';
+import { IResourceEditorInput, ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IResolvedTextFileEditorModel, ITextFileService } from '../../../textfile/common/textfiles.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from '../../../../../platform/files/common/files.js';
+import { isLinux } from '../../../../../base/common/platform.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
 
 suite('HistoryService', function () {
 

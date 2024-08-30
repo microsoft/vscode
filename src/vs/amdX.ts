@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isESM, canASAR } from 'vs/base/common/amd';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { isESM, canASAR } from './base/common/amd.js';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from './base/common/network.js';
+import * as platform from './base/common/platform.js';
+import { IProductConfiguration } from './base/common/product.js';
+import { assertType } from './base/common/types.js';
+import { URI } from './base/common/uri.js';
 
 class DefineCall {
 	constructor(

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { isEqual } from 'vs/base/common/resources';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { IFileService } from 'vs/platform/files/common/files';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { IEditorSerializer } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { ITextEditorService } from '../../../../services/textfile/common/textEditorService.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IWorkingCopyIdentifier, NO_TYPE_ID } from '../../../../services/workingCopy/common/workingCopy.js';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../../services/workingCopy/common/workingCopyEditorService.js';
+import { FileEditorInput } from './fileEditorInput.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 
 interface ISerializedFileEditorInput {
 	resourceJSON: UriComponents;

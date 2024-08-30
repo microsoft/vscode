@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { create } from './extensionHostWorker';
+import { create } from './extensionHostWorker.js';
 
 const data = create();
 self.onmessage = (e) => data.onmessage(e.data);

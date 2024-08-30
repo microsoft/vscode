@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService, SyncResource, EDIT_SESSIONS_PENDING_KEY } from 'vs/workbench/contrib/editSessions/common/editSessions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { isWeb } from 'vs/base/common/platform';
-import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { Emitter } from 'vs/base/common/event';
-import { CancellationError } from 'vs/base/common/errors';
-import { EditSessionsStoreClient } from 'vs/workbench/contrib/editSessions/common/editSessionsStorageClient';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService, SyncResource, EDIT_SESSIONS_PENDING_KEY } from '../common/editSessions.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { getCurrentAuthenticationSessionInfo } from '../../../services/authentication/browser/authenticationService.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from '../../../../platform/userDataSync/common/userDataSyncMachines.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { EditSessionsStoreClient } from '../common/editSessionsStorageClient.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };

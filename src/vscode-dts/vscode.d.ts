@@ -7505,7 +7505,7 @@ declare module 'vscode' {
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
 		 * const myTerm = window.createTerminal();
-		 * window.onDidActivateTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
+		 * window.onDidChangeTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
 		 *   if (terminal === myTerm) {
 		 *     const command = shellIntegration.executeCommand({
 		 *       command: 'echo',

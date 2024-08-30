@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, autorun } from 'vs/base/common/observable';
-import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel';
-import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { IObservable, autorun } from '../../../../../base/common/observable.js';
+import { firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
+import { CursorColumns } from '../../../../common/core/cursorColumns.js';
+import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
+import { RawContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 
 export class InlineCompletionContextKeys extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));

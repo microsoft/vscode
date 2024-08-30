@@ -2,28 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, createStyleSheet, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { mainWindow } from 'vs/base/browser/window';
-import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { groupBy } from 'vs/base/common/collections';
-import { debounce } from 'vs/base/common/decorators';
-import { CancellationError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
-import { escape } from 'vs/base/common/strings';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IIssueMainService, IProcessMainService, OldIssueReporterData, OldIssueReporterExtensionData, OldIssueReporterStyles, OldIssueReporterWindowConfiguration, OldIssueType } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
-import { IssueReporterData, IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { normalizeGitHubUrl } from 'vs/workbench/contrib/issue/common/issueReporterUtil';
+import { $, createStyleSheet, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from '../../../../base/browser/dom.js';
+import { Button, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { groupBy } from '../../../../base/common/collections.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
+import { escape } from '../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { IIssueMainService, IProcessMainService, OldIssueReporterData, OldIssueReporterExtensionData, OldIssueReporterStyles, OldIssueReporterWindowConfiguration, OldIssueType } from '../../../../platform/issue/common/issue.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
+import { applyZoom, zoomIn, zoomOut } from '../../../../platform/window/electron-sandbox/window.js';
+import { IssueReporterData, IssueReporterModel, IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel.js';
+import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191

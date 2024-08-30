@@ -656,6 +656,7 @@
 							"http",
 							"https",
 							"minimist",
+							"node:module",
 							"native-keymap",
 							"native-watchdog",
 							"net",
@@ -692,6 +693,7 @@
 						"when": "test",
 						"allow": [
 							"vs/css.build",
+							"vs/css.build.js",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -939,6 +941,10 @@
 							},
 							{
 								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.js"
+							},
+							{
+								"when": "hasBrowser",
 								"pattern": "vs/workbench/~"
 							},
 							{
@@ -977,11 +983,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/terminal.all"
+							"vs/workbench/contrib/terminal/terminal.all",
+							"vs/workbench/contrib/terminal/terminal.all.js"
 						]
 					},
 					{
@@ -994,11 +1002,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1011,11 +1021,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1025,7 +1037,7 @@
 						]
 					},
 					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.messages.ts,nls.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{

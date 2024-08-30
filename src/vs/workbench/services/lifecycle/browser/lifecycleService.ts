@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mainWindow } from 'vs/base/browser/window';
-import { firstOrDefault } from 'vs/base/common/arrays';
+import { ShutdownReason, ILifecycleService, StartupKind } from '../common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { AbstractLifecycleService } from '../common/lifecycleService.js';
+import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { IStorageService, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { firstOrDefault } from '../../../../base/common/arrays.js';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 

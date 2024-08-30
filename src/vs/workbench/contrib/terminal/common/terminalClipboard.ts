@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: string, bracketedPasteMode: boolean | undefined): Promise<boolean | { modifiedText: string }> {
 	const configurationService = accessor.get(IConfigurationService);

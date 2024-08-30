@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
-import { migrateOptions } from 'vs/editor/browser/config/migrateOptions';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
+import { migrateOptions } from '../../../browser/config/migrateOptions.js';
+import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { EditorZoom } from '../../../common/config/editorZoom.js';
+import { TestConfiguration } from './testConfiguration.js';
+import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 
 suite('Common Editor Config', () => {
 

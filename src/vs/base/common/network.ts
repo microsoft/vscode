@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as platform from 'vs/base/common/platform';
-import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/path';
+import * as errors from './errors.js';
+import * as platform from './platform.js';
+import { equalsIgnoreCase, startsWithIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
+import * as paths from './path.js';
 
 export namespace Schemas {
 
@@ -257,10 +257,10 @@ class FileAccessImpl {
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
 		// ESM-comment-begin
-		const uri = this.toUri(resourcePath, require);
+		// const uri = this.toUri(resourcePath, require);
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const uri = this.toUri(resourcePath);
+		const uri = this.toUri(resourcePath);
 		// ESM-uncomment-end
 		return this.uriToBrowserUri(uri);
 	}
@@ -309,10 +309,10 @@ class FileAccessImpl {
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
 		// ESM-comment-begin
-		const uri = this.toUri(resourcePath, require);
+		// const uri = this.toUri(resourcePath, require);
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const uri = this.toUri(resourcePath);
+		const uri = this.toUri(resourcePath);
 		// ESM-uncomment-end
 		return this.uriToFileUri(uri);
 	}
