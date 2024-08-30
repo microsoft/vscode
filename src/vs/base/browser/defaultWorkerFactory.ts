@@ -13,10 +13,10 @@ import { coalesce } from 'vs/base/common/arrays';
 import { getNLSLanguage, getNLSMessages } from 'vs/nls';
 
 // ESM-comment-begin
-const isESM = false;
+// const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
-// const isESM = true;
+const isESM = true;
 // ESM-uncomment-end
 
 // Reuse the trusted types policy defined from worker bootstrap
@@ -53,13 +53,13 @@ function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | 
 		}
 	}
 	// ESM-comment-begin
-	if (typeof require === 'function') {
-		const workerMainLocation = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
-		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
-	}
+	// if (typeof require === 'function') {
+	// const workerMainLocation = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+	// const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
+	// const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+	// const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
+	// return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
+	// }
 	// ESM-comment-end
 	if (esmWorkerLocation) {
 		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation.toString(true));

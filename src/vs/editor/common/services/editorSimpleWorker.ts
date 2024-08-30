@@ -33,10 +33,10 @@ import { IRawModelData, IWorkerTextModelSyncChannelServer } from './textModelSyn
 import { ICommonModel, WorkerTextModelSyncServer } from 'vs/editor/common/services/textModelSync/textModelSync.impl';
 
 // ESM-comment-begin
-const isESM = false;
+// const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
-// const isESM = true;
+const isESM = true;
 // ESM-uncomment-end
 
 export interface IMirrorModel extends IMirrorTextModel {
