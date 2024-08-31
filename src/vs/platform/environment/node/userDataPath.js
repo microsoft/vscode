@@ -16,6 +16,13 @@ import * as path from 'path';
 const module = { exports: {} };
 // ESM-uncomment-end
 
+// ESM-comment-begin
+// const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+const isESM = true;
+// ESM-uncomment-end
+
 (function () {
 
 	/**
@@ -117,7 +124,7 @@ const module = { exports: {} };
 		};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		define(['path', 'os', 'vs/base/common/process'], function (
 			/** @type {typeof import('path')} */ path,
 			/** @type {typeof import('os')} */ os,
