@@ -373,6 +373,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
 			this._commentGlyph.setThreadState(this._commentThread.state);
+			this._globalToDispose.add(this._commentGlyph.onDidChangeLineNumber(async e => {
+				if (!this._commentThread.range) {
+					return;
+				}
+				const shift = e - (this._commentThread.range.endLineNumber);
+				const newRange = new Range(this._commentThread.range.startLineNumber + shift, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + shift, this._commentThread.range.endColumn);
+				this._commentThread.range = newRange;
+			}));
 		}
 
 		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);
@@ -394,22 +402,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private bindCommentThreadListeners() {
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeComments(async _ => {
 			await this.update(this._commentThread);
-		}));
-
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeRange(range => {
-			// Move comment glyph widget and show position if the line has changed.
-			const lineNumber = this._commentThread.range?.startLineNumber ?? 1;
-			let shouldMoveWidget = false;
-			if (this._commentGlyph) {
-				if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
-					shouldMoveWidget = true;
-					this._commentGlyph.setLineNumber(lineNumber);
-				}
-			}
-
-			if (shouldMoveWidget && this._isExpanded) {
-				this.show(this.arrowPosition(this._commentThread.range), 2);
-			}
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollapsibleState(state => {

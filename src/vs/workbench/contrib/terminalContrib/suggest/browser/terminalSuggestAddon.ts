@@ -110,7 +110,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _currentPromptInputState?: IPromptInputModelState;
 	private _model?: SimpleCompletionModel;
 
-	private _panel?: HTMLElement;
+	private _container?: HTMLElement;
 	private _screen?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
 	private _enableWidget: boolean = true;
@@ -183,8 +183,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	setPanel(panel: HTMLElement): void {
-		this._panel = panel;
+	setContainerWithOverflow(container: HTMLElement): void {
+		this._container = container;
 	}
 
 	setScreen(screen: HTMLElement): void {
@@ -539,7 +539,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			};
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
-				this._panel!,
+				this._container!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				() => fontInfo,
 				{}

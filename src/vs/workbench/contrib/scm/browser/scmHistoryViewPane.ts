@@ -31,7 +31,7 @@ import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/br
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { ColorIdentifier, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
@@ -44,7 +44,7 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -57,6 +57,7 @@ import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/a
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 
+registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
@@ -87,6 +88,59 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 		const repository = provider ? scmService.getRepository(provider.id) : undefined;
 
 		view.refresh(repository);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.scm.viewChanges',
+			title: localize('viewChanges', "View Changes"),
+			f1: false,
+			menu: [
+				{
+					id: MenuId.SCMChangesContext,
+					group: '0_view',
+					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true)
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, provider: ISCMProvider, ...historyItems: ISCMHistoryItem[]) {
+		const commandService = accessor.get(ICommandService);
+
+		if (!provider || historyItems.length === 0) {
+			return;
+		}
+
+		const historyItem = historyItems[0];
+		const historyItemLast = historyItems[historyItems.length - 1];
+		const historyProvider = provider.historyProvider.get();
+
+		if (historyItems.length > 1) {
+			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor2([historyItem.id, historyItemLast.id]);
+			if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
+				return;
+			}
+		}
+
+		const historyItemParentId = historyItemLast.parentIds.length > 0 ? historyItemLast.parentIds[0] : undefined;
+		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+
+		if (!historyItemChanges?.length) {
+			return;
+		}
+
+		const title = historyItems.length === 1 ?
+			`${historyItems[0].displayId ?? historyItems[0].id} - ${historyItems[0].message}` :
+			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItemLast.displayId ?? historyItemLast.id, historyItem.displayId ?? historyItem.id);
+
+		const rootUri = provider.rootUri;
+		const path = rootUri ? rootUri.path : provider.label;
+		const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
+
+		commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 	}
 });
 
@@ -274,6 +328,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const currentHistoryItemGroup = element.repository.provider.historyProvider.get()?.currentHistoryItemGroup?.get();
 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		markdown.appendMarkdown(`$(git-commit) \`${historyItem.displayId ?? historyItem.id}\`\n\n`);
 
 		if (historyItem.author) {
 			markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
@@ -439,6 +494,7 @@ class HistoryItemActionRunner extends ActionRunner {
 					id: h.historyItemViewModel.historyItem.id,
 					parentIds: h.historyItemViewModel.historyItem.parentIds,
 					message: h.historyItemViewModel.historyItem.message,
+					displayId: h.historyItemViewModel.historyItem.displayId,
 					author: h.historyItemViewModel.historyItem.author,
 					icon: h.historyItemViewModel.historyItem.icon,
 					timestamp: h.historyItemViewModel.historyItem.timestamp,
@@ -449,6 +505,7 @@ class HistoryItemActionRunner extends ActionRunner {
 				id: context.historyItemViewModel.historyItem.id,
 				parentIds: context.historyItemViewModel.historyItem.parentIds,
 				message: context.historyItemViewModel.historyItem.message,
+				displayId: context.historyItemViewModel.historyItem.displayId,
 				author: context.historyItemViewModel.historyItem.author,
 				icon: context.historyItemViewModel.historyItem.icon,
 				timestamp: context.historyItemViewModel.historyItem.timestamp,
@@ -832,7 +889,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			const historyProvider = e.element.repository.provider.historyProvider.get();
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 			if (historyItemChanges) {
-				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
+				const title = `${historyItem.displayId ?? historyItem.id} - ${historyItem.message}`;
 
 				const rootUri = e.element.repository.provider.rootUri;
 				const path = rootUri ? rootUri.path : e.element.repository.provider.label;
