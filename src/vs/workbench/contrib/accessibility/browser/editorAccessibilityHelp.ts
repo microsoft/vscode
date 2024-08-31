@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
-import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityHelpAction } from './accessibleViewActions.js';
+import { CONTEXT_CHAT_ENABLED } from '../../chat/common/chatContextKeys.js';
+import { CommentAccessibilityHelpNLS } from '../../comments/browser/commentsAccessibility.js';
+import { CommentContextKeys } from '../../comments/common/commentContextKeys.js';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../files/browser/fileConstants.js';
+import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibilityVerbositySettingId } from './accessibilityConfiguration.js';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -39,7 +39,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 	}
 }
 
-class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider {
+class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.Editor;
 	onClose() {
 		this._editor.focus();
@@ -51,6 +51,7 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
+		super();
 	}
 
 	provideContent(): string {
@@ -93,7 +94,15 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 		} else {
 			content.push(AccessibilityHelpNLS.tabFocusModeOffMsg);
 		}
-		return content.join('\n\n');
+		content.push(AccessibilityHelpNLS.codeFolding);
+		content.push(AccessibilityHelpNLS.intellisense);
+		content.push(AccessibilityHelpNLS.showOrFocusHover);
+		content.push(AccessibilityHelpNLS.goToSymbol);
+		content.push(AccessibilityHelpNLS.startDebugging);
+		content.push(AccessibilityHelpNLS.setBreakpoint);
+		content.push(AccessibilityHelpNLS.debugExecuteSelection);
+		content.push(AccessibilityHelpNLS.addToWatch);
+		return content.join('\n');
 	}
 }
 

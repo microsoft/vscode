@@ -3,18 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IChatWidget } from '../chat.js';
+import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 
 export class ChatContextAttachments extends Disposable implements IChatWidgetContrib {
 
 	private _attachedContext = new Set<IChatRequestVariableEntry>();
-
-	private readonly _onDidChangeInputState = this._register(new Emitter<void>());
-	readonly onDidChangeInputState = this._onDidChangeInputState.event;
 
 	public static readonly ID = 'chatContextAttachments';
 
@@ -25,8 +21,10 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 	constructor(readonly widget: IChatWidget) {
 		super();
 
-		this._register(this.widget.onDidDeleteContext((e) => {
-			this._removeContext(e);
+		this._register(this.widget.onDidChangeContext((e) => {
+			if (e.removed) {
+				this._removeContext(e.removed);
+			}
 		}));
 
 		this._register(this.widget.onDidSubmitAgent(() => {
@@ -64,12 +62,12 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		}
 
 		this.widget.setContext(overwrite, ...attachments);
-		this._onDidChangeInputState.fire();
 	}
 
-	private _removeContext(attachment: IChatRequestVariableEntry) {
-		this._attachedContext.delete(attachment);
-		this._onDidChangeInputState.fire();
+	private _removeContext(attachments: IChatRequestVariableEntry[]) {
+		if (attachments.length) {
+			attachments.forEach(this._attachedContext.delete, this._attachedContext);
+		}
 	}
 
 	private _clearAttachedContext() {

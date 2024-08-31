@@ -3,32 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import * as languages from 'vs/editor/common/languages';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { coalesce } from '../../../../../../base/common/arrays.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import * as languages from '../../../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { ICommentService } from '../../../../comments/browser/commentService.js';
+import { CommentThreadWidget } from '../../../../comments/browser/commentThreadWidget.js';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellContentPart } from '../cellPart.js';
+import { ICellRange } from '../../../common/notebookRange.js';
 
 export class CellComments extends CellContentPart {
-	private _initialized: boolean = false;
-	private _commentThreadWidget: CommentThreadWidget<ICellRange> | null = null;
-	private currentElement: CodeCellViewModel | undefined;
-	private readonly commentTheadDisposables = this._register(new DisposableStore());
+	private readonly _commentThreadWidget: MutableDisposable<CommentThreadWidget<ICellRange>>;
+	private currentElement: ICellViewModel | undefined;
+	private readonly _commentThreadDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly notebookEditor: INotebookEditorDelegate,
 		private readonly container: HTMLElement,
-
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
@@ -38,6 +34,8 @@ export class CellComments extends CellContentPart {
 		super();
 		this.container.classList.add('review-widget');
 
+		this._register(this._commentThreadWidget = new MutableDisposable<CommentThreadWidget<ICellRange>>());
+
 		this._register(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		// TODO @rebornix onDidChangeLayout (font change)
 		// this._register(this.notebookEditor.onDidchangeLa)
@@ -45,22 +43,17 @@ export class CellComments extends CellContentPart {
 	}
 
 	private async initialize(element: ICellViewModel) {
-		if (this._initialized) {
+		if (this.currentElement === element) {
 			return;
 		}
 
-		this._initialized = true;
-		const info = await this._getCommentThreadForCell(element);
-
-		if (info) {
-			await this._createCommentTheadWidget(info.owner, info.thread);
-		}
+		this.currentElement = element;
+		await this._updateThread();
 	}
 
 	private async _createCommentTheadWidget(owner: string, commentThread: languages.CommentThread<ICellRange>) {
-		this._commentThreadWidget?.dispose();
-		this.commentTheadDisposables.clear();
-		this._commentThreadWidget = this.instantiationService.createInstance(
+		this._commentThreadDisposables.clear();
+		this._commentThreadWidget.value = this.instantiationService.createInstance(
 			CommentThreadWidget,
 			this.container,
 			this.notebookEditor,
@@ -84,44 +77,43 @@ export class CellComments extends CellContentPart {
 
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 
-		await this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight, true);
+		await this._commentThreadWidget.value.display(layoutInfo.fontInfo.lineHeight, true);
 		this._applyTheme();
 
-		this.commentTheadDisposables.add(this._commentThreadWidget.onDidResize(() => {
-			if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+		this._commentThreadDisposables.add(this._commentThreadWidget.value.onDidResize(() => {
+			if (this.currentElement && this._commentThreadWidget.value) {
+				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
 			}
 		}));
 	}
 
 	private _bindListeners() {
-		this.cellDisposables.add(this.commentService.onDidUpdateCommentThreads(async () => {
-			if (this.currentElement) {
-				const info = await this._getCommentThreadForCell(this.currentElement);
-				if (!this._commentThreadWidget && info) {
-					await this._createCommentTheadWidget(info.owner, info.thread);
-					const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
-					this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
-					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget!.getDimensions().height);
-					return;
-				}
+		this.cellDisposables.add(this.commentService.onDidUpdateCommentThreads(async () => this._updateThread()));
+	}
 
-				if (this._commentThreadWidget) {
-					if (!info) {
-						this._commentThreadWidget.dispose();
-						this.currentElement.commentHeight = 0;
-						return;
-					}
-					if (this._commentThreadWidget.commentThread === info.thread) {
-						this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
-						return;
-					}
+	private async _updateThread() {
+		if (!this.currentElement) {
+			return;
+		}
+		const info = await this._getCommentThreadForCell(this.currentElement);
+		if (!this._commentThreadWidget.value && info) {
+			await this._createCommentTheadWidget(info.owner, info.thread);
+			this.container.style.top = `${this.currentElement.layoutInfo.commentOffset}px`;
+			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value!.getDimensions().height);
+			return;
+		}
 
-					await this._commentThreadWidget.updateCommentThread(info.thread);
-					this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
-				}
+		if (this._commentThreadWidget.value) {
+			if (!info) {
+				this._commentThreadDisposables.clear();
+				this._commentThreadWidget.value = undefined;
+				this.currentElement.commentHeight = 0;
+				return;
 			}
-		}));
+
+			await this._commentThreadWidget.value.updateCommentThread(info.thread);
+			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
+		}
 	}
 
 	private _calculateCommentThreadHeight(bodyHeight: number) {
@@ -140,8 +132,11 @@ export class CellComments extends CellContentPart {
 	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
-			if (commentInfos.length && commentInfos[0].threads.length) {
-				return { owner: commentInfos[0].uniqueOwner, thread: commentInfos[0].threads[0] };
+			for (const commentInfo of commentInfos) {
+				for (const thread of commentInfo.threads) {
+					// For now, only one thread per cell is supported.
+					return { owner: commentInfo.uniqueOwner, thread };
+				}
 			}
 		}
 
@@ -151,28 +146,23 @@ export class CellComments extends CellContentPart {
 	private _applyTheme() {
 		const theme = this.themeService.getColorTheme();
 		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
-		this._commentThreadWidget?.applyTheme(theme, fontInfo);
+		this._commentThreadWidget.value?.applyTheme(theme, fontInfo);
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
-		if (element.cellKind === CellKind.Code) {
-			this.currentElement = element as CodeCellViewModel;
-			this.initialize(element);
-			this._bindListeners();
-		}
-
+		this.initialize(element);
+		this._bindListeners();
 	}
 
 	override prepareLayout(): void {
-		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.getDimensions().height);
+		if (this.currentElement && this._commentThreadWidget.value) {
+			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
 		}
 	}
 
 	override updateInternalLayoutNow(element: ICellViewModel): void {
-		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-			const layoutInfo = (element as CodeCellViewModel).layoutInfo;
-			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
+		if (this.currentElement && this._commentThreadWidget.value) {
+			this.container.style.top = `${element.layoutInfo.commentOffset}px`;
 		}
 	}
 }

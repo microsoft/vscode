@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { LRUCache } from 'vs/base/common/map';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { CharCode } from '../../../base/common/charCode.js';
+import { LRUCache } from '../../../base/common/map.js';
+import { CharacterClassifier } from './characterClassifier.js';
 
 export const enum WordCharacterClass {
 	Regular = 0,

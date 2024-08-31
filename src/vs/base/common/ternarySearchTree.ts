@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { shuffle } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { compare, compareIgnoreCase, compareSubstring, compareSubstringIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { shuffle } from './arrays.js';
+import { CharCode } from './charCode.js';
+import { compare, compareIgnoreCase, compareSubstring, compareSubstringIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
 
 export interface IKeyIterator<K> {
 	reset(key: K): this;

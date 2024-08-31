@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { ILocalSyncExtension, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { merge } from '../../common/extensionsMerge.js';
+import { ILocalSyncExtension, ISyncExtension } from '../../common/userDataSync.js';
 
 suite('ExtensionsMerge', () => {
 

@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { Position } from 'vs/editor/common/core/position';
-import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { InsertButton } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { Emitter } from 'vs/base/common/event';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IColorInformation } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IRange } from 'vs/editor/common/core/range';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
-import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./colorPicker';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IEditorHoverRenderContext } from '../../hover/browser/hoverTypes.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { PositionAffinity } from '../../../common/model.js';
+import { Position } from '../../../common/core/position.js';
+import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from './colorHoverParticipant.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorHoverStatusBar } from '../../hover/browser/contentHoverStatusBar.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { InsertButton } from './colorPickerWidget.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IColorInformation } from '../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IRange } from '../../../common/core/range.js';
+import { DefaultDocumentColorProvider } from './defaultDocumentColorProvider.js';
+import * as dom from '../../../../base/browser/dom.js';
+import './colorPicker.css';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -38,11 +37,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IModelService private readonly _modelService: IModelService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
 		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(_contextKeyService);
@@ -54,7 +49,12 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 			return;
 		}
 		if (!this._standaloneColorPickerVisible.get()) {
-			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._modelService, this._keybindingService, this._languageFeatureService, this._languageConfigurationService);
+			this._standaloneColorPickerWidget = this._instantiationService.createInstance(
+				StandaloneColorPickerWidget,
+				this._editor,
+				this._standaloneColorPickerVisible,
+				this._standaloneColorPickerFocused
+			);
 		} else if (!this._standaloneColorPickerFocused.get()) {
 			this._standaloneColorPickerWidget?.focus();
 		}
@@ -102,10 +102,9 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		private readonly _standaloneColorPickerVisible: IContextKey<boolean>,
 		private readonly _standaloneColorPickerFocused: IContextKey<boolean>,
 		@IInstantiationService _instantiationService: IInstantiationService,
-		@IModelService private readonly _modelService: IModelService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super();
 		this._standaloneColorPickerVisible.set(true);
@@ -205,7 +204,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			range: range,
 			color: { red: 0, green: 0, blue: 0, alpha: 1 }
 		};
-		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._standaloneColorPickerParticipant.createColorHover(colorInfo, new DefaultDocumentColorProvider(this._modelService, this._languageConfigurationService), this._languageFeaturesService.colorProvider);
+		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._standaloneColorPickerParticipant.createColorHover(colorInfo, new DefaultDocumentColorProvider(this._editorWorkerService), this._languageFeaturesService.colorProvider);
 		if (!colorHoverResult) {
 			return null;
 		}
@@ -224,11 +223,12 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		};
 
 		this._colorHover = colorHover;
-		const { disposables, colorPicker } = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
-		this._register(disposables);
-		if (colorPicker === undefined) {
+		const renderedHoverPart = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
+		if (!renderedHoverPart) {
 			return;
 		}
+		this._register(renderedHoverPart.disposables);
+		const colorPicker = renderedHoverPart.colorPicker;
 		this._body.classList.add('standalone-colorpicker-body');
 		this._body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
 		this._body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';

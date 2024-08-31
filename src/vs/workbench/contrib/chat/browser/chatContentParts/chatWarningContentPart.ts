@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Codicon } from 'vs/base/common/codicons';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import * as dom from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IChatContentPart } from './chatContentParts.js';
+import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 
 const $ = dom.$;
 
-export class ChatWarningContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatWarningContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 
 	constructor(
 		kind: 'info' | 'warning' | 'error',
@@ -22,7 +24,7 @@ export class ChatWarningContentPart extends Disposable {
 	) {
 		super();
 
-		this.element = $('.chat-notification-widget');
+		this.domNode = $('.chat-notification-widget');
 		let icon;
 		let iconClass;
 		switch (kind) {
@@ -39,9 +41,13 @@ export class ChatWarningContentPart extends Disposable {
 				iconClass = '.chat-info-codicon';
 				break;
 		}
-		this.element.appendChild($(iconClass, undefined, renderIcon(icon)));
+		this.domNode.appendChild($(iconClass, undefined, renderIcon(icon)));
 		const markdownContent = renderer.render(content);
-		this.element.appendChild(markdownContent.element);
+		this.domNode.appendChild(markdownContent.element);
+	}
 
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'warning';
 	}
 }

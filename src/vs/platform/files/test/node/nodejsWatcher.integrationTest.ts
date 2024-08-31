@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeFilter, FileChangeType } from 'vs/platform/files/common/files';
-import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
-import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { getDriveLetter } from 'vs/base/common/extpath';
-import { ltrim } from 'vs/base/common/strings';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
-import { FileAccess } from 'vs/base/common/network';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.integrationTest';
+import { basename, dirname, join } from '../../../../base/common/path.js';
+import { Promises, RimRafMode } from '../../../../base/node/pfs.js';
+import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
+import { FileChangeFilter, FileChangeType } from '../../common/files.js';
+import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from '../../common/watcher.js';
+import { watchFileContents } from '../../node/watcher/nodejs/nodejsWatcherLib.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { getDriveLetter } from '../../../../base/common/extpath.js';
+import { ltrim } from '../../../../base/common/strings.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { NodeJSWatcher } from '../../node/watcher/nodejs/nodejsWatcher.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { TestParcelWatcher } from './parcelWatcher.integrationTest.js';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
+suite.skip('File Watcher (node.js)', () => {
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
@@ -158,7 +159,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		// New folder
 		const newFolderPath = join(testDir, 'New Folder');
 		changeFuture = awaitEvent(watcher, newFolderPath, FileChangeType.ADDED);
-		await Promises.mkdir(newFolderPath);
+		await fs.promises.mkdir(newFolderPath);
 		await changeFuture;
 
 		// Rename file
@@ -220,7 +221,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		// Copy file
 		const copiedFilepath = join(testDir, 'copiedFile.txt');
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.ADDED);
-		await Promises.copyFile(movedFilepath, copiedFilepath);
+		await fs.promises.copyFile(movedFilepath, copiedFilepath);
 		await changeFuture;
 
 		// Copy folder
@@ -242,12 +243,12 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
-		await Promises.unlink(copiedFilepath);
+		await fs.promises.unlink(copiedFilepath);
 		await changeFuture;
 
 		// Delete folder
 		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.DELETED);
-		await Promises.rmdir(copiedFolderpath);
+		await fs.promises.rmdir(copiedFolderpath);
 		await changeFuture;
 
 		watcher.dispose();
@@ -270,7 +271,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
-		await Promises.unlink(filePath);
+		await fs.promises.unlink(filePath);
 		await changeFuture;
 
 		// Recreate watcher
@@ -290,7 +291,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'lorem.txt');
 		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
-		await Promises.unlink(newFilePath);
+		await fs.promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
 	});
@@ -302,7 +303,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		// Delete + Recreate file
 		const newFilePath = join(filePath);
 		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
-		await Promises.unlink(newFilePath);
+		await fs.promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
 	});
@@ -363,9 +364,9 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		const deleteFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.DELETED);
 
 		await Promise.all([
-			await Promises.unlink(newFilePath1),
-			await Promises.unlink(newFilePath2),
-			await Promises.unlink(newFilePath3)
+			await fs.promises.unlink(newFilePath1),
+			await fs.promises.unlink(newFilePath2),
+			await fs.promises.unlink(newFilePath3)
 		]);
 
 		await Promise.all([deleteFuture1, deleteFuture2, deleteFuture3]);
@@ -444,7 +445,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
-		await Promises.symlink(linkTarget, link);
+		await fs.promises.symlink(linkTarget, link);
 
 		await watcher.watch([{ path: link, excludes: [], recursive: false }]);
 
@@ -471,14 +472,14 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, correlationId, expectedCount);
-		await Promises.unlink(await Promises.realpath(filePath)); // support symlinks
+		await fs.promises.unlink(await Promises.realpath(filePath)); // support symlinks
 		await changeFuture;
 	}
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (file watch)', async function () {
 		const link = join(testDir, 'lorem.txt-linked');
 		const linkTarget = join(testDir, 'lorem.txt');
-		await Promises.symlink(linkTarget, link);
+		await fs.promises.symlink(linkTarget, link);
 
 		await watcher.watch([{ path: link, excludes: [], recursive: false }]);
 
@@ -583,7 +584,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		const changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
-		Promises.unlink(filePath);
+		fs.promises.unlink(filePath);
 		await onDidWatchFail;
 		await changeFuture;
 		assert.strictEqual(instance.failed, true);
@@ -638,7 +639,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await Promises.mkdir(folderPath);
+		await fs.promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
@@ -649,12 +650,12 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		if (!isMacintosh) { // macOS does not report DELETE events for folders
 			onDidWatchFail = Event.toPromise(watcher.onWatchFail);
-			await Promises.rmdir(folderPath);
+			await fs.promises.rmdir(folderPath);
 			await onDidWatchFail;
 
 			changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
 			onDidWatch = Event.toPromise(watcher.onDidWatch);
-			await Promises.mkdir(folderPath);
+			await fs.promises.mkdir(folderPath);
 			await changeFuture;
 			await onDidWatch;
 
@@ -677,7 +678,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, 1);
 		const onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await Promises.mkdir(folderPath);
+		await fs.promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
@@ -777,7 +778,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
-		await Promises.unlink(filePath);
+		await fs.promises.unlink(filePath);
 		await changeFuture;
 	});
 
@@ -793,7 +794,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, 1);
-		await Promises.unlink(filePath);
+		await fs.promises.unlink(filePath);
 		await changeFuture;
 	});
 });

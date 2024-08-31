@@ -3,46 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, IFocusTracker, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
-import { CancelablePromise, DeferredPromise, Queue, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { MovingAverage } from 'vs/base/common/numbers';
-import { isEqual } from 'vs/base/common/resources';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextEdit } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ICursorStateComputer, ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IModelService } from 'vs/editor/common/services/model';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
-import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
-import { MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { Dimension, IFocusTracker, WindowIntervalTimer, getWindow, scheduleAtNextAnimationFrame, trackFocus } from '../../../../../../base/browser/dom.js';
+import { CancelablePromise, DeferredPromise, Queue, createCancelablePromise, disposableTimeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { MovingAverage } from '../../../../../../base/common/numbers.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { StopWatch } from '../../../../../../base/common/stopwatch.js';
+import { assertType } from '../../../../../../base/common/types.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IActiveCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ISingleEditOperation } from '../../../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../../../editor/common/core/position.js';
+import { Selection } from '../../../../../../editor/common/core/selection.js';
+import { TextEdit } from '../../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { ICursorStateComputer, ITextModel } from '../../../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { localize } from '../../../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ChatAgentLocation } from '../../../../chat/common/chatAgents.js';
+import { ChatModel, IChatModel } from '../../../../chat/common/chatModel.js';
+import { IChatService } from '../../../../chat/common/chatService.js';
+import { countWords } from '../../../../chat/common/chatWordCounter.js';
+import { ProgressingEditsOptions } from '../../../../inlineChat/browser/inlineChatStrategies.js';
+import { InlineChatWidget } from '../../../../inlineChat/browser/inlineChatWidget.js';
+import { asProgressiveEdit, performAsyncTextEdit } from '../../../../inlineChat/browser/utils.js';
+import { insertCell, runDeleteAction } from '../cellOperations.js';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from './notebookChatContext.js';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { CellKind } from '../../../common/notebookCommon.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 
 class NotebookChatWidget extends Disposable implements INotebookViewZone {
 	set afterModelPosition(afterModelPosition: number) {
@@ -412,7 +411,19 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
 			InlineChatWidget,
-			ChatAgentLocation.Notebook,
+			{
+				location: ChatAgentLocation.Notebook,
+				resolveData: () => {
+					const sessionInputUri = this.getSessionInputUri();
+					if (!sessionInputUri) {
+						return undefined;
+					}
+					return {
+						type: ChatAgentLocation.Notebook,
+						sessionInputUri
+					};
+				}
+			},
 			{
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 				chatWidgetViewOptions: {
@@ -423,8 +434,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 						}
 					},
 					menus: {
-						telemetrySource: 'notebook-generate-cell',
-						inputSideToolbar: MENU_INLINE_CHAT_WIDGET,
+						telemetrySource: 'notebook-generate-cell'
 					}
 				}
 			}
@@ -471,6 +481,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 			this._sessionCtor = createCancelablePromise<void>(async token => {
 				await this._startSession(token);
+				assertType(this._model.value);
+				const model = this._model.value;
+				this._widget?.inlineChatWidget.setChatModel(model);
+
 				if (fakeParentEditor.hasModel()) {
 
 					if (this._widget) {
@@ -547,9 +561,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		await this._sessionCtor;
 		assertType(this._model.value);
 		assertType(this._strategy);
-
-		const model = this._model.value;
-		this._widget.inlineChatWidget.setChatModel(model);
 
 		const lastInput = this._widget.inlineChatWidget.value;
 		this._historyUpdate(lastInput);
@@ -666,7 +677,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			store.dispose();
 
 			this._ctxHasActiveRequest.set(false);
-			this._widget.inlineChatWidget.updateProgress(false);
 			this._widget.inlineChatWidget.updateInfo('');
 			this._widget.inlineChatWidget.updateToolbar(true);
 		}

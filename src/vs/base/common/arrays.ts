@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
-import { ISplice } from 'vs/base/common/sequence';
-import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
+import { CancellationToken } from './cancellation.js';
+import { CancellationError } from './errors.js';
+import { ISplice } from './sequence.js';
+import { findFirstIdxMonotonousOrArrLen } from './arraysFind.js';
 
 /**
  * Returns the last element of an array.
@@ -884,4 +884,19 @@ export class Permutation {
 		}
 		return new Permutation(inverseIndexMap);
 	}
+}
+
+/**
+ * Asynchronous variant of `Array.find()`, returning the first element in
+ * the array for which the predicate returns true.
+ *
+ * This implementation does not bail early and waits for all promises to
+ * resolve before returning.
+ */
+export async function findAsync<T>(array: readonly T[], predicate: (element: T, index: number) => Promise<boolean>): Promise<T | undefined> {
+	const results = await Promise.all(array.map(
+		async (element, index) => ({ element, ok: await predicate(element, index) })
+	));
+
+	return results.find(r => r.ok)?.element;
 }

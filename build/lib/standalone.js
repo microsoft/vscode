@@ -106,10 +106,7 @@ function extractEditor(options) {
         'vs/css.build.ts',
         'vs/css.ts',
         'vs/loader.js',
-        'vs/loader.d.ts',
-        'vs/nls.build.ts',
-        'vs/nls.ts',
-        'vs/nls.mock.ts',
+        'vs/loader.d.ts'
     ].forEach(copyFile);
 }
 function createESMSourcesAndResources2(options) {
@@ -134,7 +131,7 @@ function createESMSourcesAndResources2(options) {
         }
         if (file === 'tsconfig.json') {
             const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-            tsConfig.compilerOptions.module = 'es6';
+            tsConfig.compilerOptions.module = 'es2022';
             tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
             write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
             continue;

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+import * as fs from 'fs';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 interface IExtensionEntry {
 	version: string;
@@ -58,7 +59,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 
 		try {
 			const installed: IStringDictionary<boolean> = Object.create(null);
-			const metaData: ILanguagePackFile = JSON.parse(await Promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
+			const metaData: ILanguagePackFile = JSON.parse(await fs.promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 			for (const locale of Object.keys(metaData)) {
 				const entry = metaData[locale];
 				installed[`${entry.hash}.${locale}`] = true;
@@ -93,7 +94,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 					}
 
 					const candidate = join(folder, entry);
-					const stat = await Promises.stat(candidate);
+					const stat = await fs.promises.stat(candidate);
 					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this._DataMaxAge) {
 						this.logService.trace(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
 

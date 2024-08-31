@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from 'vs/base/common/assert';
-import { EqualityComparer, strictEquals } from 'vs/base/common/equals';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from 'vs/base/common/observableInternal/base';
-import { DebugNameData, IDebugNameData, DebugOwner } from 'vs/base/common/observableInternal/debugName';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { assertFn } from '../assert.js';
+import { EqualityComparer, strictEquals } from '../equals.js';
+import { DisposableStore, IDisposable } from '../lifecycle.js';
+import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
+import { DebugNameData, IDebugNameData, DebugOwner } from './debugName.js';
+import { getLogger } from './logging.js';
 
 /**
  * Creates an observable that is derived from other observables.
@@ -140,11 +140,15 @@ export function derivedDisposable<T extends IDisposable | undefined>(computeFnOr
 		computeFn = computeFnOrUndefined as any;
 	}
 
-	const store = new DisposableStore();
+	let store: DisposableStore | undefined = undefined;
 	return new Derived(
 		new DebugNameData(owner, undefined, computeFn),
 		r => {
-			store.clear();
+			if (!store) {
+				store = new DisposableStore();
+			} else {
+				store.clear();
+			}
 			const result = computeFn(r);
 			if (result) {
 				store.add(result);
@@ -152,7 +156,12 @@ export function derivedDisposable<T extends IDisposable | undefined>(computeFnOr
 			return result;
 		}, undefined,
 		undefined,
-		() => store.dispose(),
+		() => {
+			if (store) {
+				store.dispose();
+				store = undefined;
+			}
+		},
 		strictEquals
 	);
 }

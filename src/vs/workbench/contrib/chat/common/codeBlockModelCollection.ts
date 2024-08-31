@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { EndOfLinePreference } from '../../../../editor/common/model.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isResponseVM } from './chatViewModel.js';
+import { extractVulnerabilitiesFromText, IMarkdownVulnerability } from './annotations.js';
 
 
 export class CodeBlockModelCollection extends Disposable {
@@ -21,6 +21,13 @@ export class CodeBlockModelCollection extends Disposable {
 		readonly model: Promise<IReference<IResolvedTextEditorModel>>;
 		vulns: readonly IMarkdownVulnerability[];
 	}>();
+
+	/**
+	 * Max number of models to keep in memory.
+	 *
+	 * Currently always maintains the most recently created models.
+	 */
+	private readonly maxModelCount = 100;
 
 	constructor(
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -52,7 +59,26 @@ export class CodeBlockModelCollection extends Disposable {
 		const uri = this.getUri(sessionId, chat, codeBlockIndex);
 		const ref = this.textModelService.createModelReference(uri);
 		this._models.set(uri, { model: ref, vulns: [] });
+
+		while (this._models.size > this.maxModelCount) {
+			const first = Array.from(this._models.keys()).at(0);
+			if (!first) {
+				break;
+			}
+			this.delete(first);
+		}
+
 		return { model: ref.then(ref => ref.object), vulns: [] };
+	}
+
+	private delete(codeBlockUri: URI) {
+		const entry = this._models.get(codeBlockUri);
+		if (!entry) {
+			return;
+		}
+
+		entry.model.then(ref => ref.dispose());
+		this._models.delete(codeBlockUri);
 	}
 
 	clear(): void {
@@ -116,6 +142,10 @@ export class CodeBlockModelCollection extends Disposable {
 
 		return {
 			references: chat.contentReferences.map(ref => {
+				if (typeof ref.reference === 'string') {
+					return;
+				}
+
 				const uriOrLocation = 'variableName' in ref.reference ?
 					ref.reference.value :
 					ref.reference;

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { CursorCollection } from 'vs/editor/common/cursor/cursorCollection';
-import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/cursorCommon';
-import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
-import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CompositionOutcome, TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/textModelEvents';
-import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/viewEvents';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
-import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
-import { TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeEditOperations';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import * as strings from '../../../base/common/strings.js';
+import { CursorCollection } from './cursorCollection.js';
+import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from '../cursorCommon.js';
+import { CursorContext } from './cursorContext.js';
+import { DeleteOperations } from './cursorDeleteOperations.js';
+import { CursorChangeReason } from '../cursorEvents.js';
+import { CompositionOutcome, TypeOperations } from './cursorTypeOperations.js';
+import { BaseTypeWithAutoClosingCommand } from './cursorTypeEditOperations.js';
+import { Position } from '../core/position.js';
+import { Range, IRange } from '../core/range.js';
+import { ISelection, Selection, SelectionDirection } from '../core/selection.js';
+import * as editorCommon from '../editorCommon.js';
+import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from '../model.js';
+import { RawContentChangedType, ModelInjectedTextChangedEvent, InternalModelContentChangeEvent } from '../textModelEvents.js';
+import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from '../viewEvents.js';
+import { dispose, Disposable } from '../../../base/common/lifecycle.js';
+import { ICoordinatesConverter } from '../viewModel.js';
+import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
 
 export class CursorsController extends Disposable {
 
@@ -368,7 +368,7 @@ export class CursorsController extends Disposable {
 
 			for (let i = 0; i < opResult.commands.length; i++) {
 				const command = opResult.commands[i];
-				if (command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
+				if (command instanceof BaseTypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
 					autoClosedCharactersRanges.push(command.closeCharacterRange);
 					autoClosedEnclosingRanges.push(command.enclosingRange);
 				}
@@ -740,7 +740,7 @@ interface ICommandsData {
 	hadTrackedEditOperation: boolean;
 }
 
-class CommandExecutor {
+export class CommandExecutor {
 
 	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[]): Selection[] | null {
 

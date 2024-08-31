@@ -74,15 +74,15 @@
 	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.extension-status-error {
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-error::before {
 	color: var(--vscode-editorError-foreground);
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning {
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning::before {
 	color: var(--vscode-editorWarning-foreground);
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.extension-status-info {
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-info::before {
 	color: var(--vscode-editorInfo-foreground);
 }
 

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EqualityComparer } from 'vs/base/common/equals';
-import { ISettableObservable, ITransaction } from 'vs/base/common/observable';
-import { BaseObservable, IObserver, TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { DebugNameData } from 'vs/base/common/observableInternal/debugName';
+import { EqualityComparer } from '../equals.js';
+import { ISettableObservable, ITransaction } from '../observable.js';
+import { BaseObservable, IObserver, TransactionImpl } from './base.js';
+import { DebugNameData } from './debugName.js';
 
 /**
  * Holds off updating observers until the value is actually read.

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Constants } from 'vs/base/common/uint';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import * as nls from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import * as arrays from '../../../base/common/arrays.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import * as objects from '../../../base/common/objects.js';
+import * as platform from '../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
+import { Constants } from '../../../base/common/uint.js';
+import { FontInfo } from './fontInfo.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
+import * as nls from '../../../nls.js';
+import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
 
 //#region typed options
 
@@ -771,75 +771,96 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to true.
 	 */
 	enableSplitViewResizing?: boolean;
+
 	/**
 	 * The default ratio when rendering side-by-side editors.
 	 * Must be a number between 0 and 1, min sizes apply.
 	 * Defaults to 0.5
 	 */
 	splitViewDefaultRatio?: number;
+
 	/**
 	 * Render the differences in two side-by-side editors.
 	 * Defaults to true.
 	 */
 	renderSideBySide?: boolean;
+
 	/**
 	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
 	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
 	 */
 	renderSideBySideInlineBreakpoint?: number | undefined;
+
 	/**
 	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
 	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
 	 */
 	useInlineViewWhenSpaceIsLimited?: boolean;
+
+	/**
+	 * If set, the diff editor is optimized for small views.
+	 * Defaults to `false`.
+	*/
+	compactMode?: boolean;
+
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
 	 */
 	maxComputationTime?: number;
+
 	/**
 	 * Maximum supported file size in MB.
 	 * Defaults to 50.
 	 */
 	maxFileSize?: number;
+
 	/**
 	 * Compute the diff by ignoring leading/trailing whitespace
 	 * Defaults to true.
 	 */
 	ignoreTrimWhitespace?: boolean;
+
 	/**
 	 * Render +/- indicators for added/deleted changes.
 	 * Defaults to true.
 	 */
 	renderIndicators?: boolean;
+
 	/**
 	 * Shows icons in the glyph margin to revert changes.
 	 * Default to true.
 	 */
 	renderMarginRevertIcon?: boolean;
+
 	/**
 	 * Indicates if the gutter menu should be rendered.
 	*/
 	renderGutterMenu?: boolean;
+
 	/**
 	 * Original model should be editable?
 	 * Defaults to false.
 	 */
 	originalEditable?: boolean;
+
 	/**
 	 * Should the diff editor enable code lens?
 	 * Defaults to false.
 	 */
 	diffCodeLens?: boolean;
+
 	/**
 	 * Is the diff editor should render overview ruler
 	 * Defaults to true
 	 */
 	renderOverviewRuler?: boolean;
+
 	/**
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
+
 	/**
 	 * Diff Algorithm
 	*/
@@ -857,6 +878,11 @@ export interface IDiffEditorBaseOptions {
 		showMoves?: boolean;
 
 		showEmptyDecorations?: boolean;
+
+		/**
+		 * Only applies when `renderSideBySide` is set to false.
+		*/
+		useTrueInlineView?: boolean;
 	};
 
 	/**
@@ -1916,12 +1942,14 @@ export interface IGotoLocationOptions {
 	multipleDeclarations?: GoToLocationValues;
 	multipleImplementations?: GoToLocationValues;
 	multipleReferences?: GoToLocationValues;
+	multipleTests?: GoToLocationValues;
 
 	alternativeDefinitionCommand?: string;
 	alternativeTypeDefinitionCommand?: string;
 	alternativeDeclarationCommand?: string;
 	alternativeImplementationCommand?: string;
 	alternativeReferenceCommand?: string;
+	alternativeTestsCommand?: string;
 }
 
 /**
@@ -1939,11 +1967,13 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 			multipleDeclarations: 'peek',
 			multipleImplementations: 'peek',
 			multipleReferences: 'peek',
+			multipleTests: 'peek',
 			alternativeDefinitionCommand: 'editor.action.goToReferences',
 			alternativeTypeDefinitionCommand: 'editor.action.goToReferences',
 			alternativeDeclarationCommand: 'editor.action.goToReferences',
 			alternativeImplementationCommand: '',
 			alternativeReferenceCommand: '',
+			alternativeTestsCommand: '',
 		};
 		const jsonSubset: IJSONSchema = {
 			type: 'string',
@@ -2028,11 +2058,13 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 			multipleDeclarations: input.multipleDeclarations ?? stringSet<GoToLocationValues>(input.multipleDeclarations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleImplementations: input.multipleImplementations ?? stringSet<GoToLocationValues>(input.multipleImplementations, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			multipleReferences: input.multipleReferences ?? stringSet<GoToLocationValues>(input.multipleReferences, 'peek', ['peek', 'gotoAndPeek', 'goto']),
+			multipleTests: input.multipleTests ?? stringSet<GoToLocationValues>(input.multipleTests, 'peek', ['peek', 'gotoAndPeek', 'goto']),
 			alternativeDefinitionCommand: EditorStringOption.string(input.alternativeDefinitionCommand, this.defaultValue.alternativeDefinitionCommand),
 			alternativeTypeDefinitionCommand: EditorStringOption.string(input.alternativeTypeDefinitionCommand, this.defaultValue.alternativeTypeDefinitionCommand),
 			alternativeDeclarationCommand: EditorStringOption.string(input.alternativeDeclarationCommand, this.defaultValue.alternativeDeclarationCommand),
 			alternativeImplementationCommand: EditorStringOption.string(input.alternativeImplementationCommand, this.defaultValue.alternativeImplementationCommand),
 			alternativeReferenceCommand: EditorStringOption.string(input.alternativeReferenceCommand, this.defaultValue.alternativeReferenceCommand),
+			alternativeTestsCommand: EditorStringOption.string(input.alternativeTestsCommand, this.defaultValue.alternativeTestsCommand),
 		};
 	}
 }
@@ -2767,7 +2799,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.On };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -4171,8 +4203,6 @@ export interface IInlineEditOptions {
 	 * Does not clear active inline suggestions when the editor loses focus.
 	 */
 	keepOnBlur?: boolean;
-
-	backgroundColoring?: boolean;
 }
 
 /**
@@ -4187,7 +4217,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 			showToolbar: 'onHover',
 			fontFamily: 'default',
 			keepOnBlur: false,
-			backgroundColoring: false,
 		};
 
 		super(
@@ -4214,11 +4243,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 					default: defaults.fontFamily,
 					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
 				},
-				'editor.experimentalInlineEdit.backgroundColoring': {
-					type: 'boolean',
-					default: defaults.backgroundColoring,
-					description: nls.localize('inlineEdit.backgroundColoring', "Controls whether to color the background of inline edits.")
-				},
 			}
 		);
 	}
@@ -4233,7 +4257,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
-			backgroundColoring: boolean(input.backgroundColoring, this.defaultValue.backgroundColoring)
 		};
 	}
 }

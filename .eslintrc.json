@@ -143,6 +143,14 @@
 		},
 		{
 			"files": [
+				"src/**/*.ts"
+			],
+			"rules": {
+				"local/code-no-static-self-ref": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/vs/**/*.test.ts"
 			],
 			"rules": {
@@ -648,6 +656,7 @@
 							"http",
 							"https",
 							"minimist",
+							"node:module",
 							"native-keymap",
 							"native-watchdog",
 							"net",
@@ -684,6 +693,7 @@
 						"when": "test",
 						"allow": [
 							"vs/css.build",
+							"vs/css.build.js",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -747,7 +757,8 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"vs/editor/~"
+							"vs/editor/~",
+							"@vscode/tree-sitter-wasm" // node module allowed even in /common/
 						]
 					},
 					{
@@ -930,6 +941,10 @@
 							},
 							{
 								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.js"
+							},
+							{
+								"when": "hasBrowser",
 								"pattern": "vs/workbench/~"
 							},
 							{
@@ -968,11 +983,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/terminal.all"
+							"vs/workbench/contrib/terminal/terminal.all",
+							"vs/workbench/contrib/terminal/terminal.all.js"
 						]
 					},
 					{
@@ -985,11 +1002,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1002,11 +1021,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1016,11 +1037,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
-						"restrictions": []
-					},
-					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{
@@ -1028,7 +1045,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
+						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js,bootstrap-cli.js,bootstrap-server.js}",
 						"restrictions": []
 					}
 				]
@@ -1094,7 +1111,9 @@
 				"local/code-no-runtime-import": [
 					"error",
 					{
-						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": ["**/*"]
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"**/*"
+						]
 					}
 				]
 			}

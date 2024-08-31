@@ -104,7 +104,8 @@
 	display: none;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.clicked:focus:before {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.clicked:focus:before,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.clicked:focus .active-item-indicator::before {
 	border-left: none !important; /* no focus feedback when using mouse */
 }
 

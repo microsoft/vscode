@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIfDefined, itemsEquals } from 'vs/base/common/equals';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
-import { TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { TransactionImpl } from '../../base/common/observableInternal/base.js';
+import { derivedWithSetter } from '../../base/common/observableInternal/derived.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
+import { Position } from '../common/core/position.js';
+import { Selection } from '../common/core/selection.js';
+import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
+import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
+import { IModelContentChangedEvent } from '../common/textModelEvents.js';
 
 /**
  * Returns a facade for the code editor that provides observables for various states/events.
@@ -168,11 +169,31 @@ export class ObservableCodeEditor extends Disposable {
 		};
 	}, () => this.editor.hasWidgetFocus());
 
-	public readonly value = derived(this, reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue(); });
+	public readonly value = derivedWithSetter(this,
+		reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue() ?? ''; },
+		(value, tx) => {
+			const model = this.model.get();
+			if (model !== null) {
+				if (value !== model.getValue()) {
+					model.setValue(value);
+				}
+			}
+		}
+	);
 	public readonly valueIsEmpty = derived(this, reader => { this.versionId.read(reader); return this.editor.getModel()?.getValueLength() === 0; });
+	public readonly cursorSelection = derivedOpts({ owner: this, equalsFn: equalsIfDefined(Selection.selectionsEqual) }, reader => this.selections.read(reader)?.[0] ?? null);
 	public readonly cursorPosition = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.selections.read(reader)?.[0]?.getPosition() ?? null);
 
 	public readonly onDidType = observableSignal<string>(this);
+
+	public readonly scrollTop = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollTop());
+	public readonly scrollLeft = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
+
+	public readonly layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
+	public readonly layoutInfoContentLeft = this.layoutInfo.map(l => l.contentLeft);
+	public readonly layoutInfoDecorationsLeft = this.layoutInfo.map(l => l.decorationsLeft);
+
+	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
 	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
 		return observableFromEvent(this, cb => this.editor.onDidChangeConfiguration(e => {
@@ -194,6 +215,36 @@ export class ObservableCodeEditor extends Disposable {
 		});
 		return d;
 	}
+
+	private _overlayWidgetCounter = 0;
+
+	public createOverlayWidget(widget: IObservableOverlayWidget): IDisposable {
+		const overlayWidgetId = 'observableOverlayWidget' + (this._overlayWidgetCounter++);
+		const w: IOverlayWidget = {
+			getDomNode: () => widget.domNode,
+			getPosition: () => widget.position.get(),
+			getId: () => overlayWidgetId,
+			allowEditorOverflow: widget.allowEditorOverflow,
+			getMinContentWidthInPx: () => widget.minContentWidthInPx.get(),
+		};
+		this.editor.addOverlayWidget(w);
+		const d = autorun(reader => {
+			widget.position.read(reader);
+			widget.minContentWidthInPx.read(reader);
+			this.editor.layoutOverlayWidget(w);
+		});
+		return toDisposable(() => {
+			d.dispose();
+			this.editor.removeOverlayWidget(w);
+		});
+	}
+}
+
+interface IObservableOverlayWidget {
+	get domNode(): HTMLElement;
+	readonly position: IObservable<IOverlayWidgetPosition | null>;
+	readonly minContentWidthInPx: IObservable<number>;
+	get allowEditorOverflow(): boolean;
 }
 
 type RemoveUndefined<T> = T extends undefined ? never : T;

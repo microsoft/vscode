@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+* TODO: @justschen - remove this file once the new issue reporter is enabled by default.
+* Split between this and a `newIssueReporter` because of specificy from new issue reporter monaco-workbench stylesheets.
+*/
+
 /**
  * Table
  */

@@ -3,38 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import 'vs/workbench/contrib/notebook/browser/controller/chat/cellChatActions';
-import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
+import { ChatAgentLocation, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import './cellChatActions.js';
+import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 
-class NotebookChatVariables extends Disposable implements IWorkbenchContribution {
+class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.notebookChatVariables';
+	static readonly ID = 'workbench.contrib.notebookChatContribution';
+
+	private readonly _ctxHasProvider: IContextKey<boolean>;
 
 	constructor(
-		@IChatVariablesService private readonly _chatVariableService: IChatVariablesService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatAgentService chatAgentService: IChatAgentService
 	) {
 		super();
 
-		this._register(this._chatVariableService.registerVariable(
-			{ id: '_notebookChatInput', name: '_notebookChatInput', description: '', hidden: true },
-			async (_message, _arg, model) => {
-				const editors = this._notebookEditorService.listNotebookEditors();
-				for (const editor of editors) {
-					const chatController = editor.getContribution(NotebookChatController.id) as NotebookChatController | undefined;
-					if (chatController?.hasSession(model)) {
-						return chatController.getSessionInputUri();
-					}
-				}
+		this._ctxHasProvider = CTX_NOTEBOOK_CHAT_HAS_AGENT.bindTo(contextKeyService);
 
-				return undefined;
-			}
-		));
+		const updateNotebookAgentStatus = () => {
+			const hasNotebookAgent = Boolean(chatAgentService.getDefaultAgent(ChatAgentLocation.Notebook));
+			this._ctxHasProvider.set(hasNotebookAgent);
+		};
+
+		updateNotebookAgentStatus();
+		this._register(chatAgentService.onDidChangeAgents(updateNotebookAgentStatus));
 	}
 }
 
-registerWorkbenchContribution2(NotebookChatVariables.ID, NotebookChatVariables, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(NotebookChatContribution.ID, NotebookChatContribution, WorkbenchPhase.BlockRestore);

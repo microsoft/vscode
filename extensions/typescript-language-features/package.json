@@ -1030,6 +1030,22 @@
           "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
           "scope": "resource"
         },
+        "typescript.preferences.autoImportSpecifierExcludeRegexes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportSpecifierExcludeRegexes%",
+          "scope": "resource"
+        },
+        "javascript.preferences.autoImportSpecifierExcludeRegexes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportSpecifierExcludeRegexes%",
+          "scope": "resource"
+        },
         "typescript.preferences.preferTypeOnlyAutoImports": {
           "type": "boolean",
           "default": false,
@@ -1073,6 +1089,146 @@
           "default": true,
           "description": "%typescript.preferences.renameMatchingJsxTags%",
           "scope": "language-overridable"
+        },
+        "typescript.preferences.organizeImports": {
+          "type": "object",
+          "markdownDescription": "%typescript.preferences.organizeImports%",
+          "properties": {
+            "caseSensitivity": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "caseInsensitive",
+                "caseSensitive"
+              ],
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.caseSensitivity.auto%",
+                "%typescript.preferences.organizeImports.caseSensitivity.insensitive",
+                "%typescript.preferences.organizeImports.caseSensitivity.sensitive%"
+              ],
+              "default": "auto"
+            },
+            "typeOrder": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "last",
+                "inline",
+                "first"
+              ],
+              "default": "auto",
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.typeOrder.auto%",
+                "%typescript.preferences.organizeImports.typeOrder.last%",
+                "%typescript.preferences.organizeImports.typeOrder.inline%",
+                "%typescript.preferences.organizeImports.typeOrder.first%"
+              ]
+            },
+            "unicodeCollation": {
+              "type": "string",
+              "enum": [
+                "ordinal",
+                "unicode"
+              ],
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.unicodeCollation.ordinal%",
+                "%typescript.preferences.organizeImports.unicodeCollation.unicode%"
+              ],
+              "default": "ordinal"
+            },
+            "locale": {
+              "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.locale%"
+            },
+            "numericCollation": {
+              "type": "boolean",
+              "markdownDescription": "%typescript.preferences.organizeImports.numericCollation%"
+            },
+            "accentCollation":{
+              "type": "boolean",
+              "markdownDescription": "%typescript.preferences.organizeImports.accentCollation%"
+            },
+            "caseFirst": {
+              "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.caseFirst%",
+              "enum": [
+                "default",
+                "upper",
+                "lower"
+              ],
+              "default": "default"
+            }
+          }
+        },
+        "javascript.preferences.organizeImports": {
+          "type": "object",
+          "markdownDescription": "%typescript.preferences.organizeImports%",
+          "properties": {
+            "caseSensitivity": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "caseInsensitive",
+                "caseSensitive"
+              ],
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.caseSensitivity.auto%",
+                "%typescript.preferences.organizeImports.caseSensitivity.insensitive",
+                "%typescript.preferences.organizeImports.caseSensitivity.sensitive%"
+              ],
+              "default": "auto"
+            },
+            "typeOrder": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "last",
+                "inline",
+                "first"
+              ],
+              "default": "auto",
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.typeOrder.auto%",
+                "%typescript.preferences.organizeImports.typeOrder.last%",
+                "%typescript.preferences.organizeImports.typeOrder.inline%",
+                "%typescript.preferences.organizeImports.typeOrder.first%"
+              ]
+            },
+            "unicodeCollation": {
+              "type": "string",
+              "enum": [
+                "ordinal",
+                "unicode"
+              ],
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.unicodeCollation.ordinal%",
+                "%typescript.preferences.organizeImports.unicodeCollation.unicode%"
+              ],
+              "default": "ordinal"
+            },
+            "locale": {
+              "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.locale%"
+            },
+            "numericCollation": {
+              "type": "boolean",
+              "markdownDescription": "%typescript.preferences.organizeImports.numericCollation%"
+            },
+            "accentCollation":{
+              "type": "boolean",
+              "markdownDescription": "%typescript.preferences.organizeImports.accentCollation%"
+            },
+            "caseFirst": {
+              "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.caseFirst%",
+              "enum": [
+                "default",
+                "upper",
+                "lower"
+              ],
+              "default": "default"
+            }
+          }
         },
         "typescript.updateImportsOnFileMove.enabled": {
           "type": "string",
@@ -1282,13 +1438,13 @@
         },
         "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
           "scope": "window"
         },
         "typescript.tsserver.web.typeAcquisition.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%configuration.tsserver.web.typeAcquisition.enabled%",
           "scope": "window"
         },
@@ -1313,6 +1469,12 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%typescript.workspaceSymbols.excludeLibrarySymbols%",
+          "scope": "window"
+        },
+        "typescript.tsserver.enableRegionDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.tsserver.enableRegionDiagnostics%",
           "scope": "window"
         },
         "javascript.experimental.updateImportsOnPaste": {
@@ -1472,23 +1634,8 @@
       "editor/context": [
         {
           "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == typescript",
-          "group": "navigation@9"
-        },
-        {
-          "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == typescriptreact",
-          "group": "navigation@9"
-        },
-        {
-          "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == javascript",
-          "group": "navigation@9"
-        },
-        {
-          "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == javascriptreact",
-          "group": "navigation@9"
+          "when": "tsSupportsSourceDefinition && (resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact)",
+          "group": "navigation@1.41"
         }
       ],
       "explorer/context": [

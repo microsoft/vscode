@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
-import { coalesce } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType } from 'vs/base/common/dataTransfer';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import * as platform from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ClipboardEventUtils } from 'vs/editor/browser/controller/textAreaInput';
-import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
-import { ICodeEditor, PastePayload } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { DefaultTextPasteOrDropEditProvider } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
-import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { PostEditWidgetManager } from './postEditWidget';
-import { isCancellationError } from 'vs/base/common/errors';
+import { addDisposableListener, getActiveDocument } from '../../../../base/browser/dom.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType } from '../../../../base/common/dataTransfer.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import * as platform from '../../../../base/common/platform.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ClipboardEventUtils } from '../../../browser/controller/textAreaInput.js';
+import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dnd.js';
+import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
+import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { Handler, IEditorContribution } from '../../../common/editorCommon.js';
+import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteTriggerKind } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { DefaultTextPasteOrDropEditProvider } from './defaultProviders.js';
+import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from './edit.js';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
+import { InlineProgressManager } from '../../inlineProgress/browser/inlineProgress.js';
+import { MessageController } from '../../message/browser/messageController.js';
+import { localize } from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { PostEditWidgetManager } from './postEditWidget.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -135,8 +135,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private isPasteAsEnabled(): boolean {
-		return this._editor.getOption(EditorOption.pasteAs).enabled
-			&& !this._editor.getOption(EditorOption.readOnly);
+		return this._editor.getOption(EditorOption.pasteAs).enabled;
 	}
 
 	public async finishedPaste(): Promise<void> {
@@ -148,12 +147,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		if (platform.isWeb) {
-			// Explicitly clear the web resources clipboard.
-			// This is needed because on web, the browser clipboard is faked out using an in-memory store.
-			// This means the resources clipboard is not properly updated when copying from the editor.
-			this._clipboardService.writeResources([]);
-		}
+		// Explicitly clear the clipboard internal state.
+		// This is needed because on web, the browser clipboard is faked out using an in-memory store.
+		// This means the resources clipboard is not properly updated when copying from the editor.
+		this._clipboardService.clearInternalState?.();
 
 		if (!e.clipboardData || !this.isPasteAsEnabled()) {
 			return;
@@ -248,8 +245,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 
 		if (
-			!this.isPasteAsEnabled()
-			&& !this._pasteAsActionContext // Still enable if paste as was explicitly requested
+			this._editor.getOption(EditorOption.readOnly) // Never enabled if editor is readonly.
+			|| (!this.isPasteAsEnabled() && !this._pasteAsActionContext) // Or feature disabled (but still enable if paste was explicitly requested)
 		) {
 			return;
 		}
@@ -354,12 +351,27 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				if (editSession.edits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: editSession.edits }, canShowWidget, async (edit, token) => {
-						const resolved = await edit.provider.resolveDocumentPasteEdit?.(edit, token);
-						if (resolved) {
-							edit.additionalEdit = resolved.additionalEdit;
-						}
-						return edit;
+					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: editSession.edits }, canShowWidget, (edit, token) => {
+						return new Promise<PasteEditWithProvider>((resolve, reject) => {
+							(async () => {
+								try {
+									const resolveP = edit.provider.resolveDocumentPasteEdit?.(edit, token);
+									const showP = new DeferredPromise<void>();
+									const resolved = resolveP && await this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('resolveProcess', "Resolving paste edit. Click to cancel"), Promise.race([showP.p, resolveP]), {
+										cancel: () => {
+											showP.cancel();
+											return reject(new CancellationError());
+										}
+									}, 0);
+									if (resolved) {
+										edit.additionalEdit = resolved.additionalEdit;
+									}
+									return resolve(edit);
+								} catch (err) {
+									return reject(err);
+								}
+							})();
+						});
 					}, token);
 				}
 

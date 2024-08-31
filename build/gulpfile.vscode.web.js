@@ -12,15 +12,16 @@ const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
+const { readISODate } = require('./lib/date');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
-const replace = require('gulp-replace');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
+const { isAMD } = require('./lib/amd');
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -30,12 +31,39 @@ const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-const vscodeWebResourceIncludes = [
+const vscodeWebResourceIncludes = !isAMD() ? [
+
+	// NLS
+	'out-build/nls.messages.js',
+
+	// Accessibility Signals
+	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
+
+	// Welcome
+	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Extensions
+	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
+	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+
+	// Webview
+	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
+
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
+
+	// Extension Host Worker
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
+] : [
+
 	// Workbench
 	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
 	'out-build/vs/**/markdown.css',
+
+	// NLS
+	'out-build/nls.messages.js',
 
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
@@ -43,6 +71,9 @@ const vscodeWebResourceIncludes = [
 
 	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+
+	// Tree Sitter highlights
+	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Web node paths (needed for integration tests)
 	'out-build/vs/webPackagePaths.js',
@@ -58,25 +89,33 @@ const vscodeWebResources = [
 	'!out-build/vs/**/{node,electron-sandbox,electron-main}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
+	'!out-build/vs/code/**/*-dev.html',
+	'!out-build/vs/code/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 
-const buildfile = require('../src/buildfile');
+const buildfile = require('./buildfile');
 
-const vscodeWebEntryPoints = [
+const vscodeWebEntryPoints = !isAMD() ? [
+	buildfile.base,
+	buildfile.workerExtensionHost,
+	buildfile.workerNotebook,
+	buildfile.workerLanguageDetection,
+	buildfile.workerLocalFileSearch,
+	buildfile.workerOutputLinks,
+	buildfile.workerBackgroundTokenization,
+	buildfile.keyboardMaps,
+	buildfile.workbenchWeb()
+].flat() : [
 	buildfile.entrypoint('vs/workbench/workbench.web.main'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
 	buildfile.workerLocalFileSearch,
-	buildfile.workerProfileAnalysis,
 	buildfile.keyboardMaps,
-	buildfile.workbenchWeb
+	buildfile.workbenchWeb()
 ].flat();
-exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
-
-const buildDate = new Date().toISOString();
 
 /**
  * @param {object} product The parsed product.json file contents
@@ -93,7 +132,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 				...product,
 				version,
 				commit,
-				date: buildDate
+				date: readISODate('out-build')
 			});
 			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}

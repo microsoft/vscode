@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as event from 'vs/base/common/event';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { hash } from 'vs/base/common/hash';
-import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
-import { isPointWithinTriangle } from 'vs/base/common/numbers';
+import * as browser from './browser.js';
+import { BrowserFeatures } from './canIUse.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
+import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
+import { onUnexpectedError } from '../common/errors.js';
+import * as event from '../common/event.js';
+import * as dompurify from './dompurify/dompurify.js';
+import { KeyCode } from '../common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
+import { FileAccess, RemoteAuthorities, Schemas } from '../common/network.js';
+import * as platform from '../common/platform.js';
+import { URI } from '../common/uri.js';
+import { hash } from '../common/hash.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
+import { isPointWithinTriangle } from '../common/numbers.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -1182,6 +1182,11 @@ export function isHTMLButtonElement(e: unknown): e is HTMLButtonElement {
 export function isHTMLDivElement(e: unknown): e is HTMLDivElement {
 	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof HTMLDivElement || e instanceof getWindow(e as Node).HTMLDivElement;
+}
+
+export function isSVGElement(e: unknown): e is SVGElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof SVGElement || e instanceof getWindow(e as Node).SVGElement;
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
@@ -2373,6 +2378,107 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 	return result;
 }
 
+export function svgElem<TTag extends string>
+	(tag: TTag):
+	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem<TTag extends string, T extends Child[]>
+	(tag: TTag, children: [...T]):
+	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem<TTag extends string>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>):
+	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem<TTag extends string, T extends Child[]>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: [...T]):
+	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+	let attributes: { $?: string } & Partial<ElementAttributes<HTMLElement>>;
+	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
+
+	if (Array.isArray(args[0])) {
+		attributes = {};
+		children = args[0];
+	} else {
+		attributes = args[0] as any || {};
+		children = args[1];
+	}
+
+	const match = H_REGEX.exec(tag);
+
+	if (!match || !match.groups) {
+		throw new Error('Bad use of h');
+	}
+
+	const tagName = match.groups['tag'] || 'div';
+	const el = document.createElementNS('http://www.w3.org/2000/svg', tagName) as any as HTMLElement;
+
+	if (match.groups['id']) {
+		el.id = match.groups['id'];
+	}
+
+	const classNames = [];
+	if (match.groups['class']) {
+		for (const className of match.groups['class'].split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (attributes.className !== undefined) {
+		for (const className of attributes.className.split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (classNames.length > 0) {
+		el.className = classNames.join(' ');
+	}
+
+	const result: Record<string, HTMLElement> = {};
+
+	if (match.groups['name']) {
+		result[match.groups['name']] = el;
+	}
+
+	if (children) {
+		for (const c of children) {
+			if (isHTMLElement(c)) {
+				el.appendChild(c);
+			} else if (typeof c === 'string') {
+				el.append(c);
+			} else if ('root' in c) {
+				Object.assign(result, c);
+				el.appendChild(c.root);
+			}
+		}
+	}
+
+	for (const [key, value] of Object.entries(attributes)) {
+		if (key === 'className') {
+			continue;
+		} else if (key === 'style') {
+			for (const [cssKey, cssValue] of Object.entries(value)) {
+				el.style.setProperty(
+					camelCaseToHyphenCase(cssKey),
+					typeof cssValue === 'number' ? cssValue + 'px' : '' + cssValue
+				);
+			}
+		} else if (key === 'tabIndex') {
+			el.tabIndex = value;
+		} else {
+			el.setAttribute(camelCaseToHyphenCase(key), value.toString());
+		}
+	}
+
+	result['root'] = el;
+
+	return result;
+}
+
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
@@ -2415,8 +2521,8 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
  * @see https://www.smashingmagazine.com/2023/08/better-context-menus-safe-triangles/ for example
  */
 export class SafeTriangle {
-	// 4 triangles, 2 points (x, y) stored for each
-	private triangles: number[] = [];
+	// 4 points (x, y), 8 length
+	private points = new Int16Array(8);
 
 	constructor(
 		private readonly originX: number,
@@ -2424,34 +2530,28 @@ export class SafeTriangle {
 		target: HTMLElement
 	) {
 		const { top, left, right, bottom } = target.getBoundingClientRect();
-		const t = this.triangles;
+		const t = this.points;
 		let i = 0;
 
 		t[i++] = left;
 		t[i++] = top;
+
 		t[i++] = right;
 		t[i++] = top;
 
 		t[i++] = left;
-		t[i++] = top;
-		t[i++] = left;
 		t[i++] = bottom;
 
-		t[i++] = right;
-		t[i++] = top;
-		t[i++] = right;
-		t[i++] = bottom;
-
-		t[i++] = left;
-		t[i++] = bottom;
 		t[i++] = right;
 		t[i++] = bottom;
 	}
 
 	public contains(x: number, y: number) {
-		const { triangles, originX, originY } = this;
+		const { points, originX, originY } = this;
 		for (let i = 0; i < 4; i++) {
-			if (isPointWithinTriangle(x, y, originX, originY, triangles[2 * i], triangles[2 * i + 1], triangles[2 * i + 2], triangles[2 * i + 3])) {
+			const p1 = 2 * i;
+			const p2 = 2 * ((i + 1) % 4);
+			if (isPointWithinTriangle(x, y, originX, originY, points[p1], points[p1 + 1], points[p2], points[p2 + 1])) {
 				return true;
 			}
 		}

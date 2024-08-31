@@ -44,14 +44,12 @@
 	justify-content: flex-end;
 }
 
-.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row[data-last-element="false"] > .notification-list-item {
+.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:not(:last-child) > .notification-list-item {
 	border-bottom: 1px solid var(--vscode-notifications-border);
 }
 
-.monaco-workbench > .notifications-center .notifications-list-container,
-.monaco-workbench > .notifications-center .notifications-list-container .monaco-scrollable-element,
-.monaco-workbench > .notifications-center .notifications-list-container .notification-list-item {
-	border-radius: 0;
+.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
+	border-radius: 0px 0px 4px 4px; /* adopt the border radius at the end of the notifications center */
 }
 
 /* Icons */

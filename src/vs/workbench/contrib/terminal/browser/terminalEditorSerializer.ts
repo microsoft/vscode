@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance } from './terminal.js';
+import { TerminalEditorInput } from './terminalEditorInput.js';
 
 export class TerminalInputSerializer implements IEditorSerializer {
 	constructor(

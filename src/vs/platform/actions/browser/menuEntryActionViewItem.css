@@ -17,7 +17,7 @@
 	border-radius: 2px;
 }
 
-.monaco-action-bar .action-item.menu-entry.text-only:not(:last-of-type) .action-label::after {
+.monaco-action-bar .action-item.menu-entry.text-only.use-comma:not(:last-of-type) .action-label::after {
 	content: ', ';
 }
 

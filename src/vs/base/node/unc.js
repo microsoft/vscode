@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
-//@ts-check
+// ESM-uncomment-begin
+/** @type any */
+const module = { exports: {} };
+// ESM-uncomment-end
 
 (function () {
 	function factory() {
@@ -18,6 +22,7 @@
 			// The property `process.uncHostAllowlist` is not available in official node.js
 			// releases, only in our own builds, so we have to probe for availability
 
+			// @ts-ignore
 			return process.uncHostAllowlist;
 		}
 
@@ -114,6 +119,7 @@
 				return;
 			}
 
+			// @ts-ignore
 			process.restrictUNCAccess = false;
 		}
 
@@ -122,6 +128,7 @@
 				return true;
 			}
 
+			// @ts-ignore
 			return process.restrictUNCAccess === false;
 		}
 
@@ -144,3 +151,11 @@
 		console.trace('vs/base/node/unc defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
+
+// ESM-uncomment-begin
+export const getUNCHost = module.exports.getUNCHost;
+export const getUNCHostAllowlist = module.exports.getUNCHostAllowlist;
+export const addUNCHostToAllowlist = module.exports.addUNCHostToAllowlist;
+export const disableUNCAccessRestrictions = module.exports.disableUNCAccessRestrictions;
+export const isUNCAccessRestrictionsDisabled = module.exports.isUNCAccessRestrictionsDisabled;
+// ESM-uncomment-end

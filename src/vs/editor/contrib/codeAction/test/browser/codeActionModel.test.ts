@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { promiseWithResolvers } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
+import { promiseWithResolvers } from '../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../../common/languages.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { CodeActionModel, CodeActionsState } from '../../browser/codeActionModel.js';
+import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 
 const testProvider = {
 	provideCodeActions(): languages.CodeActionList {

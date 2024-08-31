@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IReader, autorunHandleChanges, derived, derivedOpts, observableFromEvent } from 'vs/base/common/observable';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
-import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DiffEditorOptions } from '../diffEditorOptions';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IReader, autorunHandleChanges, derived, derivedOpts, observableFromEvent } from '../../../../../base/common/observable.js';
+import { IEditorConstructionOptions } from '../../../config/editorConfiguration.js';
+import { IDiffEditorConstructionOptions } from '../../../editorBrowser.js';
+import { observableCodeEditor } from '../../../observableCodeEditor.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../codeEditor/codeEditorWidget.js';
+import { IDiffCodeEditorWidgetOptions } from '../diffEditorWidget.js';
+import { OverviewRulerFeature } from '../features/overviewRulerFeature.js';
+import { EditorOptions, IEditorOptions } from '../../../../common/config/editorOptions.js';
+import { Position } from '../../../../common/core/position.js';
+import { IContentSizeChangedEvent } from '../../../../common/editorCommon.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly original = this._register(this._createLeftHandSideEditor(this._options.editorOptions.get(), this._argCodeEditorWidgetOptions.originalEditor || {}));
@@ -30,7 +30,10 @@ export class DiffEditorEditors extends Disposable {
 	public readonly modifiedScrollTop = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
 	public readonly modifiedScrollHeight = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
-	public readonly modifiedModel = observableCodeEditor(this.modified).model;
+	public readonly modifiedObs = observableCodeEditor(this.modified);
+	public readonly originalObs = observableCodeEditor(this.original);
+
+	public readonly modifiedModel = this.modifiedObs.model;
 
 	public readonly modifiedSelections = observableFromEvent(this, this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
 	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));

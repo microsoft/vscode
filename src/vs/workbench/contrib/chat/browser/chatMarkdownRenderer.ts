@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, MarkedOptions } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IMarkdownRendererOptions, IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
+import { MarkdownRenderOptions, MarkedOptions } from '../../../../base/browser/markdownRenderer.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IMarkdownRendererOptions, IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITrustedDomainService } from '../../url/browser/trustedDomainService.js';
 
 const allowedHtmlTags = [
 	'b',
@@ -29,6 +32,8 @@ const allowedHtmlTags = [
 	'p',
 	'pre',
 	'strong',
+	'sub',
+	'sup',
 	'table',
 	'tbody',
 	'td',
@@ -54,6 +59,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(options ?? {}, languageService, openerService);
 	}
@@ -73,9 +79,30 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				...markdown,
 
 				// dompurify uses DOMParser, which strips leading comments. Wrapping it all in 'body' prevents this.
-				value: `<body>${markdown.value}</body>`,
+				// The \n\n prevents marked.js from parsing the body contents as just text in an 'html' token, instead of actual markdown.
+				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		return super.render(mdWithBody, options, markedOptions);
+		const result = super.render(mdWithBody, options, markedOptions);
+		return this.attachCustomHover(result);
+	}
+
+	private attachCustomHover(result: IMarkdownRenderResult): IMarkdownRenderResult {
+		const store = new DisposableStore();
+		result.element.querySelectorAll('a').forEach((element) => {
+			if (element.title) {
+				const title = element.title;
+				element.title = '';
+				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
+			}
+		});
+
+		return {
+			element: result.element,
+			dispose: () => {
+				result.dispose();
+				store.dispose();
+			}
+		};
 	}
 }

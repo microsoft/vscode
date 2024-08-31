@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import 'vs/css!./inlineEdit';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { AdditionalLinesWidget, LineData } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
-import { GhostText } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import './inlineEdit.css';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../../../common/model.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { InlineDecorationType } from '../../../common/viewModel.js';
+import { AdditionalLinesWidget, LineData } from '../../inlineCompletions/browser/view/ghostTextView.js';
+import { GhostText } from '../../inlineCompletions/browser/model/ghostText.js';
+import { ColumnRange, applyObservableDecorations } from '../../inlineCompletions/browser/utils.js';
+import { diffDeleteDecoration, diffLineDeleteDecorationBackgroundWithIndicator } from '../../../browser/widget/diffEditor/registrations.contribution.js';
 
 export const INLINE_EDIT_DESCRIPTION = 'inline-edit';
 export interface IGhostTextWidgetModel {
@@ -23,7 +24,6 @@ export interface IGhostTextWidgetModel {
 	readonly ghostText: IObservable<GhostText | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
 	readonly range: IObservable<IRange | undefined>;
-	readonly backgroundColoring: IObservable<boolean>;
 }
 
 export class GhostTextWidget extends Disposable {
@@ -92,7 +92,7 @@ export class GhostTextWidget extends Disposable {
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
-		if (!isPureRemove) {
+		if (!isPureRemove && (isSingleLine || !range)) {
 			for (const part of ghostText.parts) {
 				let lines = part.lines;
 				//If remove range is set, we want to push all new liens to virtual area
@@ -140,7 +140,6 @@ export class GhostTextWidget extends Disposable {
 			range,
 			isSingleLine,
 			isPureRemove,
-			backgroundColoring: this.model.backgroundColoring.read(reader)
 		};
 	});
 
@@ -164,7 +163,7 @@ export class GhostTextWidget extends Disposable {
 			if (uiState.isSingleLine) {
 				ranges.push(uiState.range);
 			}
-			else if (uiState.isPureRemove) {
+			else if (!uiState.isPureRemove) {
 				const lines = uiState.range.endLineNumber - uiState.range.startLineNumber;
 				for (let i = 0; i < lines; i++) {
 					const line = uiState.range.startLineNumber + i;
@@ -174,23 +173,21 @@ export class GhostTextWidget extends Disposable {
 					ranges.push(range);
 				}
 			}
-			else {
-				const lines = uiState.range.endLineNumber - uiState.range.startLineNumber;
-				for (let i = 0; i < lines; i++) {
-					const line = uiState.range.startLineNumber + i;
-					const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
-					const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
-					const range = new Range(line, firstNonWhitespace, line, lastNonWhitespace);
-					ranges.push(range);
-				}
-			}
-			const className = uiState.backgroundColoring ? 'inline-edit-remove backgroundColoring' : 'inline-edit-remove';
 			for (const range of ranges) {
 				decorations.push({
 					range,
-					options: { inlineClassName: className, description: 'inline-edit-remove', }
+					options: diffDeleteDecoration
 				});
 			}
+		}
+		if (uiState.range && !uiState.isSingleLine && uiState.isPureRemove) {
+			const r = new Range(uiState.range.startLineNumber, 1, uiState.range.endLineNumber - 1, 1);
+
+			decorations.push({
+				range: r,
+				options: diffLineDeleteDecorationBackgroundWithIndicator
+			});
+
 		}
 
 		for (const p of uiState.inlineTexts) {
@@ -215,7 +212,7 @@ export class GhostTextWidget extends Disposable {
 			derived(reader => {
 				/** @description lines */
 				const uiState = this.uiState.read(reader);
-				return uiState && !uiState.isPureRemove ? {
+				return uiState && !uiState.isPureRemove && (uiState.isSingleLine || !uiState.range) ? {
 					lineNumber: uiState.lineNumber,
 					additionalLines: uiState.additionalLines,
 					minReservedLineCount: uiState.additionalReservedLineCount,
