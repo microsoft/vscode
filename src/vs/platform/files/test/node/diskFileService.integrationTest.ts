@@ -132,7 +132,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
-(!isESM && isLinux ? suite.skip : flakySuite /* somehow fails in AMD on Linux with ENOENT for fixtures dir */)('Disk File Service', function () {
+(!isESM ? suite.skip : flakySuite /* somehow fails in AMD with ENOENT for fixtures dir */)('Disk File Service', function () {
 
 	const testSchema = 'test';
 
