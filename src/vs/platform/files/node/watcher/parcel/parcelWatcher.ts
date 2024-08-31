@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as parcelWatcher from '@parcel/watcher';
+import * as parcelWatcher2 from '@bpasero/watcher';
 import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,6 +24,9 @@ import { NodeJSFileWatcherLibrary } from '../nodejs/nodejsWatcherLib.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+
+const useParcelWatcher2 = process.env.VSCODE_USE_WATCHER2 === 'true';
+const parcelWatcherLib = useParcelWatcher2 ? parcelWatcher2 : parcelWatcher;
 
 export class ParcelWatcherInstance extends Disposable {
 
@@ -294,7 +298,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			// We already ran before, check for events since
 			if (counter > 1) {
-				const parcelEvents = await parcelWatcher.getEventsSince(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+				const parcelEvents = await parcelWatcherLib.getEventsSince(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 				if (cts.token.isCancellationRequested) {
 					return;
@@ -305,7 +309,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			}
 
 			// Store a snapshot of files to the snapshot file
-			await parcelWatcher.writeSnapshot(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
@@ -350,7 +354,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
 		try {
-			const parcelWatcherInstance = await parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
+			const parcelWatcherInstance = await parcelWatcherLib.subscribe(realPath, (error, parcelEvents) => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}
@@ -835,7 +839,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	}
 
 	private toMessage(message: string, request?: IRecursiveWatchRequest): string {
-		return request ? `[File Watcher (parcel)] ${message} (path: ${request.path})` : `[File Watcher (parcel)] ${message}`;
+		return request ? `[File Watcher (${useParcelWatcher2 ? 'parcel2' : 'parcel'})] ${message} (path: ${request.path})` : `[File Watcher (${useParcelWatcher2 ? 'parcel2' : 'parcel'})] ${message}`;
 	}
 
 	protected get recursiveWatcher() { return this; }
