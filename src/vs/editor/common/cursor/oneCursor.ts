@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorState, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
+import { CursorConfiguration, CursorState, ICursorSimpleModel, SelectionStartKind, SingleCursorState } from '../cursorCommon.js';
 import { CursorContext } from './cursorContext.js';
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
@@ -88,12 +88,12 @@ export class Cursor {
 		return viewModel.normalizePosition(position, PositionAffinity.None);
 	}
 
-	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState): SingleCursorState {
+	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState, cursorConfig: CursorConfiguration): SingleCursorState {
 		const position = viewState.position;
 		const sStartPosition = viewState.selectionStart.getStartPosition();
 		const sEndPosition = viewState.selectionStart.getEndPosition();
 
-		const validPosition = viewModel.normalizePosition(position, PositionAffinity.None);
+		const validPosition = viewModel.normalizePosition(position, cursorConfig.cursorStyleKind === 'onCharacter' ? PositionAffinity.RightOfInjectedTextBlockCursor : PositionAffinity.None);
 		const validSStartPosition = this._validatePositionWithCache(viewModel, sStartPosition, position, validPosition);
 		const validSEndPosition = this._validatePositionWithCache(viewModel, sEndPosition, sStartPosition, validSStartPosition);
 
@@ -113,7 +113,7 @@ export class Cursor {
 
 	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		if (viewState) {
-			viewState = Cursor._validateViewState(context.viewModel, viewState);
+			viewState = Cursor._validateViewState(context.viewModel, viewState, context.cursorConfig);
 		}
 
 		if (!modelState) {
