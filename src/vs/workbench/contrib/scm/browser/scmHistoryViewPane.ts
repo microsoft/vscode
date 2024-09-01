@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import * as platform from '../../../../base/common/platform.js';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, reset } from '../../../../base/browser/dom.js';
 import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -31,7 +31,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ColorIdentifier, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IViewPaneOptions, ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder } from './scmHistory.js';
 import { collectContextMenuActions, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
@@ -53,12 +53,49 @@ import { derivedObservableWithCache, latestChangedValue, observableFromEvent, ob
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { ContextKeys } from './scmViewPane.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
+
+class SCMRepositoryActionViewItem extends ActionViewItem {
+	constructor(private readonly _repository: ISCMRepository, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
+		super(null, action, { ...options, icon: false, label: true });
+	}
+
+	protected override updateLabel(): void {
+		if (this.options.label && this.label) {
+			this.label.classList.add('scm-graph-repository-picker');
+			reset(this.label, ...renderLabelWithIcons(`$(repo) ${this._repository.provider.name}`));
+		}
+	}
+}
+
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.repository',
+			title: 'GitPlayground',
+			viewId: HISTORY_VIEW_PANE_ID,
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryTitle,
+				group: 'navigation',
+				order: 0
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		//view.refresh();
+	}
+});
 
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
@@ -713,7 +750,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle, showActions: ViewPaneShowActions.Always }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 
@@ -789,12 +826,15 @@ export class SCMHistoryViewPane extends ViewPane {
 						}
 
 						// Set the "OUTDATED" description
-						this.updateTitleDescription(`${this.titleDescription} (${localize('outdated', "OUTDATED")})`);
+						this.updateTitleDescription(localize('outdated', "OUTDATED"));
 					}));
 
-					this._updateChildren();
-					this.updateTitleDescription(repository.provider.name);
+
+					this.updateActions();
+					this.updateTitleDescription(undefined);
 					this._scmProviderCtx.set(repository.provider.contextValue);
+
+					this._updateChildren();
 				}));
 			} else {
 				this._visibilityDisposables.clear();
@@ -810,10 +850,21 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._treeViewModel?.repository.get()?.provider;
 	}
 
+	override getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === 'workbench.scm.action.repository') {
+			const repository = this._treeViewModel?.repository.get();
+			if (repository) {
+				return new SCMRepositoryActionViewItem(repository, action, options);
+			}
+		}
+
+		return super.getActionViewItem(action, options);
+	}
+
 	async refresh(): Promise<void> {
 		await this._updateChildren(true);
 
-		this.updateTitleDescription(this._treeViewModel.repository.get()?.provider.name);
+		this.updateTitleDescription(undefined);
 		this._tree.scrollTop = 0;
 	}
 
