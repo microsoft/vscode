@@ -40,7 +40,7 @@ steps:
     displayName: Extract openssl prebuilt
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: node build/setup-npm-registry.js $NPM_REGISTRY
+    - script: node build/setup-npm-registry.js $NPM_REGISTRY build
       condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
       displayName: Setup NPM Registry
 

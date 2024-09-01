@@ -2,7 +2,7 @@
 ## Setup
 
 - Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `npm ci` at `/`, this will install
+- Run `npm i` at `/`, this will install
 	- Dependencies for `/extension/css-language-features/`
 	- Dependencies for `/extension/css-language-features/server/`
 	- devDependencies such as `gulp`
@@ -30,7 +30,7 @@ However, within this extension, you can run a development version of `vscode-css
 #### Linking `vscode-css-languageservice` in `css-language-features/server/`
 
 - Clone [microsoft/vscode-css-languageservice](https://github.com/microsoft/vscode-css-languageservice)
-- Run `npm ci` in `vscode-css-languageservice`
+- Run `npm i` in `vscode-css-languageservice`
 - Run `npm link` in `vscode-css-languageservice`. This will compile and link `vscode-css-languageservice`
 - In `css-language-features/server/`, run `npm link vscode-css-languageservice`
 

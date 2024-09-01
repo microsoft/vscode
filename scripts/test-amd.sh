@@ -24,7 +24,7 @@ fi
 VSCODECRASHDIR=$ROOT/.build/crashes
 
 # Node modules
-test -d node_modules || npm ci
+test -d node_modules || npm i
 
 # Get electron
 npm run electron

@@ -6,7 +6,7 @@ Language server host for typescript using vscode's sync-api in the browser.
 
 To test this out, you'll need three shells:
 
-1. `npm ci` for vscode itself
+1. `npm i` for vscode itself
 2. `npm run watch-web` for the web side
 3. `node <root>/scripts/code-web.js --coi`
 

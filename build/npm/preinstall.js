@@ -16,7 +16,7 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 }
 
 if (process.env['npm_execpath'].includes('yarn')) {
-	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo, use `npm i` instead. ***\x1b[0;0m');
+	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
 }
 

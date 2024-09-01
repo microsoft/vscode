@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"label": "npm install",
-			"command": "npm ci",
+			"command": "npm i",
 			"args": ["compile"],
 			"type": "shell",
 			"presentation": {

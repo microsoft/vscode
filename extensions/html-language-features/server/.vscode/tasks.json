@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"label": "npm run watch",
-			"command": "npm ci",
+			"command": "npm i",
 			"args": ["watch"],
 			"type": "shell",
 			"presentation": {

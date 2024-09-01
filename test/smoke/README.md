@@ -6,7 +6,7 @@ Make sure you are on **Node v12.x**.
 
 ```bash
 # Build extensions in the VS Code repo (if needed)
-npm ci && npm run compile
+npm i && npm run compile
 
 # Dev (Electron)
 npm run smoketest
@@ -34,9 +34,9 @@ You must always run the smoketest version that matches the release you are testi
 ```bash
 git fetch
 git checkout release/1.22
-npm ci && npm run compile
+npm i && npm run compile
 cd test/smoke
-npm ci
+npm i
 ```
 
 #### Web

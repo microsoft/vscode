@@ -19,7 +19,7 @@ function code() {
 	cd $ROOT
 
 	# Node modules
-	test -d node_modules || npm ci
+	test -d node_modules || npm i
 
 	# Configuration
 	export NODE_ENV=development

@@ -1,7 +1,7 @@
 ## Setup
 
 - Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `npm ci` at `/`, this will install
+- Run `npm i` at `/`, this will install
 	- Dependencies for `/extension/html-language-features/`
 	- Dependencies for `/extension/html-language-features/server/`
 	- devDependencies such as `gulp`
@@ -28,7 +28,7 @@ However, within this extension, you can run a development version of `vscode-htm
 #### Linking `vscode-html-languageservice` in `html-language-features/server/`
 
 - Clone [microsoft/vscode-html-languageservice](https://github.com/microsoft/vscode-html-languageservice)
-- Run `npm ci` in `vscode-html-languageservice`
+- Run `npm i` in `vscode-html-languageservice`
 - Run `npm link` in `vscode-html-languageservice`. This will compile and link `vscode-html-languageservice`
 - In `html-language-features/server/`, run `npm link vscode-html-languageservice`
 

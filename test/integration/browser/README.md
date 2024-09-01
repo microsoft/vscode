@@ -5,7 +5,7 @@
 Make sure to run the following commands to compile and install dependencies:
 
     cd test/integration/browser
-    npm ci
+    npm i
     npm run compile
 
 ## Run (inside Electron)

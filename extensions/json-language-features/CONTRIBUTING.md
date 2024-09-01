@@ -1,7 +1,7 @@
 ## Setup
 
 - Clone [microsoft/vscode](https://github.com/microsoft/vscode)
-- Run `npm ci` at `/`, this will install
+- Run `npm i` at `/`, this will install
 	- Dependencies for `/extension/json-language-features/`
 	- Dependencies for `/extension/json-language-features/server/`
 	- devDependencies such as `gulp`
@@ -29,7 +29,7 @@ However, within this extension, you can run a development version of `vscode-jso
 #### Linking `vscode-json-languageservice` in `json-language-features/server/`
 
 - Clone [microsoft/vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice)
-- Run `npm ci` in `vscode-json-languageservice`
+- Run `npm i` in `vscode-json-languageservice`
 - Run `npm link` in `vscode-json-languageservice`. This will compile and link `vscode-json-languageservice`
 - In `json-language-features/server/`, run `npm link vscode-json-languageservice`
 

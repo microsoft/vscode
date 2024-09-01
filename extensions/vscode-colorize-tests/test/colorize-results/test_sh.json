@@ -2408,7 +2408,7 @@
 		}
 	},
 	{
-		"c": "ci",
+		"c": "i",
 		"t": "source.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.statement.command.shell meta.argument.shell string.unquoted.argument.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
