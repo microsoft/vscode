@@ -57,6 +57,7 @@ import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
@@ -81,11 +82,12 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.repository',
-			title: 'GitPlayground',
+			title: '',
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.greater('scm.providerCount', 1)),
 				group: 'navigation',
 				order: 0
 			}
@@ -93,7 +95,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
-		//view.refresh();
+		view.pickRepository();
 	}
 });
 
@@ -709,6 +711,10 @@ class SCMHistoryViewModel extends Disposable {
 			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}
 
+	setRepository(repository: ISCMRepository): void {
+		// this.repository.set(repository);
+	}
+
 	override dispose(): void {
 		this._state.clear();
 		super.dispose();
@@ -739,6 +745,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IProgressService private readonly _progressService: IProgressService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -750,7 +757,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle, showActions: ViewPaneShowActions.Always }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 
@@ -866,6 +873,23 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this.updateTitleDescription(undefined);
 		this._tree.scrollTop = 0;
+	}
+
+	async pickRepository(): Promise<void> {
+		const picks = this._scmViewService.repositories.map(r => ({
+			label: r.provider.name,
+			description: r.provider.rootUri?.fsPath,
+			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			repository: r
+		}));
+
+		const result = await this._quickInputService.pick(picks, {
+			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories")
+		});
+
+		if (result) {
+			this._treeViewModel.setRepository(result.repository);
+		}
 	}
 
 	private _createTree(container: HTMLElement): void {
