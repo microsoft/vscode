@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json';
-import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter';
+import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json.js';
+import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter.js';
 
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {

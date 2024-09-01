@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/workbench/services/commands/common/commandService';
-import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { IDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandService } from '../../common/commandService.js';
+import { NullExtensionService } from '../../../extensions/common/extensions.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 
 suite('CommandService', function () {
 

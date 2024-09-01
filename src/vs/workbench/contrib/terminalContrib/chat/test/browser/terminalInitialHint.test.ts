@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { InitialHintAddon } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.initialHint.contribution';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { InitialHintAddon } from '../../browser/terminal.initialHint.contribution.js';
+import { getActiveDocument } from '../../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { strictEqual } from 'assert';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ChatAgentLocation, IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { importAMDNodeModule } from 'vs/amdX';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { ChatAgentLocation, IChatAgent } from '../../../../chat/common/chatAgents.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
 
 // Test TerminalInitialHintAddon
 

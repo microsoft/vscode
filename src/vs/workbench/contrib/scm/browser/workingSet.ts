@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore } from 'vs/base/common/observable';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { getProviderKey } from 'vs/workbench/contrib/scm/browser/util';
-import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
-import { IEditorGroupsService, IEditorWorkingSet } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { getProviderKey } from './util.js';
+import { ISCMRepository, ISCMService } from '../common/scm.js';
+import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 
 type ISCMSerializedWorkingSet = {
 	readonly providerKey: string;

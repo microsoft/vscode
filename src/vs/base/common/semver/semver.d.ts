@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 // ESM-comment-begin
-export as namespace semver;
-export = semver;
+// export as namespace semver;
+// export = semver;
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// export * from 'semver'
+export * from 'semver'
 // ESM-uncomment-end
 
 declare namespace semver {

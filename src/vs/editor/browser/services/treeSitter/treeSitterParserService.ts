@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from 'vs/base/common/network';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from 'vs/editor/common/services/treeSitterParserService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IModelContentChange } from 'vs/editor/common/textModelEvents';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { setTimeout0 } from 'vs/base/common/platform';
-import { importAMDNodeModule } from 'vs/amdX';
-import { Emitter, Event } from 'vs/base/common/event';
-import { CancellationToken, cancelOnDispose } from 'vs/base/common/cancellation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { canASAR } from 'vs/base/common/amd';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { PromiseResult } from 'vs/base/common/observableInternal/promise';
+import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../common/services/treeSitterParserService.js';
+import { IModelService } from '../../../common/services/model.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ITextModel } from '../../../common/model.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IModelContentChange } from '../../../common/textModelEvents.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { setTimeout0 } from '../../../../base/common/platform.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { canASAR } from '../../../../base/common/amd.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { PromiseResult } from '../../../../base/common/observableInternal/promise.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -30,7 +30,6 @@ const FILENAME_TREESITTER_WASM = `tree-sitter.wasm`;
 function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
 	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/${MODULE_LOCATION_SUBPATH}`;
 }
-
 
 export class TextModelTreeSitter extends Disposable {
 	private _parseResult: TreeSitterParseResult | undefined;
@@ -149,6 +148,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		return this._onDidChangeContentQueue;
 	}
 
+	private _newEdits = true;
 	private _applyEdits(model: ITextModel, changes: IModelContentChange[]) {
 		for (const change of changes) {
 			const newEndOffset = change.rangeOffset + change.text.length;
@@ -162,11 +162,15 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
 				newEndPosition: { row: newEndPosition.lineNumber - 1, column: newEndPosition.column - 1 }
 			});
+			this._newEdits = true;
 		}
 	}
 
 	private async _parseAndUpdateTree(model: ITextModel) {
-		this.tree = await this._parse(model);
+		const tree = await this._parse(model);
+		if (!this._newEdits) {
+			this.tree = tree;
+		}
 	}
 
 	private _parse(model: ITextModel): Promise<Parser.Tree | undefined> {
@@ -182,6 +186,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		let tree: Parser.Tree | undefined;
 		let time: number = 0;
 		let passes: number = 0;
+		this._newEdits = false;
 		do {
 			const timer = performance.now();
 			try {
@@ -199,7 +204,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			if (model.isDisposed() || this.isDisposed) {
 				return;
 			}
-		} while (!tree);
+		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
 		return tree;
 	}
@@ -214,8 +219,8 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			owner: 'alros';
 			comment: 'Used to understand how long it takes to parse a tree-sitter tree';
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The programming language ID.' };
-			time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ms it took to parse' };
-			passes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of passes it took to parse' };
+			time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The ms it took to parse' };
+			passes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of passes it took to parse' };
 		};
 		if (parseType === TelemetryParseType.Full) {
 			this._telemetryService.publicLog2<{ languageId: string; time: number; passes: number }, ParseTimeClassification>(`treeSitter.fullParse`, { languageId, time, passes });
@@ -252,11 +257,10 @@ export class TreeSitterLanguages extends Disposable {
 	}
 
 	private async _addLanguage(languageId: string): Promise<void> {
-		let language = this._languages.getSyncIfCached(languageId);
-		if (!language) {
-			const fetchPromise = this._fetchLanguage(languageId);
-			this._languages.set(languageId, fetchPromise);
-			language = await fetchPromise;
+		const languagePromise = this._languages.get(languageId);
+		if (!languagePromise) {
+			this._languages.set(languageId, this._fetchLanguage(languageId));
+			const language = await this._languages.get(languageId);
 			if (!language) {
 				return undefined;
 			}

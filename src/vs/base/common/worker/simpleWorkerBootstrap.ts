@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestHandlerFactory, SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { IRequestHandlerFactory, SimpleWorkerServer } from './simpleWorker.js';
 
 type MessageEvent = {
 	data: any;
@@ -16,15 +16,15 @@ declare const globalThis: {
 
 let initialized = false;
 
-function initialize<H extends object>(factory: IRequestHandlerFactory<H>) {
+function initialize(factory: IRequestHandlerFactory) {
 	if (initialized) {
 		return;
 	}
 	initialized = true;
 
-	const simpleWorker = new SimpleWorkerServer<H>(
+	const simpleWorker = new SimpleWorkerServer(
 		msg => globalThis.postMessage(msg),
-		host => factory(host)
+		(workerServer) => factory(workerServer)
 	);
 
 	globalThis.onmessage = (e: MessageEvent) => {
@@ -32,7 +32,7 @@ function initialize<H extends object>(factory: IRequestHandlerFactory<H>) {
 	};
 }
 
-export function bootstrapSimpleWorker<H extends object>(factory: IRequestHandlerFactory<H>) {
+export function bootstrapSimpleWorker(factory: IRequestHandlerFactory) {
 	globalThis.onmessage = (_e: MessageEvent) => {
 		// Ignore first message in this case and initialize if not yet initialized
 		if (!initialized) {

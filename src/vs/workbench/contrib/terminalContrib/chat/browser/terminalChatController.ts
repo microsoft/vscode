@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IChatCodeBlockContextProviderService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatCodeBlockContextProviderService, showChatView } from '../../../chat/browser/chat.js';
+import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { TerminalChatWidget } from './terminalChatWidget.js';
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertType } from 'vs/base/common/types';
-import { CancelablePromise, createCancelablePromise, DeferredPromise } from 'vs/base/common/async';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
+import { TerminalChatContextKeys } from './terminalChat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
+import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
 
 const enum Message {
 	NONE = 0,

@@ -1030,6 +1030,22 @@
           "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
           "scope": "resource"
         },
+        "typescript.preferences.autoImportSpecifierExcludeRegexes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportSpecifierExcludeRegexes%",
+          "scope": "resource"
+        },
+        "javascript.preferences.autoImportSpecifierExcludeRegexes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "%typescript.preferences.autoImportSpecifierExcludeRegexes%",
+          "scope": "resource"
+        },
         "typescript.preferences.preferTypeOnlyAutoImports": {
           "type": "boolean",
           "default": false,
@@ -1078,23 +1094,6 @@
           "type": "object",
           "markdownDescription": "%typescript.preferences.organizeImports%",
           "properties": {
-            "presets": {
-              "type": "string",
-              "markdownDescription": "%typescript.preferences.organizeImports.presets%",
-              "enum": [
-                "auto",
-                "eslint sort-imports",
-                "eslint plugin-simple-import-sort",
-                "dprint"
-              ],
-              "markdownEnumDescriptions": [
-                "%typescript.preferences.organizeImports.presets.auto%",
-                "%typescript.preferences.organizeImports.presets.eslintSortImports%",
-                "%typescript.preferences.organizeImports.presets.eslintPluginSimpleImportSort%",
-                "%typescript.preferences.organizeImports.presets.dprint%"
-              ],
-              "default": "auto"
-            },
             "caseSensitivity": {
               "type": "string",
               "enum": [
@@ -1117,7 +1116,13 @@
                 "inline",
                 "first"
               ],
-              "default": "auto"
+              "default": "auto",
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.typeOrder.auto%",
+                "%typescript.preferences.organizeImports.typeOrder.last%",
+                "%typescript.preferences.organizeImports.typeOrder.inline%",
+                "%typescript.preferences.organizeImports.typeOrder.first%"
+              ]
             },
             "unicodeCollation": {
               "type": "string",
@@ -1159,23 +1164,6 @@
           "type": "object",
           "markdownDescription": "%typescript.preferences.organizeImports%",
           "properties": {
-            "presets": {
-              "type": "string",
-              "markdownDescription": "%typescript.preferences.organizeImports.presets%",
-              "enum": [
-                "auto",
-                "eslint sort-imports",
-                "eslint plugin-simple-import-sort",
-                "dprint"
-              ],
-              "markdownEnumDescriptions": [
-                "%typescript.preferences.organizeImports.presets.auto%",
-                "%typescript.preferences.organizeImports.presets.eslintSortImports%",
-                "%typescript.preferences.organizeImports.presets.eslintPluginSimpleImportSort%",
-                "%typescript.preferences.organizeImports.presets.dprint%"
-              ],
-              "default": "auto"
-            },
             "caseSensitivity": {
               "type": "string",
               "enum": [
@@ -1198,7 +1186,13 @@
                 "inline",
                 "first"
               ],
-              "default": "auto"
+              "default": "auto",
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.typeOrder.auto%",
+                "%typescript.preferences.organizeImports.typeOrder.last%",
+                "%typescript.preferences.organizeImports.typeOrder.inline%",
+                "%typescript.preferences.organizeImports.typeOrder.first%"
+              ]
             },
             "unicodeCollation": {
               "type": "string",
@@ -1444,13 +1438,13 @@
         },
         "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
           "scope": "window"
         },
         "typescript.tsserver.web.typeAcquisition.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%configuration.tsserver.web.typeAcquisition.enabled%",
           "scope": "window"
         },
@@ -1640,23 +1634,8 @@
       "editor/context": [
         {
           "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == typescript",
-          "group": "navigation@9"
-        },
-        {
-          "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == typescriptreact",
-          "group": "navigation@9"
-        },
-        {
-          "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == javascript",
-          "group": "navigation@9"
-        },
-        {
-          "command": "typescript.goToSourceDefinition",
-          "when": "tsSupportsSourceDefinition && resourceLangId == javascriptreact",
-          "group": "navigation@9"
+          "when": "tsSupportsSourceDefinition && (resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact)",
+          "group": "navigation@1.41"
         }
       ],
       "explorer/context": [

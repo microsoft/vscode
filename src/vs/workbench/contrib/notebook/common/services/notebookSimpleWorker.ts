@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { doHash, hash, numberHash } from 'vs/base/common/hash';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import * as model from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { doHash, hash, numberHash } from '../../../../../base/common/hash.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
+import * as model from '../../../../../editor/common/model.js';
+import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from '../notebookCommon.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
 
 function bufferHash(buffer: VSBuffer): number {
 	let initialHashVal = numberHash(104579, 0);
@@ -191,7 +190,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public acceptNewModel(uri: string, data: NotebookData): void {
+	public $acceptNewModel(uri: string, data: NotebookData): void {
 		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
 			(dto as unknown as IMainCellDto).handle,
 			dto.source,
@@ -202,19 +201,19 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		)), data.metadata);
 	}
 
-	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
+	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
 		model?.acceptModelChanged(event);
 	}
 
-	public acceptRemovedModel(strURL: string): void {
+	public $acceptRemovedModel(strURL: string): void {
 		if (!this._models[strURL]) {
 			return;
 		}
 		delete this._models[strURL];
 	}
 
-	computeDiff(originalUrl: string, modifiedUrl: string): INotebookDiffResult {
+	$computeDiff(originalUrl: string, modifiedUrl: string): INotebookDiffResult {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 
@@ -276,7 +275,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		};
 	}
 
-	canPromptRecommendation(modelUrl: string): boolean {
+	$canPromptRecommendation(modelUrl: string): boolean {
 		const model = this._getModel(modelUrl);
 		const cells = model.cells;
 
@@ -315,9 +314,9 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 }
 
 /**
- * Called on the worker side
- * @internal
+ * Defines the worker entry point. Must be exported and named `create`.
+ * @skipMangle
  */
-export function create(host: INotebookWorkerHost): IRequestHandler {
+export function create(workerServer: IWorkerServer): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }

@@ -7,24 +7,24 @@
 'use strict';
 
 // ESM-comment-begin
-// Keep bootstrap-amd.js from redefining 'fs'.
-delete process.env['ELECTRON_RUN_AS_NODE'];
-const path = require('path');
-const bootstrapNode = require('./bootstrap-node');
-const bootstrapAmd = require('./bootstrap-amd');
-const { resolveNLSConfiguration } = require('./vs/base/node/nls');
-const product = require('./bootstrap-meta').product;
+// // Keep bootstrap-amd.js from redefining 'fs'.
+// delete process.env['ELECTRON_RUN_AS_NODE'];
+// const path = require('path');
+// const bootstrapNode = require('./bootstrap-node');
+// const bootstrapAmd = require('./bootstrap-amd');
+// const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+// const product = require('./bootstrap-meta').product;
 // ESM-comment-end
 // ESM-uncomment-begin
-// import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
-// import * as path from 'path';
-// import { fileURLToPath } from 'url';
-// import * as bootstrapNode from './bootstrap-node.js';
-// import * as bootstrapAmd from './bootstrap-amd.js';
-// import { resolveNLSConfiguration } from './vs/base/node/nls.js';
-// import { product } from './bootstrap-meta.js';
-//
-// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import * as bootstrapNode from './bootstrap-node.js';
+import * as bootstrapAmd from './bootstrap-amd.js';
+import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+import { product } from './bootstrap-meta.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 
 async function start() {

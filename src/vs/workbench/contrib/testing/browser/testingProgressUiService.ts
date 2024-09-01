@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun } from 'vs/base/common/observable';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
-import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResult, LiveTestResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ExplorerTestCoverageBars } from './testCoverageBars.js';
+import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
+import { Testing } from '../common/constants.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
+import { isFailedState } from '../common/testingStates.js';
+import { ITestResult, LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
+import { ITestResultService } from '../common/testResultService.js';
+import { TestResultState } from '../common/testTypes.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 /** Workbench contribution that triggers updates in the TestingProgressUi service */
 export class TestingProgressTrigger extends Disposable {
