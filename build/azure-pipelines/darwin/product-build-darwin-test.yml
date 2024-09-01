@@ -74,7 +74,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
         set -e
-        npm exec gulp \
+        npm run gulp \
           compile-extension:configuration-editing \
           compile-extension:css-language-features-server \
           compile-extension:emmet \
@@ -161,7 +161,7 @@ steps:
         workingDirectory: test/smoke
         displayName: Compile smoke tests
 
-      - script: npm exec gulp compile-extension-media
+      - script: npm run gulp compile-extension-media
         displayName: Compile extensions for smoke tests
 
       - script: npm run smoketest-no-compile -- --tracing
@@ -185,7 +185,7 @@ steps:
 
       - script: |
           set -e
-          npm exec gulp compile-extension:vscode-test-resolver
+          npm run gulp compile-extension:vscode-test-resolver
           APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
           APP_NAME="`ls $APP_ROOT | head -n 1`"
           npm run smoketest-no-compile -- --tracing --remote --build "$APP_ROOT/$APP_NAME"

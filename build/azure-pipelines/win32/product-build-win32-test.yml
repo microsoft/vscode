@@ -72,7 +72,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npm exec gulp `
+        exec { npm run gulp `
           compile-extension:configuration-editing `
           compile-extension:css-language-features-server `
           compile-extension:emmet `
@@ -183,7 +183,7 @@ steps:
         workingDirectory: test/smoke
         displayName: Compile smoke tests
 
-      - powershell: npm exec gulp compile-extension-media
+      - powershell: npm run gulp compile-extension-media
         displayName: Build extensions for smoke tests
 
       - powershell: npm run smoketest-no-compile -- --tracing
@@ -201,7 +201,7 @@ steps:
         displayName: Run smoke tests (Browser, Chromium)
         timeoutInMinutes: 20
 
-      - powershell: npm exec gulp compile-extension:vscode-test-resolver
+      - powershell: npm run gulp compile-extension:vscode-test-resolver
         displayName: Compile test resolver extension
         timeoutInMinutes: 20
 

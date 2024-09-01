@@ -95,7 +95,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
         set -e
-        npm exec gulp \
+        npm run gulp \
           compile-extension:configuration-editing \
           compile-extension:css-language-features-server \
           compile-extension:emmet \
@@ -202,10 +202,10 @@ steps:
         workingDirectory: test/smoke
         displayName: Compile smoke tests
 
-      - script: npm exec gulp compile-extension:markdown-language-features compile-extension:ipynb compile-extension-media compile-extension:vscode-test-resolver
+      - script: npm run gulp compile-extension:markdown-language-features compile-extension:ipynb compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
 
-      - script: npm exec gulp node
+      - script: npm run gulp node
         displayName: Download node.js for remote smoke tests
         retryCountOnTaskFailure: 3
 
@@ -234,7 +234,7 @@ steps:
 
       - script: |
           set -e
-          npm exec gulp compile-extension:vscode-test-resolver
+          npm run gulp compile-extension:vscode-test-resolver
           APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
           npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"

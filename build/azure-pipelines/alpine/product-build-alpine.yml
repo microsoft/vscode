@@ -111,7 +111,7 @@ steps:
   - script: |
       set -e
       TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64") # TODO@joaomoreno
-      npm exec gulp vscode-reh-$TARGET-min-ci
+      npm run gulp vscode-reh-$TARGET-min-ci
       (cd .. && mv vscode-reh-$TARGET vscode-server-$TARGET) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/server/vscode-server-$TARGET.tar.gz"
       DIR_PATH="$(realpath ../vscode-server-$TARGET)"
@@ -126,7 +126,7 @@ steps:
   - script: |
       set -e
       TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
-      npm exec gulp vscode-reh-web-$TARGET-min-ci
+      npm run gulp vscode-reh-web-$TARGET-min-ci
       (cd .. && mv vscode-reh-web-$TARGET vscode-server-$TARGET-web) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/web/vscode-server-$TARGET-web.tar.gz"
       DIR_PATH="$(realpath ../vscode-server-$TARGET-web)"

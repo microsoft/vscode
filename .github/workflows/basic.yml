@@ -61,7 +61,7 @@ jobs:
         run: npm ci
 
       - name: Compile and Download
-        run: npm exec -- npm-run-all --max-old-space-size=4095 -lp compile "electron x64"
+        run: npm exec -- npm-run-all -lp compile "electron x64"
 
       - name: Run Unit Tests
         id: electron-unit-tests
@@ -113,10 +113,10 @@ jobs:
         run: npm ci
 
       - name: Run Hygiene Checks
-        run: npm exec gulp hygiene
+        run: npm run gulp hygiene
 
       - name: Run Valid Layers Checks
-        run: npm exec valid-layers-check
+        run: npm run valid-layers-check
 
       - name: Compile /build/
         run: npm run compile
