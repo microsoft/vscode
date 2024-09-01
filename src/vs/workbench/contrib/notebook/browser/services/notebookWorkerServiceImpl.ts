@@ -129,7 +129,7 @@ class NotebookEditorModelManager extends Disposable {
 				url: cell.uri.toString(),
 				source: cell.textBuffer.getLinesContent(),
 				eol: cell.textBuffer.getEOL(),
-				versionId: 0, // TODO:
+				versionId: 0,
 				language: cell.language,
 				cellKind: cell.cellKind,
 				outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
@@ -234,7 +234,6 @@ class NotebookWorkerClient extends Disposable {
 
 	computeDiff(original: URI, modified: URI) {
 		const proxy = this._ensureSyncedResources([original, modified]);
-		console.error('Hello World');
 		return proxy.$computeDiff(original.toString(), modified.toString());
 	}
 
