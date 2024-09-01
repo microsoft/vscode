@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./hover';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as dom from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
-import { localize } from 'vs/nls';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import type { IHoverOptions, IHoverTarget, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import './hover.css';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../common/config/editorOptions.js';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { MarkdownRenderer, openLinkFromMarkdown } from '../../widget/markdownRenderer/browser/markdownRenderer.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { localize } from '../../../../nls.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import type { IHoverOptions, IHoverTarget, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 
 const $ = dom.$;
 type TargetRect = {
@@ -222,7 +222,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		// Show the hover hint if needed
-		if (hideOnHover && options.appearance?.showHoverHint) {
+		if (options.appearance?.showHoverHint) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const infoElement = $('div.info');
 			infoElement.textContent = localize('hoverhint', 'Hold {0} key to mouse over', isMacintosh ? 'Option' : 'Alt');

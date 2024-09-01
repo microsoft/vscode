@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IExpression, IRelativePattern } from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { sep } from 'vs/base/common/path';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
-import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { isNumber } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isWeb } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Lazy } from 'vs/base/common/lazy';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { IExpression, IRelativePattern } from '../../../base/common/glob.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { sep } from '../../../base/common/path.js';
+import { ReadableStreamEvents } from '../../../base/common/stream.js';
+import { startsWithIgnoreCase } from '../../../base/common/strings.js';
+import { isNumber } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 //#region file service & providers
 

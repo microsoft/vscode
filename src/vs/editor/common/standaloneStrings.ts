@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../nls.js';
 
 export namespace AccessibilityHelpNLS {
 	export const accessibilityHelpTitle = nls.localize('accessibilityHelpTitle', "Accessibility Help");

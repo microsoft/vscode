@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { basename, dirname, join, normalize, sep } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { rtrim } from 'vs/base/common/strings';
-import { Promises, readdirSync } from 'vs/base/node/pfs';
+import { CancellationToken } from '../common/cancellation.js';
+import { basename, dirname, join, normalize, sep } from '../common/path.js';
+import { isLinux } from '../common/platform.js';
+import { rtrim } from '../common/strings.js';
+import { Promises, readdirSync } from './pfs.js';
 
 /**
  * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83

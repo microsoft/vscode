@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule, resolveAmdNodeModulePath } from 'vs/amdX';
-import { WindowIntervalTimer } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { isESM } from 'vs/base/common/amd';
-import { memoize } from 'vs/base/common/decorators';
-import { FileAccess } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractSignService, IVsdaValidator } from 'vs/platform/sign/common/abstractSignService';
-import { ISignService } from 'vs/platform/sign/common/sign';
+import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../amdX.js';
+import { WindowIntervalTimer } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { isESM } from '../../../base/common/amd.js';
+import { memoize } from '../../../base/common/decorators.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { IProductService } from '../../product/common/productService.js';
+import { AbstractSignService, IVsdaValidator } from '../common/abstractSignService.js';
+import { ISignService } from '../common/sign.js';
 
 declare module vsdaWeb {
 	export function sign(salted_message: string): string;

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursorCommon';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { Position } from 'vs/editor/common/core/position';
+import * as strings from '../../../base/common/strings.js';
+import { ReplaceCommand } from '../commands/replaceCommand.js';
+import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from '../config/editorOptions.js';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
+import { CursorColumns } from '../core/cursorColumns.js';
+import { MoveOperations } from './cursorMoveOperations.js';
+import { Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { ICommand } from '../editorCommon.js';
+import { StandardAutoClosingPairConditional } from '../languages/languageConfiguration.js';
+import { Position } from '../core/position.js';
 
 export class DeleteOperations {
 
