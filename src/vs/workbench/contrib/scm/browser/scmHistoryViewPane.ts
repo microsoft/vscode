@@ -784,10 +784,11 @@ export class SCMHistoryViewPane extends ViewPane {
 						}
 
 						// Set the "OUTDATED" description
-						this.updateTitleDescription(localize('outdated', "OUTDATED"));
+						this.updateTitleDescription(`${this.titleDescription} (${localize('outdated', "OUTDATED")})`);
 					}));
 
 					this._updateChildren();
+					this.updateTitleDescription(repository.provider.name);
 				}));
 			} else {
 				this._visibilityDisposables.clear();
@@ -806,7 +807,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	async refresh(): Promise<void> {
 		await this._updateChildren(true);
 
-		this.updateTitleDescription('');
+		this.updateTitleDescription(this._treeViewModel.repository.get()?.provider.name);
 		this._tree.scrollTop = 0;
 	}
 
