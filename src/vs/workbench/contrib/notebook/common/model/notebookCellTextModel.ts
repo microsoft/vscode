@@ -16,9 +16,10 @@ import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from '../notebookCommon.js';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
