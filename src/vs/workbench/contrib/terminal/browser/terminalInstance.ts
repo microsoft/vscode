@@ -355,6 +355,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
+	private readonly _onWillPaste = this._register(new Emitter<string>());
+	readonly onWillPaste = this._onWillPaste.event;
+	private readonly _onDidPaste = this._register(new Emitter<string>());
+	readonly onDidPaste = this._onDidPaste.event;
+
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
@@ -1267,7 +1272,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this.focus();
+
+		this._onWillPaste.fire(currentText);
 		this.xterm.raw.paste(currentText);
+		this._onDidPaste.fire(currentText);
 	}
 
 	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
