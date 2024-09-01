@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import * as platform from '../../../../base/common/platform.js';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, reset } from '../../../../base/browser/dom.js';
 import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -49,16 +49,55 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/ac
 import { tail } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { derivedObservableWithCache, latestChangedValue, observableFromEvent, observableFromEventOpts } from '../../../../base/common/observableInternal/utils.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorResourceAccessor } from '../../../common/editor.js';
+import { constObservable, latestChangedValue, observableFromEvent } from '../../../../base/common/observableInternal/utils.js';
 import { ContextKeys } from './scmViewPane.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { Event } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
+
+class SCMRepositoryActionViewItem extends ActionViewItem {
+	constructor(private readonly _repository: ISCMRepository, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
+		super(null, action, { ...options, icon: false, label: true });
+	}
+
+	protected override updateLabel(): void {
+		if (this.options.label && this.label) {
+			this.label.classList.add('scm-graph-repository-picker');
+			reset(this.label, ...renderLabelWithIcons(`$(repo) ${this._repository.provider.name}`));
+		}
+	}
+}
+
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.repository',
+			title: '',
+			viewId: HISTORY_VIEW_PANE_ID,
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.greater('scm.providerCount', 1)),
+				group: 'navigation',
+				order: 0
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.pickRepository();
+	}
+});
 
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
@@ -549,44 +588,25 @@ class SCMHistoryViewModel extends Disposable {
 		this._scmService.onDidRemoveRepository,
 		repository => repository);
 
-	private readonly _focusedRepository = observableFromEventOpts<ISCMRepository | undefined>(
-		{ owner: this, equalsFn: () => false },
-		this._scmViewService.onDidFocusRepository,
-		() => this._scmViewService.focusedRepository);
+	private readonly _firstRepository = this._scmService.repositoryCount > 0 ?
+		constObservable(Iterable.first(this._scmService.repositories)) :
+		observableFromEvent(
+			this,
+			Event.once(this._scmService.onDidAddRepository),
+			repository => repository
+		);
 
-	private readonly _activeEditor = observableFromEventOpts(
-		{ owner: this, equalsFn: () => false },
-		this._editorService.onDidActiveEditorChange,
-		() => this._editorService.activeEditor);
-
-	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this,
-		(reader, lastValue) => {
-			const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
-			if (!activeResource) {
-				return lastValue;
-			}
-
-			const repository = this._scmService.getRepository(activeResource);
-			if (!repository) {
-				return lastValue;
-			}
-
-			return Object.create(repository);
-		});
+	private readonly _selectedRepository = observableValue<ISCMRepository | undefined>(this, undefined);
 
 	/**
-	 * The focused repository takes precedence over the active editor repository when the observable
+	 * The first repository takes precedence over the selected repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	readonly repository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
+	readonly repository = latestChangedValue(this, [this._selectedRepository, this._firstRepository]);
 
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
 
-	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@ISCMService private readonly _scmService: ISCMService,
-		@ISCMViewService private readonly _scmViewService: ISCMViewService
-	) {
+	constructor(@ISCMService private readonly _scmService: ISCMService) {
 		super();
 
 		// Closed repository cleanup
@@ -594,6 +614,10 @@ class SCMHistoryViewModel extends Disposable {
 			const repository = this._closedRepository.read(reader);
 			if (!repository) {
 				return;
+			}
+
+			if (this.repository.get() === repository) {
+				this._selectedRepository.set(Iterable.first(this._scmService.repositories), undefined);
 			}
 
 			this._state.delete(repository);
@@ -672,6 +696,10 @@ class SCMHistoryViewModel extends Disposable {
 			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}
 
+	setRepository(repository: ISCMRepository): void {
+		this._selectedRepository.set(repository, undefined);
+	}
+
 	override dispose(): void {
 		this._state.clear();
 		super.dispose();
@@ -702,6 +730,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IProgressService private readonly _progressService: IProgressService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -789,12 +818,15 @@ export class SCMHistoryViewPane extends ViewPane {
 						}
 
 						// Set the "OUTDATED" description
-						this.updateTitleDescription(`${this.titleDescription} (${localize('outdated', "OUTDATED")})`);
+						this.updateTitleDescription(localize('outdated', "OUTDATED"));
 					}));
 
-					this._updateChildren();
-					this.updateTitleDescription(repository.provider.name);
+
+					this.updateActions();
+					this.updateTitleDescription(undefined);
 					this._scmProviderCtx.set(repository.provider.contextValue);
+
+					this._updateChildren();
 				}));
 			} else {
 				this._visibilityDisposables.clear();
@@ -810,11 +842,39 @@ export class SCMHistoryViewPane extends ViewPane {
 		return this._treeViewModel?.repository.get()?.provider;
 	}
 
+	override getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === 'workbench.scm.action.repository') {
+			const repository = this._treeViewModel?.repository.get();
+			if (repository) {
+				return new SCMRepositoryActionViewItem(repository, action, options);
+			}
+		}
+
+		return super.getActionViewItem(action, options);
+	}
+
 	async refresh(): Promise<void> {
 		await this._updateChildren(true);
 
-		this.updateTitleDescription(this._treeViewModel.repository.get()?.provider.name);
+		this.updateTitleDescription(undefined);
 		this._tree.scrollTop = 0;
+	}
+
+	async pickRepository(): Promise<void> {
+		const picks = this._scmViewService.repositories.map(r => ({
+			label: r.provider.name,
+			description: r.provider.rootUri?.fsPath,
+			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			repository: r
+		}));
+
+		const result = await this._quickInputService.pick(picks, {
+			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories")
+		});
+
+		if (result) {
+			this._treeViewModel.setRepository(result.repository);
+		}
 	}
 
 	private _createTree(container: HTMLElement): void {
