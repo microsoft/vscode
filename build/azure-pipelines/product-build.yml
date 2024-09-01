@@ -216,7 +216,7 @@ extends:
           - job: Compile
             timeoutInMinutes: 90
             pool:
-              name: 1es-ubuntu-20.04-x64
+              name: 1es-ubuntu-22.04-x64
               os: linux
             variables:
               VSCODE_ARCH: x64
@@ -233,7 +233,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: CLILinuxX64
                 pool:
-                  name: 1es-ubuntu-20.04-x64
+                  name: 1es-ubuntu-22.04-x64
                   os: linux
                 steps:
                   - template: build/azure-pipelines/linux/cli-build-linux.yml@self
@@ -245,7 +245,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
               - job: CLILinuxGnuARM
                 pool:
-                  name: 1es-ubuntu-20.04-x64
+                  name: 1es-ubuntu-22.04-x64
                   os: linux
                 steps:
                   - template: build/azure-pipelines/linux/cli-build-linux.yml@self
@@ -257,7 +257,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
               - job: CLIAlpineX64
                 pool:
-                  name: 1es-ubuntu-20.04-x64
+                  name: 1es-ubuntu-22.04-x64
                   os: linux
                 steps:
                   - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
@@ -306,7 +306,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - job: CLIWindowsX64
                 pool:
-                  name: 1es-windows-2019-x64
+                  name: 1es-windows-2022-x64
                   os: windows
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
@@ -318,7 +318,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - job: CLIWindowsARM64
                 pool:
-                  name: 1es-windows-2019-x64
+                  name: 1es-windows-2022-x64
                   os: windows
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
@@ -330,7 +330,7 @@ extends:
         - stage: CustomSDL
           dependsOn: []
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           jobs:
             - job: WindowsSDL
@@ -349,7 +349,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
@@ -446,7 +446,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
@@ -564,7 +564,7 @@ extends:
           dependsOn:
             - Compile
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true) }}:
@@ -614,7 +614,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
@@ -787,7 +787,7 @@ extends:
           dependsOn:
             - Compile
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
@@ -801,7 +801,7 @@ extends:
         - stage: Publish
           dependsOn: []
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           variables:
             - name: BUILDS_API_URL
@@ -817,7 +817,7 @@ extends:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:
-              name: 1es-ubuntu-20.04-x64
+              name: 1es-ubuntu-22.04-x64
               os: linux
             jobs:
               - deployment: ApproveRelease
@@ -838,7 +838,7 @@ extends:
               - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
                 - ApproveRelease
             pool:
-              name: 1es-ubuntu-20.04-x64
+              name: 1es-ubuntu-22.04-x64
               os: linux
             jobs:
               - job: ReleaseBuild
