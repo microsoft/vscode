@@ -20,7 +20,7 @@ import { autorun, autorunWithStore, observableValue } from '../../../../base/com
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -52,6 +52,7 @@ import { IProgressService } from '../../../../platform/progress/common/progress.
 import { derivedObservableWithCache, latestChangedValue, observableFromEvent, observableFromEventOpts } from '../../../../base/common/observableInternal/utils.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
+import { ContextKeys } from './scmViewPane.js';
 
 registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
@@ -692,6 +693,8 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _treeOperationSequencer = new Sequencer();
 	private readonly _updateChildrenThrottler = new Throttler();
 
+	private readonly _scmProviderCtx: IContextKey<string | undefined>;
+
 	private readonly _providerCountBadgeConfig = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
 
 	constructor(
@@ -711,6 +714,8 @@ export class SCMHistoryViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMHistoryTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+
+		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 
 		this._actionRunner = this.instantiationService.createInstance(SCMHistoryViewPaneActionRunner);
 		this._register(this._actionRunner);
@@ -789,6 +794,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 					this._updateChildren();
 					this.updateTitleDescription(repository.provider.name);
+					this._scmProviderCtx.set(repository.provider.contextValue);
 				}));
 			} else {
 				this._visibilityDisposables.clear();
