@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -53,6 +53,7 @@ import { derivedObservableWithCache, latestChangedValue, observableFromEvent, ob
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { ContextKeys } from './scmViewPane.js';
+import { clamp } from '../../../../base/common/numbers.js';
 
 registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
@@ -331,8 +332,9 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 	get templateId(): string { return HistoryItemLoadMoreRenderer.TEMPLATE_ID; }
 
 	constructor(
-		// private readonly _loadingMore: () => IObservable<boolean>,
-		private readonly _loadMoreCallback: (repository: ISCMRepository) => void
+		private readonly _loadingMore: () => IObservable<boolean>,
+		private readonly _loadMoreCallback: (repository: ISCMRepository) => void,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	renderTemplate(container: HTMLElement): LoadMoreTemplate {
@@ -352,19 +354,24 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 		templateData.graphPlaceholder.style.width = `${SWIMLANE_WIDTH * (element.element.graphColumns.length + 1)}px`;
 		templateData.graphPlaceholder.appendChild(renderSCMHistoryGraphPlaceholder(element.element.graphColumns));
 
-		templateData.historyItemPlaceholderContainer.classList.toggle('shimmer', true);
+		const pageOnScroll = this._configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
+		templateData.historyItemPlaceholderContainer.classList.toggle('shimmer', pageOnScroll);
 
-		// if (repositoryCount > 1 || alwaysShowRepositories) {
-		// 	templateData.elementDisposables.add(autorun(reader => {
-		// 		const loadingMore = this._loadingMore().read(reader);
-		// 		const icon = `$(${loadingMore ? 'loading~spin' : 'fold-down'})`;
+		if (pageOnScroll) {
+			templateData.historyItemPlaceholderLabel.setLabel('');
+			this._loadMoreCallback(element.element.repository);
+		} else {
+			templateData.elementDisposables.add(autorun(reader => {
+				const loadingMore = this._loadingMore().read(reader);
+				const icon = `$(${loadingMore ? 'loading~spin' : 'fold-down'})`;
 
-		// 		templateData.historyItemPlaceholderLabel.setLabel(localize('loadMore', "{0} Load More...", icon));
-		// 	}));
-		// } else {
-		templateData.historyItemPlaceholderLabel.setLabel('');
-		this._loadMoreCallback(element.element.repository);
-		// }
+				templateData.historyItemPlaceholderLabel.setLabel(localize('loadMore', "{0} Load More...", icon));
+			}));
+		}
+	}
+
+	disposeElement(element: ITreeNode<SCMHistoryItemLoadMoreTreeElement, void>, index: number, templateData: LoadMoreTemplate, height: number | undefined): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: LoadMoreTemplate): void {
@@ -583,6 +590,7 @@ class SCMHistoryViewModel extends Disposable {
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
 
 	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ISCMService private readonly _scmService: ISCMService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
@@ -640,8 +648,10 @@ class SCMHistoryViewModel extends Disposable {
 			];
 
 			const existingHistoryItems = state?.items ?? [];
+			const limit = clamp(this._configurationService.getValue<number>('scm.graph.pageSize'), 1, 1000);
+
 			const historyItems = await historyProvider.provideHistoryItems2({
-				historyItemGroupIds, limit: 50, skip: existingHistoryItems.length
+				historyItemGroupIds, limit, skip: existingHistoryItems.length
 			}) ?? [];
 
 			state = {
@@ -691,6 +701,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _visibilityDisposables = new DisposableStore();
 
 	private readonly _treeOperationSequencer = new Sequencer();
+	private readonly _treeLoadMoreSequencer = new Sequencer();
 	private readonly _updateChildrenThrottler = new Throttler();
 
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
@@ -835,7 +846,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemHoverDelegate),
 				this.instantiationService.createInstance(
 					HistoryItemLoadMoreRenderer,
-					// () => this._repositoryLoadMore,
+					() => this._repositoryLoadMore,
 					repository => this._loadMoreCallback(repository)),
 			],
 			this._treeDataSource,
@@ -873,10 +884,8 @@ export class SCMHistoryViewPane extends ViewPane {
 				await this._commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 			}
 		} else if (isSCMHistoryItemLoadMoreTreeElement(e.element)) {
-			const repositoryCount = this._scmViewService.visibleRepositories.length;
-			const alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories') === true;
-
-			if (repositoryCount > 1 || alwaysShowRepositories) {
+			const pageOnScroll = this.configurationService.getValue<boolean>('scm.graph.pageOnScroll') === true;
+			if (!pageOnScroll) {
 				this._loadMoreCallback(e.element.repository);
 				this._tree.setSelection([]);
 			}
@@ -913,15 +922,17 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	private async _loadMoreCallback(repository: ISCMRepository): Promise<void> {
-		if (this._repositoryLoadMore.get()) {
-			return;
-		}
+		return this._treeLoadMoreSequencer.queue(async () => {
+			if (this._repositoryLoadMore.get()) {
+				return;
+			}
 
-		this._repositoryLoadMore.set(true, undefined);
-		this._treeViewModel.setLoadMore(repository, true);
+			this._repositoryLoadMore.set(true, undefined);
+			this._treeViewModel.setLoadMore(repository, true);
 
-		await this._updateChildren();
-		this._repositoryLoadMore.set(false, undefined);
+			await this._updateChildren();
+			this._repositoryLoadMore.set(false, undefined);
+		});
 	}
 
 	private _updateChildren(clearCache = false): Promise<void> {
