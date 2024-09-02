@@ -22,6 +22,7 @@ const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
 const { isAMD } = require('./lib/amd');
+const VinylFile = require('vinyl');
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -232,8 +233,19 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); //TODO@esm remove me once AMD is gone
 
-		const sources = es.merge(...(isESM ? [src, extensions, loader] : [src, extensions]))
-			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
+		const sources = es.merge(...(!isAMD() ? [src, extensions, loader] : [src, extensions]))
+			.pipe(filter(['**', '!**/*.js.map'], { dot: true }))
+			// TODO@esm remove me once we stop supporting our web-esm-bridge
+			.pipe(es.through(function (file) {
+				if (file.relative === 'out/vs/workbench/workbench.web.main.internal.css') {
+					this.emit('data', new VinylFile({
+						contents: file.contents,
+						path: file.path.replace('workbench.web.main.internal.css', 'workbench.web.main.css'),
+						base: file.base
+					}));
+				}
+				this.emit('data', file);
+			}));
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
@@ -288,7 +300,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	const destinationFolderName = `vscode-web`;
 
 	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
-		// compileWebExtensionsBuildTask,
+		compileWebExtensionsBuildTask,
 		minified ? minifyVSCodeWebTask : optimizeVSCodeWebTask,
 		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 		packageTask(sourceFolderName, destinationFolderName)
@@ -296,7 +308,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
-		// compileBuildTask,
+		compileBuildTask,
 		vscodeWebTaskCI
 	));
 	gulp.task(vscodeWebTask);
