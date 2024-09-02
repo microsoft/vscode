@@ -12,7 +12,6 @@ import type { URI } from '../../../../../base/common/uri.js';
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import type { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel.js';
 import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
