@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { IObservable, IObserver } from 'vs/base/common/observable';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
+import { CancellationToken } from './cancellation.js';
+import { onUnexpectedError } from './errors.js';
+import { createSingleCallFunction } from './functional.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
+import { LinkedList } from './linkedList.js';
+import { IObservable, IObserver } from './observable.js';
+import { StopWatch } from './stopwatch.js';
+import { MicrotaskDelay } from './symbols.js';
 
 
 // -----------------------------------------------------------------------------------------------------------------------
@@ -109,6 +109,15 @@ export namespace Event {
 
 			return result;
 		};
+	}
+
+	/**
+	 * Given an event, returns another event which only fires once, and only when the condition is met.
+	 *
+	 * @param event The event source for the new event.
+	 */
+	export function onceIf<T>(event: Event<T>, condition: (e: T) => boolean): Event<T> {
+		return Event.once(Event.filter(event, condition));
 	}
 
 	/**

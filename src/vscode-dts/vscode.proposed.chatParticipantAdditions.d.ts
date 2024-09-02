@@ -70,7 +70,7 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -87,7 +87,7 @@ declare module 'vscode' {
 		/**
 		 * The reference target.
 		 */
-		value: Uri | Location | { variableName: string; value?: Uri | Location };
+		value: Uri | Location | { variableName: string; value?: Uri | Location } | string;
 
 		/**
 		 * The icon for the reference.
@@ -109,7 +109,7 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @param iconPath Icon for the reference shown in UI
 		 */
-		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | {
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location } | string, iconPath?: Uri | ThemeIcon | {
 			/**
 			 * The icon path for the light theme.
 			 */
@@ -119,6 +119,14 @@ declare module 'vscode' {
 			 */
 			dark: Uri;
 		}, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } });
+	}
+
+	export class ChatResponseMovePart {
+
+		readonly uri: Uri;
+		readonly range: Range;
+
+		constructor(uri: Uri, range: Range);
 	}
 
 	export interface ChatResponseStream {
@@ -161,7 +169,7 @@ declare module 'vscode' {
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
-		reference2(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
+		reference2(value: Uri | Location | string | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
@@ -280,6 +288,8 @@ declare module 'vscode' {
 		codeBlockIndex: number;
 		totalCharacters: number;
 		newFile?: boolean;
+		userAction?: string;
+		codeMapper?: string;
 	}
 
 	export interface ChatTerminalAction {
@@ -321,5 +331,9 @@ declare module 'vscode' {
 		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
 		readonly name: string;
+	}
+
+	export interface ChatResultFeedback {
+		readonly unhelpfulReason?: string;
 	}
 }

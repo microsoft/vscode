@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h, reset } from 'vs/base/browser/dom';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { h, reset } from '../../../../../base/browser/dom.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { CodeEditorWidget } from '../../codeEditor/codeEditorWidget.js';
+import { LineRange } from '../../../../common/core/lineRange.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
 	private readonly scrollTop = observableFromEvent(this,
@@ -118,10 +118,10 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 							gutterItem.range.startLineNumber <= this._editor.getModel()!.getLineCount()
 								? this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, true) - scrollTop
 								: this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop;
-						const bottom = gutterItem.range.isEmpty
-							// Don't trust that `getBottomForLineNumber` for the previous line equals `getTopForLineNumber` for the current one.
-							? top
-							: (this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop);
+						const bottom =
+							gutterItem.range.endLineNumberExclusive === 1 ?
+								Math.max(top, this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, false) - scrollTop)
+								: Math.max(top, this._editor.getBottomForLineNumber(gutterItem.range.endLineNumberExclusive - 1, true) - scrollTop);
 
 						const height = bottom - top;
 						view.domNode.style.top = `${top}px`;

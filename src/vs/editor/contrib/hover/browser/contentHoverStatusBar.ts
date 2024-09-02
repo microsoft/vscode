@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
-import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorHoverAction, IEditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import * as dom from '../../../../base/browser/dom.js';
+import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IEditorHoverAction, IEditorHoverStatusBar } from './hoverTypes.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 
 const $ = dom.$;
 

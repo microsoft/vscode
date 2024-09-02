@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEachAdjacent } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { forEachAdjacent } from '../../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { OffsetRange } from '../../../core/offsetRange.js';
 
 /**
  * Represents a synchronous diff algorithm. Should be executed in a worker.

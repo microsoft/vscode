@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ITerminalWidget } from './widgets.js';
 
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;

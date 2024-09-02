@@ -3,63 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestDiffProviderFactoryService } from 'vs/editor/test/browser/diff/testDiffProviderFactoryService';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingService';
-import { HunkState, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
-import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
-import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { assertType } from 'vs/base/common/types';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { TestWorkerService } from './testWorkerService';
-import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
-import { IChatSlashCommandService, ChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IChatWidgetHistoryService, ChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { TestExtensionService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IChatAgentService, ChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { NullWorkbenchAssignmentService } from 'vs/workbench/services/assignment/test/common/nullAssignmentService';
-import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import { MockLanguageModelToolsService } from 'vs/workbench/contrib/chat/test/common/mockLanguageModelToolsService';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { IActiveCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { instantiateTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IEditorProgressService, IProgressRunner } from '../../../../../platform/progress/common/progress.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { IChatAccessibilityService, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
+import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.js';
+import { HunkState, Session } from '../../browser/inlineChatSession.js';
+import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
+import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
+import { EditMode } from '../../common/inlineChat.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { TestWorkerService } from './testWorkerService.js';
+import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { IChatService } from '../../../chat/common/chatService.js';
+import { ChatService } from '../../../chat/common/chatServiceImpl.js';
+import { IChatSlashCommandService, ChatSlashCommandService } from '../../../chat/common/chatSlashCommands.js';
+import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
+import { IChatWidgetHistoryService, ChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { TestExtensionService, TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IChatAgentService, ChatAgentService, ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { IChatRequestModel } from '../../../chat/common/chatModel.js';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 
 suite('InlineChatSession', function () {
 
@@ -487,4 +489,90 @@ suite('InlineChatSession', function () {
 
 		inlineChatSessionService.releaseSession(session);
 	});
+
+	test('Pressing Escape after inline chat errored with "response filtered" leaves document dirty #7764', async function () {
+
+		const origValue = `class Foo {
+	private onError(error: string): void {
+		if (/The request timed out|The network connection was lost/i.test(error)) {
+			return;
+		}
+
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: error,
+			source: nls.localize('update service', "Update Service"),
+		});
+	}
+}`;
+		model.setValue(origValue);
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		const fakeRequest = new class extends mock<IChatRequestModel>() {
+			override get id() { return 'one'; }
+		};
+		session.markModelVersion(fakeRequest);
+
+		assert.strictEqual(editor.getModel().getLineCount(), 15);
+
+		await makeEditAsAi([EditOperation.replace(new Range(7, 1, 7, Number.MAX_SAFE_INTEGER), `error = error.replace(
+			/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/,
+			'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information'
+		);`)]);
+
+		assert.strictEqual(editor.getModel().getLineCount(), 18);
+
+		// called when a response errors out
+		await session.undoChangesUntil(fakeRequest.id);
+		await session.hunkData.recompute({ applied: 0, sha1: 'fakeSha1' }, undefined);
+
+		assert.strictEqual(editor.getModel().getValue(), origValue);
+
+		session.hunkData.discardAll(); // called when dimissing the session
+		assert.strictEqual(editor.getModel().getValue(), origValue);
+	});
+
+	test('Apply Code\'s preview should be easier to undo/esc #7537', async function () {
+		model.setValue(`export function fib(n) {
+	if (n <= 0) return 0;
+	if (n === 1) return 0;
+	if (n === 2) return 1;
+	return fib(n - 1) + fib(n - 2);
+}`);
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.replace(new Range(5, 1, 6, Number.MAX_SAFE_INTEGER), `
+	let a = 0, b = 1, c;
+	for (let i = 3; i <= n; i++) {
+		c = a + b;
+		a = b;
+		b = c;
+	}
+	return b;
+}`)]);
+
+		assert.strictEqual(session.hunkData.size, 1);
+		assert.strictEqual(session.hunkData.pending, 1);
+		assert.ok(session.hunkData.getInfo().every(d => d.getState() === HunkState.Pending));
+
+		await assertSnapshot(editor.getModel().getValue(), { name: '1' });
+
+		await model.undo();
+		await assertSnapshot(editor.getModel().getValue(), { name: '2' });
+
+		// overlapping edits (even UNDO) mark edits as accepted
+		assert.strictEqual(session.hunkData.size, 1);
+		assert.strictEqual(session.hunkData.pending, 0);
+		assert.ok(session.hunkData.getInfo().every(d => d.getState() === HunkState.Accepted));
+
+		// no further change when discarding
+		session.hunkData.discardAll(); // CANCEL
+		await assertSnapshot(editor.getModel().getValue(), { name: '2' });
+	});
+
 });

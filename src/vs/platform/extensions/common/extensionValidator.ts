@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { IExtensionManifest, parseApiProposals } from 'vs/platform/extensions/common/extensions';
-import { allApiProposals } from 'vs/platform/extensions/common/extensionsApiProposals';
+import { isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { IExtensionManifest, parseApiProposals } from './extensions.js';
+import { allApiProposals } from './extensionsApiProposals.js';
 
 export interface IParsedVersion {
 	hasCaret: boolean;

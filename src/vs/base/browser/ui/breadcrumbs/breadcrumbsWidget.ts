@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { commonPrefixLength } from 'vs/base/common/arrays';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./breadcrumbsWidget';
+import * as dom from '../../dom.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
+import { commonPrefixLength } from '../../../common/arrays.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import './breadcrumbsWidget.css';
 
 export abstract class BreadcrumbsItem {
 	abstract dispose(): void;

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { Codicon } from 'vs/base/common/codicons';
+import { localize, localize2 } from '../../../nls.js';
+import { MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputService, ItemActivation } from '../../../platform/quickinput/common/quickInput.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
+import { ILocalizedString } from '../../../platform/action/common/action.js';
+import { AnythingQuickAccessProviderRunOptions } from '../../../platform/quickinput/common/quickAccess.js';
+import { Codicon } from '../../../base/common/codicons.js';
 
 //#region Quick access management commands and keys
 
