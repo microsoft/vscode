@@ -107,7 +107,7 @@ const vscodeWebEntryPoints = !isAMD() ? [
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb()
 ].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.web.main'),
+	buildfile.entrypoint('vs/workbench/workbench.web.main.internal'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
