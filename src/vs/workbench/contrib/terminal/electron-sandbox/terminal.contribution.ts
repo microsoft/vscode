@@ -13,12 +13,12 @@ import { TerminalNativeContribution } from './terminalNativeContribution.js';
 import { ElectronTerminalProfileResolverService } from './terminalProfileResolverService.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { LocalTerminalBackendContribution } from './localTerminalBackend.js';
-import { registerContextualInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { localize2 } from 'vs/nls';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
+import { registerContextualInstanceAction } from '../browser/terminalActions.js';
+import { localize2 } from '../../../../nls.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);

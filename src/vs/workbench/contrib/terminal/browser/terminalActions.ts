@@ -65,8 +65,6 @@ import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1644,7 +1642,6 @@ export function registerTerminalActions() {
 			}
 		}
 	});
-
 }
 
 interface IRemoteTerminalPick extends IQuickPickItem {
