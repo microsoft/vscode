@@ -2647,7 +2647,7 @@ export class Repository {
 
 	async getDefaultBranch(): Promise<Branch> {
 		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-		if (!result.stdout) {
+		if (!result.stdout || result.stderr) {
 			throw new Error('No default branch');
 		}
 

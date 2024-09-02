@@ -1508,16 +1508,13 @@ export class Repository implements Disposable {
 
 	private async getDefaultBranch(): Promise<Branch | undefined> {
 		try {
-			const defaultBranchResult = await this.repository.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-			if (defaultBranchResult.stdout.trim() === '' || defaultBranchResult.stderr) {
-				return undefined;
-			}
-
-			return this.getBranch(defaultBranchResult.stdout.trim());
+			const defaultBranch = await this.repository.getDefaultBranch();
+			return defaultBranch;
 		}
-		catch (err) { }
-
-		return undefined;
+		catch (err) {
+			this.logger.warn(`[Repository][getDefaultBranch] Failed to get default branch details: ${err.message}.`);
+			return undefined;
+		}
 	}
 
 	private async getUpstreamBranch(branch: Branch): Promise<Branch | undefined> {
