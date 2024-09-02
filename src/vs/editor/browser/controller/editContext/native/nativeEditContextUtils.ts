@@ -5,23 +5,94 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
-export class EditContextState {
+export class EditContextWrapper {
 
-	constructor(
-		public readonly content: string,
-		public readonly selectionStartOffset: number,
-		public readonly selectionEndOffset: number,
-		public readonly contentStartPosition: Position
-	) { }
+	private _textStartPositionWithinEditor: Position = new Position(1, 1);
+	private _compositionRange: Range | undefined;
 
-	equals(other: EditContextState): boolean {
+	constructor(private readonly _editContext: EditContext) { }
+
+	equals(other: EditContextWrapper): boolean {
 		return (
-			this.content === other.content
-			&& this.selectionStartOffset === other.selectionStartOffset
-			&& this.selectionEndOffset === other.selectionEndOffset
-			&& this.contentStartPosition.equals(other.contentStartPosition)
+			this.text === other.text
+			&& this.selectionStart === other.selectionStart
+			&& this.selectionEnd === other.selectionEnd
+			&& this.textStartPositionWithinEditor.equals(other.textStartPositionWithinEditor)
 		);
+	}
+
+	onTextUpdate(listener: (this: GlobalEventHandlers, ev: TextUpdateEvent) => void) {
+		return editContextAddDisposableListener(this._editContext, 'textupdate', listener);
+	}
+
+	onCompositionStart(listener: (this: GlobalEventHandlers, ev: Event) => void) {
+		return editContextAddDisposableListener(this._editContext, 'compositionstart', listener);
+	}
+
+	onCompositionEnd(listener: (this: GlobalEventHandlers, ev: Event) => void) {
+		return editContextAddDisposableListener(this._editContext, 'compositionend', listener);
+	}
+
+	onCharacterBoundsUpdate(listener: (this: GlobalEventHandlers, ev: CharacterBoundsUpdateEvent) => void) {
+		return editContextAddDisposableListener(this._editContext, 'characterboundsupdate', listener);
+	}
+
+	onTextFormatUpdate(listener: (this: GlobalEventHandlers, ev: TextFormatUpdateEvent) => void) {
+		return editContextAddDisposableListener(this._editContext, 'textformatupdate', listener);
+	}
+
+	updateText(rangeStart: number, rangeEnd: number, text: string): void {
+		this._editContext.updateText(rangeStart, rangeEnd, text);
+	}
+
+	updateSelection(selectionStart: number, selectionEnd: number): void {
+		this._editContext.updateSelection(selectionStart, selectionEnd);
+	}
+
+	updateTextStartPositionWithinEditor(textStartPositionWithinEditor: Position): void {
+		this._textStartPositionWithinEditor = textStartPositionWithinEditor;
+	}
+
+	updateControlBounds(controlBounds: DOMRect): void {
+		this._editContext.updateControlBounds(controlBounds);
+	}
+
+	updateSelectionBounds(selectionBounds: DOMRect): void {
+		this._editContext.updateSelectionBounds(selectionBounds);
+	}
+
+	updateCharacterBounds(rangeStart: number, characterBounds: DOMRect[]): void {
+		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
+	}
+
+	updateCompositionRange(compositionRange: Range | undefined): void {
+		this._compositionRange = compositionRange;
+	}
+
+	public get text(): string {
+		return this._editContext.text;
+	}
+
+	public get selectionStart(): number {
+		return this._editContext.selectionStart;
+	}
+
+	public get selectionEnd(): number {
+		return this._editContext.selectionEnd;
+	}
+
+	public get characterBounds(): DOMRect[] {
+		return this._editContext.characterBounds();
+	}
+
+	public get textStartPositionWithinEditor(): Position {
+		return this._textStartPositionWithinEditor;
+	}
+
+	public get compositionRange(): Range | undefined {
+		return this._compositionRange;
 	}
 }
 
