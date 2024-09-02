@@ -34,6 +34,36 @@ import { TextEditorSelectionRevealType, type ITextEditorOptions } from '../../..
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'notebook.diff.openFile',
+			icon: Codicon.goToFile,
+			title: localize2('notebook.diff.openFile', 'Open File'),
+			precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID)),
+			menu: [{
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ActiveEditorContext.isEqualTo(NotebookMultiTextDiffEditor.ID)),
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const activeEditor = editorService.activeEditorPane;
+		if (!activeEditor) {
+			return;
+		}
+		if (activeEditor instanceof NotebookTextDiffEditor || activeEditor instanceof NotebookMultiTextDiffEditor) {
+			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
+			const resource = diffEditorInput.modified.resource;
+			await editorService.openEditor({ resource });
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'notebook.diff.switchToText',
 			icon: openAsTextIcon,
 			title: localize2('notebook.diff.switchToText', 'Open Text Diff Editor'),
