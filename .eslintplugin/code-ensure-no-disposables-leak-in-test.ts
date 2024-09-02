@@ -12,7 +12,8 @@ export = new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rul
 		type: 'problem',
 		messages: {
 			ensure: 'Suites should include a call to `ensureNoDisposablesAreLeakedInTestSuite()` to ensure no disposables are leaked in tests.'
-		}
+		},
+		fixable: 'code'
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
@@ -30,6 +31,10 @@ export = new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rul
 					context.report({
 						node,
 						messageId: 'ensure',
+						fix: (fixer) => {
+							const updatedSrc = src.replace(/(suite\(.*\n)/, '$1\n\tensureNoDisposablesAreLeakedInTestSuite();\n');
+							return fixer.replaceText(node, updatedSrc);
+						}
 					});
 				}
 			},

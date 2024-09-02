@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
-import { ResourceMap } from 'vs/base/common/map';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { ISnippetEdit } from 'vs/editor/contrib/snippet/browser/snippetSession';
+import { dispose, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { EndOfLineSequence, ITextModel } from '../../../../editor/common/model.js';
+import { ITextModelService, IResolvedTextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { IUndoRedoService, UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { SingleModelEditStackElement, MultiModelEditStackElement } from '../../../../editor/common/model/editStack.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { SnippetParser } from '../../../../editor/contrib/snippet/browser/snippetParser.js';
+import { ISnippetEdit } from '../../../../editor/contrib/snippet/browser/snippetSession.js';
 
 type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 

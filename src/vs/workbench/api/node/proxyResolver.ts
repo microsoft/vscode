@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 // ESM-comment-begin
-import * as http from 'http';
-import * as https from 'https';
-import * as tls from 'tls';
-import * as net from 'net';
+// import * as http from 'http';
+// import * as https from 'https';
+// import * as tls from 'tls';
+// import * as net from 'net';
 // ESM-comment-end
 
-import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { URI } from 'vs/base/common/uri';
-import { ILogService, LogLevel as LogServiceLevel } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtHostWorkspaceProvider } from '../common/extHostWorkspace.js';
+import { ExtHostConfigProvider } from '../common/extHostConfiguration.js';
+import { MainThreadTelemetryShape } from '../common/extHost.protocol.js';
+import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
+import { ExtHostExtensionService } from './extHostExtensionService.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
-import { AuthInfo } from 'vs/platform/request/common/request';
+import { AuthInfo } from '../../../platform/request/common/request.js';
 
 // ESM-uncomment-begin
-// import { createRequire } from 'node:module';
-// const require = createRequire(import.meta.url);
-// const http = require('http');
-// const https = require('https');
-// const tls = require('tls');
-// const net = require('net');
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const http = require('http');
+const https = require('https');
+const tls = require('tls');
+const net = require('net');
 // ESM-uncomment-end
 
 const systemCertificatesV2Default = false;

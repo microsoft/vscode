@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as descriptors from './descriptors';
-import { ServiceCollection } from './serviceCollection';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import * as descriptors from './descriptors.js';
+import { ServiceCollection } from './serviceCollection.js';
 
 // ------ internal util
 

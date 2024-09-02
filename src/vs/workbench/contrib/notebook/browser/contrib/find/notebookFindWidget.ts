@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch } from 'vs/editor/common/model';
-import { MATCHES_LIMIT } from 'vs/editor/contrib/find/browser/findModel';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/browser/findWidget';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
-import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookFindScope } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { alert as alertFn } from '../../../../../../base/browser/ui/aria/aria.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import * as strings from '../../../../../../base/common/strings.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { FindMatch } from '../../../../../../editor/common/model.js';
+import { MATCHES_LIMIT } from '../../../../../../editor/contrib/find/browser/findModel.js';
+import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
+import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../../editor/contrib/find/browser/findWidget.js';
+import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { NotebookFindFilters } from './findFilters.js';
+import { FindModel } from './findModel.js';
+import { SimpleFindReplaceWidget } from './notebookFindReplaceWidget.js';
+import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { INotebookFindScope } from '../../../common/notebookCommon.js';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from '../../../common/notebookContextKeys.js';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';

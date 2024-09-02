@@ -77,6 +77,7 @@ module.exports.indentationFilter = [
 	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
 	'!src/vs/base/node/cpuUsage.sh',
+	'!src/vs/editor/common/languages/highlights/*.scm',
 	'!test/unit/assert.js',
 	'!test/unit/assert-esm.js',
 	'!resources/linux/snap/electron-launch',

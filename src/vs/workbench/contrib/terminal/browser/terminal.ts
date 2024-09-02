@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDimension } from 'vs/base/browser/dom';
-import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { Color } from 'vs/base/common/color';
-import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditableData } from 'vs/workbench/common/views';
-import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IDimension } from '../../../../base/browser/dom.js';
+import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
+import { Color } from '../../../../base/common/color.js';
+import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
+import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from '../../../../platform/terminal/common/terminal.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditableData } from '../../../common/views.js';
+import { ITerminalStatusList } from './terminalStatusList.js';
+import { XtermTerminal } from './xterm/xtermTerminal.js';
+import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from '../common/terminal.js';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal, IBufferRange } from '@xterm/xterm';
-import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import type { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import type { IMenu } from 'vs/platform/actions/common/actions';
-import type { Barrier } from 'vs/base/common/async';
+import { ScrollPosition } from './xterm/markNavigationAddon.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { GroupIdentifier } from '../../../common/editor.js';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
+import type { ICurrentPartialCommand } from '../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import type { IXtermCore } from './xterm-private.js';
+import type { IMenu } from '../../../../platform/actions/common/actions.js';
+import type { Barrier } from '../../../../base/common/async.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -699,6 +699,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidSendText: Event<string>;
 	onDidChangeShellType: Event<TerminalShellType>;
 	onDidChangeVisibility: Event<boolean>;
+
+	onWillPaste: Event<string>;
+	onDidPaste: Event<string>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.

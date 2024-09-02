@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedObservableWithCache, IReader, ISettableObservable, observableValue } from 'vs/base/common/observable';
-import { derivedDisposable, derivedWithSetter } from 'vs/base/common/observableInternal/derived';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { inlineEditVisible, isPinnedContextKey } from 'vs/editor/contrib/inlineEdits/browser/consts';
-import { InlineEditsModel } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsModel';
-import { InlineEditsWidget } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsWidget';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { bindContextKey, observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { derived, derivedObservableWithCache, IReader, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { derivedDisposable, derivedWithSetter } from '../../../../base/common/observableInternal/derived.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
+import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { inlineEditVisible, isPinnedContextKey } from './consts.js';
+import { InlineEditsModel } from './inlineEditsModel.js';
+import { InlineEditsWidget } from './inlineEditsWidget.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 export class InlineEditsController extends Disposable {
 	static ID = 'editor.contrib.inlineEditsController';

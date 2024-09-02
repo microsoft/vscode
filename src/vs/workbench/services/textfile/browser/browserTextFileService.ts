@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { AbstractTextFileService } from './textFileService.js';
+import { ITextFileService, TextFileEditorModelState } from '../common/textfiles.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IElevatedFileService } from '../../files/common/elevatedFileService.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { IUntitledTextEditorService } from '../../untitled/common/untitledTextEditorService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkingCopyFileService } from '../../workingCopy/common/workingCopyFileService.js';
+import { IDecorationsService } from '../../decorations/common/decorations.js';
 
 export class BrowserTextFileService extends AbstractTextFileService {
 

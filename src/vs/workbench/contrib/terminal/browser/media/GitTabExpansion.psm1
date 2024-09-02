@@ -550,6 +550,9 @@ function GitTabExpansionInternal($lastBlock, $GitStatus = $null) {
 				$null # Force zero results
 			} else {
 				[System.Management.Automation.CompletionResult]::new('.', '.', 'ParameterName', "Discard changes in working directory")
+				$lastCheckout = [System.Management.Automation.CompletionResult]::new('-', '-', 'ParameterName', "The last branch or commit that was checked out")
+				$lastCheckout | Add-Member -NotePropertyName 'CustomIcon' -NotePropertyValue 'gitBranch'
+				$lastCheckout
 				gitBranches $matches['ref'] $true | ConvertTo-VscodeCompletion -Type 'branch'
 				gitRemoteUniqueBranches $matches['ref'] | ConvertTo-VscodeCompletion -Type 'branch'
 				gitTags $matches['ref'] | ConvertTo-VscodeCompletion -Type 'tag'

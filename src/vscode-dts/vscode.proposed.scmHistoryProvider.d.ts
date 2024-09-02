@@ -35,6 +35,7 @@ declare module 'vscode' {
 
 	export interface SourceControlHistoryOptions {
 		readonly cursor?: string;
+		readonly skip?: number;
 		readonly limit?: number | { id?: string };
 		readonly historyItemGroupIds?: readonly string[];
 	}
@@ -62,8 +63,8 @@ declare module 'vscode' {
 		readonly id: string;
 		readonly parentIds: string[];
 		readonly message: string;
+		readonly displayId?: string;
 		readonly author?: string;
-		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
 		readonly labels?: SourceControlHistoryItemLabel[];

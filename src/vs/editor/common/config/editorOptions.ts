@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Constants } from 'vs/base/common/uint';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import * as nls from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import * as arrays from '../../../base/common/arrays.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import * as objects from '../../../base/common/objects.js';
+import * as platform from '../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
+import { Constants } from '../../../base/common/uint.js';
+import { FontInfo } from './fontInfo.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
+import * as nls from '../../../nls.js';
+import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
 
 //#region typed options
 
