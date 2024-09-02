@@ -441,7 +441,6 @@ class HistoryItemActionRunner extends ActionRunner {
 					message: h.historyItemViewModel.historyItem.message,
 					displayId: h.historyItemViewModel.historyItem.displayId,
 					author: h.historyItemViewModel.historyItem.author,
-					icon: h.historyItemViewModel.historyItem.icon,
 					timestamp: h.historyItemViewModel.historyItem.timestamp,
 					statistics: h.historyItemViewModel.historyItem.statistics,
 				} satisfies ISCMHistoryItem)));
@@ -452,7 +451,6 @@ class HistoryItemActionRunner extends ActionRunner {
 				message: context.historyItemViewModel.historyItem.message,
 				displayId: context.historyItemViewModel.historyItem.displayId,
 				author: context.historyItemViewModel.historyItem.author,
-				icon: context.historyItemViewModel.historyItem.icon,
 				timestamp: context.historyItemViewModel.historyItem.timestamp,
 				statistics: context.historyItemViewModel.historyItem.statistics,
 			} satisfies ISCMHistoryItem);

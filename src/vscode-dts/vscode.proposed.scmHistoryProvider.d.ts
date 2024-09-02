@@ -65,7 +65,6 @@ declare module 'vscode' {
 		readonly message: string;
 		readonly displayId?: string;
 		readonly author?: string;
-		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
 		readonly labels?: SourceControlHistoryItemLabel[];
