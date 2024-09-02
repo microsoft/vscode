@@ -174,11 +174,6 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return this.proxy.$resolveHistoryItemGroupCommonAncestor2(this.handle, historyItemGroupIds, CancellationToken.None);
 	}
 
-	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
-		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
-		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
-	}
-
 	async provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
 		const historyItems = await this.proxy.$provideHistoryItems2(this.handle, options, CancellationToken.None);
 		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));

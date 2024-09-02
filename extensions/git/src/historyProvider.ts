@@ -97,41 +97,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemGroup: ${JSON.stringify(this.currentHistoryItemGroup)}`);
 	}
 
-	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		//TODO@lszomoru - support limit and cursor
-		if (typeof options.limit === 'number') {
-			throw new Error('Unsupported options.');
-		}
-		if (typeof options.limit?.id !== 'string') {
-			throw new Error('Unsupported options.');
-		}
-
-		const refParentId = options.limit.id;
-		const refId = await this.repository.revParse(historyItemGroupId) ?? '';
-
-		const historyItems: SourceControlHistoryItem[] = [];
-		const commits = await this.repository.log({ range: `${refParentId}..${refId}`, shortStats: true, sortByAuthorDate: true });
-
-		await ensureEmojis();
-
-		historyItems.push(...commits.map(commit => {
-			const newLineIndex = commit.message.indexOf('\n');
-			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
-
-			return {
-				id: commit.hash,
-				parentIds: commit.parents,
-				message: emojify(subject),
-				author: commit.authorName,
-				icon: new ThemeIcon('git-commit'),
-				timestamp: commit.authorDate?.getTime(),
-				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-			};
-		}));
-
-		return historyItems;
-	}
-
 	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
 		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds) {
 			return [];
