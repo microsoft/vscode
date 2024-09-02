@@ -8,7 +8,7 @@ import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider
 import { Repository, Resource } from './repository';
 import { IDisposable, dispose } from './util';
 import { toGitUri } from './uri';
-import { Branch, LogOptions, RefType, UpstreamRef } from './api/git';
+import { Branch, LogOptions, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
 
@@ -97,42 +97,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemGroup: ${JSON.stringify(this.currentHistoryItemGroup)}`);
 	}
 
-	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		//TODO@lszomoru - support limit and cursor
-		if (typeof options.limit === 'number') {
-			throw new Error('Unsupported options.');
-		}
-		if (typeof options.limit?.id !== 'string') {
-			throw new Error('Unsupported options.');
-		}
-
-		const refParentId = options.limit.id;
-		const refId = await this.repository.revParse(historyItemGroupId) ?? '';
-
-		const historyItems: SourceControlHistoryItem[] = [];
-		const commits = await this.repository.log({ range: `${refParentId}..${refId}`, shortStats: true, sortByAuthorDate: true });
-
-		await ensureEmojis();
-
-		historyItems.push(...commits.map(commit => {
-			const newLineIndex = commit.message.indexOf('\n');
-			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
-
-			return {
-				id: commit.hash,
-				parentIds: commit.parents,
-				message: emojify(subject),
-				author: commit.authorName,
-				icon: new ThemeIcon('git-commit'),
-				timestamp: commit.authorDate?.getTime(),
-				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-			};
-		}));
-
-		return historyItems;
-	}
-
-	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+	async provideHistoryItems(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
 		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds) {
 			return [];
 		}
@@ -180,16 +145,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				};
 			});
 		} catch (err) {
-			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items with options '${JSON.stringify(options)}': ${err}`);
+			this.logger.error(`[GitHistoryProvider][provideHistoryItems] Failed to get history items with options '${JSON.stringify(options)}': ${err}`);
 			return [];
 		}
-	}
-
-	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItem> {
-		historyItemParentId = historyItemParentId ?? await this.repository.getEmptyTree();
-		const allChanges = await this.repository.diffBetweenShortStat(historyItemParentId, historyItemId);
-
-		return { id: historyItemId, parentIds: [historyItemParentId], message: '', statistics: allChanges };
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItemChange[]> {
@@ -226,35 +184,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
-	async resolveHistoryItemGroupCommonAncestor(historyItemId1: string, historyItemId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
-		if (!historyItemId2) {
-			const upstreamRef = await this.resolveHistoryItemGroupMergeBase(historyItemId1);
-			if (!upstreamRef) {
-				this.logger.info(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor] Failed to resolve history item group base for '${historyItemId1}'`);
-				return undefined;
-			}
-
-			historyItemId2 = `refs/remotes/${upstreamRef.remote}/${upstreamRef.name}`;
-		}
-
-		const ancestor = await this.repository.getMergeBase(historyItemId1, historyItemId2);
-		if (!ancestor) {
-			this.logger.info(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor] Failed to resolve common ancestor for '${historyItemId1}' and '${historyItemId2}'`);
-			return undefined;
-		}
-
-		try {
-			const commitCount = await this.repository.getCommitCount(`${historyItemId1}...${historyItemId2}`);
-			this.logger.trace(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor] Resolved common ancestor for '${historyItemId1}' and '${historyItemId2}': ${JSON.stringify({ id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind })}`);
-			return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
-		} catch (err) {
-			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor] Failed to get ahead/behind for '${historyItemId1}...${historyItemId2}': ${err.message}`);
-		}
-
-		return undefined;
-	}
-
-	async resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined> {
+	async resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined> {
 		try {
 			if (historyItemGroupIds.length === 0) {
 				// TODO@lszomoru - log
@@ -283,7 +213,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 		catch (err) {
-			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor2] Failed to resolve common ancestor for ${historyItemGroupIds.join(',')}: ${err}`);
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor] Failed to resolve common ancestor for ${historyItemGroupIds.join(',')}: ${err}`);
 		}
 
 		return undefined;
@@ -309,34 +239,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		return labels;
-	}
-
-	private async resolveHistoryItemGroupMergeBase(historyItemId: string): Promise<UpstreamRef | undefined> {
-		try {
-			// Upstream
-			const branch = await this.repository.getBranch(historyItemId);
-			if (branch.upstream) {
-				return branch.upstream;
-			}
-
-			// Base (config -> reflog -> default)
-			const remoteBranch = await this.repository.getBranchBase(historyItemId);
-			if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
-				this.logger.info(`[GitHistoryProvider][resolveHistoryItemGroupUpstreamOrBase] Failed to resolve history item group base for '${historyItemId}'`);
-				return undefined;
-			}
-
-			return {
-				name: remoteBranch.name,
-				remote: remoteBranch.remote,
-				commit: remoteBranch.commit
-			};
-		}
-		catch (err) {
-			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupUpstreamOrBase] Failed to get branch base for '${historyItemId}': ${err.message}`);
-		}
-
-		return undefined;
 	}
 
 	private async resolveHEADMergeBase(): Promise<Branch | undefined> {

@@ -22,12 +22,9 @@ export interface ISCMHistoryProvider {
 	readonly currentHistoryItemGroupRemoteId: IObservable<string | undefined>;
 	readonly currentHistoryItemGroupRemoteRevision: IObservable<string | undefined>;
 
-	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
-	provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
-	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;
+	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
-	resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined>;
+	resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined>;
 }
 
 export interface ISCMHistoryOptions {

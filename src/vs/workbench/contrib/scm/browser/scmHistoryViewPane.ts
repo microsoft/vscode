@@ -149,7 +149,7 @@ registerAction2(class extends Action2 {
 		const historyProvider = provider.historyProvider.get();
 
 		if (historyItems.length > 1) {
-			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor2([historyItem.id, historyItemLast.id]);
+			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor([historyItem.id, historyItemLast.id]);
 			if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
 				return;
 			}
@@ -441,7 +441,6 @@ class HistoryItemActionRunner extends ActionRunner {
 					message: h.historyItemViewModel.historyItem.message,
 					displayId: h.historyItemViewModel.historyItem.displayId,
 					author: h.historyItemViewModel.historyItem.author,
-					icon: h.historyItemViewModel.historyItem.icon,
 					timestamp: h.historyItemViewModel.historyItem.timestamp,
 					statistics: h.historyItemViewModel.historyItem.statistics,
 				} satisfies ISCMHistoryItem)));
@@ -452,7 +451,6 @@ class HistoryItemActionRunner extends ActionRunner {
 				message: context.historyItemViewModel.historyItem.message,
 				displayId: context.historyItemViewModel.historyItem.displayId,
 				author: context.historyItemViewModel.historyItem.author,
-				icon: context.historyItemViewModel.historyItem.icon,
 				timestamp: context.historyItemViewModel.historyItem.timestamp,
 				statistics: context.historyItemViewModel.historyItem.statistics,
 			} satisfies ISCMHistoryItem);
@@ -676,7 +674,7 @@ class SCMHistoryViewModel extends Disposable {
 			const existingHistoryItems = state?.items ?? [];
 			const limit = clamp(this._configurationService.getValue<number>('scm.graph.pageSize'), 1, 1000);
 
-			const historyItems = await historyProvider.provideHistoryItems2({
+			const historyItems = await historyProvider.provideHistoryItems({
 				historyItemGroupIds, limit, skip: existingHistoryItems.length
 			}) ?? [];
 
