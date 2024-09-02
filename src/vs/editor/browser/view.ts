@@ -106,7 +106,7 @@ export class View extends ViewEventHandler {
 
 	// Edit context
 	private _editContextType: EditContextType;
-	private _editContextHandler: AbstractEditContext;
+	private _editContext: AbstractEditContext;
 
 	constructor(
 		commandDelegate: ICommandDelegate,
@@ -133,8 +133,8 @@ export class View extends ViewEventHandler {
 
 		// Keyboard handler
 		this._editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
-		this._editContextHandler = this._instantiateEditContext(this._editContextType);
-		this._viewParts.push(this._editContextHandler);
+		this._editContext = this._instantiateEditContext(this._editContextType);
+		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this._linesContent = createFastDomNode(document.createElement('div'));
@@ -229,7 +229,7 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this._editContextHandler.appendTo(this._overflowGuardContainer);
+		this._editContext.appendTo(this._overflowGuardContainer);
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this._overflowGuardContainer.appendChild(blockOutline.domNode);
@@ -292,12 +292,12 @@ export class View extends ViewEventHandler {
 			},
 
 			dispatchTextAreaEvent: (event: CustomEvent) => {
-				this._editContextHandler.domNode.domNode.dispatchEvent(event);
+				this._editContext.domNode.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
 				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
-				const lastTextareaPosition = this._editContextHandler.getLastRenderData();
+				const lastTextareaPosition = this._editContext.getLastRenderData();
 				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			renderNow: (): void => {
@@ -351,7 +351,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _getEditorClassName() {
-		const focused = this._editContextHandler.isFocused() ? ' focused' : '';
+		const focused = this._editContext.isFocused() ? ' focused' : '';
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
@@ -371,12 +371,13 @@ export class View extends ViewEventHandler {
 			return;
 		}
 		this._editContextType = editContextType;
-		this._editContextHandler.dispose();
-		this._editContextHandler = this._instantiateEditContext(editContextType);
-		this._editContextHandler.appendTo(this._overflowGuardContainer);
-		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContextHandler);
+		this._editContext.dispose();
+		this._editContext = this._instantiateEditContext(editContextType);
+		this._editContext.appendTo(this._overflowGuardContainer);
+		// Replace the view parts with the new edit context
+		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
 		if (indexOfEditContextHandler !== -1) {
-			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContextHandler);
+			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
 		}
 	}
 
@@ -386,8 +387,8 @@ export class View extends ViewEventHandler {
 		this._scheduleRender();
 	}
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		this._updateEditContext();
 		this.domNode.setClassName(this._getEditorClassName());
+		this._updateEditContext();
 		this._applyLayout();
 		return false;
 	}
@@ -618,23 +619,23 @@ export class View extends ViewEventHandler {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		this._editContextHandler.writeScreenReaderContent(reason);
+		this._editContext.writeScreenReaderContent(reason);
 	}
 
 	public focus(): void {
-		this._editContextHandler.focus();
+		this._editContext.focus();
 	}
 
 	public isFocused(): boolean {
-		return this._editContextHandler.isFocused();
+		return this._editContext.isFocused();
 	}
 
 	public refreshFocusState() {
-		this._editContextHandler.refreshFocus();
+		this._editContext.refreshFocusState();
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
-		this._editContextHandler.setAriaOptions(options);
+		this._editContext.setAriaOptions(options);
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {

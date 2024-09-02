@@ -20,7 +20,7 @@ export abstract class AbstractEditContext extends ViewPart {
 	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;
 	abstract focus(): void;
 	abstract isFocused(): boolean;
-	abstract refreshFocus(): void;
+	abstract refreshFocusState(): void;
 	abstract setAriaOptions(options: IEditorAriaOptions): void;
 	abstract getLastRenderData(): Position | null;
 	abstract writeScreenReaderContent(reason: string): void;

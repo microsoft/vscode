@@ -194,10 +194,10 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public focus(): void {
 		this._setHasFocus(true);
-		this.refreshFocus();
+		this.refreshFocusState();
 	}
 
-	public refreshFocus(): void {
+	public refreshFocusState(): void {
 		const hasFocus = dom.getActiveElement() === this.domNode.domNode;
 		this._setHasFocus(hasFocus);
 	}

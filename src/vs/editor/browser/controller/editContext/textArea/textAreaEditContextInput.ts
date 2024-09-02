@@ -610,6 +610,7 @@ export class TextAreaInput extends Disposable {
 			(this._browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
+
 		e.preventDefault();
 		if (e.clipboardData) {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);

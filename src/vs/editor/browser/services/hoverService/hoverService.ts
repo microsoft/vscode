@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/editor/browser/services/hoverService/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement, isEditableElement } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -293,8 +293,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		// Do not show hover when focusing an input or textarea
 		let focusDomEmitter: undefined | IDisposable;
-		const tagName = targetElement.tagName.toLowerCase();
-		if (tagName !== 'input' && tagName !== 'textarea') {
+		if (!isEditableElement(targetElement)) {
 			focusDomEmitter = addDisposableListener(targetElement, EventType.FOCUS, onFocus, true);
 		}
 

@@ -277,8 +277,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					return TextAreaState.EMPTY;
 				}
 
-				const selection = this._selections[0];
-				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			},
 
@@ -653,7 +652,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._textAreaInput.focusTextArea();
 	}
 
-	public refreshFocus() {
+	public refreshFocusState() {
 		this._textAreaInput.refreshFocusState();
 	}
 
