@@ -382,7 +382,7 @@ export function jupyterNotebookModelToNotebookData(
 	preferredLanguage: string
 ): NotebookData {
 	const notebookContentWithoutCells = { ...notebookContent, cells: [] };
-	if (!notebookContent.cells || notebookContent.cells.length === 0) {
+	if (!Array.isArray(notebookContent.cells)) {
 		throw new Error('Notebook content is missing cells');
 	}
 

@@ -129,8 +129,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	) {
 		super();
 
-		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
-
 		this._register(autorunWithStore((reader, store) => {
 			const viewModel = this._viewModel.read(reader);
 			if (viewModel && viewModel.contextKeys) {

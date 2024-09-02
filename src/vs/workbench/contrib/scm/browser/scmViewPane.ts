@@ -10,8 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ISCMHistoryItem } from '../common/history.js';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from '../common/scm.js';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -970,59 +969,6 @@ MenuRegistry.appendMenuItem(Menus.ViewSort, {
 	submenu: Menus.Repositories,
 	when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
 	group: '0_repositories'
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.scm.action.scm.viewChanges',
-			title: localize('viewChanges', "View Changes"),
-			f1: false,
-			menu: [
-				{
-					id: MenuId.SCMChangesContext,
-					group: '0_view',
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true)
-				}
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, provider: ISCMProvider, ...historyItems: ISCMHistoryItem[]) {
-		const commandService = accessor.get(ICommandService);
-
-		if (!provider || historyItems.length === 0) {
-			return;
-		}
-
-		const historyItem = historyItems[0];
-		const historyItemLast = historyItems[historyItems.length - 1];
-		const historyProvider = provider.historyProvider.get();
-
-		if (historyItems.length > 1) {
-			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor2([historyItem.id, historyItemLast.id]);
-			if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
-				return;
-			}
-		}
-
-		const historyItemParentId = historyItemLast.parentIds.length > 0 ? historyItemLast.parentIds[0] : undefined;
-		const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
-
-		if (!historyItemChanges?.length) {
-			return;
-		}
-
-		const title = historyItems.length === 1 ?
-			`${historyItems[0].id.substring(0, 8)} - ${historyItems[0].message}` :
-			localize('historyItemChangesEditorTitle', "All Changes ({0} ↔ {1})", historyItemLast.id.substring(0, 8), historyItem.id.substring(0, 8));
-
-		const rootUri = provider.rootUri;
-		const path = rootUri ? rootUri.path : provider.label;
-		const multiDiffSourceUri = URI.from({ scheme: 'scm-history-item', path: `${path}/${historyItemParentId}..${historyItem.id}` }, true);
-
-		commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
-	}
 });
 
 class RepositoryVisibilityAction extends Action2 {

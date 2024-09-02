@@ -287,9 +287,10 @@ export type NotebookCellOutputsSplice = {
 
 export interface IMainCellDto {
 	handle: number;
-	uri: UriComponents;
+	url: string;
 	source: string[];
 	eol: string;
+	versionId: number;
 	language: string;
 	cellKind: CellKind;
 	outputs: IOutputDto[];

@@ -527,6 +527,7 @@
       {
         "command": "git.fetchAll",
         "title": "%command.fetchAll%",
+        "icon": "$(git-fetch)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1936,24 +1937,9 @@
       ],
       "scm/history/title": [
         {
-          "command": "git.fetchRef",
+          "command": "git.fetchAll",
           "group": "navigation@1",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.pullRef",
-          "group": "navigation@2",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.pushRef",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote",
-          "group": "navigation@3"
-        },
-        {
-          "command": "git.publish",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
-          "group": "navigation@3"
+          "when": "scmProvider == git"
         }
       ],
       "scm/historyItem/context": [

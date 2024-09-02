@@ -5,7 +5,6 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
-import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
@@ -17,9 +16,9 @@ import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from './
 import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN, DiffSide, IDiffElementLayoutInfo } from './notebookDiffEditorBrowser.js';
 import { CellLayoutState, IGenericCellViewModel } from '../notebookBrowser.js';
 import { NotebookLayoutInfo } from '../notebookViewEvents.js';
-import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { getFormattedMetadataJSON, NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto, NotebookCellMetadata } from '../../common/notebookCommon.js';
+import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
 
 export enum PropertyFoldingState {
@@ -359,7 +358,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 
 	getHeight(lineHeight: number) {
 		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			const editorHeight = this.estimateEditorHeight(lineHeight);
+			const editorHeight = this.cellFoldingState === PropertyFoldingState.Collapsed ? 0 : this.estimateEditorHeight(lineHeight);
 			return this._computeTotalHeight(editorHeight);
 		} else {
 			return this._layoutInfo.totalHeight;
@@ -556,7 +555,7 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 	}
 
 	checkMetadataIfModified() {
-		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel.transientOptions.transientCellMetadata, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel.transientOptions.transientCellMetadata, this.modified?.metadata ?? {}, this.modified?.language));
 		if (modified) {
 			return { reason: undefined };
 		} else {
@@ -801,38 +800,6 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 	}
 
 	return OutputComparison.Unchanged;
-}
-
-export function getFormattedMetadataJSON(documentTextModel: INotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
-	let filteredMetadata: { [key: string]: any } = {};
-
-	if (documentTextModel) {
-		const transientCellMetadata = documentTextModel.transientOptions.transientCellMetadata;
-
-		const keys = new Set([...Object.keys(metadata)]);
-		for (const key of keys) {
-			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
-			) {
-				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
-			}
-		}
-	} else {
-		filteredMetadata = metadata;
-	}
-
-	const obj = {
-		language,
-		...filteredMetadata
-	};
-	// Give preference to the language we have been given.
-	// Metadata can contain `language` due to round-tripping of cell metadata.
-	// I.e. we add it here, and then from SCM when we revert the cell, we get this same metadata back with the `language` property.
-	if (language) {
-		obj.language = language;
-	}
-	const metadataSource = toFormattedString(obj, {});
-
-	return metadataSource;
 }
 
 export function getStreamOutputData(outputs: IOutputItemDto[]) {
