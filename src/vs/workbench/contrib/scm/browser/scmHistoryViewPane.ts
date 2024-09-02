@@ -241,8 +241,6 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
 		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches, extraClasses });
 
-		console.log(extraClasses);
-
 		templateData.labelContainer.textContent = '';
 		for (const label of historyItem.labels ?? []) {
 			if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
