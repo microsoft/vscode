@@ -101,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		await startPreloadWorkspaceContentsIfNeeded(context, logger);
 	}));
 
-	context.subscriptions.push(registerAtaSupport());
+	context.subscriptions.push(registerAtaSupport(logger));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }

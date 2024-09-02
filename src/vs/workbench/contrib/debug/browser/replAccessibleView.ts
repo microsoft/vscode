@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IDebugService, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getReplView, Repl } from 'vs/workbench/contrib/debug/browser/repl';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IReplElement } from '../common/debug.js';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { getReplView, Repl } from './repl.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Position } from '../../../../editor/common/core/position.js';
 
 export class ReplAccessibleView implements IAccessibleViewImplentation {
 	priority = 70;
@@ -22,14 +22,14 @@ export class ReplAccessibleView implements IAccessibleViewImplentation {
 	type: AccessibleViewType = AccessibleViewType.View;
 	getProvider(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
-		const debugService = accessor.get(IDebugService);
 		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const replView = getReplView(viewsService);
 		if (!replView) {
 			return undefined;
 		}
+
 		const focusedElement = replView.getFocusedElement();
-		return new ReplOutputAccessibleViewProvider(replView, focusedElement, debugService, accessibleViewService);
+		return new ReplOutputAccessibleViewProvider(replView, focusedElement, accessibleViewService);
 	}
 }
 
@@ -52,18 +52,16 @@ class ReplOutputAccessibleViewProvider extends Disposable implements IAccessible
 	constructor(
 		private readonly _replView: Repl,
 		private readonly _focusedElement: IReplElement | undefined,
-		@IDebugService private readonly _debugService: IDebugService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService) {
 		super();
 		this._treeHadFocus = !!_focusedElement;
 	}
 	public provideContent(): string {
-		const viewModel = this._debugService.getViewModel();
-		const focusedDebugSession = viewModel?.focusedSession;
-		if (!focusedDebugSession) {
-			return 'No debug session is active.';
+		const debugSession = this._replView.getDebugSession();
+		if (!debugSession) {
+			return 'No debug session available.';
 		}
-		const elements = focusedDebugSession.getReplElements();
+		const elements = debugSession.getReplElements();
 		if (!elements.length) {
 			return 'No output in the debug console.';
 		}

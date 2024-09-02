@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { isString } from '../../../../base/common/types.js';
+import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IAuthenticationAccessService } from './authenticationAccessService.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from '../common/authentication.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 

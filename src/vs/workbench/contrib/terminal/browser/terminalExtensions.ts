@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance } from './terminal.js';
+import { TerminalWidgetManager } from './widgets/widgetManager.js';
+import { ITerminalProcessInfo, ITerminalProcessManager } from '../common/terminal.js';
 
 /** Constructor compatible with full terminal instances, is assignable to {@link DetachedCompatibleTerminalContributionCtor} */
 export type TerminalContributionCtor = IConstructorSignature<ITerminalContribution, [ITerminalInstance, ITerminalProcessManager, TerminalWidgetManager]>;

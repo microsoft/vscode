@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
+import { localize } from '../../../../../nls.js';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { TerminalChatController } from './terminalChatController.js';
 
 export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 110;

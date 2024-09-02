@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import * as arrays from 'vs/base/common/arrays';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { StoredValue } from './storedValue.js';
+import { TestingContextKeys } from './testingContextKeys.js';
+import { ITestService } from './testService.js';
+import { TestService } from './testServiceImpl.js';
+import { ITestRunProfile, TestRunProfileBitset } from './testTypes.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { TestId } from './testId.js';
+import { WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
+import { ITestProfileService } from './testProfileService.js';
+import * as arrays from '../../../../base/common/arrays.js';
 
 export const ITestingContinuousRunService = createDecorator<ITestingContinuousRunService>('testingContinuousRunService');
 

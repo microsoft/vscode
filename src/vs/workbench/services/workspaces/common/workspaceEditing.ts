@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
 

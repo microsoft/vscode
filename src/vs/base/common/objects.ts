@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isTypedArray, isObject, isUndefinedOrNull } from './types.js';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {

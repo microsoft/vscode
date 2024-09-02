@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, EventHelper, EventLike, clearNode } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import 'vs/css!./link';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { $, append, EventHelper, EventLike, clearNode } from '../../../base/browser/dom.js';
+import { DomEmitter } from '../../../base/browser/event.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../base/browser/touch.js';
+import { Event } from '../../../base/common/event.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IOpenerService } from '../common/opener.js';
+import './link.css';
+import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import type { IManagedHover } from '../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../hover/browser/hover.js';
 
 export interface ILinkDescriptor {
 	readonly label: string | HTMLElement;

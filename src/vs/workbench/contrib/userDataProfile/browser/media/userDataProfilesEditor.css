@@ -199,17 +199,20 @@
 	width: 250px;
 }
 
-.profiles-editor .contents-container .profile-use-as-default-container {
+.profiles-editor .contents-container .profile-use-as-default-container,
+.profiles-editor .contents-container .profile-use-for-current-container {
 	display: flex;
 	align-items: center;
 	line-height: 22px;
 }
 
-.profiles-editor .contents-container .profile-body .profile-row-container .profile-use-as-default-container .profile-description-element {
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-use-as-default-container .profile-description-element,
+.profiles-editor .contents-container .profile-body .profile-row-container .profile-use-for-current-container .profile-description-element {
 	margin-top: -1px;
 }
 
-.profiles-editor .contents-container .profile-use-as-default-container .profile-use-as-default-label {
+.profiles-editor .contents-container .profile-use-as-default-container .profile-use-as-default-label,
+.profiles-editor .contents-container .profile-use-for-current-container .profile-use-as-default-label {
 	margin-left: 2px;
 }
 
@@ -292,7 +295,8 @@
 
 .profiles-editor .contents-container .profile-body .profile-row-container.profile-button-container .monaco-button {
 	margin-right: 10px;
-	max-width: 80px;
+	width: inherit;
+	padding: 4px 10px;
 }
 
 /* Profile Editor Tree Theming */
@@ -305,7 +309,7 @@
 	background-color: var(--vscode-settings-rowHoverBackground) !important;
 }
 
-.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row.focused {
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list:focus .monaco-list-row.focused {
 	outline: 1px solid var(--vscode-settings-focusedRowBorder) !important;
 }
 
@@ -336,7 +340,7 @@
 	outline: none !important;
 }
 
-.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row .monaco-tl-twistie {
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-content-tree .monaco-list-row .monaco-tl-twistie.collapsible {
 	cursor: pointer;
 }
 

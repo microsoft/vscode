@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInputWithOptions } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IFileService } from 'vs/platform/files/common/files';
-import { SettingsFileSystemProvider } from 'vs/workbench/contrib/preferences/common/settingsFilesystemProvider';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { EditorInputWithOptions } from '../../../common/editor.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from '../../../services/preferences/common/preferences.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { SettingsFileSystemProvider } from './settingsFilesystemProvider.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class PreferencesContribution extends Disposable implements IWorkbenchContribution {
 

@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/languages';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
+import { Command } from '../../../../../editor/common/languages.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IChatWidget } from '../chat.js';
+import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
+import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -99,18 +99,18 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private updateDecorations(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map(r => (<IDecorationOptions>{
+		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
 		})));
 	}
 
-	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
+	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
 		const value = ref.data;
 		if (URI.isUri(value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
 		} else {
-			return (value as any).toString();
+			return undefined;
 		}
 	}
 }
@@ -162,11 +162,10 @@ export class SelectAndInsertFileAction extends Action2 {
 		// This of course assumes that the `files` variable has the behavior that it searches
 		// through files in the workspace.
 		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
-			options = {
-				providerOptions: <AnythingQuickAccessProviderRunOptions>{
-					additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
-				},
+			const providerOptions: AnythingQuickAccessProviderRunOptions = {
+				additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
 			};
+			options = { providerOptions };
 		}
 		// TODO: have dedicated UX for this instead of using the quick access picker
 		const picks = await quickInputService.quickAccess.pick('', options);

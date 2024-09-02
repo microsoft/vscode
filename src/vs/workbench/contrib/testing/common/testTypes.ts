@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { TestId } from './testId.js';
 
 export const enum TestResultState {
 	Unset = 0,
@@ -332,7 +332,7 @@ export namespace ITestTaskState {
 
 export interface ITestRunTask {
 	id: string;
-	name: string | undefined;
+	name: string;
 	running: boolean;
 	ctrlId: string;
 }
@@ -585,7 +585,7 @@ export interface ISerializedTestResults {
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];
 	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined; ctrlId: string }[];
+	tasks: { id: string; name: string | undefined; ctrlId: string; hasCoverage: boolean }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */

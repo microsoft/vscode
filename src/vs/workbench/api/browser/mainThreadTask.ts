@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../nls.js';
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as Types from 'vs/base/common/types';
-import * as Platform from 'vs/base/common/platform';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import * as Types from '../../../base/common/types.js';
+import * as Platform from '../../../base/common/platform.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
 
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, TaskEventKind,
 	IPresentationOptions, CommandOptions, ICommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource,
 	TaskSourceKind, IExtensionTaskSource, IRunOptions, ITaskSet, TaskGroup, TaskDefinition, PresentationOptions, RunOptions
-} from 'vs/workbench/contrib/tasks/common/tasks';
+} from '../../contrib/tasks/common/tasks.js';
 
 
-import { IResolveSet, IResolvedVariables } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { ITaskService, ITaskFilter, ITaskProvider } from 'vs/workbench/contrib/tasks/common/taskService';
+import { IResolveSet, IResolvedVariables } from '../../contrib/tasks/common/taskSystem.js';
+import { ITaskService, ITaskFilter, ITaskProvider } from '../../contrib/tasks/common/taskService.js';
 
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext } from '../common/extHost.protocol.js';
 import {
 	ITaskDefinitionDTO, ITaskExecutionDTO, IProcessExecutionOptionsDTO, ITaskPresentationOptionsDTO,
 	IProcessExecutionDTO, IShellExecutionDTO, IShellExecutionOptionsDTO, ICustomExecutionDTO, ITaskDTO, ITaskSourceDTO, ITaskHandleDTO, ITaskFilterDTO, ITaskProcessStartedDTO, ITaskProcessEndedDTO, ITaskSystemInfoDTO,
 	IRunOptionsDTO, ITaskGroupDTO
-} from 'vs/workbench/api/common/shared/tasks';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+} from '../common/shared/tasks.js';
+import { IConfigurationResolverService } from '../../services/configurationResolver/common/configurationResolver.js';
+import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
+import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 
 namespace TaskExecutionDTO {
 	export function from(value: ITaskExecution): ITaskExecutionDTO {

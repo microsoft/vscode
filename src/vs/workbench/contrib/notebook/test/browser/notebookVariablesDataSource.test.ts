@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { INotebookVariableElement, NotebookVariableDataSource } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { AsyncIterableObject, AsyncIterableSource } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { INotebookVariableElement, NotebookVariableDataSource } from '../../browser/contrib/notebookVariables/notebookVariablesDataSource.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from '../../common/notebookKernelService.js';
 
 
 suite('NotebookVariableDataSource', () => {

@@ -12,37 +12,36 @@
  */
 
 // ESM-comment-begin
-const path = require('path');
-const fs = require('original-fs');
-const os = require('os');
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
-const bootstrapAmd = require('./bootstrap-amd');
-const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath`);
-const { parse } = require('./vs/base/common/jsonc');
-const perf = require('./vs/base/common/performance');
-const { resolveNLSConfiguration } = require('./vs/base/node/nls');
-const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
-const product = require('./bootstrap-meta').product;
-const { app, protocol, crashReporter, Menu, contentTracing } = require('electron');
+// const path = require('path');
+// const fs = require('original-fs');
+// const os = require('os');
+// const bootstrapNode = require('./bootstrap-node');
+// const bootstrapAmd = require('./bootstrap-amd');
+// const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath`);
+// const { parse } = require('./vs/base/common/jsonc');
+// const perf = require('./vs/base/common/performance');
+// const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+// const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
+// const product = require('./bootstrap-meta').product;
+// const { app, protocol, crashReporter, Menu, contentTracing } = require('electron');
 // ESM-comment-end
 // ESM-uncomment-begin
-// import * as path from 'path';
-// import * as fs from 'original-fs';
-// import * as os from 'os';
-// import * as bootstrap from './bootstrap.js';
-// import * as bootstrapNode from './bootstrap-node.js';
-// import * as bootstrapAmd from './bootstrap-amd.js';
-// import { fileURLToPath } from 'url';
-// import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
-// import { product } from './bootstrap-meta.js';
-// import { parse } from './vs/base/common/jsonc.js';
-// import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
-// import * as perf from './vs/base/common/performance.js';
-// import { resolveNLSConfiguration } from './vs/base/node/nls.js';
-// import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
-//
-// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import * as path from 'path';
+import * as fs from 'original-fs';
+import * as os from 'os';
+import * as bootstrapNode from './bootstrap-node.js';
+import * as bootstrapAmd from './bootstrap-amd.js';
+import { fileURLToPath } from 'url';
+import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
+import minimist from 'minimist';
+import { product } from './bootstrap-meta.js';
+import { parse } from './vs/base/common/jsonc.js';
+import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
+import * as perf from './vs/base/common/performance.js';
+import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 
 perf.mark('code/didStartMain');
@@ -51,14 +50,11 @@ perf.mark('code/didStartMain');
 const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport();
+bootstrapNode.enableASARSupport();
 
 // ESM-comment-begin
-const minimist = require('minimist'); // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
+// const minimist = require('minimist'); // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
 // ESM-comment-end
-// ESM-uncomment-begin
-// import minimist from 'minimist'; // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
-// ESM-uncomment-end
 
 const args = parseCLIArgs();
 // Configure static command line arguments
@@ -324,8 +320,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
+	// `FontMatchingCTMigration` - Siwtch font matching on macOS to Appkit (Refs https://github.com/microsoft/vscode/issues/224496#issuecomment-2270418470).
 	const blinkFeaturesToDisable =
-		`${app.commandLine.getSwitchValue('disable-blink-features')}`;
+		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags
