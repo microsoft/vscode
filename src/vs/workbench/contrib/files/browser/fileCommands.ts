@@ -337,7 +337,7 @@ CommandsRegistry.registerCommand({
 				explorerView.autoReveal = oldAutoReveal;
 			}
 		} else {
-			const openEditorsView = await viewService.openView(OpenEditorsView.ID, false);
+			const openEditorsView = viewService.getViewWithId(OpenEditorsView.ID);
 			if (openEditorsView) {
 				openEditorsView.setExpanded(true);
 				openEditorsView.focus();
