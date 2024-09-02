@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import * as themes from 'vs/workbench/common/theme';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as perf from 'vs/base/common/performance';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
-import { mainWindow } from 'vs/base/browser/window';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TitleBarSetting } from 'vs/platform/window/common/window';
+import { onDidChangeFullscreen, isFullscreen } from '../../../../base/browser/browser.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { Color } from '../../../../base/common/color.js';
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { editorBackground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { getThemeTypeSelector, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
+import * as themes from '../../../common/theme.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import * as perf from '../../../../base/common/performance.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { ISplashStorageService } from './splash.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { TitleBarSetting } from '../../../../platform/window/common/window.js';
 
 export class PartsSplash {
 
@@ -79,9 +79,13 @@ export class PartsSplash {
 				background: Color.Format.CSS.formatHex(theme.getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(theme)),
 				editorBackground: theme.getColor(editorBackground)?.toString(),
 				titleBarBackground: theme.getColor(themes.TITLE_BAR_ACTIVE_BACKGROUND)?.toString(),
+				titleBarBorder: theme.getColor(themes.TITLE_BAR_BORDER)?.toString(),
 				activityBarBackground: theme.getColor(themes.ACTIVITY_BAR_BACKGROUND)?.toString(),
+				activityBarBorder: theme.getColor(themes.ACTIVITY_BAR_BORDER)?.toString(),
 				sideBarBackground: theme.getColor(themes.SIDE_BAR_BACKGROUND)?.toString(),
+				sideBarBorder: theme.getColor(themes.SIDE_BAR_BORDER)?.toString(),
 				statusBarBackground: theme.getColor(themes.STATUS_BAR_BACKGROUND)?.toString(),
+				statusBarBorder: theme.getColor(themes.STATUS_BAR_BORDER)?.toString(),
 				statusBarNoFolderBackground: theme.getColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND)?.toString(),
 				windowBorder: theme.getColor(themes.WINDOW_ACTIVE_BORDER)?.toString() ?? theme.getColor(themes.WINDOW_INACTIVE_BORDER)?.toString()
 			},

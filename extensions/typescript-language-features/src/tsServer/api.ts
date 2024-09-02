@@ -13,16 +13,7 @@ export class API {
 	}
 
 	public static readonly defaultVersion = API.fromSimpleString('1.0.0');
-	public static readonly v300 = API.fromSimpleString('3.0.0');
-	public static readonly v310 = API.fromSimpleString('3.1.0');
-	public static readonly v314 = API.fromSimpleString('3.1.4');
-	public static readonly v320 = API.fromSimpleString('3.2.0');
-	public static readonly v333 = API.fromSimpleString('3.3.3');
-	public static readonly v340 = API.fromSimpleString('3.4.0');
-	public static readonly v350 = API.fromSimpleString('3.5.0');
-	public static readonly v370 = API.fromSimpleString('3.7.0');
 	public static readonly v380 = API.fromSimpleString('3.8.0');
-	public static readonly v381 = API.fromSimpleString('3.8.1');
 	public static readonly v390 = API.fromSimpleString('3.9.0');
 	public static readonly v400 = API.fromSimpleString('4.0.0');
 	public static readonly v401 = API.fromSimpleString('4.0.1');

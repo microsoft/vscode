@@ -40,29 +40,82 @@
 		});
 	</script>
 
-	<!-- Depending on --build or not, load loader from known locations -->
-	<script src="../../../out/vs/loader.js"></script>
-	<script src="../../../out-build/vs/loader.js"></script>
-
 	<script>
 		const isBuild = urlParams.get('build');
+		const out = !!isBuild ? 'out-build' : 'out';
+		const tasks =[];
 
 		// configure loader
 		const baseUrl = window.location.href;
-		require.config({
-			catchError: true,
-			baseUrl: urlParams.get('baseUrl'),
-			paths: {
-				vs: new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
-				assert: new URL('../assert.js', baseUrl).href,
-				sinon: new URL('../../../node_modules/sinon/pkg/sinon.js', baseUrl).href,
-				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test.js', baseUrl).href,
+
+		// generate import map
+		const importMapParent = document.currentScript.parentNode;
+		const importMap = {
+			imports: {
+				vs: new URL(`../../../${out}/vs`, baseUrl).href,
+				assert: new URL('../assert-esm.js', baseUrl).href,
+				sinon: new URL('../../../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
+				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
 				'@xterm/xterm': new URL('../../../node_modules/@xterm/xterm/lib/xterm.js', baseUrl).href,
 				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
-				'@vscode/tree-sitter-wasm': new URL('../../../node_modules/@vscode/tree-sitter-wasm/wasm/tree-sitter.js', baseUrl).href,
 				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
 			}
+		}
+
+		// ---- CSS tricks
+
+		const cssDataBase64 = urlParams.get('_devCssData');
+		if (typeof cssDataBase64 === 'string') {
+
+			const style = document.createElement('style');
+			style.type = 'text/css';
+			document.head.appendChild(style);
+
+			globalThis._VSCODE_CSS_LOAD = function (url) {
+				// debugger;
+				style.sheet.insertRule(`@import url(${url});`);
+			};
+
+			const cssData = Uint8Array.from(atob(cssDataBase64), c => c.charCodeAt(0));
+			tasks.push(new Response(new Blob([cssData], {type:'application/octet-binary'}).stream().pipeThrough(new DecompressionStream('gzip'))).text().then(value => {
+				const cssModules = value.split(',');
+				for (const cssModule of cssModules) {
+					const cssUrl = new URL(`../../../${out}/${cssModule}`, baseUrl).href;
+					const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+					const blob = new Blob([jsSrc], { type: 'application/javascript' });
+					importMap.imports[cssUrl] = URL.createObjectURL(blob);
+				}
+			}).catch(err => {
+				console.error(err);
+			}));
+		}
+
+		const initPromise = Promise.allSettled(tasks).then(() => {
+
+			const rawImportMap = JSON.stringify(importMap, undefined, 2);
+			const importMapScript = document.createElement('script');
+			importMapScript.type = 'importmap';
+			importMapScript.textContent = rawImportMap;
+			importMapParent.appendChild(importMapScript);
+
+		}).then(() => {
+			const bootstrapScript = document.createElement('script');
+			bootstrapScript.type = 'module';
+			bootstrapScript.textContent = document.getElementById('bootstrap').textContent
+			document.getElementById('bootstrap').remove();
+			document.body.append(bootstrapScript);
 		});
+
+		// set up require
+
+		globalThis._VSCODE_FILE_ROOT = new URL('../../../src', baseUrl).href;
+		globalThis.require = {
+			paths: {
+				xterm: new URL('../../../node_modules/xterm', baseUrl).href,
+				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd', baseUrl).href,
+				jschardet: new URL('../../../node_modules/jschardet', baseUrl).href
+			}
+		}
 	</script>
 
 	<script>
@@ -138,11 +191,10 @@
 			}
 		}
 
-
 		async function loadModules(modules) {
 			for (const file of modules) {
 				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-				const m = await new Promise((resolve, reject) => require([file], resolve, err => {
+				const m = await new Promise((resolve, reject) => import(`../../../${out}/${file}.js`).then(resolve, err => {
 					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
 					resolve({});
 				}));
@@ -151,36 +203,42 @@
 			}
 		}
 
-		window.loadAndRun = async function loadAndRun({ modules, grep }, manual = false) {
-			// load
-			await loadModules(modules);
-			// await new Promise((resolve, reject) => {
-			// 	require(modules, resolve, err => {
-			// 		console.log(err);
-			// 		reject(err);
-			// 	});
-			// });
+		let _resolveTestData;
+		let _resolveTestRun;
+		globalThis._VSCODE_TEST_RUN = new Promise(resolve => _resolveTestData = resolve)
 
-			// run
-			return new Promise((resolve, reject) => {
-				if (grep) {
-					mocha.grep(grep);
-				}
-
-				if (!manual) {
-					mocha.reporter(PlaywrightReporter);
-				}
-				mocha.run(failCount => resolve(failCount === 0));
-			});
+		window.loadAndRun = async function loadAndRun(data, manual = false) {
+			_resolveTestData({data, manual})
+			return new Promise(resolve => _resolveTestRun = resolve);
 		}
 
-		const url = new URL(window.location.href);
-		const modules = url.searchParams.getAll('m');
+		const modules = new URL(window.location.href).searchParams.getAll('m');
 		if (Array.isArray(modules) && modules.length > 0) {
 			console.log('MANUALLY running tests', modules);
 
-			loadAndRun({modules}, true).then(() => console.log('done'), err => console.log(err));
+			loadAndRun(modules, true).then(() => console.log('done'), err => console.log(err));
 		}
+	</script>
+
+	<script type="text" id="bootstrap">
+		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
+
+		// load
+		await loadModules(modules);
+
+		// run
+		await new Promise((resolve, reject) => {
+			if (grep) {
+				mocha.grep(grep);
+			}
+
+			if (!manual) {
+				mocha.reporter(PlaywrightReporter);
+			}
+			mocha.run(failCount => resolve(failCount === 0));
+		});
+
+		_resolveTestRun();
 	</script>
 </body>
 

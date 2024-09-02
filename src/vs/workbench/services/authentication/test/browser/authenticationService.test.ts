@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { AuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { AuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from 'vs/workbench/services/authentication/common/authentication';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestExtensionService, TestProductService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
+import { AuthenticationService } from '../../browser/authenticationService.js';
+import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
+import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestExtensionService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 function createSession() {
 	return { id: 'session1', accessToken: 'token1', account: { id: 'account', label: 'Account' }, scopes: ['test'] };
