@@ -71,11 +71,10 @@
 	}
 	globalThis._VSCODE_FILE_ROOT = baseUrl;
 
-	const trustedTypesPolicy: Pick<TrustedTypePolicy<{ createScriptURL(value: string): string }>, 'name' | 'createScriptURL'> = require.getConfig().trustedTypesPolicy;
-	if (!trustedTypesPolicy) {
-		throw new Error('Failed to determine trustedTypesPolicy for loading AMD modules (tried require.getConfig().trustedTypesPolicy)');
+	const trustedTypesPolicy: Pick<TrustedTypePolicy<{ createScriptURL(value: string): string }>, 'name' | 'createScriptURL'> | undefined = require.getConfig().trustedTypesPolicy;
+	if (trustedTypesPolicy) {
+		globalThis._VSCODE_WEB_PACKAGE_TTP = trustedTypesPolicy;
 	}
-	globalThis._VSCODE_WEB_PACKAGE_TTP = trustedTypesPolicy;
 
 	const promise = new Promise(resolve => {
 		(globalThis as any).__VSCODE_WEB_ESM_PROMISE = resolve;
@@ -86,7 +85,7 @@
 			load: (_name, _req, _load, _config) => {
 				const script: any = document.createElement('script');
 				script.type = 'module';
-				script.src = trustedTypesPolicy.createScriptURL(`${baseUrl}vs/workbench/workbench.web.main.internal.js`) as any as string;
+				script.src = trustedTypesPolicy ? trustedTypesPolicy.createScriptURL(`${baseUrl}vs/workbench/workbench.web.main.internal.js`) as any as string : `${baseUrl}vs/workbench/workbench.web.main.internal.js`;
 				document.head.appendChild(script);
 
 				return promise.then(mod => _load(mod));
