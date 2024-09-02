@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR } from 'vs/base/common/amd';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
-import { IObservable } from 'vs/base/common/observable';
-import { isWeb } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateData, StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
-import { TextMateWorkerHost } from './worker/textMateWorkerHost';
-import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController';
-import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+import { canASAR } from '../../../../../base/common/amd.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from '../../../../../base/common/network.js';
+import { IObservable } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer } from '../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ICreateData, StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
+import { TextMateWorkerHost } from './worker/textMateWorkerHost.js';
+import { TextMateWorkerTokenizerController } from './textMateWorkerTokenizerController.js';
+import { IValidGrammarDefinition } from '../../common/TMScopeRegistry.js';
 import type { IRawTheme } from 'vscode-textmate';
-import { createWebWorker } from 'vs/base/browser/defaultWorkerFactory';
-import { IWorkerClient, Proxied } from 'vs/base/common/worker/simpleWorker';
+import { createWebWorker } from '../../../../../base/browser/defaultWorkerFactory.js';
+import { IWorkerClient, Proxied } from '../../../../../base/common/worker/simpleWorker.js';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;

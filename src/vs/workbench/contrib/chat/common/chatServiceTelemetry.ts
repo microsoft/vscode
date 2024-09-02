@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IChatUserActionEvent, ChatAgentVoteDirection, ChatCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IChatUserActionEvent, ChatAgentVoteDirection, ChatCopyKind } from './chatService.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
 	agentId: string;
 	command: string | undefined;
+	reason: string | undefined;
 };
 
 type ChatVoteClassification = {
 	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
 	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that this vote is for.' };
 	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that this vote is for.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason selected by the user for voting down.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -118,6 +120,7 @@ export class ChatServiceTelemetry {
 				direction: action.action.direction === ChatAgentVoteDirection.Up ? 'up' : 'down',
 				agentId: action.agentId ?? '',
 				command: action.command,
+				reason: action.action.reason,
 			});
 		} else if (action.action.kind === 'copy') {
 			this.telemetryService.publicLog2<ChatCopyEvent, ChatCopyClassification>('interactiveSessionCopy', {

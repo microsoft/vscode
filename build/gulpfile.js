@@ -34,15 +34,15 @@ gulp.task(compileClientTask);
 const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));
 gulp.task(watchClientTask);
 
-const watchClientESMTask = task.define('watch-client-esm', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), task.parallel(watchTask('out', false, 'src2'), watchApiProposalNamesTask)));
-gulp.task(watchClientESMTask);
+const watchClientAMDTask = task.define('watch-client-amd', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), task.parallel(watchTask('out', false, 'src2'), watchApiProposalNamesTask)));
+gulp.task(watchClientAMDTask);
 
 // All
 const _compileTask = task.define('compile', task.parallel(monacoTypecheckTask, compileClientTask, compileExtensionsTask, compileExtensionMediaTask));
 gulp.task(_compileTask);
 
 gulp.task(task.define('watch', task.parallel(/* monacoTypecheckWatchTask, */ watchClientTask, watchExtensionsTask)));
-gulp.task(task.define('watch-esm', task.parallel(/* monacoTypecheckWatchTask, */ watchClientESMTask, watchExtensionsTask)));
+gulp.task(task.define('watch-amd', task.parallel(/* monacoTypecheckWatchTask, */ watchClientAMDTask, watchExtensionsTask)));
 
 // Default
 gulp.task('default', _compileTask);

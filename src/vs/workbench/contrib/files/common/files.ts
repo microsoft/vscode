@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Event } from 'vs/base/common/event';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { localize } from 'vs/nls';
-import { IExpression } from 'vs/base/common/glob';
+import { URI } from '../../../../base/common/uri.js';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IWorkbenchEditorConfiguration, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService, ILanguageSelection } from '../../../../editor/common/languages/language.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { InputFocusedContextKey } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { Event } from '../../../../base/common/event.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { localize } from '../../../../nls.js';
+import { IExpression } from '../../../../base/common/glob.js';
 
 /**
  * Explorer viewlet id.

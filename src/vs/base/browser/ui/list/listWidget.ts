@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isHTMLElement, isMouseEvent } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Gesture } from 'vs/base/browser/touch';
-import { alert, AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
-import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { binarySearch, firstOrDefault, range } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { matchesFuzzy2, matchesPrefix } from 'vs/base/common/filters';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import * as platform from 'vs/base/common/platform';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { isNumber } from 'vs/base/common/types';
-import 'vs/css!./list';
-import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
-import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { autorun, constObservable, IObservable } from 'vs/base/common/observable';
+import { IDragAndDropData } from '../../dnd.js';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isHTMLElement, isMouseEvent } from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { Gesture } from '../../touch.js';
+import { alert, AriaRole } from '../aria/aria.js';
+import { CombinedSpliceable } from './splice.js';
+import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
+import { binarySearch, firstOrDefault, range } from '../../../common/arrays.js';
+import { timeout } from '../../../common/async.js';
+import { Color } from '../../../common/color.js';
+import { memoize } from '../../../common/decorators.js';
+import { Emitter, Event, EventBufferer } from '../../../common/event.js';
+import { matchesFuzzy2, matchesPrefix } from '../../../common/filters.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { clamp } from '../../../common/numbers.js';
+import * as platform from '../../../common/platform.js';
+import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import { ISpliceable } from '../../../common/sequence.js';
+import { isNumber } from '../../../common/types.js';
+import './list.css';
+import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list.js';
+import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView.js';
+import { StandardMouseEvent } from '../../mouseEvent.js';
+import { autorun, constObservable, IObservable } from '../../../common/observable.js';
 
 interface ITraitChangeEvent {
 	indexes: number[];

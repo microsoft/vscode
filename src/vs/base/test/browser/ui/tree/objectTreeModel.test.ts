@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeModel, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
+import { ITreeFilter, ITreeModel, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from '../../../../browser/ui/tree/tree.js';
+import { timeout } from '../../../../common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { IDisposable } from '../../../../common/lifecycle.js';
 
 function bindListToModel<T>(list: ITreeNode<T>[], model: ITreeModel<T, any, any>): IDisposable {
 	return model.onDidSpliceRenderedNodes(({ start, deleteCount, elements }) => {

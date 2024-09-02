@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IndexTreeModel } from '../../../../browser/ui/tree/indexTreeModel.js';
+import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from '../../../../browser/ui/tree/tree.js';
+import { timeout } from '../../../../common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { DisposableStore, IDisposable } from '../../../../common/lifecycle.js';
 
 function bindListToModel<T>(list: ITreeNode<T>[], model: IndexTreeModel<T>): IDisposable {
 	return model.onDidSpliceRenderedNodes(({ start, deleteCount, elements }) => {

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 
 export interface IHoverPart {
 	/**

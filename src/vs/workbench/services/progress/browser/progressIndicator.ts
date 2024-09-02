@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from '../../../../platform/progress/common/progress.js';
+import { IEditorGroupView } from '../../../browser/parts/editor/editor.js';
+import { GroupModelChangeKind } from '../../../common/editor.js';
 
 export class EditorProgressIndicator extends Disposable implements IProgressIndicator {
 

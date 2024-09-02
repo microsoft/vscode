@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getWindow } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToolBarOptions, ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { coalesceInPlace } from 'vs/base/common/arrays';
-import { intersection } from 'vs/base/common/collections';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { createConfigureKeybindingAction } from 'vs/platform/actions/common/menuService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { addDisposableListener, getWindow } from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { IToolBarOptions, ToggleMenuAction, ToolBar } from '../../../base/browser/ui/toolbar/toolbar.js';
+import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import { coalesceInPlace } from '../../../base/common/arrays.js';
+import { intersection } from '../../../base/common/collections.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
+import { createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
+import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
+import { createConfigureKeybindingAction } from '../common/menuService.js';
+import { ICommandService } from '../../commands/common/commands.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export const enum HiddenItemStrategy {
 	/** This toolbar doesn't support hiding*/

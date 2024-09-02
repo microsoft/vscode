@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeRenderer, TreeError } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
-import 'vs/css!./media/tree';
+import { IListVirtualDelegate } from '../list/list.js';
+import { AbstractTree, IAbstractTreeOptions } from './abstractTree.js';
+import { IndexTreeModel } from './indexTreeModel.js';
+import { ITreeElement, ITreeModel, ITreeRenderer, TreeError } from './tree.js';
+import { Iterable } from '../../../common/iterator.js';
+import './media/tree.css';
 
 export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
