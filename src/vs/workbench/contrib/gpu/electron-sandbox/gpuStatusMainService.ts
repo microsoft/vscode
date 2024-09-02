@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IGPUStatusMainService } from 'vs/platform/gpu/common/gpuStatusMain';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IGPUStatusMainService } from '../../../../platform/gpu/common/gpuStatusMain.js';
+import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-sandbox/services.js';
+
 
 registerMainProcessRemoteService(IGPUStatusMainService, 'gpuStatus');

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow } from 'electron';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IGPUStatusMainService, OpenGPUStatusWindowOptions } from 'vs/platform/gpu/common/gpuStatusMain';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IGPUStatusMainService, OpenGPUStatusWindowOptions } from '../common/gpuStatusMain.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { zoomLevelToZoomFactor } from '../../window/common/window.js';
 
 export class GPUStatusMainService implements IGPUStatusMainService {
 	declare readonly _serviceBrand: undefined;

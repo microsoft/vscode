@@ -145,7 +145,7 @@ import './contrib/tags/electron-sandbox/tags.contribution.js';
 import './contrib/performance/electron-sandbox/performance.contribution.js';
 
 // GPU Status
-import 'vs/workbench/contrib/gpu/electron-sandbox/gpu.contribution';
+import './contrib/gpu/electron-sandbox/gpu.contribution.js';
 
 // Tasks
 import './contrib/tasks/electron-sandbox/taskService.js';

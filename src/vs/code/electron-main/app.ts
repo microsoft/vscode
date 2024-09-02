@@ -122,8 +122,8 @@ import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/ele
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
-import { IGPUStatusMainService } from 'vs/platform/gpu/common/gpuStatusMain';
-import { GPUStatusMainService } from 'vs/platform/gpu/electron-main/gpuStatusMainService';
+import { IGPUStatusMainService } from '../../platform/gpu/common/gpuStatusMain.js';
+import { GPUStatusMainService } from '../../platform/gpu/electron-main/gpuStatusMainService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,

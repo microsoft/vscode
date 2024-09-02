@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { mainWindow } from 'vs/base/browser/window';
-import { localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IGPUStatusMainService } from 'vs/platform/gpu/common/gpuStatusMain';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import 'vs/workbench/contrib/gpu/electron-sandbox/gpuStatusMainService';
+import { getZoomLevel } from '../../../../base/browser/browser.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IGPUStatusMainService } from '../../../../platform/gpu/common/gpuStatusMain.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import './gpuStatusMainService.js';
 
 class ShowGPUStatusAction extends Action2 {
 
