@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IList } from '../../../../browser/ui/tree/indexTreeModel.js';
 import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
 import { ITreeFilter, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from '../../../../browser/ui/tree/tree.js';
 import { timeout } from '../../../../common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { ISpliceable } from '../../../../common/sequence.js';
 
-function toList<T>(arr: T[]): IList<T> {
+function toList<T>(arr: T[]): ISpliceable<T> {
 	return {
 		splice(start: number, deleteCount: number, elements: T[]): void {
 			// console.log(`splice (${start}, ${deleteCount}, ${elements.length} [${elements.join(', ')}] )`); // debugging
 			arr.splice(start, deleteCount, ...elements);
-		},
-		updateElementHeight() { }
+		}
 	};
 }
 

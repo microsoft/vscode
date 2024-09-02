@@ -18,7 +18,6 @@ import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/select
 import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
-import { IList } from '../../../../base/browser/ui/tree/indexTreeModel.js';
 import { IObjectTreeOptions } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ObjectTreeModel } from '../../../../base/browser/ui/tree/objectTreeModel.js';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
@@ -72,6 +71,7 @@ import { getInvalidTypeError } from '../../../services/preferences/common/prefer
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ISpliceable } from '../../../../base/common/sequence.js';
 
 const $ = DOM.$;
 
@@ -2559,7 +2559,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, view: IList<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+	protected override createModel(user: string, view: ISpliceable<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
 		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
 	}
 }
