@@ -23,7 +23,8 @@ module.exports = withBrowserDefaults({
 	resolve: {
 		alias: {
 			'./node/authServer': path.resolve(__dirname, 'src/browser/authServer'),
-			'./node/buffer': path.resolve(__dirname, 'src/browser/buffer')
+			'./node/buffer': path.resolve(__dirname, 'src/browser/buffer'),
+			'./node/authProvider': path.resolve(__dirname, 'src/browser/authProvider'),
 		}
 	}
 });

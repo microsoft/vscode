@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel';
+import { Position } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;

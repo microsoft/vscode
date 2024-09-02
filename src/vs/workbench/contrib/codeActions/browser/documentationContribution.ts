@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DocumentationExtensionPoint } from 'vs/workbench/contrib/codeActions/common/documentationExtensionPoint';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/types.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { DocumentationExtensionPoint } from '../common/documentationExtensionPoint.js';
+import { IExtensionPoint } from '../../../services/extensions/common/extensionsRegistry.js';
 
 
 export class CodeActionDocumentationContribution extends Disposable implements IWorkbenchContribution, languages.CodeActionProvider {

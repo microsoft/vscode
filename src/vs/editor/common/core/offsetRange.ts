@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
+import { BugIndicatingError } from '../../../base/common/errors.js';
 
 export interface IOffsetRange {
 	readonly start: number;

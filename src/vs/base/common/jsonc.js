@@ -9,7 +9,15 @@
 'use strict';
 
 // ESM-uncomment-begin
-// const module = { exports: {} };
+/** @type any */
+const module = { exports: {} };
+// ESM-uncomment-end
+
+// ESM-comment-begin
+// const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+const isESM = true;
 // ESM-uncomment-end
 
 (function () {
@@ -72,7 +80,7 @@
 		};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		// amd
 		define([], function () { return factory(); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
@@ -84,6 +92,6 @@
 })();
 
 // ESM-uncomment-begin
-// export const stripComments = module.exports.stripComments;
-// export const parse = module.exports.parse;
+export const stripComments = module.exports.stripComments;
+export const parse = module.exports.parse;
 // ESM-uncomment-end

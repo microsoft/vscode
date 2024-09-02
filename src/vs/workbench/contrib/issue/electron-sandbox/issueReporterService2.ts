@@ -2,18 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, reset } from 'vs/base/browser/dom';
-import { CancellationError } from 'vs/base/common/errors';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IProcessMainService } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/baseIssueReporterService';
-import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
-import { IIssueFormService, IssueReporterData, IssueType } from 'vs/workbench/contrib/issue/common/issue';
+import { $, reset } from '../../../../base/browser/dom.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { IProductConfiguration } from '../../../../base/common/product.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { IProcessMainService } from '../../../../platform/issue/common/issue.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { applyZoom } from '../../../../platform/window/electron-sandbox/window.js';
+import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
+import { IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel.js';
+import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue.js';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -34,10 +35,10 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		window: Window,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IIssueFormService issueFormService: IIssueFormService,
-		@IProcessMainService processMainService: IProcessMainService
+		@IProcessMainService processMainService: IProcessMainService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService);
-
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService);
 		this.processMainService = processMainService;
 		this.processMainService.$getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -168,9 +169,6 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
-		if (this.data.githubAccessToken && gitHubDetails) {
-			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
-		}
 
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
@@ -182,6 +180,8 @@ export class IssueReporter2 extends BaseIssueReporterService {
 				console.error('Writing to clipboard failed');
 				return false;
 			}
+		} else if (this.data.githubAccessToken && gitHubDetails) {
+			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
 		await this.nativeHostService.openExternal(url);

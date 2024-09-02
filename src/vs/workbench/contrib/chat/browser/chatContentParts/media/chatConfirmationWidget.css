@@ -6,8 +6,11 @@
 .chat-confirmation-widget {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	margin-bottom: 16px;
 	padding: 8px 12px 12px;
+}
+
+.chat-confirmation-widget:not(:last-child) {
+	margin-bottom: 16px;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title {

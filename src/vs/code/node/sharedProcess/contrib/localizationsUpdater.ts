@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
-import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguagePackService } from '../../../../platform/languagePacks/common/languagePacks.js';
+import { NativeLanguagePackService } from '../../../../platform/languagePacks/node/languagePacks.js';
 
 export class LocalizationsUpdater extends Disposable {
 

@@ -3,47 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
-import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { getMarks, mark } from 'vs/base/common/performance';
-import { isBigSurOrNewer, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import electron, { BrowserWindowConstructorOptions } from 'electron';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { getMarks, mark } from '../../../base/common/performance.js';
+import { isBigSurOrNewer, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { release } from 'os';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from 'vs/platform/window/common/window';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IStateService } from 'vs/platform/state/node/state';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ISerializableCommandAction } from '../../action/common/action.js';
+import { IBackupMainService } from '../../backup/electron-main/backup.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
+import { IFileService } from '../../files/common/files.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
+import { IApplicationStorageMainService, IStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle } from '../../window/common/window.js';
+import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
+import { IPolicyService } from '../../policy/common/policy.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IStateService } from '../../state/node/state.js';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
+import { firstOrDefault } from '../../../base/common/arrays.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { isESM } from '../../../base/common/amd.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -113,7 +114,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	protected _win: electron.BrowserWindow | null = null;
 	get win() { return this._win; }
-	protected setWin(win: electron.BrowserWindow): void {
+	protected setWin(win: electron.BrowserWindow, options?: BrowserWindowConstructorOptions): void {
 		this._win = win;
 
 		// Window Events
@@ -131,13 +132,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
 
 		// Sheet Offsets
-		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService);
+		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
 		if (isMacintosh && useCustomTitleStyle) {
 			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
 		// Update the window controls immediately based on cached or default values
-		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
+		if (useCustomTitleStyle && (useWindowControlsOverlay(this.configurationService) || isMacintosh)) {
 			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
 			if (cachedWindowControlHeight) {
 				this.updateWindowControls({ height: cachedWindowControlHeight });
@@ -366,8 +367,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
-		// Windows: window control overlay (WCO)
-		if (isWindows && this.hasWindowControlOverlay) {
+		// Windows/Linux: window control overlay (WCO)
+		if (this.hasWindowControlOverlay) {
 			win.setTitleBarOverlay({
 				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
 				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
@@ -604,7 +605,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.windowState = state;
 			this.logService.trace('window#ctor: using window state', state);
 
-			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, {
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
@@ -616,7 +617,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
-			this.setWin(this._win);
+			this.setWin(this._win, options);
 
 			// Apply some state after window creation
 			this.applyState(this.windowState, hasMultipleDisplays);
@@ -1036,7 +1037,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;

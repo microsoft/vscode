@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
+import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 
 export class ArrayEdit {
 	public readonly edits: readonly SingleArrayEdit[];

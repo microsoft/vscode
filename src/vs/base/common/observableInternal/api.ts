@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EqualityComparer, strictEquals } from 'vs/base/common/equals';
-import { ISettableObservable } from 'vs/base/common/observable';
-import { ObservableValue } from 'vs/base/common/observableInternal/base';
-import { IDebugNameData, DebugNameData } from 'vs/base/common/observableInternal/debugName';
-import { LazyObservableValue } from 'vs/base/common/observableInternal/lazyObservableValue';
+import { EqualityComparer, strictEquals } from '../equals.js';
+import { ISettableObservable } from '../observable.js';
+import { ObservableValue } from './base.js';
+import { IDebugNameData, DebugNameData } from './debugName.js';
+import { LazyObservableValue } from './lazyObservableValue.js';
 
 export function observableValueOpts<T, TChange = void>(
 	options: IDebugNameData & {

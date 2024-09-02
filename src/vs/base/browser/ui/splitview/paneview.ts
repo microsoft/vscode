@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import 'vs/css!./paneview';
-import { localize } from 'vs/nls';
-import { IView, Sizing, SplitView } from './splitview';
+import { isFirefox } from '../../browser.js';
+import { DataTransfers } from '../../dnd.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { Gesture, EventType as TouchEventType } from '../../touch.js';
+import { IBoundarySashes, Orientation } from '../sash/sash.js';
+import { Color, RGBA } from '../../../common/color.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { ScrollEvent } from '../../../common/scrollable.js';
+import './paneview.css';
+import { localize } from '../../../../nls.js';
+import { IView, Sizing, SplitView } from './splitview.js';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;

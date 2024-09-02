@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { buffer, ExtractError } from 'vs/base/node/zip';
-import { localize } from 'vs/nls';
-import { toExtensionManagementError } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { buffer, ExtractError } from '../../../base/node/zip.js';
+import { localize } from '../../../nls.js';
+import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
+import { ExtensionManagementError, ExtensionManagementErrorCode } from '../common/extensionManagement.js';
+import { IExtensionManifest } from '../../extensions/common/extensions.js';
 
 export function fromExtractError(e: Error): ExtensionManagementError {
 	let errorCode = ExtensionManagementErrorCode.Extract;

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IChatWidget } from '../chat.js';
+import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 
 export class ChatContextAttachments extends Disposable implements IChatWidgetContrib {
 

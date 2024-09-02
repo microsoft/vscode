@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
-import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
-import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel.js';
+import { HoverAnchor, HoverForeignElementAnchor, IEditorHoverParticipant } from '../../hover/browser/hoverTypes.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ITextModelService } from '../../../common/services/resolverService.js';
+import { getHoverProviderResultsAsAsyncIterable } from '../../hover/browser/getHover.js';
+import { MarkdownHover, MarkdownHoverParticipant } from '../../hover/browser/markdownHoverParticipant.js';
+import { RenderedInlayHintLabelPart, InlayHintsController } from './inlayHintsController.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { localize } from '../../../../nls.js';
+import * as platform from '../../../../base/common/platform.js';
+import { asCommandLink } from './inlayHints.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(
