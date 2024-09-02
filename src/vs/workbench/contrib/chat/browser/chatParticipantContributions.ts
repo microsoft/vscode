@@ -218,13 +218,16 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						description: string;
 						examples: string[];
 					}[] = [];
-					if (providerDescriptor.disambiguation?.length) {
-						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation);
-					}
-					if (providerDescriptor.commands) {
-						for (const command of providerDescriptor.commands) {
-							if (command.disambiguation?.length) {
-								participantsAndCommandsDisambiguation.push(...command.disambiguation);
+
+					if (isProposedApiEnabled(extension.description, 'contribChatParticipantDetection')) {
+						if (providerDescriptor.disambiguation?.length) {
+							participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation);
+						}
+						if (providerDescriptor.commands) {
+							for (const command of providerDescriptor.commands) {
+								if (command.disambiguation?.length) {
+									participantsAndCommandsDisambiguation.push(...command.disambiguation);
+								}
 							}
 						}
 					}
