@@ -10,9 +10,12 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { arch, platform } from '../../../../base/common/process.js';
 
 interface IEmergencyAlert {
 	readonly commit: string;
+	readonly platform?: string;
+	readonly arch?: string;
 	readonly message: string;
 	readonly actions?: [{
 		readonly label: string;
@@ -67,7 +70,11 @@ export class EmergencyAlert implements IWorkbenchContribution {
 		}
 
 		for (const emergencyAlert of emergencyAlerts.alerts) {
-			if (emergencyAlert.commit !== this.productService.commit) {
+			if (
+				emergencyAlert.commit !== this.productService.commit ||				// version mismatch
+				emergencyAlert.platform && emergencyAlert.platform !== platform ||	// platform mismatch
+				emergencyAlert.arch && emergencyAlert.arch !== arch					// arch mismatch
+			) {
 				return; // skip versions we are not on
 			}
 
