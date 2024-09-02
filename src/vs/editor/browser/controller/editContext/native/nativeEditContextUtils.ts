@@ -4,13 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 
-export interface EditContextState {
-	content: string;
-	selectionStartOffset: number;
-	selectionEndOffset: number;
-	rangeOfContent: Range;
+export class EditContextState {
+
+	constructor(
+		public readonly content: string,
+		public readonly selectionStartOffset: number,
+		public readonly selectionEndOffset: number,
+		public readonly contentStartPosition: Position
+	) { }
+
+	equals(other: EditContextState): boolean {
+		return (
+			this.content === other.content
+			&& this.selectionStartOffset === other.selectionStartOffset
+			&& this.selectionEndOffset === other.selectionEndOffset
+			&& this.contentStartPosition.equals(other.contentStartPosition)
+		);
+	}
 }
 
 export function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {
