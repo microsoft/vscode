@@ -1116,7 +1116,13 @@
                 "inline",
                 "first"
               ],
-              "default": "auto"
+              "default": "auto",
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.typeOrder.auto%",
+                "%typescript.preferences.organizeImports.typeOrder.last%",
+                "%typescript.preferences.organizeImports.typeOrder.inline%",
+                "%typescript.preferences.organizeImports.typeOrder.first%"
+              ]
             },
             "unicodeCollation": {
               "type": "string",
@@ -1180,7 +1186,13 @@
                 "inline",
                 "first"
               ],
-              "default": "auto"
+              "default": "auto",
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.typeOrder.auto%",
+                "%typescript.preferences.organizeImports.typeOrder.last%",
+                "%typescript.preferences.organizeImports.typeOrder.inline%",
+                "%typescript.preferences.organizeImports.typeOrder.first%"
+              ]
             },
             "unicodeCollation": {
               "type": "string",

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { ProviderResult, TextSearchCompleteNew, TextSearchProviderOptions, TextSearchProviderNew, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Progress } from '../../../../../platform/progress/common/progress.js';
+import { ITextQuery, QueryType } from '../../common/search.js';
+import { ProviderResult, TextSearchCompleteNew, TextSearchProviderOptions, TextSearchProviderNew, TextSearchQueryNew, TextSearchResultNew } from '../../common/searchExtTypes.js';
+import { NativeTextSearchManager } from '../../node/textSearchManager.js';
 
 suite('NativeTextSearchManager', () => {
 	test('fixes encoding', async () => {

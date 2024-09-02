@@ -20,7 +20,7 @@ import * as util from './util';
 import { gulpPostcss } from './postcss';
 import * as esbuild from 'esbuild';
 import * as sourcemaps from 'gulp-sourcemaps';
-import { isESM } from './esm';
+import { isAMD } from './amd';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -504,7 +504,7 @@ export interface IOptimizeTaskOpts {
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		const optimizers: NodeJS.ReadWriteStream[] = [];
-		if (isESM('Running optimizer in ESM mode')) {
+		if (!isAMD()) {
 			optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
 		} else {
 			optimizers.push(optimizeAMDTask(opts.amd));

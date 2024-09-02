@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { language } from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
-import { hash } from 'vs/base/common/hash';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { mainWindow } from 'vs/base/browser/window';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { isBoolean, isNumber, isString } from 'vs/base/common/types';
-import { LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
-import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { LifecyclePhase, ILifecycleService, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { language } from '../../../../base/common/platform.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import ErrorTelemetry from '../../../../platform/telemetry/browser/errorTelemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from '../../../services/textfile/common/textfiles.js';
+import { extname, basename, isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
+import { hash } from '../../../../base/common/hash.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { isBoolean, isNumber, isString } from '../../../../base/common/types.js';
+import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey } from '../../extensions/common/extensions.js';
+import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../chat/common/chatService.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;

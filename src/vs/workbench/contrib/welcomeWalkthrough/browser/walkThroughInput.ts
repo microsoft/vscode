@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { marked, Tokens } from 'vs/base/common/marked/marked';
-import { isEqual } from 'vs/base/common/resources';
-import { moduleToContent } from 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughContentProvider';
-import { Dimension } from 'vs/base/browser/dom';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorModel } from '../../../common/editor/editorModel.js';
+import { URI } from '../../../../base/common/uri.js';
+import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { ITextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { marked, Tokens } from '../../../../base/common/marked/marked.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { moduleToContent } from '../common/walkThroughContentProvider.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 class WalkThroughModel extends EditorModel {
 

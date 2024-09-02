@@ -10,7 +10,7 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync } = require('fs');
@@ -218,12 +218,6 @@ class IPCRunner extends events.EventEmitter {
 
 app.on('ready', () => {
 
-	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
-	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
-		const path = new URL(request.url).pathname;
-		callback({ path });
-	});
-
 	ipcMain.on('error', (_, err) => {
 		if (!args.dev) {
 			console.error(err);
@@ -308,9 +302,7 @@ app.on('ready', () => {
 		win.webContents.send('run', args);
 	}
 
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.esm.html'));
-	target.searchParams.set('argv', JSON.stringify(args));
-	win.loadURL(target.href);
+	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.amd.html'), protocol: 'file:', slashes: true }));
 
 	const runner = new IPCRunner(win);
 	createStatsCollector(runner);

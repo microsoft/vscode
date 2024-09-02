@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/21f28840e04d4fa04682d19d6fe64de437f40b64",
+	"version": "https://github.com/worlpaker/go-syntax/commit/b40fb01f2cf48bc24e6f4030373311b0402b158e",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -1845,7 +1845,7 @@
 				},
 				{
 					"comment": "one type only",
-					"match": "(?:((?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?<!\\,\\s*)(?:[\\w\\.\\*]+)\\s*(?:(?:(?:\".*\")|(?:\\`.*\\`))\\s*)?(?:/(?:/|\\*).*)?)$)",
+					"match": "(?:((?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:[\\w\\.\\*]+)\\s*)(?:(?=\\`|\\/|\")|$))",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -1862,7 +1862,7 @@
 				},
 				{
 					"comment": "property variables and types",
-					"match": "(?:((?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))([^\\`]+))",
+					"match": "(?:((?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))([^\\`\"\\/]+))",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -2004,29 +2004,6 @@
 						},
 						{
 							"include": "$self"
-						}
-					]
-				},
-				{
-					"comment": "one type only with multi line raw string",
-					"begin": "(?:((?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?<!\\,\\s*)(?:[\\w\\.\\*]+)\\s*)(?=\\`))",
-					"beginCaptures": {
-						"1": {
-							"patterns": [
-								{
-									"include": "#type-declarations"
-								},
-								{
-									"match": "\\w+",
-									"name": "entity.name.type.go"
-								}
-							]
-						}
-					},
-					"end": "(?=\\`)",
-					"patterns": [
-						{
-							"include": "#raw_string_literals"
 						}
 					]
 				},

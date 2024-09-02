@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IToolData, IToolImpl, IToolInvocation, LanguageModelToolsService } from '../../common/languageModelToolsService';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import { IToolData, IToolImpl, IToolInvocation, LanguageModelToolsService } from '../../common/languageModelToolsService.js';
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let extensionService: IExtensionService;
 	let contextKeyService: IContextKeyService;
 	let service: LanguageModelToolsService;
 
 	setup(() => {
+		const extensionService = new TestExtensionService();
 		contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService));
 	});

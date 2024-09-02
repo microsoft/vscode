@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyValue, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { IRectangle } from 'vs/platform/window/common/window';
-import { IMenuChangeEvent } from 'vs/platform/actions/common/actions';
-import { DeepPartial } from 'vs/base/common/types';
+import { Event } from '../../../../base/common/event.js';
+import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IGroupModelChangeEvent } from '../../../common/editor/editorGroupModel.js';
+import { IRectangle } from '../../../../platform/window/common/window.js';
+import { IMenuChangeEvent } from '../../../../platform/actions/common/actions.js';
+import { DeepPartial } from '../../../../base/common/types.js';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 

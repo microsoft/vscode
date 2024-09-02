@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { DataTree } from '../../../../browser/ui/tree/dataTree.js';
+import { IDataSource, ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 interface E {
 	value: number;

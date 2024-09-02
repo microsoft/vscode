@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { StringSHA1, toHexString } from 'vs/base/common/hash';
+import { VSBuffer } from '../common/buffer.js';
+import { StringSHA1, toHexString } from '../common/hash.js';
 
 export async function sha1Hex(str: string): Promise<string> {
 

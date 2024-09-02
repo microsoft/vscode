@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
-import { EmmetEditorAction } from 'vs/workbench/contrib/emmet/browser/emmetActions';
-import { registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import * as nls from '../../../../../nls.js';
+import { EmmetEditorAction } from '../emmetActions.js';
+import { registerEditorAction } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 class ExpandAbbreviationAction extends EmmetEditorAction {
 

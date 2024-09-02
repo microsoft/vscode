@@ -2,36 +2,36 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
 import type { Terminal as RawXtermTerminal, IDecoration, ITerminalAddon } from '@xterm/xterm';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { localize } from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { OS } from 'vs/base/common/platform';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import * as dom from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import 'vs/css!./media/terminalInitialHint';
-import { TerminalInitialHintSettingId } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';
-import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
+import { ITerminalProcessManager, ITerminalProcessInfo } from '../../../terminal/common/terminal.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { localize } from '../../../../../nls.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalChatCommandId } from './terminalChat.js';
+import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
+import './media/terminalInitialHint.css';
+import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
+import { ChatAgentLocation, IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 
 const $ = dom.$;
 
@@ -89,7 +89,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
 	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'capabilities'> | IDetachedTerminalInstance,
+		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'shellLaunchConfig'> | IDetachedTerminalInstance,
 		processManager: ITerminalProcessManager | ITerminalProcessInfo | undefined,
 		widgetManager: TerminalWidgetManager | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -110,11 +110,16 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		// Don't show is the terminal was launched by an extension or a feature like debug
+		if ('shellLaunchConfig' in this._instance && (this._instance.shellLaunchConfig.isExtensionOwnedTerminal || this._instance.shellLaunchConfig.isFeatureTerminal)) {
+			return;
+		}
+		// Don't show if disabled
 		if (this._storageService.getBoolean(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION, false)) {
 			return;
 		}
+		// Only show for the first terminal
 		if (this._terminalGroupService.instances.length + this._terminalEditorService.instances.length !== 1) {
-			// only show for the first terminal
 			return;
 		}
 		this._xterm = xterm;

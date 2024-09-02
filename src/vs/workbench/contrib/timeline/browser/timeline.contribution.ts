@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { ITimelineService, TimelinePaneId } from 'vs/workbench/contrib/timeline/common/timeline';
-import { TimelineHasProviderContext, TimelineService } from 'vs/workbench/contrib/timeline/common/timelineService';
-import { TimelinePane } from './timelinePane';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ISubmenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { localize } from '../../../../nls.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from '../../../common/views.js';
+import { VIEW_CONTAINER } from '../../files/browser/explorerViewlet.js';
+import { ITimelineService, TimelinePaneId } from '../common/timeline.js';
+import { TimelineHasProviderContext, TimelineService } from '../common/timelineService.js';
+import { TimelinePane } from './timelinePane.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ISubmenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ICommandHandler, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ExplorerFolderContext } from '../../files/common/files.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
 
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));

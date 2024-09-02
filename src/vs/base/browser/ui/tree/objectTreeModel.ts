@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { IIndexTreeModelOptions, IIndexTreeModelSpliceOptions, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, ITreeSorter, ObjectTreeElementCollapseState, TreeError } from 'vs/base/browser/ui/tree/tree';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { ISpliceable } from 'vs/base/common/sequence';
+import { IIdentityProvider } from '../list/list.js';
+import { IIndexTreeModelOptions, IIndexTreeModelSpliceOptions, IndexTreeModel } from './indexTreeModel.js';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, ITreeSorter, ObjectTreeElementCollapseState, TreeError } from './tree.js';
+import { Event } from '../../../common/event.js';
+import { Iterable } from '../../../common/iterator.js';
+import { ISpliceable } from '../../../common/sequence.js';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 

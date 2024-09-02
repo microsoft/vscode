@@ -9,11 +9,11 @@
 'use strict';
 
 // ESM-uncomment-begin
-// import * as os from 'os';
-// import * as path from 'path';
-//
-// /** @type any */
-// const module = { exports: {} };
+import * as os from 'os';
+import * as path from 'path';
+
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
@@ -127,8 +127,8 @@
 		});
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
 		// ESM-comment-begin
-		const path = require('path');
-		const os = require('os');
+		// const path = require('path');
+		// const os = require('os');
 		// ESM-comment-end
 
 		module.exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
@@ -138,5 +138,5 @@
 }());
 
 // ESM-uncomment-begin
-// export const getUserDataPath = module.exports.getUserDataPath;
+export const getUserDataPath = module.exports.getUserDataPath;
 // ESM-uncomment-end

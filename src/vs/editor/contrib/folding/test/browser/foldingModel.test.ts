@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IModelDecorationsChangeAccessor, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { toSelectedLines } from 'vs/editor/contrib/folding/browser/folding';
-import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp } from 'vs/editor/contrib/folding/browser/foldingModel';
-import { FoldingRegion } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../../common/core/editOperation.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { IModelDecorationsChangeAccessor, ITextModel, TrackedRangeStickiness } from '../../../../common/model.js';
+import { ModelDecorationOptions } from '../../../../common/model/textModel.js';
+import { toSelectedLines } from '../../browser/folding.js';
+import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp } from '../../browser/foldingModel.js';
+import { FoldingRegion } from '../../browser/foldingRanges.js';
+import { computeRanges } from '../../browser/indentRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 
 interface ExpectedRegion {

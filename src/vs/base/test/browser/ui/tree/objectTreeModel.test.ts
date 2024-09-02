@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
+import { ITreeFilter, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from '../../../../browser/ui/tree/tree.js';
+import { timeout } from '../../../../common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { ISpliceable } from '../../../../common/sequence.js';
 
 function toList<T>(arr: T[]): ISpliceable<T> {
 	return {

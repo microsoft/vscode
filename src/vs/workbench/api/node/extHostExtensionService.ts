@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as performance from 'vs/base/common/performance';
-import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
-import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { connectProxyResolver } from 'vs/workbench/api/node/proxyResolver';
-import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
-import { realpathSync } from 'vs/base/node/extpath';
-import { ExtHostConsoleForwarder } from 'vs/workbench/api/node/extHostConsoleForwarder';
-import { ExtHostDiskFileSystemProvider } from 'vs/workbench/api/node/extHostDiskFileSystemProvider';
+import * as performance from '../../../base/common/performance.js';
+import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
+import { RequireInterceptor } from '../common/extHostRequireInterceptor.js';
+import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
+import { connectProxyResolver } from './proxyResolver.js';
+import { AbstractExtHostExtensionService } from '../common/extHostExtensionService.js';
+import { ExtHostDownloadService } from './extHostDownloadService.js';
+import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionRuntime } from '../common/extHostTypes.js';
+import { CLIServer } from './extHostCLIServer.js';
+import { realpathSync } from '../../../base/node/extpath.js';
+import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
+import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
 // ESM-uncomment-begin
-// import { createRequire } from 'node:module';
-// const require = createRequire(import.meta.url);
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 // ESM-uncomment-end
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {

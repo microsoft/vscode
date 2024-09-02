@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, keepObserved } from 'vs/base/common/observable';
-import { Proxied } from 'vs/base/common/worker/simpleWorker';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { Range } from 'vs/editor/common/core/range';
-import { IBackgroundTokenizationStore, ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { IModelContentChange, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from 'vs/workbench/services/textMate/browser/arrayOperation';
-import type { StateDeltas, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
+import { importAMDNodeModule } from '../../../../../amdX.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, keepObserved } from '../../../../../base/common/observable.js';
+import { Proxied } from '../../../../../base/common/worker/simpleWorker.js';
+import { countEOL } from '../../../../../editor/common/core/eolCounter.js';
+import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
+import { IModelContentChange, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { ArrayEdit, MonotonousIndexTransformer, SingleArrayEdit } from '../arrayOperation.js';
+import type { StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 
 export class TextMateWorkerTokenizerController extends Disposable {

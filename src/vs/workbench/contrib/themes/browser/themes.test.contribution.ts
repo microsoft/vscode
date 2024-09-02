@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
+import { URI } from '../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchThemeService, IWorkbenchColorTheme } from '../../../services/themes/common/workbenchThemeService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { EditorResourceAccessor } from '../../../common/editor.js';
+import { ITextMateTokenizationService } from '../../../services/textMate/browser/textMateTokenizationFeature.js';
 import type { IGrammar, StateStack } from 'vscode-textmate';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { Color } from 'vs/base/common/color';
-import { IFileService } from 'vs/platform/files/common/files';
-import { basename } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
-import { splitLines } from 'vs/base/common/strings';
+import { TokenizationRegistry } from '../../../../editor/common/languages.js';
+import { TokenMetadata } from '../../../../editor/common/encodedTokenAttributes.js';
+import { ThemeRule, findMatchingThemeRule } from '../../../services/textMate/common/TMHelper.js';
+import { Color } from '../../../../base/common/color.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { basename } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { splitLines } from '../../../../base/common/strings.js';
 
 interface IToken {
 	c: string;

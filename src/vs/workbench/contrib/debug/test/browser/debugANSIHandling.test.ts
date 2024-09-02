@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isHTMLSpanElement } from 'vs/base/browser/dom';
-import { Color, RGBA } from 'vs/base/common/color';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { ansiColorMap, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { isHTMLSpanElement } from '../../../../../base/browser/dom.js';
+import { Color, RGBA } from '../../../../../base/common/color.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } from '../../browser/debugANSIHandling.js';
+import { DebugSession } from '../../browser/debugSession.js';
+import { LinkDetector } from '../../browser/linkDetector.js';
+import { DebugModel } from '../../common/debugModel.js';
+import { createTestSession } from './callStack.test.js';
+import { createMockDebugModel } from './mockDebugModel.js';
+import { ansiColorMap, registerColors } from '../../../terminal/common/terminalColorRegistry.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Debug - ANSI Handling', () => {
 

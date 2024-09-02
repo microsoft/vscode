@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
-import 'vs/css!./hover';
-import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHoverWidget';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent } from '../../../browser/editorBrowser.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
+import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IHoverWidget } from './hoverTypes.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { isMousePositionWithinElement } from './hoverUtils.js';
+import './hover.css';
+import { MarginHoverWidget } from './marginHoverWidget.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
