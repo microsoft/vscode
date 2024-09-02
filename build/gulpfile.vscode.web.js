@@ -107,7 +107,7 @@ const vscodeWebEntryPoints = !isAMD() ? [
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.workbenchWeb(),
-	buildfile.entrypoint('vs/workbench/workbench.web.main.internal') // TODO@esm
+	buildfile.entrypoint('vs/workbench/workbench.web.main.internal') // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 ].flat() : [
 	buildfile.entrypoint('vs/workbench/workbench.web.main.internal'),
 	buildfile.base,
@@ -231,7 +231,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
-		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); //TODO@esm remove me once AMD is gone
+		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 
 		const sources = es.merge(...(!isAMD() ? [src, extensions, loader] : [src, extensions]))
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }))

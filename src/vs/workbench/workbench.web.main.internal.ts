@@ -184,7 +184,7 @@ import { GroupOrientation } from './services/editor/common/editorGroupsService.j
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from '../platform/remote/common/remoteAuthorityResolver.js';
 
-// TODO@esm remove me once AMD is gone
+// TODO@esm remove me once we stop supporting our web-esm-bridge
 if ((globalThis as any).__VSCODE_WEB_ESM_PROMISE) {
 	(globalThis as any).__VSCODE_WEB_ESM_PROMISE({
 

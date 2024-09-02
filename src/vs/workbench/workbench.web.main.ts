@@ -10,7 +10,7 @@
 // ###                              ###
 // ####################################
 
-// TODO@esm this is temporary until we have removed AMD
+// TODO@esm remove me once we stop supporting our web-esm-bridge
 
 (function () {
 
