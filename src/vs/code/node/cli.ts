@@ -112,7 +112,7 @@ export async function main(argv: string[]): Promise<any> {
 			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
-		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'common', 'scripts', file));
+		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
 	}
 
 	// Extensions Management

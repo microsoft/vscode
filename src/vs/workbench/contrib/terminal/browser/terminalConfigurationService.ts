@@ -136,13 +136,6 @@ export class TerminalFontMetrics extends Disposable {
 		// Always fallback to monospace, otherwise a proportional font may become the default
 		fontFamily += ', monospace';
 
-		// Always fallback to AppleBraille on macOS, otherwise braille will render with filled and
-		// empty circles in all 8 positions, instead of just filled circles
-		// See https://github.com/microsoft/vscode/issues/174521
-		if (isMacintosh) {
-			fontFamily += ', AppleBraille';
-		}
-
 		const letterSpacing = this._terminalConfigurationService.config.letterSpacing ? Math.max(Math.floor(this._terminalConfigurationService.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this._terminalConfigurationService.config.lineHeight ? Math.max(this._terminalConfigurationService.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
