@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/resources';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Iterable } from 'vs/base/common/iterator';
-import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
-import { IEditorGroupContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { getRepositoryResourceCount } from 'vs/workbench/contrib/scm/browser/util';
-import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from 'vs/base/common/observableInternal/utils';
-import { Command } from 'vs/editor/common/languages';
+import { localize } from '../../../../nls.js';
+import { basename } from '../../../../base/common/resources.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EditorResourceAccessor } from '../../../common/editor.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { ITitleService } from '../../../services/title/browser/titleService.js';
+import { IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { getRepositoryResourceCount } from './util.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observableInternal/utils.js';
+import { Command } from '../../../../editor/common/languages.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),

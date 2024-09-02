@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { insert } from 'vs/base/common/arrays';
-import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { raceCancellation } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { insert } from '../../../../base/common/arrays.js';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from './workingCopyFileService.js';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from './storedFileWorkingCopy.js';
 
 export class StoredFileWorkingCopySaveParticipant extends Disposable {
 

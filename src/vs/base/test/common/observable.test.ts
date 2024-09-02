@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from 'vs/base/common/observable';
-import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Emitter, Event } from '../../common/event.js';
+import { DisposableStore } from '../../common/lifecycle.js';
+import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from '../../common/observable.js';
+import { BaseObservable, IObservable, IObserver } from '../../common/observableInternal/base.js';
+import { derivedDisposable } from '../../common/observableInternal/derived.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1123,6 +1123,31 @@ suite('observables', () => {
 			'myDerived.computed(myObservable2: 1)',
 			'event fired',
 		]);
+	});
+
+	test('bug: Event.fromObservable always should get events', () => {
+		const emitter = new Emitter();
+		const log = new Log();
+		let i = 0;
+		const obs = observableFromEvent(emitter.event, () => i);
+
+		i++;
+		emitter.fire(1);
+
+		const evt2 = Event.fromObservable(obs);
+		const d = evt2(e => {
+			log.log(`event fired ${e}`);
+		});
+
+		i++;
+		emitter.fire(2);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 2"]);
+
+		i++;
+		emitter.fire(3);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 3"]);
+
+		d.dispose();
 	});
 
 	test('dont run autorun after dispose', () => {

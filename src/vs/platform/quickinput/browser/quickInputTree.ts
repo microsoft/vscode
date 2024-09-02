@@ -3,44 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from 'vs/base/common/event';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IMatch } from 'vs/base/common/filters';
-import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { OS } from 'vs/base/common/platform';
-import { memoize } from 'vs/base/common/decorators';
-import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { isDark } from 'vs/platform/theme/common/theme';
-import { URI } from 'vs/base/common/uri';
-import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
-import { Lazy } from 'vs/base/common/lazy';
-import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { compareAnything } from 'vs/base/common/comparers';
-import { ltrim } from 'vs/base/common/strings';
-import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { isCancellationError } from 'vs/base/common/errors';
-import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { QuickPickFocus } from '../common/quickInput';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { observableValue, observableValueOpts } from 'vs/base/common/observable';
-import { equals } from 'vs/base/common/arrays';
+import * as dom from '../../../base/browser/dom.js';
+import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../base/common/event.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '../../../base/browser/ui/tree/tree.js';
+import { localize } from '../../../nls.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { WorkbenchObjectTree } from '../../list/browser/listService.js';
+import { IThemeService } from '../../theme/common/themeService.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem, QuickPickFocus } from '../common/quickInput.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IMatch } from '../../../base/common/filters.js';
+import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
+import { AriaRole } from '../../../base/browser/ui/aria/aria.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { OS } from '../../../base/common/platform.js';
+import { memoize } from '../../../base/common/decorators.js';
+import { IIconLabelValueOptions, IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
+import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { isDark } from '../../theme/common/theme.js';
+import { URI } from '../../../base/common/uri.js';
+import { quickInputButtonToAction } from './quickInputUtils.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { compareAnything } from '../../../base/common/comparers.js';
+import { ltrim } from '../../../base/common/strings.js';
+import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { observableValue, observableValueOpts, transaction } from '../../../base/common/observable.js';
+import { equals } from '../../../base/common/arrays.js';
 
 const $ = dom.$;
 
@@ -554,6 +553,12 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		return this._visibleSeparatorsFrequency.has(separator);
 	}
 
+	override renderTemplate(container: HTMLElement): IQuickInputItemTemplateData {
+		const data = super.renderTemplate(container);
+		data.checkbox.style.display = 'none';
+		return data;
+	}
+
 	override renderElement(node: ITreeNode<QuickPickSeparatorElement, void>, index: number, data: IQuickInputItemTemplateData): void {
 		const element = node.element;
 		data.element = element;
@@ -707,6 +712,7 @@ export class QuickInputTree extends Disposable {
 	// Elements that apply to the current set of elements
 	private readonly _elementDisposable = this._register(new DisposableStore());
 	private _lastHover: IHoverWidget | undefined;
+	private _lastQueryString: string | undefined;
 
 	constructor(
 		private parent: HTMLElement,
@@ -727,6 +733,24 @@ export class QuickInputTree extends Disposable {
 			new QuickInputItemDelegate(),
 			[this._itemRenderer, this._separatorRenderer],
 			{
+				filter: {
+					filter(element) {
+						return element.hidden
+							? TreeVisibility.Hidden
+							: element instanceof QuickPickSeparatorElement
+								? TreeVisibility.Recurse
+								: TreeVisibility.Visible;
+					},
+				},
+				sorter: {
+					compare: (element, otherElement) => {
+						if (!this.sortByLabel || !this._lastQueryString) {
+							return 0;
+						}
+						const normalizedSearchValue = this._lastQueryString.toLowerCase();
+						return compareEntries(element, otherElement, normalizedSearchValue);
+					},
+				},
 				accessibilityProvider: new QuickInputAccessibilityProvider(),
 				setRowLineHeight: false,
 				multipleSelectionSupport: false,
@@ -1056,6 +1080,7 @@ export class QuickInputTree extends Disposable {
 
 	setElements(inputElements: QuickPickItem[]): void {
 		this._elementDisposable.clear();
+		this._lastQueryString = undefined;
 		this._inputElements = inputElements;
 		this._hasCheckboxes = this.parent.classList.contains('show-checkboxes');
 		let currentSeparatorElement: QuickPickSeparatorElement | undefined;
@@ -1363,6 +1388,7 @@ export class QuickInputTree extends Disposable {
 	}
 
 	filter(query: string): boolean {
+		this._lastQueryString = query;
 		if (!(this._sortByLabel || this._matchOnLabel || this._matchOnDescription || this._matchOnDetail)) {
 			this._tree.layout();
 			return false;
@@ -1388,7 +1414,7 @@ export class QuickInputTree extends Disposable {
 		// Filter by value (since we support icons in labels, use $(..) aware fuzzy matching)
 		else {
 			let currentSeparator: IQuickPickSeparator | undefined;
-			this._elementTree.forEach(element => {
+			this._itemElements.forEach(element => {
 				let labelHighlights: IMatch[] | undefined;
 				if (this.matchOnLabelMode === 'fuzzy') {
 					labelHighlights = this.matchOnLabel ? matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel)) ?? undefined : undefined;
@@ -1419,8 +1445,10 @@ export class QuickInputTree extends Disposable {
 
 				// we can show the separator unless the list gets sorted by match
 				if (!this.sortByLabel) {
-					const previous = element.index && this._inputElements[element.index - 1];
-					currentSeparator = previous && previous.type === 'separator' ? previous : currentSeparator;
+					const previous = element.index && this._inputElements[element.index - 1] || undefined;
+					if (previous?.type === 'separator' && !previous.buttons) {
+						currentSeparator = previous;
+					}
 					if (currentSeparator && !element.hidden) {
 						element.separator = currentSeparator;
 						currentSeparator = undefined;
@@ -1429,33 +1457,12 @@ export class QuickInputTree extends Disposable {
 			});
 		}
 
-		const shownElements = this._elementTree.filter(element => !element.hidden);
-
-		// Sort by value
-		if (this.sortByLabel && query) {
-			const normalizedSearchValue = query.toLowerCase();
-			shownElements.sort((a, b) => {
-				return compareEntries(a, b, normalizedSearchValue);
-			});
-		}
-
-		let currentSeparator: QuickPickSeparatorElement | undefined;
-		const finalElements = shownElements.reduce((result, element, index) => {
-			if (element instanceof QuickPickItemElement) {
-				if (currentSeparator) {
-					currentSeparator.children.push(element);
-				} else {
-					result.push(element);
-				}
-			} else if (element instanceof QuickPickSeparatorElement) {
-				element.children = [];
-				currentSeparator = element;
-				result.push(element);
-			}
-			return result;
-		}, new Array<IQuickPickElement>());
-
-		this._setElementsToTree(finalElements);
+		this._setElementsToTree(this._sortByLabel && query
+			// We don't render any separators if we're sorting so just render the elements
+			? this._itemElements
+			// Render the full tree
+			: this._elementTree
+		);
 		this._tree.layout();
 		return true;
 	}
@@ -1547,10 +1554,12 @@ export class QuickInputTree extends Disposable {
 	}
 
 	private _updateCheckedObservables() {
-		this._allVisibleCheckedObservable.set(this._allVisibleChecked(this._itemElements, false), undefined);
-		const checkedCount = this._itemElements.filter(element => element.checked).length;
-		this._checkedCountObservable.set(checkedCount, undefined);
-		this._checkedElementsObservable.set(this.getCheckedElements(), undefined);
+		transaction((tx) => {
+			this._allVisibleCheckedObservable.set(this._allVisibleChecked(this._itemElements, false), tx);
+			const checkedCount = this._itemElements.filter(element => element.checked).length;
+			this._checkedCountObservable.set(checkedCount, tx);
+			this._checkedElementsObservable.set(this.getCheckedElements(), tx);
+		});
 	}
 
 	/**

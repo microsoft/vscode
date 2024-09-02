@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleDeadline, runWhenGlobalIdle } from 'vs/base/common/async';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { setTimeout0 } from 'vs/base/common/platform';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from 'vs/editor/common/languages';
-import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
-import { ITextModel } from 'vs/editor/common/model';
-import { FixedArray } from 'vs/editor/common/model/fixedArray';
-import { IModelContentChange } from 'vs/editor/common/textModelEvents';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { IdleDeadline, runWhenGlobalIdle } from '../../../base/common/async.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
+import { setTimeout0 } from '../../../base/common/platform.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { countEOL } from '../core/eolCounter.js';
+import { LineRange } from '../core/lineRange.js';
+import { OffsetRange } from '../core/offsetRange.js';
+import { Position } from '../core/position.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from '../languages.js';
+import { nullTokenizeEncoded } from '../languages/nullTokenize.js';
+import { ITextModel } from '../model.js';
+import { FixedArray } from './fixedArray.js';
+import { IModelContentChange } from '../textModelEvents.js';
+import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder.js';
+import { LineTokens } from '../tokens/lineTokens.js';
 
 const enum Constants {
 	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048

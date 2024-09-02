@@ -20,7 +20,6 @@
 		"../../src/vscode-dts/vscode.proposed.scmTextDocument.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts",
 		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
-		"../../src/vscode-dts/vscode.proposed.terminalShellIntegration.d.ts",
 		"../../src/vscode-dts/vscode.proposed.timeline.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickInputButtonLocation.d.ts",
 		"../types/lib.textEncoder.d.ts"

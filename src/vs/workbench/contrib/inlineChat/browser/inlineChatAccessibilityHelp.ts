@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { getChatAccessibilityHelpProvider } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
-import { CONTEXT_CHAT_INPUT_HAS_FOCUS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { getChatAccessibilityHelpProvider } from '../../chat/browser/actions/chatAccessibilityHelp.js';
+import { CONTEXT_CHAT_INPUT_HAS_FOCUS } from '../../chat/common/chatContextKeys.js';
+import { CTX_INLINE_CHAT_RESPONSE_FOCUSED } from '../common/inlineChat.js';
 
 export class InlineChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 106;

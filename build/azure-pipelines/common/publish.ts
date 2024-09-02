@@ -550,14 +550,8 @@ function getPlatform(product: string, os: string, arch: string, type: string, is
 					}
 				}
 				case 'server':
-					if (arch === 'arm64') {
-						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
-					}
 					return `server-win32-${arch}`;
 				case 'web':
-					if (arch === 'arm64') {
-						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
-					}
 					return `server-win32-${arch}-web`;
 				case 'cli':
 					return `cli-win32-${arch}`;

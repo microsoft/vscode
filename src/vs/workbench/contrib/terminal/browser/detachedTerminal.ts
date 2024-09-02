@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
-import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalContribution, IXtermAttachToElementOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ITerminalProcessInfo, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as dom from '../../../../base/browser/dom.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { ITerminalBackend } from '../../../../platform/terminal/common/terminal.js';
+import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalContribution, IXtermAttachToElementOptions } from './terminal.js';
+import { TerminalExtensionsRegistry } from './terminalExtensions.js';
+import { TerminalWidgetManager } from './widgets/widgetManager.js';
+import { XtermTerminal } from './xterm/xtermTerminal.js';
+import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
+import { ITerminalProcessInfo, ProcessState } from '../common/terminal.js';
 
 export class DetachedTerminal extends Disposable implements IDetachedTerminalInstance {
 	private readonly _widgets = this._register(new TerminalWidgetManager());

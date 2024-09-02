@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { DeferredPromise } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
+import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { hash } from '../../../base/common/hash.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IClipboardService } from '../common/clipboardService.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { ILogService } from '../../log/common/log.js';
 
 /**
  * Custom mime type used for storing a list of uris in the clipboard.
@@ -41,7 +41,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// and not in the clipboard, we have to invalidate
 		// that state when the user copies other data.
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResources()));
+			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResourcesState()));
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
@@ -93,7 +93,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	async writeText(text: string, type?: string): Promise<void> {
 
 		// Clear resources given we are writing text
-		this.writeResources([]);
+		this.clearResourcesState();
 
 		// With type: only in-memory is supported
 		if (type) {
@@ -200,7 +200,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}
 
 		if (resources.length === 0) {
-			this.clearResources();
+			this.clearResourcesState();
 		} else {
 			this.resources = resources;
 			this.resourcesStateHash = await this.computeResourcesStateHash();
@@ -226,7 +226,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 		const resourcesStateHash = await this.computeResourcesStateHash();
 		if (this.resourcesStateHash !== resourcesStateHash) {
-			this.clearResources(); // state mismatch, resources no longer valid
+			this.clearResourcesState(); // state mismatch, resources no longer valid
 		}
 
 		return this.resources;
@@ -264,7 +264,11 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		return this.resources.length > 0;
 	}
 
-	private clearResources(): void {
+	public clearInternalState(): void {
+		this.clearResourcesState();
+	}
+
+	private clearResourcesState(): void {
 		this.resources = [];
 		this.resourcesStateHash = undefined;
 	}

@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addDisposableListener, EventType, EventHelper, $, isEventLike } from 'vs/base/browser/dom';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ButtonBar, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionRunner, IAction, IActionRunner, Separator, toAction } from 'vs/base/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { dispose, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
-import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from 'vs/platform/notification/common/notification';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { DomEmitter } from 'vs/base/browser/event';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { Event } from 'vs/base/common/event';
-import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { clearNode, addDisposableListener, EventType, EventHelper, $, isEventLike } from '../../../../base/browser/dom.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ButtonBar, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionRunner, IAction, IActionRunner, Separator, toAction } from '../../../../base/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { dispose, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from '../../../common/notifications.js';
+import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from './notificationsActions.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from '../../../../platform/notification/common/notification.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import { Gesture, EventType as GestureEventType } from '../../../../base/browser/touch.js';
+import { Event } from '../../../../base/common/event.js';
+import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 

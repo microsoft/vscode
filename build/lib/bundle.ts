@@ -52,8 +52,8 @@ export interface IEntryPoint {
 	include?: string[];
 	exclude?: string[];
 	prepend?: IExtraFile[];
-	append?: IExtraFile[];
 	dest?: string;
+	target?: 'amd' | 'esm';
 }
 
 interface IEntryPointMap {
@@ -157,9 +157,6 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 		};
 		for (const moduleId in entryPointsMap) {
 			const entryPoint = entryPointsMap[moduleId];
-			if (entryPoint.append) {
-				entryPoint.append = entryPoint.append.map(resolvePath);
-			}
 			if (entryPoint.prepend) {
 				entryPoint.prepend = entryPoint.prepend.map(resolvePath);
 			}
@@ -223,7 +220,6 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 			moduleToBundle,
 			includedModules,
 			info.prepend || [],
-			info.append || [],
 			info.dest
 		);
 
@@ -361,22 +357,26 @@ function removeAllDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[
 	return destFiles;
 }
 
-export function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
+export function removeAllTSBoilerplate(source: string) {
+	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, 10);
+	return removeDuplicateTSBoilerplate(source, seen);
+}
 
-	// Taken from typescript compiler => emitFiles
-	const BOILERPLATE = [
-		{ start: /^var __extends/, end: /^}\)\(\);$/ },
-		{ start: /^var __assign/, end: /^};$/ },
-		{ start: /^var __decorate/, end: /^};$/ },
-		{ start: /^var __metadata/, end: /^};$/ },
-		{ start: /^var __param/, end: /^};$/ },
-		{ start: /^var __awaiter/, end: /^};$/ },
-		{ start: /^var __generator/, end: /^};$/ },
-		{ start: /^var __createBinding/, end: /^}\)\);$/ },
-		{ start: /^var __setModuleDefault/, end: /^}\);$/ },
-		{ start: /^var __importStar/, end: /^};$/ },
-	];
+// Taken from typescript compiler => emitFiles
+const BOILERPLATE = [
+	{ start: /^var __extends/, end: /^}\)\(\);$/ },
+	{ start: /^var __assign/, end: /^};$/ },
+	{ start: /^var __decorate/, end: /^};$/ },
+	{ start: /^var __metadata/, end: /^};$/ },
+	{ start: /^var __param/, end: /^};$/ },
+	{ start: /^var __awaiter/, end: /^};$/ },
+	{ start: /^var __generator/, end: /^};$/ },
+	{ start: /^var __createBinding/, end: /^}\)\);$/ },
+	{ start: /^var __setModuleDefault/, end: /^}\);$/ },
+	{ start: /^var __importStar/, end: /^};$/ },
+];
 
+function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
 	const lines = source.split(/\r\n|\n|\r/);
 	const newLines: string[] = [];
 	let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
@@ -425,7 +425,6 @@ function emitEntryPoint(
 	entryPoint: string,
 	includedModules: string[],
 	prepend: IExtraFile[],
-	append: IExtraFile[],
 	dest: string | undefined
 ): IEmitEntryPointResult {
 	if (!dest) {
@@ -511,9 +510,8 @@ function emitEntryPoint(
 	};
 
 	const toPrepend = (prepend || []).map(toIFile);
-	const toAppend = (append || []).map(toIFile);
 
-	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+	mainResult.sources = toPrepend.concat(mainResult.sources);
 
 	return {
 		files: results,

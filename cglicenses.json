@@ -41,12 +41,6 @@
 		]
 	},
 	{
-		"name": "big-integer",
-		"prependLicenseText": [
-			"Copyright released to public domain"
-		]
-	},
-	{
 		// Reason: The license cannot be found by the tool due to access controls on the repository
 		"name": "vscode-tas-client",
 		"fullLicenseText": [

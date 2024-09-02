@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
-import { IAccessibilitySignalService, AccessibilitySignal, AccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorunWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+import { IAccessibilitySignalService, AccessibilitySignal, AccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IDebugService, IDebugSession } from '../../debug/common/debug.js';
 
 export class AccessibilitySignalLineDebuggerContribution
 	extends Disposable

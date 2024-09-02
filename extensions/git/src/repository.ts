@@ -1056,8 +1056,9 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(false), () => this.repository.config('local', key, value));
 	}
 
-	log(options?: LogOptions): Promise<Commit[]> {
-		return this.run(Operation.Log, () => this.repository.log(options));
+	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
+		const showProgress = !options || options.silent !== true;
+		return this.run(Operation.Log(showProgress), () => this.repository.log(options));
 	}
 
 	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
@@ -1515,16 +1516,13 @@ export class Repository implements Disposable {
 
 	private async getDefaultBranch(): Promise<Branch | undefined> {
 		try {
-			const defaultBranchResult = await this.repository.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-			if (defaultBranchResult.stdout.trim() === '' || defaultBranchResult.stderr) {
-				return undefined;
-			}
-
-			return this.getBranch(defaultBranchResult.stdout.trim());
+			const defaultBranch = await this.repository.getDefaultBranch();
+			return defaultBranch;
 		}
-		catch (err) { }
-
-		return undefined;
+		catch (err) {
+			this.logger.warn(`[Repository][getDefaultBranch] Failed to get default branch details: ${err.message}.`);
+			return undefined;
+		}
 	}
 
 	private async getUpstreamBranch(branch: Branch): Promise<Branch | undefined> {
@@ -1623,14 +1621,6 @@ export class Repository implements Disposable {
 		}
 
 		return this._EMPTY_TREE;
-	}
-
-	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
-	}
-
-	async revParse(ref: string): Promise<string | undefined> {
-		return await this.run(Operation.RevParse, () => this.repository.revParse(ref));
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
@@ -1842,7 +1832,7 @@ export class Repository implements Disposable {
 			return true;
 		}
 
-		const maybeRebased = await this.run(Operation.Log, async () => {
+		const maybeRebased = await this.run(Operation.Log(true), async () => {
 			try {
 				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {
@@ -1966,7 +1956,8 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.map(uri => relativePath(this.repository.root, uri.fsPath)
+					.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))

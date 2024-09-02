@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStatusbarEntry, ShowTooltipCommand, StatusbarEntryKinds } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/base/common/themables';
-import { isThemeColor } from 'vs/editor/common/editorCommon';
-import { addDisposableListener, EventType, hide, show, append, EventHelper } from 'vs/base/browser/dom';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Command } from 'vs/editor/common/languages';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { spinningLoading, syncing } from 'vs/platform/theme/common/iconRegistry';
-import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStatusbarEntry, ShowTooltipCommand, StatusbarEntryKinds } from '../../../services/statusbar/browser/statusbar.js';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeColor } from '../../../../base/common/themables.js';
+import { isThemeColor } from '../../../../editor/common/editorCommon.js';
+import { addDisposableListener, EventType, hide, show, append, EventHelper } from '../../../../base/browser/dom.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { Command } from '../../../../editor/common/languages.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { spinningLoading, syncing } from '../../../../platform/theme/common/iconRegistry.js';
+import { isMarkdownString, markdownStringEqual } from '../../../../base/common/htmlContent.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class StatusbarEntryItem extends Disposable {
 

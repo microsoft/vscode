@@ -155,7 +155,7 @@ declare module 'vscode' {
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param options An optional set of query options.
-		 * @param callback A callback, called for each result
+		 * @param callback A callback, called for each {@link TextSearchResultNew result}. This can be a direct match, or context that surrounds a match.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
