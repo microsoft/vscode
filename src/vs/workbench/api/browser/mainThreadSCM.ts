@@ -170,27 +170,13 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
-		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupId1, historyItemGroupId2, CancellationToken.None);
+	async resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined> {
+		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupIds, CancellationToken.None);
 	}
 
-	async resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined> {
-		return this.proxy.$resolveHistoryItemGroupCommonAncestor2(this.handle, historyItemGroupIds, CancellationToken.None);
-	}
-
-	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
-		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
+	async provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
+		const historyItems = await this.proxy.$provideHistoryItems(this.handle, options, CancellationToken.None);
 		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
-	}
-
-	async provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
-		const historyItems = await this.proxy.$provideHistoryItems2(this.handle, options, CancellationToken.None);
-		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
-	}
-
-	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined> {
-		const historyItem = await this.proxy.$provideHistoryItemSummary(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
-		return historyItem ? toISCMHistoryItem(historyItem) : undefined;
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined> {
