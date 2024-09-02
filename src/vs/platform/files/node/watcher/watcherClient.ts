@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IFileChange } from 'vs/platform/files/common/files';
-import { AbstractUniversalWatcherClient, ILogMessage, IUniversalWatcher } from 'vs/platform/files/common/watcher';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { getNextTickChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { Client } from '../../../../base/parts/ipc/node/ipc.cp.js';
+import { IFileChange } from '../../common/files.js';
+import { AbstractUniversalWatcherClient, ILogMessage, IUniversalWatcher } from '../../common/watcher.js';
 
 export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 

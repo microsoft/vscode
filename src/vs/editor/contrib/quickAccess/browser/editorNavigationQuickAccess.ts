@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from 'vs/editor/common/model';
-import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRegistry';
-import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { getCodeEditor, isDiffEditor } from '../../../browser/editorBrowser.js';
+import { IRange } from '../../../common/core/range.js';
+import { IDiffEditor, IEditor, ScrollType } from '../../../common/editorCommon.js';
+import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../common/model.js';
+import { overviewRulerRangeHighlight } from '../../../common/core/editorColorRegistry.js';
+import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
+import { IKeyMods, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
 
 interface IEditorLineDecoration {
 	readonly rangeHighlightId: string;
@@ -52,7 +52,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 	//#region Provider methods
 
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+	provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Apply options if any
@@ -78,7 +78,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		return disposables;
 	}
 
-	private doProvide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+	private doProvide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 
 		// With text control
@@ -134,12 +134,12 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 	/**
 	 * Subclasses to implement to provide picks for the picker when an editor is active.
 	 */
-	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable;
+	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable;
 
 	/**
 	 * Subclasses to implement to provide picks for the picker when no editor is active.
 	 */
-	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable;
 
 	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange; keyMods: IKeyMods; forceSideBySide?: boolean; preserveFocus?: boolean }): void {
 		editor.setSelection(options.range, TextEditorSelectionSource.JUMP);

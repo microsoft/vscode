@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IPartialCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IPartialCommandDetectionCapability, TerminalCapability } from './capabilities.js';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IMarker, Terminal } from '@xterm/headless';

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MenuId, IMenuService, IMenu, SubmenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction } from '../../base/common/actions.js';
+import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { MenuId, IMenuService, IMenu, SubmenuItemAction, IMenuActionOptions } from '../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { createAndFillInActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 
 class MenuActions extends Disposable {
 

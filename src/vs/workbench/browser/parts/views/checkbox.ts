@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import type { IHoverService } from 'vs/platform/hover/browser/hover';
-import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ITreeItem, ITreeItemCheckboxState } from 'vs/workbench/common/views';
+import * as DOM from '../../../../base/browser/dom.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import type { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { ITreeItem, ITreeItemCheckboxState } from '../../../common/views.js';
 
 export class CheckboxStateHandler extends Disposable {
 	private readonly _onDidChangeCheckboxState = this._register(new Emitter<ITreeItem[]>());

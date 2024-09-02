@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { observableValue } from 'vs/base/common/observable';
-import { setTimeout0 } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { TokenizerWithStateStore } from 'vs/editor/common/model/textModelTokens';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { TextMateTokenizationSupport } from 'vs/workbench/services/textMate/browser/tokenizationSupport/textMateTokenizationSupport';
-import { TokenizationSupportWithLineLimit } from 'vs/workbench/services/textMate/browser/tokenizationSupport/tokenizationSupportWithLineLimit';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { setTimeout0 } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
+import { LanguageId } from '../../../../../../editor/common/encodedTokenAttributes.js';
+import { IModelChangedEvent, MirrorTextModel } from '../../../../../../editor/common/model/mirrorTextModel.js';
+import { TokenizerWithStateStore } from '../../../../../../editor/common/model/textModelTokens.js';
+import { ContiguousMultilineTokensBuilder } from '../../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
+import { LineTokens } from '../../../../../../editor/common/tokens/lineTokens.js';
+import { TextMateTokenizationSupport } from '../../tokenizationSupport/textMateTokenizationSupport.js';
+import { TokenizationSupportWithLineLimit } from '../../tokenizationSupport/tokenizationSupportWithLineLimit.js';
 import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmate';
-import { ICreateGrammarResult } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
-import { StateDeltas } from 'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
+import { StateDeltas } from './textMateTokenizationWorker.worker.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;

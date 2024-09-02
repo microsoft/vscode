@@ -52,13 +52,6 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		// Ensure we always have a blank cell.
 		if ((json.cells || []).length === 0) {
 			json.cells = [
-				{
-					cell_type: 'code',
-					execution_count: null,
-					metadata: {},
-					outputs: [],
-					source: ''
-				}
 			];
 		}
 

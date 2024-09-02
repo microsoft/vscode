@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { dispose, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { coalesce, remove } from 'vs/base/common/arrays';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from 'vs/base/browser/dom';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { mainWindow } from 'vs/base/browser/window';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IResourceEditorInput, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { GoFilter, GoScope, IHistoryService } from '../common/history.js';
+import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { dispose, Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorGroup, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
+import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from '../../search/common/search.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorServiceImpl } from '../../../browser/parts/editor/editor.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { coalesce, remove } from '../../../../base/common/arrays.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from '../../../../base/browser/dom.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface ISerializedEditorHistoryEntry {
 	readonly editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };

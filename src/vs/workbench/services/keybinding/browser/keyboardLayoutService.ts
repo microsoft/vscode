@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isESM } from 'vs/base/common/amd';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { DispatchConfig, readKeyboardConfig } from 'vs/platform/keyboardLayout/common/keyboardConfig';
-import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
-import { FallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/fallbackKeyboardMapper';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { parse, getNodeType } from 'vs/base/common/json';
-import * as objects from 'vs/base/common/objects';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import * as nls from '../../../../nls.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { isESM } from '../../../../base/common/amd.js';
+import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { KeymapInfo, IRawMixedKeyboardMapping, IKeymapInfo } from '../common/keymapInfo.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { DispatchConfig, readKeyboardConfig } from '../../../../platform/keyboardLayout/common/keyboardConfig.js';
+import { IKeyboardMapper, CachedKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
+import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { WindowsKeyboardMapper } from '../common/windowsKeyboardMapper.js';
+import { FallbackKeyboardMapper } from '../common/fallbackKeyboardMapper.js';
+import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
+import { MacLinuxKeyboardMapper } from '../common/macLinuxKeyboardMapper.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { parse, getNodeType } from '../../../../base/common/json.js';
+import * as objects from '../../../../base/common/objects.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { INavigatorWithKeyboard } from './navigatorKeyboard.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 
 export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper

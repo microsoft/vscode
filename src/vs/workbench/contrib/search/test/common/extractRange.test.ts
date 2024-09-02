@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { extractRangeFromFilter } from 'vs/workbench/contrib/search/common/search';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { extractRangeFromFilter } from '../../common/search.js';
 
 suite('extractRangeFromFilter', () => {
 

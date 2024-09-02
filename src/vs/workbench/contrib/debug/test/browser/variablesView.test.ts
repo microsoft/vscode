@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockDebugService, MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
-import { IDebugService, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
-import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import * as dom from '../../../../../base/browser/dom.js';
+import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
+import { MockDebugService, MockSession } from '../common/mockDebug.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IDebugService, IViewModel } from '../../common/debug.js';
+import { VariablesRenderer } from '../../browser/variablesView.js';
+import { LinkDetector } from '../../browser/linkDetector.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 const $ = dom.$;
 

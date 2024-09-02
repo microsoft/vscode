@@ -224,12 +224,12 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				return [];
 			}
 
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.remote.id);
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor([currentHistoryItemGroup.id, currentHistoryItemGroup.remote.id]);
 			if (!ancestor) {
 				return [];
 			}
 
-			const changes = await this.repository.diffBetween(ancestor.id, currentHistoryItemGroup.remote.id);
+			const changes = await this.repository.diffBetween(ancestor, currentHistoryItemGroup.remote.id);
 			return changes;
 		} catch (err) {
 			return [];

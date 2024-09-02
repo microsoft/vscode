@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomFactor, isChrome } from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
-import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./media/scrollbars';
+import { getZoomFactor, isChrome } from '../../browser.js';
+import * as dom from '../../dom.js';
+import { FastDomNode, createFastDomNode } from '../../fastDomNode.js';
+import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from '../../mouseEvent.js';
+import { ScrollbarHost } from './abstractScrollbar.js';
+import { HorizontalScrollbar } from './horizontalScrollbar.js';
+import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from './scrollableElementOptions.js';
+import { VerticalScrollbar } from './verticalScrollbar.js';
+import { Widget } from '../widget.js';
+import { TimeoutTimer } from '../../../common/async.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { IDisposable, dispose } from '../../../common/lifecycle.js';
+import * as platform from '../../../common/platform.js';
+import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from '../../../common/scrollable.js';
+import './media/scrollbars.css';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextModel } from 'vs/editor/common/model';
-import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { MockDocumentSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { IOutlineModelService, OutlineModel } from '../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { ICellViewModel } from '../../../browser/notebookBrowser.js';
+import { NotebookOutlineEntryFactory } from '../../../browser/viewModel/notebookOutlineEntryFactory.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { MockDocumentSymbol } from '../testNotebookEditor.js';
 
 suite('Notebook Symbols', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
