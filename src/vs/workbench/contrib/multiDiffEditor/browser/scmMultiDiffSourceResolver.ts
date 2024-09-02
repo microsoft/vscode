@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { observableFromEvent, waitForState } from 'vs/base/common/observable';
-import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IMultiDiffEditorOptions } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
-import { localize2 } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService';
-import { ISCMRepository, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { observableFromEvent, waitForState } from '../../../../base/common/observable.js';
+import { ValueWithChangeEventFromObservable } from '../../../../base/common/observableInternal/utils.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
+import { ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	private static readonly _scheme = 'scm-multi-diff-source';

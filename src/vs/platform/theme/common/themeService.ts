@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import * as platform from 'vs/platform/registry/common/platform';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Codicon } from '../../../base/common/codicons.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import * as platform from '../../registry/common/platform.js';
+import { ColorIdentifier } from './colorRegistry.js';
+import { IconContribution, IconDefinition } from './iconRegistry.js';
+import { ColorScheme } from './theme.js';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -214,9 +214,13 @@ export interface IPartsSplash {
 		foreground: string | undefined;
 		editorBackground: string | undefined;
 		titleBarBackground: string | undefined;
+		titleBarBorder: string | undefined;
 		activityBarBackground: string | undefined;
+		activityBarBorder: string | undefined;
 		sideBarBackground: string | undefined;
+		sideBarBorder: string | undefined;
 		statusBarBackground: string | undefined;
+		statusBarBorder: string | undefined;
 		statusBarNoFolderBackground: string | undefined;
 		windowBorder: string | undefined;
 	};

@@ -3,63 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/userDataProfilesEditor';
-import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType, IDomPosition, trackFocus } from 'vs/base/browser/dom';
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IUserDataProfilesEditor } from 'vs/workbench/contrib/userDataProfile/common/userDataProfile';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { defaultUserDataProfileIcon, IProfileTemplateInfo, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles, getInputBoxStyle, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { editorBackground, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { WorkbenchAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Checkbox } from 'vs/base/browser/ui/toggle/toggle';
-import { DEFAULT_ICON, ICONS } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
-import { WorkbenchIconSelectBox } from 'vs/workbench/services/userDataProfile/browser/iconSelectBox';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
-import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { URI } from 'vs/base/common/uri';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { isString, isUndefined } from 'vs/base/common/types';
-import { basename } from 'vs/base/common/resources';
-import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { AbstractUserDataProfileElement, isProfileResourceChildElement, isProfileResourceTypeElement, IProfileChildElement, IProfileResourceTypeChildElement, IProfileResourceTypeElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { Codicon } from 'vs/base/common/codicons';
-import { Radio } from 'vs/base/browser/ui/radio/radio';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import './media/userDataProfilesEditor.css';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType, IDomPosition, trackFocus } from '../../../../base/browser/dom.js';
+import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUserDataProfile, IUserDataProfilesService, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileService, PROFILE_FILTER } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
+import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles, getInputBoxStyle, getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { editorBackground, foreground, registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { PANEL_BORDER } from '../../../common/theme.js';
+import { WorkbenchAsyncDataTree, WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { DEFAULT_ICON, ICONS } from '../../../services/userDataProfile/common/userDataProfileIcons.js';
+import { WorkbenchIconSelectBox } from '../../../services/userDataProfile/browser/iconSelectBox.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { isString, isUndefined } from '../../../../base/common/types.js';
+import { basename } from '../../../../base/common/resources.js';
+import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { AbstractUserDataProfileElement, isProfileResourceChildElement, isProfileResourceTypeElement, IProfileChildElement, IProfileResourceTypeChildElement, IProfileResourceTypeElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from './userDataProfilesEditorModel.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Radio } from '../../../../base/browser/ui/radio/radio.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { settingsTextInputBorder } from '../../preferences/common/settingsEditorColorRegistry.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -92,6 +92,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	private profileWidget: ProfileWidget | undefined;
 
 	private model: UserDataProfilesEditorModel | undefined;
+	private templates: readonly IProfileTemplateInfo[] = [];
 
 	constructor(
 		group: IEditorGroup,
@@ -207,7 +208,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			actions: {
 				getActions: () => {
 					const actions: IAction[] = [];
-					if (this.model?.templates.length) {
+					if (this.templates.length) {
 						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"), this.getCreateFromTemplateActions()));
 						actions.push(new Separator());
 					}
@@ -225,15 +226,13 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	}
 
 	private getCreateFromTemplateActions(): IAction[] {
-		return this.model
-			? this.model.templates.map(template =>
-				new Action(
-					`template:${template.url}`,
-					template.name,
-					undefined,
-					true,
-					() => this.createNewProfile(URI.parse(template.url))))
-			: [];
+		return this.templates.map(template =>
+			new Action(
+				`template:${template.url}`,
+				template.name,
+				undefined,
+				true,
+				() => this.createNewProfile(URI.parse(template.url))));
 	}
 
 	private registerListeners(): void {
@@ -319,6 +318,13 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		await this.model?.createNewProfile(copyFrom);
 	}
 
+	selectProfile(profile: IUserDataProfile): void {
+		const index = this.model?.profiles.findIndex(p => p instanceof UserDataProfileElement && p.profile.id === profile.id);
+		if (index !== undefined && index >= 0) {
+			this.profilesList?.setSelection([index]);
+		}
+	}
+
 	private async getProfileUriFromFileSystem(): Promise<URI | null> {
 		const profileLocation = await this.fileDialogService.showOpenDialog({
 			canSelectFolders: false,
@@ -336,9 +342,12 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	override async setInput(input: UserDataProfilesEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.model = await input.resolve();
-		if (this.profileWidget) {
-			this.profileWidget.templates = this.model.templates;
-		}
+		this.model.getTemplates().then(templates => {
+			this.templates = templates;
+			if (this.profileWidget) {
+				this.profileWidget.templates = templates;
+			}
+		});
 		this.updateProfilesList();
 		this._register(this.model.onDidChange(element =>
 			this.updateProfilesList(element)));
@@ -411,7 +420,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		const label = append(container, $('.profile-list-item-label'));
 		const dirty = append(container, $(`span${ThemeIcon.asCSSSelector(Codicon.circleFilled)}`));
 		const description = append(container, $('.profile-list-item-description'));
-		append(description, $('span', undefined, localize('activeProfile', "In use")));
+		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`), $('span', undefined, localize('activeProfile', "In use")));
 
 		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
 		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
@@ -501,6 +510,7 @@ class ProfileWidget extends Disposable {
 			[
 				this._register(this.instantiationService.createInstance(ProfileNameRenderer)),
 				this._register(this.instantiationService.createInstance(ProfileIconRenderer)),
+				this._register(this.instantiationService.createInstance(UseForCurrentWindowPropertyRenderer)),
 				this._register(this.instantiationService.createInstance(UseAsDefaultProfileRenderer)),
 				this.copyFromProfileRenderer,
 				contentsRenderer,
@@ -566,6 +576,13 @@ class ProfileWidget extends Disposable {
 	}
 
 	render(profileElement: AbstractUserDataProfileElement): void {
+		if (this._profileElement.value?.element === profileElement) {
+			return;
+		}
+
+		if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+			this._profileElement.value.element.reset();
+		}
 		this.profileTree.setInput(profileElement);
 
 		const disposables = new DisposableStore();
@@ -642,7 +659,7 @@ class ProfileWidget extends Disposable {
 
 }
 
-type ProfileProperty = 'name' | 'icon' | 'copyFrom' | 'useAsDefault' | 'contents';
+type ProfileProperty = 'name' | 'icon' | 'copyFrom' | 'useForCurrent' | 'useAsDefault' | 'contents';
 
 interface ProfileTreeElement {
 	element: ProfileProperty;
@@ -667,6 +684,7 @@ class ProfileTreeDelegate extends CachedListVirtualDelegate<ProfileTreeElement> 
 				return 68;
 			case 'copyFrom':
 				return 90;
+			case 'useForCurrent':
 			case 'useAsDefault':
 				return 68;
 			case 'contents':
@@ -886,7 +904,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						}
 						const initialName = profileElement?.root.getInitialName();
 						value = value.trim();
-						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
+						if (initialName !== value && this.userDataProfilesService.profiles.some(p => !p.isTransient && p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
 								type: MessageType.WARNING
@@ -897,7 +915,6 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				}
 			}
 		));
-		disposables.add(this.userDataProfilesService.onDidChangeProfiles(() => nameInput.validate()));
 		nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
@@ -927,6 +944,9 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				elementDisposables.add(profileElement.root.onDidChange(e => {
 					if (e.name || e.disabled) {
 						renderName(element);
+					}
+					if (e.profile) {
+						nameInput.validate();
 					}
 				}));
 			},
@@ -1040,6 +1060,63 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 	}
 }
 
+class UseForCurrentWindowPropertyRenderer extends ProfilePropertyRenderer {
+
+	readonly templateId: ProfileProperty = 'useForCurrent';
+
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+	) {
+		super();
+	}
+
+	renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate {
+		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
+		let profileElement: ProfileTreeElement | undefined;
+
+		const useForCurrentWindowContainer = append(parent, $('.profile-row-container'));
+		append(useForCurrentWindowContainer, $('.profile-label-element', undefined, localize('use for curren window', "Use for Current Window")));
+		const useForCurrentWindowValueContainer = append(useForCurrentWindowContainer, $('.profile-use-for-current-container'));
+		const useForCurrentWindowTitle = localize('enable for current window', "Use this profile for the current window");
+		const useForCurrentWindowCheckbox = disposables.add(new Checkbox(useForCurrentWindowTitle, false, defaultCheckboxStyles));
+		append(useForCurrentWindowValueContainer, useForCurrentWindowCheckbox.domNode);
+		const useForCurrentWindowLabel = append(useForCurrentWindowValueContainer, $('.profile-description-element', undefined, useForCurrentWindowTitle));
+		disposables.add(useForCurrentWindowCheckbox.onChange(() => {
+			if (profileElement?.root instanceof UserDataProfileElement) {
+				profileElement.root.toggleCurrentWindowProfile();
+			}
+		}));
+		disposables.add(addDisposableListener(useForCurrentWindowLabel, EventType.CLICK, () => {
+			if (profileElement?.root instanceof UserDataProfileElement) {
+				profileElement.root.toggleCurrentWindowProfile();
+			}
+		}));
+
+		const renderUseCurrentProfile = (profileElement: ProfileTreeElement) => {
+			useForCurrentWindowCheckbox.checked = profileElement.root instanceof UserDataProfileElement && this.userDataProfileService.currentProfile.id === profileElement.root.profile.id;
+			if (useForCurrentWindowCheckbox.checked && this.userDataProfileService.currentProfile.isDefault) {
+				useForCurrentWindowCheckbox.disable();
+			} else {
+				useForCurrentWindowCheckbox.enable();
+			}
+		};
+
+		const that = this;
+		return {
+			set element(element: ProfileTreeElement) {
+				profileElement = element;
+				renderUseCurrentProfile(profileElement);
+				elementDisposables.add(that.userDataProfileService.onDidChangeCurrentProfile(e => {
+					renderUseCurrentProfile(element);
+				}));
+			},
+			disposables,
+			elementDisposables
+		};
+	}
+}
+
 class UseAsDefaultProfileRenderer extends ProfilePropertyRenderer {
 
 	readonly templateId: ProfileProperty = 'useAsDefault';
@@ -1050,7 +1127,7 @@ class UseAsDefaultProfileRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const useAsDefaultProfileContainer = append(parent, $('.profile-row-container'));
-		append(useAsDefaultProfileContainer, $('.profile-label-element', undefined, localize('use as default', "Use as Default")));
+		append(useAsDefaultProfileContainer, $('.profile-label-element', undefined, localize('use for new windows', "Use for New Windows")));
 		const useAsDefaultProfileValueContainer = append(useAsDefaultProfileContainer, $('.profile-use-as-default-container'));
 		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as the default for new windows");
 		const useAsDefaultProfileCheckbox = disposables.add(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
@@ -1653,6 +1730,15 @@ export class UserDataProfilesEditorInput extends EditorInput {
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean { return otherInput instanceof UserDataProfilesEditorInput; }
+
+	override dispose(): void {
+		for (const profile of this.model.profiles) {
+			if (profile instanceof UserDataProfileElement) {
+				profile.reset();
+			}
+		}
+		super.dispose();
+	}
 }
 
 export class UserDataProfilesEditorInputSerializer implements IEditorSerializer {

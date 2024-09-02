@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { isWindows } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILoggerService, NullLogService } from 'vs/platform/log/common/log';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextMenuService } from '../../../../../../platform/contextview/browser/contextMenuService.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { ILoggerService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
+import { writeP } from '../../../../terminal/browser/terminalTestHelpers.js';
+import { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
+import { ITerminalConfiguration } from '../../../../terminal/common/terminal.js';
+import { BufferContentTracker } from '../../browser/bufferContentTracker.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { TestLayoutService, TestLifecycleService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestLoggerService } from '../../../../../test/common/workbenchTestServices.js';
 import type { Terminal } from '@xterm/xterm';
-import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
+import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
+import { TerminalConfigurationService } from '../../../../terminal/browser/terminalConfigurationService.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',

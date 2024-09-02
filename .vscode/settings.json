@@ -76,7 +76,7 @@
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
-	"typescript.preferences.importModuleSpecifier": "non-relative",
+	"typescript.preferences.importModuleSpecifier": "relative",
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
@@ -168,5 +168,6 @@
 		"editor.wordWrap": "on"
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
-	"typescript.enablePromptUseWorkspaceTsdk": true
+	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"inlineChat.experimental.onlyZoneWidget": true
 }

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { flakySuite } from 'vs/base/test/common/testUtils';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
@@ -13,7 +13,7 @@ function testErrorMessage(module: string): string {
 
 flakySuite('Native Modules (all platforms)', () => {
 
-	test.skip('kerberos', async () => { // TODO fails on macOS ARM?
+	(isMacintosh ? test.skip : test)('kerberos', async () => { // Somehow fails on macOS ARM?
 		const { default: kerberos } = await import('kerberos');
 		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
 	});
@@ -108,30 +108,30 @@ flakySuite('Native Modules (all platforms)', () => {
 
 	test('@vscode/sqlite3', async () => {
 		// ESM-comment-begin
-		const sqlite3 = await import('@vscode/sqlite3');
+		// const sqlite3 = await import('@vscode/sqlite3');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const { default: sqlite3 } = await import('@vscode/sqlite3');
+		const { default: sqlite3 } = await import('@vscode/sqlite3');
 		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
 	test('http-proxy-agent', async () => {
 		// ESM-comment-begin
-		const mod = await import('http-proxy-agent');
+		// const mod = await import('http-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const { default: mod } = await import('http-proxy-agent');
+		const { default: mod } = await import('http-proxy-agent');
 		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
 	});
 
 	test('https-proxy-agent', async () => {
 		// ESM-comment-begin
-		const mod = await import('https-proxy-agent');
+		// const mod = await import('https-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const { default: mod } = await import('https-proxy-agent');
+		const { default: mod } = await import('https-proxy-agent');
 		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
 	});
@@ -150,21 +150,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		});
 		assert.ok(windowsCerts.length > 0, testErrorMessage('@vscode/proxy-agent'));
 	});
-
-	// These tests require certain modules from `vscode-distro` to work and are otherwise skipped.
-	// test('vsda', async function () {
-	// 	const vsda = await import('vsda');
-	// 	const signer = new vsda.signer();
-	// 	const signed = await signer.sign('value');
-	// 	assert.ok(typeof signed === 'string', testErrorMessage('vsda'));
-	// 	assert.ok(typeof (vsda as any).validator === 'function', testErrorMessage('vsda'));
-
-	// });
-
-	// test('@vscode/vsce-sign', async function () {
-	// 	const vsceSign = await import('@vscode/vsce-sign');
-	// 	assert.ok(typeof vsceSign.verify === 'function', testErrorMessage('@vscode/vsce-sign'));
-	// });
 });
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {

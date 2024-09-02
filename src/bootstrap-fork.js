@@ -7,14 +7,14 @@
 'use strict';
 
 // ESM-comment-begin
-const performance = require('./vs/base/common/performance');
-const bootstrapNode = require('./bootstrap-node');
-const bootstrapAmd = require('./bootstrap-amd');
+// const performance = require('./vs/base/common/performance');
+// const bootstrapNode = require('./bootstrap-node');
+// const bootstrapAmd = require('./bootstrap-amd');
 // ESM-comment-end
 // ESM-uncomment-begin
-// import * as performance from './vs/base/common/performance.js';
-// import * as bootstrapNode from './bootstrap-node.js';
-// import * as bootstrapAmd from './bootstrap-amd.js';
+import * as performance from './vs/base/common/performance.js';
+import * as bootstrapNode from './bootstrap-node.js';
+import * as bootstrapAmd from './bootstrap-amd.js';
 // ESM-uncomment-end
 
 performance.mark('code/fork/start');
@@ -22,8 +22,8 @@ performance.mark('code/fork/start');
 // Crash reporter
 configureCrashReporter();
 
-// Remove global paths from the node module lookup (TODO@esm does this work in ESM?)
-bootstrapNode.removeGlobalNodeModuleLookupPaths();
+// Remove global paths from the node module lookup (node.js only)
+bootstrapNode.removeGlobalNodeJsModuleLookupPaths();
 
 // Enable ASAR in our forked processes
 bootstrapNode.enableASARSupport();
