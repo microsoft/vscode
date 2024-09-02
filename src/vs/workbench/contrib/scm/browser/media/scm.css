@@ -471,6 +471,10 @@
 
 /* Graph */
 
+.monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker {
+	display: flex;
+}
+
 .monaco-toolbar .action-label.scm-graph-repository-picker {
 	align-items: center;
 	font-weight: normal;
