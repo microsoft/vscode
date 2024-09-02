@@ -94,17 +94,18 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 	}
 
 	private serializeNotebookToJSON(notebookContent: Partial<nbformat.INotebookContent>, indentAmount: string): Promise<string> {
-		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
-		const sorted = sortObjectPropertiesRecursively(notebookContent);
 
 		const isInNodeJSContext = typeof process !== 'undefined' && process.release && process.release.name === 'node';
 		const experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', false);
 		if (isInNodeJSContext && experimentalSave) {
 			return this.serializeViaWorker({
-				notebookContent: sorted,
+				notebookContent,
 				indentAmount
 			});
 		} else {
+			// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
+			const sorted = sortObjectPropertiesRecursively(notebookContent);
+
 			return Promise.resolve(JSON.stringify(sorted, undefined, indentAmount));
 		}
 	}
