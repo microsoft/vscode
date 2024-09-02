@@ -71,9 +71,9 @@ export class EmergencyAlert implements IWorkbenchContribution {
 
 		for (const emergencyAlert of emergencyAlerts.alerts) {
 			if (
-				emergencyAlert.commit !== this.productService.commit ||				// version mismatch
-				emergencyAlert.platform && emergencyAlert.platform !== platform ||	// platform mismatch
-				emergencyAlert.arch && emergencyAlert.arch !== arch					// arch mismatch
+				(emergencyAlert.commit !== this.productService.commit) ||				// version mismatch
+				(emergencyAlert.platform && emergencyAlert.platform !== platform) ||	// platform mismatch
+				(emergencyAlert.arch && emergencyAlert.arch !== arch)					// arch mismatch
 			) {
 				return; // skip versions we are not on
 			}
