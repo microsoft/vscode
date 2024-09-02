@@ -2557,7 +2557,7 @@ export class SCMViewPane extends ViewPane {
 
 	private getSelectedResources(wantResourceGroups: boolean): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
 		return this.tree.getSelection()
-			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
+			.filter(r => !!r && wantResourceGroups ? isSCMResourceGroup(r) : !isSCMResourceGroup(r))! as any;
 	}
 
 	private getViewMode(): ViewMode {
