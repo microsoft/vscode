@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { notebookSerializationWorkerData } from './common';
-
-const { workerData, parentPort } = require('worker_threads');
+import { workerData, parentPort } from 'node:worker_threads';
 
 if (parentPort) {
 	const { notebookContent, indentAmount } = <notebookSerializationWorkerData>workerData;
