@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 export class EditContextWrapper {
 
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
-	private _compositionRange: Range | undefined;
+	private _compositionRangeWithinEditor: Range | undefined;
 
 	constructor(private readonly _editContext: EditContext) { }
 
@@ -51,10 +51,6 @@ export class EditContextWrapper {
 		this._editContext.updateSelection(selectionStart, selectionEnd);
 	}
 
-	updateTextStartPositionWithinEditor(textStartPositionWithinEditor: Position): void {
-		this._textStartPositionWithinEditor = textStartPositionWithinEditor;
-	}
-
 	updateControlBounds(controlBounds: DOMRect): void {
 		this._editContext.updateControlBounds(controlBounds);
 	}
@@ -67,8 +63,12 @@ export class EditContextWrapper {
 		this._editContext.updateCharacterBounds(rangeStart, characterBounds);
 	}
 
-	updateCompositionRange(compositionRange: Range | undefined): void {
-		this._compositionRange = compositionRange;
+	updateTextStartPositionWithinEditor(textStartPositionWithinEditor: Position): void {
+		this._textStartPositionWithinEditor = textStartPositionWithinEditor;
+	}
+
+	updateCompositionRangeWithinEditor(compositionRange: Range | undefined): void {
+		this._compositionRangeWithinEditor = compositionRange;
 	}
 
 	public get text(): string {
@@ -91,8 +91,8 @@ export class EditContextWrapper {
 		return this._textStartPositionWithinEditor;
 	}
 
-	public get compositionRange(): Range | undefined {
-		return this._compositionRange;
+	public get compositionRangeWithinEditor(): Range | undefined {
+		return this._compositionRangeWithinEditor;
 	}
 }
 

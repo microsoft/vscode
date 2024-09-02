@@ -17,7 +17,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
 interface ScreenReaderContentInfo {
@@ -26,7 +25,7 @@ interface ScreenReaderContentInfo {
 	selectionOffsetEnd: number;
 }
 
-export class ScreenReaderSupport extends Disposable {
+export class ScreenReaderSupport {
 
 	// HTMLElement
 	private _domNode: FastDomNode<HTMLElement>;
@@ -53,7 +52,6 @@ export class ScreenReaderSupport extends Disposable {
 		context: ViewContext,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		super();
 		this._domNode = domNode;
 		this._context = context;
 		this._updateConfigurationSettings();
