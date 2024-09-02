@@ -35,7 +35,6 @@ const vscodeWebResourceIncludes = !isAMD() ? [
 
 	// NLS
 	'out-build/nls.messages.js',
-	'out-build/vs/loader.js', // TODO@esm remove once AMD is removed
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
@@ -231,7 +230,9 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
-		const sources = es.merge(src, extensions)
+		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); //TODO@esm remove me once AMD is gone
+
+		const sources = es.merge(...(isESM ? [src, extensions, loader] : [src, extensions]))
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
 
 		const name = product.nameShort;
@@ -287,7 +288,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	const destinationFolderName = `vscode-web`;
 
 	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
-		compileWebExtensionsBuildTask,
+		// compileWebExtensionsBuildTask,
 		minified ? minifyVSCodeWebTask : optimizeVSCodeWebTask,
 		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 		packageTask(sourceFolderName, destinationFolderName)
@@ -295,7 +296,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
-		compileBuildTask,
+		// compileBuildTask,
 		vscodeWebTaskCI
 	));
 	gulp.task(vscodeWebTask);
