@@ -337,6 +337,8 @@ CommandsRegistry.registerCommand({
 				explorerView.autoReveal = oldAutoReveal;
 			}
 		} else {
+			// Do not reveal the open editors view if it's hidden explicitly
+			// See https://github.com/microsoft/vscode/issues/227378
 			const openEditorsView = viewService.getViewWithId(OpenEditorsView.ID);
 			if (openEditorsView) {
 				openEditorsView.setExpanded(true);
