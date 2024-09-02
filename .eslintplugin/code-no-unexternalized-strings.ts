@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
+import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
 
 function isStringLiteral(node: TSESTree.Node | null | undefined): node is TSESTree.StringLiteral {
 	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';

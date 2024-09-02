@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
 const VALID_USES = new Set<TSESTree.AST_NODE_TYPES | undefined>([
 	TSESTree.AST_NODE_TYPES.AwaitExpression,

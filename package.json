@@ -136,7 +136,6 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/experimental-utils": "^5.57.0",
     "@typescript-eslint/parser": "^6.21.0",
     "@vscode/gulp-electron": "^1.36.0",
     "@vscode/l10n-dev": "0.0.35",

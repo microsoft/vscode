@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/experimental-utils';
+import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 
 export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
