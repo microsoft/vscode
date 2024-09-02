@@ -90,10 +90,6 @@ function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is Collap
 	return typeof (update as any).collapsible === 'boolean';
 }
 
-export interface IList<T> extends ISpliceable<T> {
-	updateElementHeight(index: number, height: number | undefined): void;
-}
-
 export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	readonly rootRef = [];
@@ -119,7 +115,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 	constructor(
 		private user: string,
-		private list: IList<ITreeNode<T, TFilterData>>,
+		private list: ISpliceable<ITreeNode<T, TFilterData>>,
 		rootElement: T,
 		options: IIndexTreeModelOptions<T, TFilterData> = {}
 	) {
@@ -342,15 +338,6 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		if (node.visible && revealed) {
 			this.list.splice(listIndex, 1, [node]);
 		}
-	}
-
-	updateElementHeight(location: number[], height: number | undefined): void {
-		if (location.length === 0) {
-			throw new TreeError(this.user, 'Invalid tree location');
-		}
-
-		const { listIndex } = this.getTreeNodeWithListIndex(location);
-		this.list.updateElementHeight(listIndex, height);
 	}
 
 	has(location: number[]): boolean {
