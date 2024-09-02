@@ -35,6 +35,7 @@ const vscodeWebResourceIncludes = !isAMD() ? [
 
 	// NLS
 	'out-build/nls.messages.js',
+	'out-build/vs/loader.js', // TODO@esm remove once AMD is removed
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
