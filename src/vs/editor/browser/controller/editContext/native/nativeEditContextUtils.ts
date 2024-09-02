@@ -7,6 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
+
 export class EditContextWrapper {
 
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
