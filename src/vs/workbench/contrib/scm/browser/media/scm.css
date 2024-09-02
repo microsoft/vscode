@@ -169,6 +169,14 @@
 	border-radius: 14px;
 }
 
+.scm-view .monaco-list-row .history-item .monaco-icon-label.history-item-current .label-name {
+	font-weight: 600;
+}
+
+.scm-view .monaco-list-row .history-item .monaco-icon-label.history-item-current .label-description {
+	font-weight: 500;
+}
+
 .scm-view .monaco-list-row .history > .name,
 .scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
