@@ -184,6 +184,34 @@ import { GroupOrientation } from './services/editor/common/editorGroupsService.j
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from '../platform/remote/common/remoteAuthorityResolver.js';
 
+// TODO@esm remove me once AMD is gone
+if ((globalThis as any).__VSCODE_WEB_ESM_PROMISE) {
+	(globalThis as any).__VSCODE_WEB_ESM_PROMISE({
+
+		// Factory
+		create,
+
+		// Basic Types
+		URI,
+		Event,
+		Emitter,
+		Disposable,
+		// GroupOrientation,
+		LogLevel,
+		RemoteAuthorityResolverError,
+		RemoteAuthorityResolverErrorCode,
+
+		// Facade API
+		env,
+		window,
+		workspace,
+		commands,
+		logger,
+		Menu
+	});
+	delete (globalThis as any).__VSCODE_WEB_ESM_PROMISE;
+}
+
 export {
 
 	// Factory
