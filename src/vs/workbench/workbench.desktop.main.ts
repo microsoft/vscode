@@ -175,6 +175,9 @@ import './contrib/inlineChat/electron-sandbox/inlineChat.contribution.js';
 // Encryption
 import './contrib/encryption/electron-sandbox/encryption.contribution.js';
 
+// Emergency Alert
+import './contrib/emergencyAlert/electron-sandbox/emergencyAlert.contribution.js';
+
 //#endregion
 
 
