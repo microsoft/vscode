@@ -294,6 +294,15 @@ function optimizeESMTask(opts, cjsOpts) {
         return { files };
     };
     bundleAsync().then((output) => {
+        // Copy workbench.web.main.internal.css to workbench.web.main.css (TODO@esm remove me once AMD is gone)
+        const webCSSFile = output.files.find(file => file.path.endsWith('workbench.web.main.internal.css'));
+        if (webCSSFile && Buffer.isBuffer(webCSSFile.contents)) {
+            output.files.push(new VinylFile({
+                contents: webCSSFile.contents,
+                path: webCSSFile.path.replace('workbench.web.main.internal.css', 'workbench.web.main.css'),
+                base: webCSSFile.base
+            }));
+        }
         // bundle output (JS, CSS, SVG...)
         es.readArray(output.files).pipe(bundlesStream);
         // forward all resources
