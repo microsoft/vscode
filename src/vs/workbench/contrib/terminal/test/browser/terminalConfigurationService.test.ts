@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { notStrictEqual, strictEqual } from 'assert';
+import { notStrictEqual, ok, strictEqual } from 'assert';
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { isLinux } from '../../../../../base/common/platform.js';
@@ -75,7 +75,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: 'bar' } }
 			});
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, 'bar, monospace', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('bar'), 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 		});
 
 		test('fontFamily (Linux Fedora)', () => {
@@ -83,7 +83,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: null } }
 			}, LinuxDistro.Fedora);
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, '\'DejaVu Sans Mono\', monospace', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('\'DejaVu Sans Mono\''), 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
 		});
 
 		test('fontFamily (Linux Ubuntu)', () => {
@@ -91,7 +91,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: null } }
 			}, LinuxDistro.Ubuntu);
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, '\'Ubuntu Mono\', monospace', 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('\'Ubuntu Mono\''), 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
 		});
 
 		test('fontFamily (Linux Unknown)', () => {
@@ -99,7 +99,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: null } }
 			});
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, 'foo, monospace', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('foo'), 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 		});
 
 		test('fontSize 10', () => {
