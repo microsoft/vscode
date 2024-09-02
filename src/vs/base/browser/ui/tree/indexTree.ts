@@ -48,7 +48,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 
 		const elementIndex = this.model.getListIndex(location);
 		if (elementIndex === -1) {
-			throw new TreeError(this.user, `Update element height failed: index not found`);
+			return;
 		}
 
 		this.view.updateElementHeight(elementIndex, height);
