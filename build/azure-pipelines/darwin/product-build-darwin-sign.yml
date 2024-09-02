@@ -3,7 +3,7 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      #nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: UseDotNet@2
     inputs:
@@ -13,7 +13,7 @@ steps:
     continueOnError: true
     displayName: Download ESRPClient
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"

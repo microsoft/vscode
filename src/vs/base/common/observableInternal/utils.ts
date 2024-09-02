@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunOpts } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { DebugNameData, IDebugNameData, DebugOwner, getDebugName, } from 'vs/base/common/observableInternal/debugName';
-import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
-import { IValueWithChangeEvent } from '../event';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { EqualityComparer, strictEquals } from 'vs/base/common/equals';
+import { Event, IValueWithChangeEvent } from '../event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../lifecycle.js';
+import { autorun, autorunOpts } from './autorun.js';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base.js';
+import { DebugNameData, IDebugNameData, DebugOwner, getDebugName, } from './debugName.js';
+import { derived, derivedOpts } from './derived.js';
+import { getLogger } from './logging.js';
+import { BugIndicatingError } from '../errors.js';
+import { EqualityComparer, strictEquals } from '../equals.js';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -607,4 +606,13 @@ export function latestChangedValue<T extends IObservable<any>[]>(owner: DebugOwn
 		}
 	});
 	return result;
+}
+
+/**
+ * Works like a derived.
+ * However, if the value is not undefined, it is cached and will not be recomputed anymore.
+ * In that case, the derived will unsubscribe from its dependencies.
+*/
+export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IReader) => T): IObservable<T | undefined> {
+	return derivedObservableWithCache<T | undefined>(owner, (reader, lastValue) => lastValue ?? fn(reader));
 }

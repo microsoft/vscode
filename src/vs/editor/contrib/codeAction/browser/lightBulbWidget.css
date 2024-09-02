@@ -45,11 +45,9 @@
 }
 
 /* gutter decoration */
-.monaco-editor .glyph-margin-widgets .cgmr {
+.monaco-editor .glyph-margin-widgets .cgmr[class*="codicon-gutter-lightbulb"] {
 	display: block;
 	cursor: pointer;
-	opacity: 1;
-	transition: opacity .2s ease-in-out;
 }
 
 .monaco-editor .glyph-margin-widgets .cgmr.codicon-gutter-lightbulb,

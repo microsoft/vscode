@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, INTERNAL_AUTH_PROVIDER_PREFIX as INTERNAL_MODEL_AUTH_PROVIDER_PREFIX, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from 'vs/workbench/services/authentication/common/authentication';
-import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import { getAuthenticationProviderActivationEvent } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import * as nls from '../../../nls.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, INTERNAL_AUTH_PROVIDER_PREFIX as INTERNAL_MODEL_AUTH_PROVIDER_PREFIX, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from '../../services/authentication/common/authentication.js';
+import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../base/common/severity.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { ActivationKind, IExtensionService } from '../../services/extensions/common/extensions.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
+import { IAuthenticationUsageService } from '../../services/authentication/browser/authenticationUsageService.js';
+import { getAuthenticationProviderActivationEvent } from '../../services/authentication/browser/authenticationService.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { CancellationError } from '../../../base/common/errors.js';
 
 interface AuthenticationForceNewSessionOptions {
 	detail?: string;
@@ -159,6 +160,31 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return result ?? false;
 	}
 
+	private async continueWithIncorrectAccountPrompt(chosenAccountLabel: string, requestedAccountLabel: string): Promise<boolean> {
+		const result = await this.dialogService.prompt({
+			message: nls.localize('incorrectAccount', "Incorrect account detected"),
+			detail: nls.localize('incorrectAccountDetail', "The chosen account, {0}, does not match the requested account, {1}.", chosenAccountLabel, requestedAccountLabel),
+			type: Severity.Warning,
+			cancelButton: true,
+			buttons: [
+				{
+					label: nls.localize('keep', 'Keep {0}', chosenAccountLabel),
+					run: () => chosenAccountLabel
+				},
+				{
+					label: nls.localize('loginWith', 'Login with {0}', requestedAccountLabel),
+					run: () => requestedAccountLabel
+				}
+			],
+		});
+
+		if (!result.result) {
+			throw new CancellationError();
+		}
+
+		return result.result === chosenAccountLabel;
+	}
+
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(providerId, scopes, options.account, true);
 		const provider = this.authenticationService.getProvider(providerId);
@@ -212,18 +238,25 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				throw new Error('User did not consent to login.');
 			}
 
-			let session;
+			let session: AuthenticationSession;
 			if (sessions?.length && !options.forceNewSession) {
 				session = provider.supportsMultipleAccounts && !options.account
 					? await this.authenticationExtensionsService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
 					: sessions[0];
 			} else {
-				let account: AuthenticationSessionAccount | undefined = options.account;
-				if (!account) {
+				let accountToCreate: AuthenticationSessionAccount | undefined = options.account;
+				if (!accountToCreate) {
 					const sessionIdToRecreate = this.authenticationExtensionsService.getSessionPreference(providerId, extensionId, scopes);
-					account = sessionIdToRecreate ? sessions.find(session => session.id === sessionIdToRecreate)?.account : undefined;
+					accountToCreate = sessionIdToRecreate ? sessions.find(session => session.id === sessionIdToRecreate)?.account : undefined;
 				}
-				session = await this.authenticationService.createSession(providerId, scopes, { activateImmediate: true, account });
+
+				do {
+					session = await this.authenticationService.createSession(providerId, scopes, { activateImmediate: true, account: accountToCreate });
+				} while (
+					accountToCreate
+					&& accountToCreate.label !== session.account.label
+					&& !await this.continueWithIncorrectAccountPrompt(session.account.label, accountToCreate.label)
+				);
 			}
 
 			this.authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [{ id: extensionId, name: extensionName, allowed: true }]);
@@ -261,15 +294,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
-		const sessions = await this.authenticationService.getSessions(providerId);
-		const accounts = new Array<AuthenticationSessionAccount>();
-		const seenAccounts = new Set<string>();
-		for (const session of sessions) {
-			if (!seenAccounts.has(session.account.label)) {
-				seenAccounts.add(session.account.label);
-				accounts.push(session.account);
-			}
-		}
+		const accounts = await this.authenticationService.getAccounts(providerId);
 		return accounts;
 	}
 

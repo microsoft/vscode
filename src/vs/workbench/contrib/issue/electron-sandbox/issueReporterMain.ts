@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { safeInnerHtml } from 'vs/base/browser/dom';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
-import 'vs/css!./media/issueReporter';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IIssueMainService, IProcessMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
-import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
-import { mainWindow } from 'vs/base/browser/window';
+import { safeInnerHtml } from '../../../../base/browser/dom.js';
+import '../../../../base/browser/ui/codicons/codiconStyles.js'; // make sure codicon css is loaded
+import { mainWindow } from '../../../../base/browser/window.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import './media/issueReporter.css';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { getSingletonServiceDescriptors } from '../../../../platform/instantiation/common/extensions.js';
+import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { ElectronIPCMainProcessService } from '../../../../platform/ipc/electron-sandbox/mainProcessService.js';
+import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
+import BaseHtml from '../browser/issueReporterPage.js';
+import { IProcessMainService, IIssueMainService, OldIssueReporterWindowConfiguration } from '../../../../platform/issue/common/issue.js';
+import { IssueReporter } from './issueReporterService.js';
 
 
-export function startup(configuration: IssueReporterWindowConfiguration) {
+export function startup(configuration: OldIssueReporterWindowConfiguration) {
 	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
@@ -30,7 +30,7 @@ export function startup(configuration: IssueReporterWindowConfiguration) {
 
 	const instantiationService = initServices(configuration.windowId);
 
-	const issueReporter = instantiationService.createInstance(IssueReporter2, configuration);
+	const issueReporter = instantiationService.createInstance(IssueReporter, configuration);
 	issueReporter.render();
 	mainWindow.document.body.style.display = 'block';
 	issueReporter.setInitialFocus();

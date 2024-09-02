@@ -7,27 +7,27 @@ import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { Event } from 'vs/base/common/event';
-import { isAbsolute, resolve, join, dirname } from 'vs/base/common/path';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { randomPort } from 'vs/base/common/ports';
-import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
-import { findFreePort } from 'vs/base/node/ports';
-import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { buildHelpMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from 'vs/platform/environment/node/argv';
-import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
-import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
-import product from 'vs/platform/product/common/product';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isUNC, randomPath } from 'vs/base/common/extpath';
-import { Utils } from 'vs/platform/profiling/common/profiling';
-import { FileAccess } from 'vs/base/common/network';
-import { cwd } from 'vs/base/common/process';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
-import { URI } from 'vs/base/common/uri';
-import { DeferredPromise } from 'vs/base/common/async';
+import { Event } from '../../base/common/event.js';
+import { isAbsolute, resolve, join, dirname } from '../../base/common/path.js';
+import { IProcessEnvironment, isMacintosh, isWindows } from '../../base/common/platform.js';
+import { randomPort } from '../../base/common/ports.js';
+import { whenDeleted, writeFileSync } from '../../base/node/pfs.js';
+import { findFreePort } from '../../base/node/ports.js';
+import { watchFileContents } from '../../platform/files/node/watcher/nodejs/nodejsWatcherLib.js';
+import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
+import { buildHelpMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from '../../platform/environment/node/argv.js';
+import { addArg, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
+import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
+import product from '../../platform/product/common/product.js';
+import { CancellationTokenSource } from '../../base/common/cancellation.js';
+import { isUNC, randomPath } from '../../base/common/extpath.js';
+import { Utils } from '../../platform/profiling/common/profiling.js';
+import { FileAccess } from '../../base/common/network.js';
+import { cwd } from '../../base/common/process.js';
+import { addUNCHostToAllowlist } from '../../base/node/unc.js';
+import { URI } from '../../base/common/uri.js';
+import { DeferredPromise } from '../../base/common/async.js';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -55,19 +55,28 @@ export async function main(argv: string[]): Promise<any> {
 				console.error(`'${subcommand}' command not supported in ${product.applicationName}`);
 				return;
 			}
+			const env: IProcessEnvironment = {
+				...process.env
+			};
+			// bootstrap-amd.js determines the electron environment based
+			// on the following variable. For the server we need to unset
+			// it to prevent importing any electron specific modules.
+			// Refs https://github.com/microsoft/vscode/issues/221883
+			delete env['ELECTRON_RUN_AS_NODE'];
+
 			const tunnelArgs = argv.slice(argv.indexOf(subcommand) + 1); // all arguments behind `tunnel`
 			return new Promise((resolve, reject) => {
 				let tunnelProcess: ChildProcess;
 				const stdio: StdioOptions = ['ignore', 'pipe', 'pipe'];
 				if (process.env['VSCODE_DEV']) {
-					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio });
+					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio, env });
 				} else {
 					const appPath = process.platform === 'darwin'
 						// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
 						? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 						: dirname(process.execPath);
 					const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio });
+					tunnelProcess = spawn(tunnelCommand, [subcommand, ...tunnelArgs], { cwd: cwd(), stdio, env });
 				}
 
 				tunnelProcess.stdout!.pipe(process.stdout);
@@ -108,8 +117,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-
-		const cli = await import('vs/code/node/cliProcessMain');
+		const cli = await import(['vs', 'code', 'node', 'cliProcessMain'].join('/') /* TODO@esm workaround to prevent esbuild from inlining this */);
 		await cli.main(args);
 
 		return;
@@ -389,7 +397,10 @@ export async function main(argv: string[]): Promise<any> {
 									return false;
 								}
 								if (target.type === 'page') {
-									return target.url.indexOf('workbench/workbench.html') > 0 || target.url.indexOf('workbench/workbench-dev.html') > 0;
+									return target.url.indexOf('workbench/workbench.html') > 0 ||
+										target.url.indexOf('workbench/workbench-dev.html') > 0 ||
+										target.url.indexOf('workbench/workbench.esm.html') > 0 ||
+										target.url.indexOf('workbench/workbench-dev.esm.html') > 0;
 								} else {
 									return true;
 								}

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import type { IMarker, Terminal } from '@xterm/xterm';
 
 export class BufferContentTracker extends Disposable {

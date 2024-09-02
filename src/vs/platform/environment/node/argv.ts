@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist from 'minimist';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
+import { NativeParsedArgs } from '../common/argv.js';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.

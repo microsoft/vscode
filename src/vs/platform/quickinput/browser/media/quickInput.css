@@ -177,7 +177,6 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	display: flex;
-	height: 100%;
 	padding: 0 6px;
 }
 
@@ -300,7 +299,7 @@
 
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin-right: 4px;
-	padding: 0px 2px 2px 2px;
+	padding: 2px;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {

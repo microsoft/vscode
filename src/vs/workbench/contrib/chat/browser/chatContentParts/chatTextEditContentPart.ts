@@ -3,38 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { TextEdit } from 'vs/editor/common/languages';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/model';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import * as dom from '../../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
+import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { DefaultModelSHA1Computer } from '../../../../../editor/common/services/modelService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatListItemRendererOptions } from '../chat.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatRendererDelegate } from '../chatListRenderer.js';
+import { ChatEditorOptions } from '../chatOptions.js';
+import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from '../codeBlockPart.js';
+import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 
 const $ = dom.$;
 
+const ICodeCompareModelService = createDecorator<ICodeCompareModelService>('ICodeCompareModelService');
+
+interface ICodeCompareModelService {
+	_serviceBrand: undefined;
+	createModel(response: IChatResponseViewModel, chatTextEdit: IChatTextEditGroup): Promise<IReference<{ originalSha1: string; original: IResolvedTextEditorModel; modified: IResolvedTextEditorModel }>>;
+}
+
 export class ChatTextEditContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-	private readonly ref: IDisposableReference<CodeCompareBlockPart> | undefined;
+	private readonly comparePart: IDisposableReference<CodeCompareBlockPart> | undefined;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -45,18 +54,18 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 		rendererOptions: IChatListItemRendererOptions,
 		diffEditorPool: DiffEditorPool,
 		currentWidth: number,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IModelService private readonly modelService: IModelService,
-		@IChatService private readonly chatService: IChatService,
+		@ICodeCompareModelService private readonly codeCompareModelService: ICodeCompareModelService
 	) {
 		super();
 		const element = context.element;
 
+		assertType(isResponseVM(element));
+
 		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
 		if (rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {
-			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup')) {
+			if (element.response.value.every(item => item.kind === 'textEditGroup')) {
 				this.domNode = $('.interactive-edits-summary', undefined, !element.isComplete
-					? localize('editsSummary1', "Making changes...")
+					? ''
 					: element.isCanceled
 						? localize('edits0', "Making changes was aborted.")
 						: localize('editsSummary', "Made changes."));
@@ -77,11 +86,11 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 				cts.dispose(true);
 			}));
 
-			this.ref = this._register(diffEditorPool.get());
+			this.comparePart = this._register(diffEditorPool.get());
 
 			// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 			// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-			this._register(this.ref.object.onDidChangeContentHeight(() => {
+			this._register(this.comparePart.object.onDidChangeContentHeight(() => {
 				this._onDidChangeHeight.fire();
 			}));
 
@@ -90,7 +99,7 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 				edit: chatTextEdit,
 				diffData: (async () => {
 
-					const ref = await this.textModelService.createModelReference(chatTextEdit.uri);
+					const ref = await this.codeCompareModelService.createModel(element, chatTextEdit);
 
 					if (isDisposed) {
 						ref.dispose();
@@ -99,70 +108,21 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 
 					this._register(ref);
 
-					const original = ref.object.textEditorModel;
-					let originalSha1: string = '';
-
-					if (chatTextEdit.state) {
-						originalSha1 = chatTextEdit.state.sha1;
-					} else {
-						const sha1 = new DefaultModelSHA1Computer();
-						if (sha1.canComputeSHA1(original)) {
-							originalSha1 = sha1.computeSHA1(original);
-							chatTextEdit.state = { sha1: originalSha1, applied: 0 };
-						}
-					}
-
-					const modified = this.modelService.createModel(
-						createTextBufferFactoryFromSnapshot(original.createSnapshot()),
-						{ languageId: original.getLanguageId(), onDidChange: Event.None },
-						URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path, query: generateUuid() }),
-						false
-					);
-					const modRef = await this.textModelService.createModelReference(modified.uri);
-					this._register(modRef);
-
-					const editGroups: ISingleEditOperation[][] = [];
-					if (isResponseVM(element)) {
-						const chatModel = this.chatService.getSession(element.sessionId)!;
-
-						for (const request of chatModel.getRequests()) {
-							if (!request.response) {
-								continue;
-							}
-							for (const item of request.response.response.value) {
-								if (item.kind !== 'textEditGroup' || item.state?.applied || !isEqual(item.uri, chatTextEdit.uri)) {
-									continue;
-								}
-								for (const group of item.edits) {
-									const edits = group.map(TextEdit.asEditOperation);
-									editGroups.push(edits);
-								}
-							}
-							if (request.response === element.model) {
-								break;
-							}
-						}
-					}
-
-					for (const edits of editGroups) {
-						modified.pushEditOperations(null, edits, () => null);
-					}
-
 					return {
-						modified,
-						original,
-						originalSha1
+						modified: ref.object.modified.textEditorModel,
+						original: ref.object.original.textEditorModel,
+						originalSha1: ref.object.originalSha1
 					} satisfies ICodeCompareBlockDiffData;
 				})()
 			};
-			this.ref.object.render(data, currentWidth, cts.token);
+			this.comparePart.object.render(data, currentWidth, cts.token);
 
-			this.domNode = this.ref.object.element;
+			this.domNode = this.comparePart.object.element;
 		}
 	}
 
 	layout(width: number): void {
-		this.ref?.object.layout(width);
+		this.comparePart?.object.layout(width);
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
@@ -209,3 +169,87 @@ export class DiffEditorPool extends Disposable {
 		};
 	}
 }
+
+class CodeCompareModelService implements ICodeCompareModelService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IModelService private readonly modelService: IModelService,
+		@IChatService private readonly chatService: IChatService,
+	) { }
+
+	async createModel(element: IChatResponseViewModel, chatTextEdit: IChatTextEditGroup): Promise<IReference<{ originalSha1: string; original: IResolvedTextEditorModel; modified: IResolvedTextEditorModel }>> {
+
+		const original = await this.textModelService.createModelReference(chatTextEdit.uri);
+
+		const modified = await this.textModelService.createModelReference((this.modelService.createModel(
+			createTextBufferFactoryFromSnapshot(original.object.textEditorModel.createSnapshot()),
+			{ languageId: original.object.textEditorModel.getLanguageId(), onDidChange: Event.None },
+			URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: chatTextEdit.uri.path, query: generateUuid() }),
+			false
+		)).uri);
+
+		const d = new RefCountedDisposable(toDisposable(() => {
+			original.dispose();
+			modified.dispose();
+		}));
+
+		// compute the sha1 of the original model
+		let originalSha1: string = '';
+		if (chatTextEdit.state) {
+			originalSha1 = chatTextEdit.state.sha1;
+		} else {
+			const sha1 = new DefaultModelSHA1Computer();
+			if (sha1.canComputeSHA1(original.object.textEditorModel)) {
+				originalSha1 = sha1.computeSHA1(original.object.textEditorModel);
+				chatTextEdit.state = { sha1: originalSha1, applied: 0 };
+			}
+		}
+
+		// apply edits to the "modified" model
+		const chatModel = this.chatService.getSession(element.sessionId)!;
+		const editGroups: ISingleEditOperation[][] = [];
+		for (const request of chatModel.getRequests()) {
+			if (!request.response) {
+				continue;
+			}
+			for (const item of request.response.response.value) {
+				if (item.kind !== 'textEditGroup' || item.state?.applied || !isEqual(item.uri, chatTextEdit.uri)) {
+					continue;
+				}
+				for (const group of item.edits) {
+					const edits = group.map(TextEdit.asEditOperation);
+					editGroups.push(edits);
+				}
+			}
+			if (request.response === element.model) {
+				break;
+			}
+		}
+		for (const edits of editGroups) {
+			modified.object.textEditorModel.pushEditOperations(null, edits, () => null);
+		}
+
+		// self-acquire a reference to diff models for a short while
+		// because streaming usually means we will be using the original-model
+		// repeatedly and thereby also should reuse the modified-model and just
+		// update it with more edits
+		d.acquire();
+		setTimeout(() => d.release(), 5000);
+
+		return {
+			object: {
+				originalSha1,
+				original: original.object,
+				modified: modified.object
+			},
+			dispose() {
+				d.release();
+			},
+		};
+	}
+}
+
+registerSingleton(ICodeCompareModelService, CodeCompareModelService, InstantiationType.Delayed);

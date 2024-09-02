@@ -7,6 +7,7 @@ import { ExtensionContext, Uri, l10n } from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
+import { registerDropOrPasteResourceSupport } from '../dropOrPaste/dropOrPasteResource';
 
 let client: BaseLanguageClient | undefined;
 
@@ -23,6 +24,7 @@ export async function activate(context: ExtensionContext) {
 
 		client = await startClient(context, newLanguageClient, { TextDecoder });
 
+		context.subscriptions.push(registerDropOrPasteResourceSupport({ language: 'css', scheme: '*' }));
 	} catch (e) {
 		console.log(e);
 	}

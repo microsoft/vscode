@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { Command, Location, TextEdit } from 'vs/editor/common/languages';
-import { FileType } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ISelection } from '../../../../editor/common/core/selection.js';
+import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
+import { FileType } from '../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { IParsedChatRequest } from './chatParserTypes.js';
+import { IChatParserContext } from './chatRequestParser.js';
+import { IChatRequestVariableValue } from './chatVariables.js';
 
 export interface IChatRequest {
 	message: string;
@@ -75,10 +75,24 @@ export interface IChatContentVariableReference {
 	value?: URI | Location;
 }
 
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
+}
+
 export interface IChatContentReference {
-	reference: URI | Location | IChatContentVariableReference;
+	reference: URI | Location | IChatContentVariableReference | string;
 	iconPath?: ThemeIcon | { light: URI; dark?: URI };
+	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 	kind: 'reference';
+}
+
+export interface IChatCodeCitation {
+	value: URI;
+	license: string;
+	snippet: string;
+	kind: 'codeCitation';
 }
 
 export interface IChatContentInlineReference {
@@ -150,6 +164,12 @@ export interface IChatCommandButton {
 	kind: 'command';
 }
 
+export interface IChatMoveMessage {
+	uri: URI;
+	range: IRange;
+	kind: 'move';
+}
+
 export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
@@ -172,6 +192,7 @@ export type IChatProgress =
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
+	| IChatCodeCitation
 	| IChatAgentDetection
 	| IChatProgressMessage
 	| IChatTask
@@ -179,6 +200,7 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatMoveMessage
 	| IChatConfirmation;
 
 export interface IChatFollowup {
@@ -195,10 +217,22 @@ export enum ChatAgentVoteDirection {
 	Up = 1
 }
 
+export enum ChatAgentVoteDownReason {
+	IncorrectCode = 'incorrectCode',
+	DidNotFollowInstructions = 'didNotFollowInstructions',
+	IncompleteCode = 'incompleteCode',
+	MissingContext = 'missingContext',
+	PoorlyWrittenOrFormatted = 'poorlyWrittenOrFormatted',
+	RefusedAValidRequest = 'refusedAValidRequest',
+	OffensiveOrUnsafe = 'offensiveOrUnsafe',
+	Other = 'other',
+	WillReportIssue = 'willReportIssue'
+}
+
 export interface IChatVoteAction {
 	kind: 'vote';
 	direction: ChatAgentVoteDirection;
-	reportIssue?: boolean;
+	reason: ChatAgentVoteDownReason | undefined;
 }
 
 export enum ChatCopyKind {
@@ -221,6 +255,8 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
+	userAction?: string;
+	codeMapper?: string;
 }
 
 export interface IChatTerminalAction {
@@ -280,6 +316,8 @@ export interface IChatCompleteResponse {
 export interface IChatDetail {
 	sessionId: string;
 	title: string;
+	lastMessageDate: number;
+	isActive: boolean;
 }
 
 export interface IChatProviderInfo {
@@ -333,6 +371,11 @@ export interface IChatSendRequestOptions {
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
 	slashCommand?: string;
+
+	/**
+	 * The label of the confirmation action that was selected.
+	 */
+	confirmation?: string;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -360,6 +403,7 @@ export interface IChatService {
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	getHistory(): IChatDetail[];
+	setChatSessionTitle(sessionId: string, title: string): void;
 	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
 
