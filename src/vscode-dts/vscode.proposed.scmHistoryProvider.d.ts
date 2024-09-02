@@ -54,6 +54,7 @@ declare module 'vscode' {
 	export interface SourceControlHistoryItemLabel {
 		readonly title: string;
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		readonly color?: ThemeColor;
 	}
 
 	export interface SourceControlHistoryItem {

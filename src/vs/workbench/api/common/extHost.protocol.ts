@@ -1558,6 +1558,7 @@ export interface SCMHistoryItemDto {
 	readonly labels?: {
 		readonly title: string;
 		readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+		readonly color?: ThemeColor;
 	}[];
 }
 

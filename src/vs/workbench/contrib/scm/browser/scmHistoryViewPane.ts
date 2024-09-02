@@ -241,8 +241,6 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
 		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches, extraClasses });
 
-		console.log(extraClasses);
-
 		templateData.labelContainer.textContent = '';
 		for (const label of historyItem.labels ?? []) {
 			if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
@@ -255,7 +253,6 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	private getTooltip(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
 		const colorTheme = this.themeService.getColorTheme();
 		const historyItem = element.historyItemViewModel.historyItem;
-		const currentHistoryItemGroup = element.repository.provider.historyProvider.get()?.currentHistoryItemGroup?.get();
 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendMarkdown(`$(git-commit) \`${historyItem.displayId ?? historyItem.id}\`\n\n`);
@@ -298,33 +295,10 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		if ((historyItem.labels ?? []).length > 0) {
 			markdown.appendMarkdown(`\n\n---\n\n`);
 			markdown.appendMarkdown((historyItem.labels ?? []).map(label => {
-				let historyItemGroupHoverLabelBackgroundColor: string | undefined = undefined;
-				let historyItemGroupHoverLabelForegroundColor: string | undefined = undefined;
-
-				switch (label.title) {
-					case currentHistoryItemGroup?.name: {
-						historyItemGroupHoverLabelBackgroundColor = asCssVariable(historyItemGroupLocal);
-						historyItemGroupHoverLabelForegroundColor = asCssVariable(historyItemGroupHoverLabelForeground);
-						break;
-					}
-					case currentHistoryItemGroup?.remote?.name: {
-						historyItemGroupHoverLabelBackgroundColor = asCssVariable(historyItemGroupRemote);
-						historyItemGroupHoverLabelForegroundColor = asCssVariable(historyItemGroupHoverLabelForeground);
-						break;
-					}
-					case currentHistoryItemGroup?.base?.name: {
-						historyItemGroupHoverLabelBackgroundColor = asCssVariable(historyItemGroupBase);
-						historyItemGroupHoverLabelForegroundColor = asCssVariable(historyItemGroupHoverLabelForeground);
-						break;
-					}
-					default: {
-						historyItemGroupHoverLabelBackgroundColor = asCssVariable(historyItemStatisticsBorder);
-						historyItemGroupHoverLabelForegroundColor = asCssVariable(foreground);
-						break;
-					}
-				}
-
 				const historyItemGroupHoverLabelIconId = ThemeIcon.isThemeIcon(label.icon) ? label.icon.id : '';
+
+				const historyItemGroupHoverLabelBackgroundColor = label.color ? asCssVariable(label.color.id) : asCssVariable(historyItemStatisticsBorder);
+				const historyItemGroupHoverLabelForegroundColor = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(foreground);
 
 				return `<span style="color:${historyItemGroupHoverLabelForegroundColor};background-color:${historyItemGroupHoverLabelBackgroundColor};border-radius:2px;">&nbsp;$(${historyItemGroupHoverLabelIconId})&nbsp;${label.title}&nbsp;</span>`;
 			}).join('&nbsp;&nbsp;'));

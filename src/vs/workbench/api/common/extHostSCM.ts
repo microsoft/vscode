@@ -20,7 +20,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ExtensionIdentifierMap, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
+import { ThemeColor, ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { MarkdownString } from './extHostTypeConverters.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
@@ -72,7 +72,9 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 }
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
-	const labels = historyItem.labels?.map(l => ({ title: l.title, icon: getHistoryItemIconDto(l.icon) }));
+	const labels = historyItem.labels?.map(l => ({
+		title: l.title, icon: getHistoryItemIconDto(l.icon), color: ThemeColor.isThemeColor(l.color) ? l.color : undefined
+	}));
 
 	return { ...historyItem, labels };
 }
