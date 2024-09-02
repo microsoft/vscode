@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, lastOrDefault, numberComparator } from 'vs/base/common/arrays';
-import { findLast } from 'vs/base/common/arraysFind';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { concatArrays } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { LineRangeEdit } from './editing';
-import { LineRange } from './lineRange';
-import { rangeIsBeforeOrTouching, rangeContainsPosition, lengthBetweenPositions, addLength } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
+import { compareBy, lastOrDefault, numberComparator } from '../../../../../base/common/arrays.js';
+import { findLast } from '../../../../../base/common/arraysFind.js';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { concatArrays } from '../utils.js';
+import { LineRangeEdit } from './editing.js';
+import { LineRange } from './lineRange.js';
+import { rangeIsBeforeOrTouching, rangeContainsPosition, lengthBetweenPositions, addLength } from './rangeUtils.js';
 
 /**
  * Represents a mapping of an input line range to an output line range.

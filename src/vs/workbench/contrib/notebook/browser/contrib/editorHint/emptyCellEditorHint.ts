@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { EmptyTextEditorHintContribution, IEmptyTextEditorHintOptions } from 'vs/workbench/contrib/codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint';
-import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../../editor/browser/editorExtensions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { EmptyTextEditorHintContribution, IEmptyTextEditorHintOptions } from '../../../../codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint.js';
+import { IInlineChatSessionService } from '../../../../inlineChat/browser/inlineChatSessionService.js';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 
 export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribution {
 	public static readonly CONTRIB_ID = 'notebook.editor.contrib.emptyCellEditorHint';

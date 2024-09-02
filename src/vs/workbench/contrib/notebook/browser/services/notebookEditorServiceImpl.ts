@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeWindow } from 'vs/base/browser/window';
-import { ResourceMap } from 'vs/base/common/map';
-import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isCompositeNotebookEditorInput, isNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Emitter } from 'vs/base/common/event';
-import { GroupIdentifier, GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { Dimension } from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { CodeWindow } from '../../../../../base/browser/window.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from '../notebookEditorWidget.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IEditorGroupsService, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { isCompositeNotebookEditorInput, isNotebookEditorInput, NotebookEditorInput } from '../../common/notebookEditorInput.js';
+import { IBorrowValue, INotebookEditorService } from './notebookEditorService.js';
+import { INotebookEditor, INotebookEditorCreationOptions } from '../notebookBrowser.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { GroupIdentifier, GroupModelChangeKind } from '../../../../common/editor.js';
+import { Dimension } from '../../../../../base/browser/dom.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InteractiveWindowOpen } from '../../common/notebookContextKeys.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 

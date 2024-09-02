@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray, firstOrDefault } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { equals } from 'vs/base/common/objects';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI, UriComponents, UriDto, isUriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IRange } from 'vs/editor/common/core/range';
-import { TextEdit } from 'vs/editor/common/languages';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { asArray, firstOrDefault } from '../../../../base/common/arrays.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { revive } from '../../../../base/common/marshalling.js';
+import { equals } from '../../../../base/common/objects.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
+import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { IChatRequestVariableValue } from './chatVariables.js';
 
 export interface IChatRequestVariableEntry {
 	id: string;
@@ -616,6 +616,8 @@ export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChat
  * TODO- ChatModel#_deserialize and reviveSerializedAgent also still do some normalization and maybe that should be done in here too.
  */
 export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISerializableChatData {
+	normalizeOldFields(raw);
+
 	if (!('version' in raw)) {
 		return {
 			version: 3,
@@ -634,6 +636,30 @@ export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISe
 	}
 
 	return raw;
+}
+
+function normalizeOldFields(raw: ISerializableChatDataIn): void {
+	// Fill in fields that very old chat data may be missing
+	if (!raw.sessionId) {
+		raw.sessionId = generateUuid();
+	}
+
+	if (!raw.creationDate) {
+		raw.creationDate = getLastYearDate();
+	}
+
+	if ('version' in raw && (raw.version === 2 || raw.version === 3)) {
+		if (!raw.lastMessageDate) {
+			// A bug led to not porting creationDate properly, and that was copied to lastMessageDate, so fix that up if missing.
+			raw.lastMessageDate = getLastYearDate();
+		}
+	}
+}
+
+function getLastYearDate(): number {
+	const lastYearDate = new Date();
+	lastYearDate.setFullYear(lastYearDate.getFullYear() - 1);
+	return lastYearDate.getTime();
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {

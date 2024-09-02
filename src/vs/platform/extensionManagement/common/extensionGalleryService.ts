@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { IPager } from 'vs/base/common/paging';
-import { isWeb, platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
-import { isBoolean } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { areApiProposalsCompatible, isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, asTextOrError, IRequestService, isSuccess } from 'vs/platform/request/common/request';
-import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StopWatch } from 'vs/base/common/stopwatch';
+import { distinct } from '../../../base/common/arrays.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
+import { IPager } from '../../../base/common/paging.js';
+import { isWeb, platform } from '../../../base/common/platform.js';
+import { arch } from '../../../base/common/process.js';
+import { isBoolean } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { IHeaders, IRequestContext, IRequestOptions, isOfflineError } from '../../../base/parts/request/common/request.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion } from './extensionManagement.js';
+import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from './extensionManagementUtil.js';
+import { IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
+import { areApiProposalsCompatible, isEngineValid } from '../../extensions/common/extensionValidator.js';
+import { IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { asJson, asTextOrError, IRequestService, isSuccess } from '../../request/common/request.js';
+import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
+import { IStorageService } from '../../storage/common/storage.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 const ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';

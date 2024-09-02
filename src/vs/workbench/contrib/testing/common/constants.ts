@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { localize } from 'vs/nls';
-import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
+import { localize } from '../../../../nls.js';
+import { TestResultState, TestRunProfileBitset } from './testTypes.js';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.

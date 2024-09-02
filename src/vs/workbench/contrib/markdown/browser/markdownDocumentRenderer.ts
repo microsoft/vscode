@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from 'vs/base/browser/dom';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as marked from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { escape } from 'vs/base/common/strings';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from '../../../../base/browser/dom.js';
+import * as dompurify from '../../../../base/browser/dompurify/dompurify.js';
+import { allowedMarkdownAttr } from '../../../../base/browser/markdownRenderer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import * as marked from '../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { escape } from '../../../../base/common/strings.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { tokenizeToString } from '../../../../editor/common/languages/textToHtmlTokenizer.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {

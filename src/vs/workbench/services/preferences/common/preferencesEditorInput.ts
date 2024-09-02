@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { Schemas } from 'vs/base/common/network';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IPreferencesService } from './preferences.js';
+import { Settings2EditorModel } from './preferencesModels.js';
 
 const SettingsEditorIcon = registerIcon('settings-editor-label-icon', Codicon.settings, nls.localize('settingsEditorLabelIcon', 'Icon of the settings editor label.'));
 

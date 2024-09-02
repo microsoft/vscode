@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { localize, localize2 } from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { StandaloneColorPickerController } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import 'vs/css!./colorPicker';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from '../../../browser/editorExtensions.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { StandaloneColorPickerController } from './standaloneColorPickerWidget.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import './colorPicker.css';
 
 export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 	constructor() {

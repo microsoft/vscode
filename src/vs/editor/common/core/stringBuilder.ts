@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import * as platform from 'vs/base/common/platform';
-import * as buffer from 'vs/base/common/buffer';
+import * as strings from '../../../base/common/strings.js';
+import * as platform from '../../../base/common/platform.js';
+import * as buffer from '../../../base/common/buffer.js';
 
 let _utf16LE_TextDecoder: TextDecoder | null;
 function getUTF16LE_TextDecoder(): TextDecoder {

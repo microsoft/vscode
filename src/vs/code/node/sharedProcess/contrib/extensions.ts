@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { migrateUnsupportedExtensions } from 'vs/platform/extensionManagement/common/unsupportedExtensionsMigration';
-import { INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IExtensionGalleryService, IGlobalExtensionEnablementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionStorageService, IExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
+import { migrateUnsupportedExtensions } from '../../../../platform/extensionManagement/common/unsupportedExtensionsMigration.js';
+import { INativeServerExtensionManagementService } from '../../../../platform/extensionManagement/node/extensionManagementService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class ExtensionsContributions extends Disposable {
 	constructor(

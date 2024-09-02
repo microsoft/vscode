@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { equalsIfDefined, itemEquals } from 'vs/base/common/equals';
-import { matchesSubString } from 'vs/base/common/filters';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, transaction } from 'vs/base/common/observable';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { TextLength } from 'vs/editor/common/core/textLength';
-import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/model/provideInlineCompletions';
-import { singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/model/singleTextEdit';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
+import { matchesSubString } from '../../../../../base/common/filters.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, transaction } from '../../../../../base/common/observable.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextLength } from '../../../../common/core/textLength.js';
+import { InlineCompletionContext, InlineCompletionTriggerKind } from '../../../../common/languages.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
+import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from './provideInlineCompletions.js';
+import { singleTextRemoveCommonPrefix } from './singleTextEdit.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());

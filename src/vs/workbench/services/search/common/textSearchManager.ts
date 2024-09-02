@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from 'vs/workbench/services/search/common/search';
-import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from 'vs/workbench/services/search/common/searchExtTypes';
+import { isThenable } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Schemas } from '../../../../base/common/network.js';
+import * as path from '../../../../base/common/path.js';
+import * as resources from '../../../../base/common/resources.js';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
+import { URI } from '../../../../base/common/uri.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
+import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from './searchExtTypes.js';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;

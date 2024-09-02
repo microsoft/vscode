@@ -2,27 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Queue } from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { LRUCache } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import * as Types from 'vs/base/common/types';
-import { URI as uri } from 'vs/base/common/uri';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { Queue } from '../../../../base/common/async.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IProcessEnvironment } from '../../../../base/common/platform.js';
+import * as Types from '../../../../base/common/types.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import * as nls from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { ConfiguredInput } from '../common/configurationResolver.js';
+import { AbstractVariableResolverService } from '../common/variableResolver.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IPathService } from '../../path/common/pathService.js';
 
 const LAST_INPUT_STORAGE_KEY = 'configResolveInputLru';
 const LAST_INPUT_CACHE_SIZE = 5;

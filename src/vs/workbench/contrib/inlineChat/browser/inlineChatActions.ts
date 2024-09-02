@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, MENU_INLINE_CHAT_CONTENT_STATUS, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { HunkInformation } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction2 } from '../../../../editor/browser/editorExtensions.js';
+import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
+import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { InlineChatController, InlineChatRunOptions } from './inlineChatController.js';
+import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES } from '../common/inlineChat.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IChatService } from '../../chat/common/chatService.js';
+import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../../chat/common/chatContextKeys.js';
+import { HunkInformation } from './inlineChatSession.js';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -369,10 +369,6 @@ export class CloseAction extends AbstractInlineChatAction {
 				primary: KeyCode.Escape,
 			},
 			menu: [{
-				id: MENU_INLINE_CHAT_CONTENT_STATUS,
-				group: '0_main',
-				order: 10,
-			}, {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
 				group: '0_main',
 				order: 1,

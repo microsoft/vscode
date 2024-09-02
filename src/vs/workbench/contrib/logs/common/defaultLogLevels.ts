@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, ILoggerService, LogLevel, LogLevelToString, getLogLevel, parseLogLevel } from 'vs/platform/log/common/log';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { isString, isUndefined } from 'vs/base/common/types';
-import { EXTENSION_IDENTIFIER_WITH_LOG_REGEX } from 'vs/platform/environment/common/environmentService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
+import { ILogService, ILoggerService, LogLevel, LogLevelToString, getLogLevel, parseLogLevel } from '../../../../platform/log/common/log.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
+import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
+import { isString, isUndefined } from '../../../../base/common/types.js';
+import { EXTENSION_IDENTIFIER_WITH_LOG_REGEX } from '../../../../platform/environment/common/environmentService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { parse } from '../../../../base/common/json.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 interface ParsedArgvLogLevels {
 	default?: LogLevel;
