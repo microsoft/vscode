@@ -185,13 +185,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 	}
 
-	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItem> {
-		historyItemParentId = historyItemParentId ?? await this.repository.getEmptyTree();
-		const allChanges = await this.repository.diffBetweenShortStat(historyItemParentId, historyItemId);
-
-		return { id: historyItemId, parentIds: [historyItemParentId], message: '', statistics: allChanges };
-	}
-
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItemChange[]> {
 		historyItemParentId = historyItemParentId ?? await this.repository.getEmptyTree();
 
