@@ -83,8 +83,10 @@
 	height: 16px;
 }
 
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item::after,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item::after {
 	content: '';
@@ -99,8 +101,15 @@
 	transition-delay: 100ms;
 }
 
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar::before,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar::before {
+	top: 5px;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar .action-item::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar .action-item::after,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar .action-item::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar .action-item::after {
 	display: block;
@@ -152,6 +161,11 @@
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:last-of-type.right::after,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over-head  > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over-tail > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
+	opacity: 1;
+}
+
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container.dragged-over-over > .composite-bar > .monaco-action-bar::before,
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over-over > .composite-bar > .monaco-action-bar::before {
 	opacity: 1;
 }
 

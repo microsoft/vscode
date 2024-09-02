@@ -14,7 +14,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Widget } from '../../../base/browser/ui/widget.js';
 import { isUndefinedOrNull } from '../../../base/common/types.js';
-import { IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ViewContainerLocation, IViewDescriptorService } from '../../common/views.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
@@ -173,6 +173,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
 
@@ -237,35 +238,51 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			onDragOver: (e: IDraggedCompositeData) => {
 
 				// don't add feedback if this is over the composite bar actions or there are no actions
-				const visibleItems = this.getVisibleComposites();
-				if (!visibleItems.length || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
-					insertDropBefore = this.updateFromDragging(parent, false, false, true);
+				if ((e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
+					insertDropBefore = this.updateFromDragging(parent, false, true);
 					return;
 				}
 
-				const insertAtFront = this.insertAtFront(actionBarDiv, e.eventData);
-				const target = insertAtFront ? visibleItems[0] : visibleItems[visibleItems.length - 1];
-				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, target.id, e.eventData);
+				const visibleItems = this.getVisibleComposites();
+				let targetId = undefined;
+				let hoverPosition: 'over' | 'before' | 'after' = 'over';
+				if (visibleItems.length) {
+					const insertAtFront = this.insertAtFront(actionBarDiv, e.eventData);
+					hoverPosition = insertAtFront ? 'before' : 'after';
+					targetId = insertAtFront ? visibleItems[0].id : visibleItems[visibleItems.length - 1].id;
+				}
+
+				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, targetId, e.eventData);
 				toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
-				insertDropBefore = this.updateFromDragging(parent, validDropTarget, insertAtFront, true);
+				insertDropBefore = this.updateFromDragging(parent, validDropTarget, true, hoverPosition);
 			},
 			onDragLeave: (e: IDraggedCompositeData) => {
-				insertDropBefore = this.updateFromDragging(parent, false, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false);
 			},
 			onDragEnd: (e: IDraggedCompositeData) => {
-				insertDropBefore = this.updateFromDragging(parent, false, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {
 				const visibleItems = this.getVisibleComposites();
+				let targetId = undefined;
 				if (visibleItems.length) {
-					const target = this.insertAtFront(actionBarDiv, e.eventData) ? visibleItems[0] : visibleItems[visibleItems.length - 1];
-					this.options.dndHandler.drop(e.dragAndDropData, target.id, e.eventData, insertDropBefore);
+					targetId = this.insertAtFront(actionBarDiv, e.eventData) ? visibleItems[0].id : visibleItems[visibleItems.length - 1].id;
 				}
-				insertDropBefore = this.updateFromDragging(parent, false, false, false);
+				this.options.dndHandler.drop(e.dragAndDropData, targetId, e.eventData, insertDropBefore);
+				insertDropBefore = this.updateFromDragging(parent, false);
 			}
 		}));
 
+		this.updateStyles();
+		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
+
 		return actionBarDiv;
+	}
+
+	private updateStyles(): void {
+		const theme = this.themeService.getColorTheme();
+		const colors = this.options.colors(theme);
+		this.compositeSwitcherBar?.domNode.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
 	}
 
 	private insertAtFront(element: HTMLElement, event: DragEvent): boolean {
@@ -281,16 +298,21 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean, isDragging: boolean): Before2D | undefined {
+	private updateFromDragging(element: HTMLElement, showFeedback: false, isDragging?: boolean): Before2D | undefined;
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, isDragging: boolean, position: 'before' | 'after' | 'over'): Before2D | undefined;
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, isDragging: boolean = false, position: 'before' | 'after' | 'over' = 'after'): Before2D | undefined {
+		console.log('updateFromDragging', showFeedback, position, isDragging);
+
 		element.classList.toggle('dragged-over', isDragging);
-		element.classList.toggle('dragged-over-head', showFeedback && front);
-		element.classList.toggle('dragged-over-tail', showFeedback && !front);
+		element.classList.toggle('dragged-over-head', showFeedback && position === 'before');
+		element.classList.toggle('dragged-over-tail', showFeedback && position === 'after');
+		element.classList.toggle('dragged-over-over', showFeedback && position === 'over');
 
 		if (!showFeedback) {
 			return undefined;
 		}
 
-		return { verticallyBefore: front, horizontallyBefore: front };
+		return { verticallyBefore: position === 'before', horizontallyBefore: position === 'before' };
 	}
 
 	focus(index?: number): void {
