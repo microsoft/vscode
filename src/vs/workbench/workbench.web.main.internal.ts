@@ -186,29 +186,30 @@ import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from '
 
 // TODO@esm remove me once we stop supporting our web-esm-bridge
 if ((globalThis as any).__VSCODE_WEB_ESM_PROMISE) {
-	(globalThis as any).__VSCODE_WEB_ESM_PROMISE({
+	const exports = {
 
 		// Factory
-		create,
+		create: create,
 
 		// Basic Types
-		URI,
-		Event,
-		Emitter,
-		Disposable,
+		URI: URI,
+		Event: Event,
+		Emitter: Emitter,
+		Disposable: Disposable,
 		// GroupOrientation,
-		LogLevel,
-		RemoteAuthorityResolverError,
-		RemoteAuthorityResolverErrorCode,
+		LogLevel: LogLevel,
+		RemoteAuthorityResolverError: RemoteAuthorityResolverError,
+		RemoteAuthorityResolverErrorCode: RemoteAuthorityResolverErrorCode,
 
 		// Facade API
-		env,
-		window,
-		workspace,
-		commands,
-		logger,
-		Menu
-	});
+		env: env,
+		window: window,
+		workspace: workspace,
+		commands: commands,
+		logger: logger,
+		Menu: Menu
+	};
+	(globalThis as any).__VSCODE_WEB_ESM_PROMISE(exports);
 	delete (globalThis as any).__VSCODE_WEB_ESM_PROMISE;
 }
 
