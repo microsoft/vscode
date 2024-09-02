@@ -235,8 +235,13 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
+		const provider = node.element.repository.provider;
+		const currentHistoryItemGroup = provider.historyProvider.get()?.currentHistoryItemGroup?.get();
+		const extraClasses = currentHistoryItemGroup?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
-		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches });
+		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches, extraClasses });
+
+		console.log(extraClasses);
 
 		templateData.labelContainer.textContent = '';
 		for (const label of historyItem.labels ?? []) {
