@@ -690,8 +690,8 @@ abstract class AbstractElementRenderer extends Disposable {
 			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
 				: this.cell.type === 'insert'
-					? this.cell.modified!.outputs || []
-					: this.cell.original!.outputs || []);
+					? this.cell.modified?.outputs || []
+					: this.cell.original?.outputs || []);
 		const outputModel = this.modelService.createModel(originaloutputSource, mode, undefined, true);
 		this._outputEditorDisposeStore.add(outputModel);
 		this._outputEditor.setModel(outputModel);
@@ -1117,7 +1117,7 @@ export class DeletedElement extends SingleSideDiffElement {
 			const span = DOM.append(this._outputEmptyElement, DOM.$('span'));
 			span.innerText = 'No outputs to render';
 
-			if (this.cell.original!.outputs.length === 0) {
+			if (!this.cell.original?.outputs.length) {
 				this._outputEmptyElement.style.display = 'block';
 			} else {
 				this._outputEmptyElement.style.display = 'none';
@@ -1209,7 +1209,7 @@ export class InsertElement extends SingleSideDiffElement {
 			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
 			this._outputEmptyElement.innerText = 'No outputs to render';
 
-			if (this.cell.modified!.outputs.length === 0) {
+			if (!this.cell.modified?.outputs.length) {
 				this._outputEmptyElement.style.display = 'block';
 			} else {
 				this._outputEmptyElement.style.display = 'none';
