@@ -8,7 +8,6 @@ import { AbstractTree, AbstractTreeViewState, IAbstractTreeOptions } from './abs
 import { ObjectTreeModel } from './objectTreeModel.js';
 import { IDataSource, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter, TreeError } from './tree.js';
 import { Iterable } from '../../../common/iterator.js';
-import { ISpliceable } from '../../../common/sequence.js';
 
 export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -168,7 +167,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		return { elements, size: children.length };
 	}
 
-	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(user, view, options);
+	protected createModel(user: string, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+		return new ObjectTreeModel(user, options);
 	}
 }

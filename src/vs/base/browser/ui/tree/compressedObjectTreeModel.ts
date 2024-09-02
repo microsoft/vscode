@@ -6,11 +6,10 @@
 import { IIdentityProvider } from '../list/list.js';
 import { IIndexTreeModelSpliceOptions } from './indexTreeModel.js';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from './objectTreeModel.js';
-import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
+import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeListSpliceData, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
 import { equals } from '../../../common/arrays.js';
 import { Event } from '../../../common/event.js';
 import { Iterable } from '../../../common/iterator.js';
-import { ISpliceable } from '../../../common/sequence.js';
 
 // Exported only for test reasons, do not use directly
 export interface ICompressedTreeElement<T> extends IObjectTreeElement<T> {
@@ -122,7 +121,8 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	readonly rootRef = null;
 
-	get onDidSplice(): Event<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>> { return this.model.onDidSplice; }
+	get onDidSpliceRenderedNodes(): Event<ITreeListSpliceData<ICompressedTreeNode<T> | null, TFilterData>> { return this.model.onDidSpliceRenderedNodes; }
+	get onDidSpliceModel(): Event<ITreeModelSpliceEvent<ICompressedTreeNode<T> | null, TFilterData>> { return this.model.onDidSpliceModel; }
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<ICompressedTreeNode<T>, TFilterData>> { return this.model.onDidChangeCollapseState; }
 	get onDidChangeRenderNodeCount(): Event<ITreeNode<ICompressedTreeNode<T>, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 
@@ -135,10 +135,9 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 
 	constructor(
 		private user: string,
-		list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
 		options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}
 	) {
-		this.model = new ObjectTreeModel(user, list, options);
+		this.model = new ObjectTreeModel(user, options);
 		this.enabled = typeof options.compressionEnabled === 'undefined' ? true : options.compressionEnabled;
 		this.identityProvider = options.identityProvider;
 	}
@@ -375,14 +374,6 @@ class CompressedTreeNodeWrapper<T, TFilterData> implements ITreeNode<T | null, T
 	) { }
 }
 
-function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilterData>, list: ISpliceable<ITreeNode<T, TFilterData>>): ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>> {
-	return {
-		splice(start: number, deleteCount: number, toInsert: ITreeNode<ICompressedTreeNode<T>, TFilterData>[]): void {
-			list.splice(start, deleteCount, toInsert.map(node => nodeMapper.map(node)) as ITreeNode<T, TFilterData>[]);
-		}
-	};
-}
-
 function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwrapper<T>, options: ICompressibleObjectTreeModelOptions<T, TFilterData>): ICompressedObjectTreeModelOptions<T, TFilterData> {
 	return {
 		...options,
@@ -413,10 +404,18 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	readonly rootRef = null;
 
-	get onDidSplice(): Event<ITreeModelSpliceEvent<T | null, TFilterData>> {
-		return Event.map(this.model.onDidSplice, ({ insertedNodes, deletedNodes }) => ({
+	get onDidSpliceModel(): Event<ITreeModelSpliceEvent<T | null, TFilterData>> {
+		return Event.map(this.model.onDidSpliceModel, ({ insertedNodes, deletedNodes }) => ({
 			insertedNodes: insertedNodes.map(node => this.nodeMapper.map(node)),
 			deletedNodes: deletedNodes.map(node => this.nodeMapper.map(node)),
+		}));
+	}
+
+	get onDidSpliceRenderedNodes(): Event<ITreeListSpliceData<T | null, TFilterData>> {
+		return Event.map(this.model.onDidSpliceRenderedNodes, ({ start, deleteCount, elements }) => ({
+			start,
+			deleteCount,
+			elements: elements.map(node => this.nodeMapper.map(node))
 		}));
 	}
 
@@ -437,14 +436,13 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	constructor(
 		user: string,
-		list: ISpliceable<ITreeNode<T, TFilterData>>,
 		options: ICompressibleObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.elementMapper = options.elementMapper || DefaultElementMapper;
 		const compressedNodeUnwrapper: CompressedNodeUnwrapper<T> = node => this.elementMapper(node.elements);
 		this.nodeMapper = new WeakMapper(node => new CompressedTreeNodeWrapper(compressedNodeUnwrapper, node));
 
-		this.model = new CompressedObjectTreeModel(user, mapList(this.nodeMapper, list), mapOptions(compressedNodeUnwrapper, options));
+		this.model = new CompressedObjectTreeModel(user, mapOptions(compressedNodeUnwrapper, options));
 	}
 
 	setChildren(
