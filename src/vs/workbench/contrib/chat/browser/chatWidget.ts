@@ -503,7 +503,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this.tree = <WorkbenchObjectTree<ChatTreeItem>>scopedInstantiationService.createInstance(
+		this.tree = this._register(<WorkbenchObjectTree<ChatTreeItem>>scopedInstantiationService.createInstance(
 			WorkbenchObjectTree,
 			'Chat',
 			listContainer,
@@ -534,7 +534,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listActiveSelectionForeground: this.styles.listForeground,
 					listFocusAndSelectionForeground: this.styles.listForeground,
 				}
-			});
+			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidChangeContentHeight(() => {

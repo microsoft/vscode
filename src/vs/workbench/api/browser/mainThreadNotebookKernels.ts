@@ -7,7 +7,7 @@ import { isNonEmptyArray } from '../../../base/common/arrays.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
@@ -151,6 +151,16 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
 			}
 		}));
+
+		this._disposables.add(this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
+			for (const [handle, [kernel,]] of this._kernels) {
+				if (e.oldKernel === kernel.id) {
+					this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
+				} else if (e.newKernel === kernel.id) {
+					this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
+				}
+			}
+		}));
 	}
 
 	dispose(): void {
@@ -262,16 +272,10 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 		}(data, this._languageService);
 
-		const listener = this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
-			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
-			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
-			}
-		});
-
-		const registration = this._notebookKernelService.registerKernel(kernel);
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
+		const disposables = this._disposables.add(new DisposableStore());
+		// Ensure _kernels is up to date before we register a kernel.
+		this._kernels.set(handle, [kernel, disposables]);
+		disposables.add(this._notebookKernelService.registerKernel(kernel));
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {
