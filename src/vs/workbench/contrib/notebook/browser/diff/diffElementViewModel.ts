@@ -358,7 +358,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 
 	getHeight(lineHeight: number) {
 		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			const editorHeight = this.estimateEditorHeight(lineHeight);
+			const editorHeight = this.cellFoldingState === PropertyFoldingState.Collapsed ? 0 : this.estimateEditorHeight(lineHeight);
 			return this._computeTotalHeight(editorHeight);
 		} else {
 			return this._layoutInfo.totalHeight;
