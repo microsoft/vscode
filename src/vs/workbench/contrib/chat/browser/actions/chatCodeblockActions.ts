@@ -3,45 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
-import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import * as strings from 'vs/base/common/strings';
-import { CharCode } from 'vs/base/common/charCode';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { DocumentContextItem, IWorkspaceFileEdit, IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
+import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { CHAT_CATEGORY } from './chatActions.js';
+import { IChatWidgetService, IChatCodeBlockContextProviderService } from '../chat.js';
+import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDIT_APPLIED } from '../../common/chatContextKeys.js';
+import { ChatCopyKind, IChatService, IDocumentContext } from '../../common/chatService.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
+import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
+import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { CharCode } from '../../../../../base/common/charCode.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { AsyncIterableObject } from '../../../../../base/common/async.js';
+
+const shellLangIds = [
+	'fish',
+	'ps1',
+	'pwsh',
+	'powershell',
+	'sh',
+	'shellscript',
+	'zsh'
+];
 
 export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
@@ -83,6 +97,11 @@ abstract class ChatCodeBlockAction extends Action2 {
 	}
 
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
+}
+
+interface IComputeEditsResult {
+	readonly edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
+	readonly codeMapper?: string;
 }
 
 abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
@@ -140,35 +159,74 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		}
 
 		const languageService = accessor.get(ILanguageService);
+		const chatService = accessor.get(IChatService);
+
 		const focusRange = notebookEditor.getFocus();
 		const next = Math.max(focusRange.end - 1, 0);
 		insertCell(languageService, notebookEditor, next, CellKind.Code, 'below', context.code, true);
-		this.notifyUserAction(accessor, context);
+		this.notifyUserAction(chatService, context);
 	}
 
-	protected async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<ResourceEdit[] | WorkspaceEdit> {
+	protected async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult> {
 		const activeModel = codeEditor.getModel();
 		const range = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 		const text = reindent(codeBlockActionContext.code, activeModel, range.startLineNumber);
-		return [new ResourceTextEdit(activeModel.uri, { range, text })];
+		return { edits: [new ResourceTextEdit(activeModel.uri, { range, text })] };
+	}
+
+	protected get showPreview() {
+		return false;
 	}
 
 	private async handleTextEditor(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
 		const bulkEditService = accessor.get(IBulkEditService);
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const chatService = accessor.get(IChatService);
 
-		this.notifyUserAction(accessor, codeBlockActionContext);
-		const activeModel = codeEditor.getModel();
+		const result = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
+		this.notifyUserAction(chatService, codeBlockActionContext, result);
 
-		const mappedEdits = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
-
-		await bulkEditService.apply(mappedEdits);
-		codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+		if (this.showPreview) {
+			const showWithPreview = await this.applyWithInlinePreview(codeEditorService, result.edits, codeEditor);
+			if (!showWithPreview) {
+				await bulkEditService.apply(result.edits, { showPreview: true });
+				const activeModel = codeEditor.getModel();
+				codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+			}
+		} else {
+			await bulkEditService.apply(result.edits);
+			const activeModel = codeEditor.getModel();
+			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+		}
 	}
 
-	private notifyUserAction(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+	private async applyWithInlinePreview(codeEditorService: ICodeEditorService, edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, codeEditor: IActiveCodeEditor) {
+		const firstEdit = edits[0];
+		if (!ResourceTextEdit.is(firstEdit)) {
+			return false;
+		}
+		const resource = firstEdit.resource;
+		const textEdits = coalesce(edits.map(edit => ResourceTextEdit.is(edit) && isEqual(resource, edit.resource) ? edit.textEdit : undefined));
+		if (textEdits.length !== edits.length) { // more than one file has changed
+			return false;
+		}
+		const editorToApply = await codeEditorService.openCodeEditor({ resource }, codeEditor);
+		if (editorToApply) {
+			const inlineChatController = InlineChatController.get(editorToApply);
+			if (inlineChatController) {
+				const cancellationTokenSource = new CancellationTokenSource();
+				try {
+					return await inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), cancellationTokenSource.token);
+				} finally {
+					cancellationTokenSource.dispose();
+				}
+			}
+		}
+		return false;
+	}
+
+	private notifyUserAction(chatService: IChatService, context: ICodeBlockActionContext, result?: IComputeEditsResult) {
 		if (isResponseVM(context.element)) {
-			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: context.element.agent?.id,
 				command: context.element.slashCommand?.name,
@@ -179,6 +237,8 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 					kind: 'insert',
 					codeBlockIndex: context.codeBlockIndex,
 					totalCharacters: context.code.length,
+					userAction: this.desc.id,
+					codeMapper: result?.codeMapper,
 				}
 			});
 		}
@@ -359,7 +419,10 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+					),
 					order: 10
 				},
 				keybinding: {
@@ -371,7 +434,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		protected override async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<ResourceEdit[] | WorkspaceEdit> {
+		protected override async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult> {
 
 			const progressService = accessor.get(IProgressService);
 			const notificationService = accessor.get(INotificationService);
@@ -404,7 +467,7 @@ export function registerChatCodeBlockActions() {
 
 				const cancellationTokenSource = new CancellationTokenSource();
 				try {
-					const edits = await progressService.withProgress(
+					const edits = await progressService.withProgress<IComputeEditsResult | undefined>(
 						{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
 						async progress => {
 							for (const provider of mappedEditsProviders) {
@@ -416,7 +479,7 @@ export function registerChatCodeBlockActions() {
 									cancellationTokenSource.token
 								);
 								if (mappedEdits) {
-									return mappedEdits;
+									return { edits: mappedEdits.edits, codeMapper: provider.displayName };
 								}
 							}
 							return undefined;
@@ -436,6 +499,11 @@ export function registerChatCodeBlockActions() {
 			// fall back to inserting the code block as is
 			return super.computeEdits(accessor, codeEditor, codeBlockActionContext);
 		}
+
+		protected override get showPreview() {
+			return true;
+		}
+
 	});
 
 	registerAction2(class SmartApplyInEditorAction extends InsertCodeBlockAction {
@@ -503,22 +571,14 @@ export function registerChatCodeBlockActions() {
 						kind: 'insert',
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
-						newFile: true
+						newFile: true,
+						userAction: this.desc.id,
 					}
 				});
 			}
 		}
 	});
 
-	const shellLangIds = [
-		'fish',
-		'ps1',
-		'pwsh',
-		'powershell',
-		'sh',
-		'shellscript',
-		'zsh'
-	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({

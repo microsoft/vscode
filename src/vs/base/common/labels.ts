@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { hasDriveLetter, toSlashes } from 'vs/base/common/extpath';
-import { posix, sep, win32 } from 'vs/base/common/path';
-import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { firstOrDefault } from './arrays.js';
+import { hasDriveLetter, toSlashes } from './extpath.js';
+import { posix, sep, win32 } from './path.js';
+import { isMacintosh, isWindows, OperatingSystem, OS } from './platform.js';
+import { extUri, extUriIgnorePathCase } from './resources.js';
+import { rtrim, startsWithIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
 
 export interface IPathLabelFormatting {
 

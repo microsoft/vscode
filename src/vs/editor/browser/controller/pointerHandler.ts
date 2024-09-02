@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as dom from 'vs/base/browser/dom';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { mainWindow } from 'vs/base/browser/window';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
-import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
-import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
-import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { BrowserFeatures } from '../../../base/browser/canIUse.js';
+import * as dom from '../../../base/browser/dom.js';
+import { EventType, Gesture, GestureEvent } from '../../../base/browser/touch.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import { IPointerHandlerHelper, MouseHandler } from './mouseHandler.js';
+import { TextAreaSyntethicEvents } from './textAreaInput.js';
+import { NavigationCommandRevealType } from '../coreCommands.js';
+import { IMouseTarget, MouseTargetType } from '../editorBrowser.js';
+import { EditorMouseEvent, EditorPointerEventFactory } from '../editorDom.js';
+import { ViewController } from '../view/viewController.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
 
 /**
  * Currently only tested on iOS 13/ iPadOS.
@@ -47,7 +47,7 @@ export class PointerEventHandler extends MouseHandler {
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
 
-		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMoveOverView(e)));
+		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));
 		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
 		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => this._onMouseDown(e, pointerId)));
@@ -73,7 +73,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
-		const target = this._createMouseTargetForView(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 		if (target.position) {
 			this.viewController.dispatchMouse({
 				position: target.position,
@@ -119,7 +119,7 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		const target = this._createMouseTargetForView(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
 			// Send the tap event also to the <textarea> (for input purposes)

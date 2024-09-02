@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../common/quickAccess.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../common/quickInput.js';
+import { Registry } from '../../registry/common/platform.js';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 
@@ -20,7 +20,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	private readonly lastAcceptedPickerValues = new Map<IQuickAccessProviderDescriptor, string>();
 
 	private visibleQuickAccess: {
-		readonly picker: IQuickPick<IQuickPickItem>;
+		readonly picker: IQuickPick<IQuickPickItem, { useSeparators: true }>;
 		readonly descriptor: IQuickAccessProviderDescriptor | undefined;
 		readonly value: string;
 	} | undefined = undefined;
@@ -99,7 +99,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const disposables = new DisposableStore();
-		const picker = disposables.add(this.quickInputService.createQuickPick());
+		const picker = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true }));
 		picker.value = value;
 		this.adjustValueSelection(picker, descriptor, options);
 		picker.placeholder = options?.placeholder ?? descriptor?.placeholder;
@@ -163,7 +163,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		}
 	}
 
-	private adjustValueSelection(picker: IQuickPick<IQuickPickItem>, descriptor?: IQuickAccessProviderDescriptor, options?: IQuickAccessOptions): void {
+	private adjustValueSelection(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, descriptor?: IQuickAccessProviderDescriptor, options?: IQuickAccessOptions): void {
 		let valueSelection: [number, number];
 
 		// Preserve: just always put the cursor at the end
@@ -180,7 +180,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	}
 
 	private registerPickerListeners(
-		picker: IQuickPick<IQuickPickItem>,
+		picker: IQuickPick<IQuickPickItem, { useSeparators: true }>,
 		provider: IQuickAccessProvider | undefined,
 		descriptor: IQuickAccessProviderDescriptor | undefined,
 		value: string,

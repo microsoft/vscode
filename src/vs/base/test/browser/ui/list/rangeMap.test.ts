@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { consolidate, groupIntersect, RangeMap } from 'vs/base/browser/ui/list/rangeMap';
-import { Range } from 'vs/base/common/range';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { consolidate, groupIntersect, RangeMap } from '../../../../browser/ui/list/rangeMap.js';
+import { Range } from '../../../../common/range.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('RangeMap', () => {
 
