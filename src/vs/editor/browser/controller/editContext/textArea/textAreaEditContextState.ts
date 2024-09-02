@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
+import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { ScreenReaderContentState } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -13,6 +14,7 @@ export const _debugComposition = false;
 export interface ITextAreaWrapper {
 	getValue(): string;
 	setValue(reason: string, value: string): void;
+
 	getSelectionStart(): number;
 	getSelectionEnd(): number;
 	setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void;
@@ -206,5 +208,15 @@ export class TextAreaState {
 			replaceNextCharCnt: previousValue.length - previousSelectionEnd,
 			positionDelta: currentSelectionEnd - currentValue.length
 		};
+	}
+
+	public static fromScreenReaderContentState(screenReaderContentState: ScreenReaderContentState) {
+		return new TextAreaState(
+			screenReaderContentState.value,
+			screenReaderContentState.rangeOffsetStart,
+			screenReaderContentState.rangeOffsetEnd,
+			screenReaderContentState.rangeWithinEditor,
+			screenReaderContentState.newLineCountBeforeRange
+		);
 	}
 }

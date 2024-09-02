@@ -8,6 +8,13 @@ import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 
+export interface ITypeData {
+	text: string;
+	replacePrevCharCnt: number;
+	replaceNextCharCnt: number;
+	positionDelta: number;
+}
+
 export abstract class AbstractEditContext extends ViewPart {
 	abstract domNode: FastDomNode<HTMLElement>;
 	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;

@@ -11,19 +11,20 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Position } from 'vs/editor/common/core/position';
 import * as nls from 'vs/nls';
 
-export interface ITypeData {
-	text: string;
-	replacePrevCharCnt: number;
-	replaceNextCharCnt: number;
-	positionDelta: number;
-}
-
 export interface ISimpleModel {
 	getLineCount(): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
 	modifyPosition(position: Position, offset: number): Position;
+}
+
+export interface ScreenReaderContentState {
+	value: string;
+	rangeWithinEditor: Range;
+	rangeOffsetStart: number;
+	rangeOffsetEnd: number;
+	newLineCountBeforeRange: number;
 }
 
 export class PagedScreenReaderStrategy {
@@ -38,12 +39,7 @@ export class PagedScreenReaderStrategy {
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): {
-		value: string;
-		selectionOffsetStart: number;
-		selectionOffsetEnd: number;
-		newLineCountBeforeSelection: number;
-	} {
+	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): ScreenReaderContentState {
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;
@@ -90,9 +86,10 @@ export class PagedScreenReaderStrategy {
 
 		return {
 			value: pretext + text + posttext,
-			selectionOffsetStart: pretext.length,
-			selectionOffsetEnd: pretext.length + text.length,
-			newLineCountBeforeSelection: pretextRange.endLineNumber - pretextRange.startLineNumber,
+			rangeWithinEditor: selection,
+			rangeOffsetStart: pretext.length,
+			rangeOffsetEnd: pretext.length + text.length,
+			newLineCountBeforeRange: pretextRange.endLineNumber - pretextRange.startLineNumber,
 		};
 	}
 }

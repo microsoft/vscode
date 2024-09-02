@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
+import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy, ScreenReaderContentState } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
+import { RestrictedRenderingContext, RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as viewEvents from 'vs/editor/common/viewEvents';
@@ -19,19 +19,7 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 
-interface ScreenReaderContentInfo {
-	value: string;
-	selectionOffsetStart: number;
-	selectionOffsetEnd: number;
-}
-
 export class ScreenReaderSupport {
-
-	// HTMLElement
-	private _domNode: FastDomNode<HTMLElement>;
-
-	// View Context
-	private _context: ViewContext;
 
 	// Configuration values
 	private _contentLeft!: number;
@@ -41,68 +29,78 @@ export class ScreenReaderSupport {
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
 
-	// Fields used for rendering
-	private _scrollTop: number = 0;
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
-	private _primaryCursorVisibleRange: HorizontalPosition | null = null;
-	private _screenReaderContentInfo: ScreenReaderContentInfo | null = null;
+	private _screenReaderContentState: ScreenReaderContentState | undefined;
 
 	constructor(
-		domNode: FastDomNode<HTMLElement>,
-		context: ViewContext,
+		private readonly _domNode: FastDomNode<HTMLElement>,
+		private readonly _context: ViewContext,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		this._domNode = domNode;
-		this._context = context;
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 	}
 
+	// --- Public methods ---
+
 	public prepareRender(ctx: RenderingContext): void {
-		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
 		this.writeScreenReaderContent();
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._primaryCursorVisibleRange || !this._screenReaderContentInfo) {
+		if (!this._screenReaderContentState) {
 			return;
 		}
 		// For correct alignment of the screen reader content, we need to apply the correct font
 		applyFontInfo(this._domNode, this._fontInfo);
 
 		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
-		const top = verticalOffsetForPrimaryLineNumber - this._scrollTop;
+		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const top = verticalOffsetForPrimaryLineNumber - editorScrollTop;
+
 		this._domNode.setTop(top);
 		this._domNode.setLeft(this._contentLeft);
 		this._domNode.setWidth(this._contentWidth);
 		this._domNode.setHeight(this._lineHeight);
 
-		// Setting position within the screen reader content
-		const textContent = this._screenReaderContentInfo.value;
-		const textContentBeforeSelection = textContent.substring(0, this._screenReaderContentInfo.selectionOffsetStart);
-		this._domNode.domNode.scrollTop = newlinecount(textContentBeforeSelection) * this._lineHeight;
-		this._domNode.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
+		// Setting position within the screen reader content by modifying scroll position
+		const textContentBeforeSelection = this._screenReaderContentState.value.substring(0, this._screenReaderContentState.rangeOffsetStart);
+		const numberOfLinesOfContentBeforeSelection = newlinecount(textContentBeforeSelection);
+		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
 	}
 
-	// Will always call render after this, so can place all the code inside of render, no need to place it twice
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public setAriaOptions(): void { }
+
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
 		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
-		return true;
 	}
 
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._scrollTop = e.scrollTop;
-		return true;
-	}
-
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
 			this.writeScreenReaderContent();
 		}
-		return true;
 	}
+
+	public writeScreenReaderContent(): void {
+		this._screenReaderContentState = this._getScreenReaderContentState();
+		if (!this._screenReaderContentState) {
+			return;
+		}
+		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
+			this._domNode.domNode.textContent = this._screenReaderContentState.value;
+		}
+		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.rangeOffsetStart, this._screenReaderContentState.rangeOffsetEnd);
+	}
+
+	/* Last rendered data needed for correct hit-testing and determining the mouse position.
+	 * Without this, the selection will blink as incorrect mouse position is calculated */
+	public getLastRenderData(): Position | null {
+		return this._primarySelection.getPosition();
+	}
+
+	// --- Private methods ---
 
 	private _updateConfigurationSettings(): void {
 		const options = this._context.configuration.options;
@@ -123,21 +121,7 @@ export class ScreenReaderSupport {
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 	}
 
-	public setAriaOptions(): void { }
-
-	public writeScreenReaderContent(): void {
-		const screenReaderContentInfo = this._getScreenReaderContentInfo();
-		if (!screenReaderContentInfo) {
-			return;
-		}
-		if (this._domNode.domNode.textContent !== screenReaderContentInfo.value) {
-			this._domNode.domNode.textContent = screenReaderContentInfo.value;
-		}
-		this._setSelectionOfScreenReaderContent(screenReaderContentInfo.selectionOffsetStart, screenReaderContentInfo.selectionOffsetEnd);
-		this._screenReaderContentInfo = screenReaderContentInfo;
-	}
-
-	private _getScreenReaderContentInfo(): ScreenReaderContentInfo | undefined {
+	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
 		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 			return;
 		}
@@ -176,11 +160,5 @@ export class ScreenReaderSupport {
 		range.setEnd(textContent, selectionOffsetEnd);
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
-	}
-
-	/* Last rendered data needed for correct hit-testing and determining the mouse position.
-	 * Without this, the selection will blink as incorrect mouse position is calculated */
-	public getLastRenderData(): Position | null {
-		return this._primarySelection.getPosition();
 	}
 }

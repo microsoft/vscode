@@ -12,8 +12,8 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
-import { ariaLabelForScreenReaderContent, ISimpleModel, ITypeData, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
+import { AbstractEditContext, ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
+import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
@@ -223,11 +223,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 				return getDataToCopy(this._context.viewModel, this._selections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
 			},
 			getScreenReaderContent: (): TextAreaState => {
-				const selection = this._selections[0];
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
 					// Also on OSX, we write the word before the cursor to allow for the Accessibility Keyboard to give good hints
+					const selection = this._selections[0];
 					if (platform.isMacintosh && selection.isEmpty()) {
 						const position = selection.getStartPosition();
 
@@ -266,6 +266,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					// in the `compositionstart` event we cannot clear the textarea, because
 					// it then forgets to ever send a `compositionend`.
 					// we therefore only write the current word in the textarea
+					const selection = this._selections[0];
 					if (selection.isEmpty()) {
 						const position = selection.getStartPosition();
 						const [wordAtPosition, positionOffsetInWord] = this._getAndroidWordAtPosition(position);
@@ -276,8 +277,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 					return TextAreaState.EMPTY;
 				}
 
-				const textAreaData = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
-				return new TextAreaState(textAreaData.value, textAreaData.selectionOffsetStart, textAreaData.selectionOffsetEnd, selection, textAreaData.newLineCountBeforeSelection);
+				const selection = this._selections[0];
+				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, selection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {

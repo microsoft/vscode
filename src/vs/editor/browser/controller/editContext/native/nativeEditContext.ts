@@ -20,8 +20,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
 import * as browser from 'vs/base/browser/browser';
 import { EditContextWrapper } from 'vs/editor/browser/controller/editContext/native/nativeEditContextUtils';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext, ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { ScreenReaderSupport } from 'vs/editor/browser/controller/editContext/native/screenReaderSupport';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -176,11 +175,6 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
-		return true;
-	}
-
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this._screenReaderSupport.onScrollChanged(e);
 		return true;
 	}
 

@@ -56,7 +56,7 @@ import { IViewModel } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContext';
+import { AbstractEditContext } from 'vs/editor/browser/controller/editContext/editContextUtils';
 import { NativeEditContext } from 'vs/editor/browser/controller/editContext/native/nativeEditContext';
 
 
