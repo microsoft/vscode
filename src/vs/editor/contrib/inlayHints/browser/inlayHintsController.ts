@@ -272,6 +272,12 @@ export class InlayHintsController implements IEditorContribution {
 			scheduler.schedule();
 		}));
 
+		this._sessionDisposables.add(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.inlayHints)) {
+				scheduler.schedule();
+			}
+		}));
+
 		// mouse gestures
 		this._sessionDisposables.add(this._installDblClickGesture(() => scheduler.schedule(0)));
 		this._sessionDisposables.add(this._installLinkGesture());
@@ -536,8 +542,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		//
 		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
-		const maxLineLen = this._editor.getOption(EditorOption.inlayHints).maximumLineLength;
-		const maxLabelLen = this._editor.getOption(EditorOption.inlayHints).maximumLabelLength;
+		const maxLength = this._editor.getOption(EditorOption.inlayHints).maximumLength;
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -552,7 +557,7 @@ export class InlayHintsController implements IEditorContribution {
 				currentLineInfo = { line: item.anchor.range.startLineNumber, totalLen: 0 };
 			}
 
-			if (maxLineLen && currentLineInfo.totalLen > maxLineLen) {
+			if (maxLength && currentLineInfo.totalLen > maxLength) {
 				continue;
 			}
 
@@ -568,8 +573,6 @@ export class InlayHintsController implements IEditorContribution {
 
 			const itemFixedLength = itemFixedLengths.get(item);
 			let itemActualLength = 0;
-
-			let currentHintLen = 0;
 
 			for (let i = 0; i < parts.length; i++) {
 				const part = parts[i];
@@ -599,24 +602,10 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 
-				currentHintLen += textlabel.length;
-				const labelOver = (maxLabelLen ? currentHintLen - maxLabelLen : 0);
-				if (labelOver > 0) {
-					textlabel = textlabel.slice(0, -labelOver) + '…';
-					tooLong = true;
-				}
-
-				currentLineInfo.totalLen += textlabel.length;
-				const over = (maxLineLen ? currentLineInfo.totalLen - maxLineLen : 0);
-				if (over > 0) {
-					textlabel = textlabel.slice(0, -over) + '…';
-					tooLong = true;
-				}
-
 				let textlabel = part.label;
 				currentLineInfo.totalLen += textlabel.length;
 				let tooLong = false;
-				const over = currentLineInfo.totalLen - InlayHintsController._MAX_LABEL_LEN;
+				const over = maxLength !== 0 ? (currentLineInfo.totalLen - maxLength) : 0;
 				if (over > 0) {
 					textlabel = textlabel.slice(0, -over) + '…';
 					tooLong = true;
