@@ -47,8 +47,8 @@ suite('platform - terminalEnvironment', () => {
 		// These tests are only expected to work on Windows 10 build 18309 and above
 		(getWindowsBuildNumber() < 18309 ? suite.skip : suite)('pwsh', () => {
 			const expectedPs1 = process.platform === 'win32'
-				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1" } catch {}`
-				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"`;
+				? `try { . "${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1" } catch {}`
+				: `. "${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"`;
 			suite('should override args', () => {
 				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 					newArgs: [
@@ -126,10 +126,10 @@ suite('platform - terminalEnvironment', () => {
 						new RegExp(`.+\\/${username}-vscode-zsh\\/\\.zlogin`)
 					];
 					const expectedSources = [
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-rc.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-profile.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-env.zsh/,
-						/.+\/out\/vs\/workbench\/contrib\/terminal\/common\/scripts\/shellIntegration-login.zsh/
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-rc.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-profile.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-env.zsh/,
+						/.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration-login.zsh/
 					];
 					function assertIsEnabled(result: IShellIntegrationConfigInjection, globalZdotdir = homedir()) {
 						strictEqual(Object.keys(result.envMixin!).length, 3);
@@ -190,7 +190,7 @@ suite('platform - terminalEnvironment', () => {
 						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 							newArgs: [
 								'--init-file',
-								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
+								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1'
@@ -204,7 +204,7 @@ suite('platform - terminalEnvironment', () => {
 						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 							newArgs: [
 								'--init-file',
-								`${repoRoot}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh`
+								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',
