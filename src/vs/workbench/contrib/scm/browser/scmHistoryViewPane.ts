@@ -149,7 +149,7 @@ registerAction2(class extends Action2 {
 		const historyProvider = provider.historyProvider.get();
 
 		if (historyItems.length > 1) {
-			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor2([historyItem.id, historyItemLast.id]);
+			const ancestor = await historyProvider?.resolveHistoryItemGroupCommonAncestor([historyItem.id, historyItemLast.id]);
 			if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
 				return;
 			}
@@ -674,7 +674,7 @@ class SCMHistoryViewModel extends Disposable {
 			const existingHistoryItems = state?.items ?? [];
 			const limit = clamp(this._configurationService.getValue<number>('scm.graph.pageSize'), 1, 1000);
 
-			const historyItems = await historyProvider.provideHistoryItems2({
+			const historyItems = await historyProvider.provideHistoryItems({
 				historyItemGroupIds, limit, skip: existingHistoryItems.length
 			}) ?? [];
 

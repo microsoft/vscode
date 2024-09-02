@@ -97,7 +97,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemGroup: ${JSON.stringify(this.currentHistoryItemGroup)}`);
 	}
 
-	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
+	async provideHistoryItems(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
 		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds) {
 			return [];
 		}
@@ -145,7 +145,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				};
 			});
 		} catch (err) {
-			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items with options '${JSON.stringify(options)}': ${err}`);
+			this.logger.error(`[GitHistoryProvider][provideHistoryItems] Failed to get history items with options '${JSON.stringify(options)}': ${err}`);
 			return [];
 		}
 	}
@@ -184,7 +184,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
-	async resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined> {
+	async resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined> {
 		try {
 			if (historyItemGroupIds.length === 0) {
 				// TODO@lszomoru - log
@@ -213,7 +213,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 		catch (err) {
-			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor2] Failed to resolve common ancestor for ${historyItemGroupIds.join(',')}: ${err}`);
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor] Failed to resolve common ancestor for ${historyItemGroupIds.join(',')}: ${err}`);
 		}
 
 		return undefined;
