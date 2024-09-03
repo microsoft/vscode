@@ -20,6 +20,7 @@ import { product, pkg } from './bootstrap-meta.js';
 import './bootstrap-node.js';
 import * as performance from './vs/base/common/performance.js';
 
+/** @ts-ignore */
 const require = createRequire(import.meta.url);
 /** @type any */
 const module = { exports: {} };
