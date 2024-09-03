@@ -22,22 +22,22 @@ const SWIMLANE_CURVE_RADIUS = 5;
 /**
  * History graph colors (local, remote, base)
  */
-export const historyItemGroupLocal = registerColor('scm.historyGraph.historyItemGroupLocal', chartsBlue, localize('scm.historyGraph.historyItemGroupLocal', "Local history item group color."));
-export const historyItemGroupRemote = registerColor('scm.historyGraph.historyItemGroupRemote', chartsPurple, localize('scm.historyItemGroupRemote', "Remote history item group color."));
-export const historyItemGroupBase = registerColor('scm.historyGraph.historyItemGroupBase', chartsOrange, localize('scm.historyItemGroupBase', "Base history item group color."));
+export const historyItemGroupLocal = registerColor('scmGraph.historyItemGroupLocal', chartsBlue, localize('scmGraphHistoryItemGroupLocal', "Local history item group color."));
+export const historyItemGroupRemote = registerColor('scmGraph.historyItemGroupRemote', chartsPurple, localize('scmGraphHistoryItemGroupRemote', "Remote history item group color."));
+export const historyItemGroupBase = registerColor('scmGraph.historyItemGroupBase', chartsOrange, localize('scmGraphHistoryItemGroupBase', "Base history item group color."));
 
 /**
  * History item hover color
  */
-export const historyItemGroupHoverLabelForeground = registerColor('scm.historyGraph.historyItemGroupHoverLabelForeground', buttonForeground, localize('scm.historyItemGroupHoverLabelForeground', "History item group hover label foreground color."));
+export const historyItemGroupHoverLabelForeground = registerColor('scm.graph.historyItemGroupHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemGroupHoverLabelForeground', "History item group hover label foreground color."));
 
 /**
  * History graph color registry
  */
 export const colorRegistry: ColorIdentifier[] = [
-	registerColor('scm.historyGraph.green', chartsGreen, localize('scm.historyGraph.green', "The green color used in history graph.")),
-	registerColor('scm.historyGraph.red', chartsRed, localize('scm.historyGraph.red', "The red color used in history graph.")),
-	registerColor('scm.historyGraph.yellow', chartsYellow, localize('scm.historyGraph.yellow', "The yellow color used in history graph.")),
+	registerColor('scmGraph.foreground1', chartsGreen, localize('scmGraphForeground1', "Source control graph foreground color (1).")),
+	registerColor('scmGraph.foreground2', chartsRed, localize('scmGraphForeground2', "Source control graph foreground color (2).")),
+	registerColor('scmGraph.foreground3', chartsYellow, localize('scmGraphForeground3', "Source control graph foreground color (3).")),
 ];
 
 function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier>): ColorIdentifier | undefined {
