@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toCanonicalName } from 'vs/workbench/services/textfile/common/encoding';
-import * as pfs from 'vs/base/node/pfs';
-import { ITextQuery, ITextSearchStats } from 'vs/workbench/services/search/common/search';
-import { TextSearchProviderNew } from 'vs/workbench/services/search/common/searchExtTypes';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import { toCanonicalName } from '../../textfile/common/encoding.js';
+import * as pfs from '../../../../base/node/pfs.js';
+import { ITextQuery, ITextSearchStats } from '../common/search.js';
+import { TextSearchProviderNew } from '../common/searchExtTypes.js';
+import { TextSearchManager } from '../common/textSearchManager.js';
 
 export class NativeTextSearchManager extends TextSearchManager {
 

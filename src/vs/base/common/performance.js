@@ -7,7 +7,15 @@
 'use strict';
 
 // ESM-uncomment-begin
-// const module = { exports: {} };
+/** @type any */
+const module = { exports: {} };
+// ESM-uncomment-end
+
+// ESM-comment-begin
+// const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+const isESM = true;
 // ESM-uncomment-end
 
 (function () {
@@ -115,7 +123,7 @@
 		sharedObj = {};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		// amd
 		define([], function () { return _factory(sharedObj); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
@@ -130,6 +138,6 @@
 })();
 
 // ESM-uncomment-begin
-// export const mark = module.exports.mark;
-// export const getMarks = module.exports.getMarks;
+export const mark = module.exports.mark;
+export const getMarks = module.exports.getMarks;
 // ESM-uncomment-end

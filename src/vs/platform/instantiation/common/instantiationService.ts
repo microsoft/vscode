@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GlobalIdleValue } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { illegalState } from 'vs/base/common/errors';
-import { DisposableStore, dispose, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { Graph } from 'vs/platform/instantiation/common/graph';
-import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { GlobalIdleValue } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { illegalState } from '../../../base/common/errors.js';
+import { DisposableStore, dispose, IDisposable, isDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { SyncDescriptor, SyncDescriptor0 } from './descriptors.js';
+import { Graph } from './graph.js';
+import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from './instantiation.js';
+import { ServiceCollection } from './serviceCollection.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
 
 // TRACING
 const _enableAllTracing = false

@@ -4,35 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import { Emitter, Event } from 'vs/base/common/event';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
-import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData, RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from 'vs/workbench/contrib/terminal/common/remote/terminal';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
-import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { promiseWithResolvers } from 'vs/base/common/async';
-import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
+import { Emitter, Event } from '../../base/common/event.js';
+import { cloneAndChange } from '../../base/common/objects.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import * as path from '../../base/common/path.js';
+import * as platform from '../../base/common/platform.js';
+import { URI } from '../../base/common/uri.js';
+import { IURITransformer } from '../../base/common/uriIpc.js';
+import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import { createRandomIPCHandle } from '../../base/parts/ipc/node/ipc.net.js';
+import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
+import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
+import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
+import { IWorkspaceFolder } from '../../platform/workspace/common/workspace.js';
+import { createURITransformer } from '../../workbench/api/node/uriTransformer.js';
+import { CLIServerBase, ICommandsExecuter } from '../../workbench/api/node/extHostCLIServer.js';
+import { IEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariable.js';
+import { MergedEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariableCollection.js';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from '../../platform/terminal/common/environmentVariableShared.js';
+import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData, RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from '../../workbench/contrib/terminal/common/remote/terminal.js';
+import * as terminalEnvironment from '../../workbench/contrib/terminal/common/terminalEnvironment.js';
+import { AbstractVariableResolverService } from '../../workbench/services/configurationResolver/common/variableResolver.js';
+import { buildUserEnvironment } from './extensionHostConnection.js';
+import { IServerEnvironmentService } from './serverEnvironmentService.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { IExtensionManagementService } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { promiseWithResolvers } from '../../base/common/async.js';
+import { shouldUseEnvironmentVariableCollection } from '../../platform/terminal/common/terminalEnvironment.js';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(

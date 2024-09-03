@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { Event } from 'vs/base/common/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/quickInput';
-import { localize } from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
-import { IAction } from 'vs/base/common/actions';
+import * as dom from '../../../base/browser/dom.js';
+import { DomEmitter } from '../../../base/browser/event.js';
+import { Event } from '../../../base/common/event.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { Gesture, EventType as GestureEventType } from '../../../base/browser/touch.js';
+import { renderLabelWithIcons } from '../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IdGenerator } from '../../../base/common/idGenerator.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { parseLinkedText } from '../../../base/common/linkedText.js';
+import { URI } from '../../../base/common/uri.js';
+import './media/quickInput.css';
+import { localize } from '../../../nls.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IQuickInputButton } from '../common/quickInput.js';
+import { IAction } from '../../../base/common/actions.js';
 
 const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { TriggerInlineSuggestionAction, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, AcceptNextWordOfInlineCompletion, AcceptInlineCompletion, HideInlineCompletion, ToggleAlwaysShowInlineSuggestionToolbar, AcceptNextLineOfInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/controller/commands';
-import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/browser/hintsWidget/hoverParticipant';
-import { InlineCompletionsAccessibleView } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsAccessibleView';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes.js';
+import { TriggerInlineSuggestionAction, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction, AcceptNextWordOfInlineCompletion, AcceptInlineCompletion, HideInlineCompletion, ToggleAlwaysShowInlineSuggestionToolbar, AcceptNextLineOfInlineCompletion } from './controller/commands.js';
+import { InlineCompletionsHoverParticipant } from './hintsWidget/hoverParticipant.js';
+import { InlineCompletionsAccessibleView } from './inlineCompletionsAccessibleView.js';
+import { InlineCompletionsController } from './controller/inlineCompletionsController.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 
 registerEditorContribution(InlineCompletionsController.ID, InlineCompletionsController, EditorContributionInstantiation.Eventually);
 

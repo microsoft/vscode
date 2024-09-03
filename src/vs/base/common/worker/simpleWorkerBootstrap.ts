@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestHandlerFactory, SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
+import { IRequestHandlerFactory, SimpleWorkerServer } from './simpleWorker.js';
 
 type MessageEvent = {
 	data: any;

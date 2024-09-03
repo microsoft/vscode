@@ -17,7 +17,6 @@ const minimatch = require('minimatch');
 const coverage = require('../coverage');
 const minimist = require('minimist');
 const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
-const bootstrapNode = require('../../../src/bootstrap-node');
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
@@ -78,9 +77,6 @@ if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 
 function main() {
 
-	// VSCODE_GLOBALS: node_modules
-	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
-
 	// VSCODE_GLOBALS: package/product.json
 	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
 	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
@@ -105,6 +101,8 @@ function main() {
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);
 	});
+
+	const bootstrapNode = require(`../../../${out}/bootstrap-node`);
 
 	const loaderConfig = {
 		nodeRequire: require,

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IChatWidgetService, IChatWidget, ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IChatWidgetService, IChatWidget, ChatTreeItem } from './chat.js';
+import { CONTEXT_IN_CHAT_SESSION } from '../common/chatContextKeys.js';
+import { ChatWelcomeMessageModel } from '../common/chatModel.js';
+import { isResponseVM } from '../common/chatViewModel.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;

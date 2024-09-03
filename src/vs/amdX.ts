@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isESM, canASAR } from 'vs/base/common/amd';
-import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { isESM, canASAR } from './base/common/amd.js';
+import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from './base/common/network.js';
+import * as platform from './base/common/platform.js';
+import { IProductConfiguration } from './base/common/product.js';
+import { assertType } from './base/common/types.js';
+import { URI } from './base/common/uri.js';
+import { generateUuid } from './base/common/uuid.js';
 
 class DefineCall {
 	constructor(
@@ -18,6 +19,12 @@ class DefineCall {
 	) { }
 }
 
+enum AMDModuleImporterState {
+	Uninitialized = 1,
+	InitializedInternal,
+	InitializedExternal
+}
+
 class AMDModuleImporter {
 	public static INSTANCE = new AMDModuleImporter();
 
@@ -25,7 +32,7 @@ class AMDModuleImporter {
 	private readonly _isRenderer = typeof document === 'object';
 
 	private readonly _defineCalls: DefineCall[] = [];
-	private _initialized = false;
+	private _state = AMDModuleImporterState.Uninitialized;
 	private _amdPolicy: Pick<TrustedTypePolicy<{
 		createScriptURL(value: string): string;
 	}>, 'name' | 'createScriptURL'> | undefined;
@@ -33,10 +40,17 @@ class AMDModuleImporter {
 	constructor() { }
 
 	private _initialize(): void {
-		if (this._initialized) {
+		if (this._state === AMDModuleImporterState.Uninitialized) {
+			if ((globalThis as any).define) {
+				console.log('[amdX] AMD loader already present externally');
+				this._state = AMDModuleImporterState.InitializedExternal;
+				return;
+			}
+		} else {
 			return;
 		}
-		this._initialized = true;
+
+		this._state = AMDModuleImporterState.InitializedInternal;
 
 		(globalThis as any).define = (id: any, dependencies: any, callback: any) => {
 			if (typeof id !== 'string') {
@@ -81,13 +95,25 @@ class AMDModuleImporter {
 
 	public async load<T>(scriptSrc: string): Promise<T> {
 		this._initialize();
+
+		if (this._state === AMDModuleImporterState.InitializedExternal) {
+			return new Promise<T>(resolve => {
+				const tmpModuleId = generateUuid();
+				console.log(`[amdX] Using external define("${tmpModuleId}", ["${scriptSrc}"])`);
+				(globalThis as any).define(tmpModuleId, [scriptSrc], function (moduleResult: T) {
+					console.log(`[amdX] Got a result for ${tmpModuleId}: ${!!moduleResult}`);
+					resolve(moduleResult);
+				});
+			});
+		}
+
 		const defineCall = await (this._isWebWorker ? this._workerLoadScript(scriptSrc) : this._isRenderer ? this._rendererLoadScript(scriptSrc) : this._nodeJSLoadScript(scriptSrc));
 		if (!defineCall) {
 			// throw new Error(`Did not receive a define call from script ${scriptSrc}`);
 			console.warn(`Did not receive a define call from script ${scriptSrc}`);
 			return <T>undefined;
 		}
-		// TODO require, module
+		// TODO@esm require, module
 		const exports = {};
 		const dependencyObjs: any[] = [];
 		const dependencyModules: string[] = [];
@@ -159,9 +185,9 @@ class AMDModuleImporter {
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			const fs = (globalThis as any)._VSCODE_NODE_MODULES['fs'];
-			const vm = (globalThis as any)._VSCODE_NODE_MODULES['vm'];
-			const module = (globalThis as any)._VSCODE_NODE_MODULES['module'];
+			const fs = (await import(`${'fs'}`)).default;
+			const vm = (await import(`${'vm'}`)).default;
+			const module = (await import(`${'module'}`)).default;
 
 			const filePath = URI.parse(scriptSrc).fsPath;
 			const content = fs.readFileSync(filePath).toString();
@@ -170,7 +196,6 @@ class AMDModuleImporter {
 			const compileWrapper = script.runInThisContext();
 			compileWrapper.apply();
 			return this._defineCalls.pop();
-
 		} catch (error) {
 			throw error;
 		}
