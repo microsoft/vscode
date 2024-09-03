@@ -268,7 +268,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
 
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPaneMessageElement, {
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragOver: (e) => {
 				EventHelper.stop(e.eventData, true);
 				if (this.paneCompositeBar.value) {
