@@ -11,7 +11,7 @@ import { Range } from '../../../common/core/range.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { ColorDecorationInjectedTextMarker } from './colorDetector.js';
 import { ColorHoverParticipant } from './colorHoverParticipant.js';
-import { ContentHoverController } from '../../hover/browser/contentHoverController2.js';
+import { ContentHoverController } from '../../hover/browser/contentHoverController.js';
 import { HoverStartMode, HoverStartSource } from '../../hover/browser/hoverOperation.js';
 import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes.js';
 
