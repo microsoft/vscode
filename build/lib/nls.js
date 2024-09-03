@@ -11,6 +11,7 @@ const File = require("vinyl");
 const sm = require("source-map");
 const path = require("path");
 const sort = require("gulp-sort");
+const amd_1 = require("./amd");
 var CollectStepResult;
 (function (CollectStepResult) {
     CollectStepResult[CollectStepResult["Yes"] = 0] = "Yes";
@@ -169,13 +170,23 @@ var _nls;
             .filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
             .map(n => n)
             .filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-            .filter(d => d.moduleReference.expression.getText() === '\'vs/nls\'');
+            .filter(d => {
+            if (!(0, amd_1.isAMD)()) {
+                return d.moduleReference.expression.getText().endsWith(`/nls.js'`);
+            }
+            return d.moduleReference.expression.getText().endsWith(`/nls'`);
+        });
         // import ... from 'vs/nls';
         const importDeclarations = imports
             .filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
             .map(n => n)
             .filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-            .filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
+            .filter(d => {
+            if (!(0, amd_1.isAMD)()) {
+                return d.moduleSpecifier.getText().endsWith(`/nls.js'`);
+            }
+            return d.moduleSpecifier.getText().endsWith(`/nls'`);
+        })
             .filter(d => !!d.importClause && !!d.importClause.namedBindings);
         // `nls.localize(...)` calls
         const nlsLocalizeCallExpressions = importDeclarations

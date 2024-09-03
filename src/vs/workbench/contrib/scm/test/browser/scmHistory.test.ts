@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorUtils';
-import { colorRegistry, historyItemGroupBase, historyItemGroupLocal, historyItemGroupRemote, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
-import { ISCMHistoryItem } from 'vs/workbench/contrib/scm/common/history';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ColorIdentifier } from '../../../../../platform/theme/common/colorUtils.js';
+import { colorRegistry, historyItemGroupBase, historyItemGroupLocal, historyItemGroupRemote, toISCMHistoryItemViewModelArray } from '../../browser/scmHistory.js';
+import { ISCMHistoryItem } from '../../common/history.js';
 
 suite('toISCMHistoryItemViewModelArray', () => {
 

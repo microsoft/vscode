@@ -1232,9 +1232,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private configurePlugin(pluginName: string, configuration: {}): any {
-		if (this.apiVersion.gte(API.v314)) {
-			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
-		}
+		this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 	}
 }
 

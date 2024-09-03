@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Emitter, Event } from 'vs/base/common/event';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { splitGlobAware } from '../../../../base/common/glob.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IObservableValue, MutableObservableValue } from './observableValue.js';
+import { StoredValue } from './storedValue.js';
+import { namespaceTestTag } from './testTypes.js';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import type { CancellationToken } from 'vs/base/common/cancellation';
-import type { IMarkdownString } from 'vs/base/common/htmlContent';
-import type { IDisposable } from 'vs/base/common/lifecycle';
+import type { IHoverDelegate } from './hoverDelegate.js';
+import type { HoverPosition } from './hoverWidget.js';
+import type { CancellationToken } from '../../../common/cancellation.js';
+import type { IMarkdownString } from '../../../common/htmlContent.js';
+import type { IDisposable } from '../../../common/lifecycle.js';
 
 /**
  * Enables the convenient display of rich markdown-based hovers in the workbench.

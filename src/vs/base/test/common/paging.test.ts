@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { IPager, PagedModel } from 'vs/base/common/paging';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { disposableTimeout } from '../../common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../common/errors.js';
+import { IPager, PagedModel } from '../../common/paging.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
 	if (cancellationToken.isCancellationRequested) {

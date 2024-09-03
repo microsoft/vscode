@@ -516,11 +516,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "fe0f08a5dd68fd72b1652adaa51ab07a4b09f847"
+					"commitHash": "a407d1f0b3669cc82c755700f0d500fb27cc39ea"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "20.14.0"
+			"version": "20.15.1"
 		},
 		{
 			"component": {
@@ -528,12 +528,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "91de7d0f13208891c5604e00ccd18e4f6826653b"
+					"commitHash": "ff3d3e69443c1c8939c9ba2d10d40cb65f3ff278"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "30.1.2"
+			"version": "30.4.0"
 		},
 		{
 			"component": {
@@ -730,6 +730,39 @@
 				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
 				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
 				"SOFTWARE."
+			],
+			"license": "MIT"
+		},
+		{
+			"component": {
+				"type": "npm",
+				"npm": {
+					"name": "cacheable-request",
+					"version": "7.0.4"
+				}
+			},
+			"licenseDetail": [
+				"Copyright (c) cacheable-request authors",
+				"",
+				"MIT License",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining a copy",
+				"of this software and associated documentation files (the \"Software\"), to",
+				"deal in the Software without restriction, including without limitation the",
+				"rights to use, copy, modify, merge, publish, distribute, sublicense, and/or",
+				"sell copies of the Software, and to permit persons to whom the Software is",
+				"furnished to do so, subject to the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be included in",
+				"all copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+				"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+				"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+				"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING",
+				"FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER",
+				"DEALINGS IN THE SOFTWARE."
 			],
 			"license": "MIT"
 		}

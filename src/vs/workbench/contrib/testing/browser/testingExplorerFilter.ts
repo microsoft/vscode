@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { localize } from 'vs/nls';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
-import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
+import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { Action, IAction, IActionRunner, Separator } from '../../../../base/common/actions.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
+import { testingFilterIcon } from './icons.js';
+import { StoredValue } from '../common/storedValue.js';
+import { ITestExplorerFilterState, TestFilterTerm } from '../common/testExplorerFilterState.js';
+import { ITestService } from '../common/testService.js';
+import { denamespaceTestTag } from '../common/testTypes.js';
 
 const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),

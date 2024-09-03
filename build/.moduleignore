@@ -163,7 +163,7 @@ typescript/lib/tsserverlibrary.js
 
 jschardet/index.js
 jschardet/src/**
-jschardet/dist/jschardet.js
+# TODO@esm uncomment when we can use jschardet.min.js again jschardet/dist/jschardet.js
 
 es6-promise/lib/**
 

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/extpath';
-import { posix } from 'vs/base/common/path';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileStat, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { rtrim, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
-import { coalesce } from 'vs/base/common/arrays';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
-import { IFilesConfiguration, SortOrder } from 'vs/workbench/contrib/files/common/files';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ExplorerFileNestingTrie } from 'vs/workbench/contrib/files/common/explorerFileNestingTrie';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/extpath.js';
+import { posix } from '../../../../base/common/path.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IFileStat, IFileService, FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
+import { rtrim, startsWithIgnoreCase, equalsIgnoreCase } from '../../../../base/common/strings.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { joinPath, isEqualOrParent, basenameOrAuthority } from '../../../../base/common/resources.js';
+import { IFilesConfiguration, SortOrder } from './files.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ExplorerFileNestingTrie } from './explorerFileNestingTrie.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export class ExplorerModel implements IDisposable {
 

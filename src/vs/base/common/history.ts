@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SetWithKey } from 'vs/base/common/collections';
-import { ArrayNavigator, INavigator } from 'vs/base/common/navigator';
+import { SetWithKey } from './collections.js';
+import { ArrayNavigator, INavigator } from './navigator.js';
 
 export class HistoryNavigator<T> implements INavigator<T> {
 
