@@ -296,6 +296,28 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				this.emptyPaneMessageElement!.style.backgroundColor = '';
 				if (this.paneCompositeBar.value) {
 					this.paneCompositeBar.value.dndHandler.drop(e.dragAndDropData, undefined, e.eventData);
+				} else {
+					// Allow opening views/composites if the composite bar is hidden
+					const dragData = e.dragAndDropData.getData();
+
+					if (dragData.type === 'composite') {
+						const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;
+						this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.location, undefined, 'dnd');
+						this.openPaneComposite(currentContainer.id, true);
+					}
+
+					else if (dragData.type === 'view') {
+						const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
+						if (viewToMove && viewToMove.canMoveView) {
+							this.viewDescriptorService.moveViewToLocation(viewToMove, this.location, 'dnd');
+
+							const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
+
+							this.openPaneComposite(newContainer.id, true).then(composite => {
+								composite?.openView(viewToMove.id, true);
+							});
+						}
+					}
 				}
 			},
 		}));
