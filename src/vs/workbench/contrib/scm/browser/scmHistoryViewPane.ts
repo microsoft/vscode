@@ -60,11 +60,11 @@ import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { clamp } from '../../../../base/common/numbers.js';
 
-const historyItemDefaultLabelForeground = registerColor('scm.historyItemDefaultLabelForeground', foreground, localize('scm.historyItemDefaultLabelForeground', "History item default label foreground color."));
-const historyItemDefaultLabelBackground = registerColor('scm.historyItemDefaultLabelBackground', transparent(foreground, 0.2), localize('scm.historyItemDefaultLabelBackground', "History item default label background color."));
+const historyItemDefaultLabelForeground = registerColor('scmGraph.historyItemDefaultLabelForeground', foreground, localize('scmGraphHistoryItemDefaultLabelForeground', "History item default label foreground color."));
+const historyItemDefaultLabelBackground = registerColor('scmGraph.historyItemDefaultLabelBackground', transparent(foreground, 0.2), localize('scmGraphHistoryItemDefaultLabelBackground', "History item default label background color."));
 
-const historyItemHoverAdditionsForeground = registerColor('scm.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemHoverAdditionsForeground', "History item hover additions foreground color."));
-const historyItemHoverDeletionsForeground = registerColor('scm.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemHoverDeletionsForeground', "History item hover deletions foreground color."));
+const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
+const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
