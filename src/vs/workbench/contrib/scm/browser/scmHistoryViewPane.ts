@@ -29,11 +29,11 @@ import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/br
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { asCssVariable, ColorIdentifier, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, historyItemGroupHoverLabelForeground, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder } from './scmHistory.js';
+import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground } from './scmHistory.js';
 import { collectContextMenuActions, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemGroup, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
@@ -59,12 +59,6 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { clamp } from '../../../../base/common/numbers.js';
-
-const historyItemDefaultLabelForeground = registerColor('scmGraph.historyItemDefaultLabelForeground', foreground, localize('scmGraphHistoryItemDefaultLabelForeground', "History item default label foreground color."));
-const historyItemDefaultLabelBackground = registerColor('scmGraph.historyItemDefaultLabelBackground', transparent(foreground, 0.2), localize('scmGraphHistoryItemDefaultLabelBackground', "History item default label background color."));
-
-const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
-const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
@@ -249,8 +243,8 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				const icon = append(templateData.labelContainer, $('div.label'));
 				icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
 
-				icon.style.color = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(foreground);
-				icon.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemDefaultLabelBackground);
+				icon.style.color = label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground);
+				icon.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
 			}
 		}
 	}
@@ -302,8 +296,8 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			markdown.appendMarkdown((historyItem.labels ?? []).map(label => {
 				const labelIconId = ThemeIcon.isThemeIcon(label.icon) ? label.icon.id : '';
 
-				const labelBackgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemDefaultLabelBackground);
-				const labelForegroundColor = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(historyItemDefaultLabelForeground);
+				const labelBackgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+				const labelForegroundColor = label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
 
 				return `<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:2px;">&nbsp;$(${labelIconId})&nbsp;${label.title}&nbsp;</span>`;
 			}).join('&nbsp;&nbsp;'));
