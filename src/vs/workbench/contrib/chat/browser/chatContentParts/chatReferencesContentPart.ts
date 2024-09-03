@@ -15,6 +15,8 @@ import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/commo
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
@@ -23,14 +25,14 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ColorScheme } from '../../../../browser/web.api.js';
-import { ChatTreeItem } from '../chat.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart } from './chatContentParts.js';
+import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
-import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
-import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
+import { ChatTreeItem } from '../chat.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
@@ -52,6 +54,8 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		element: IChatResponseViewModel,
 		contentReferencesListPool: CollapsibleListPool,
 		@IOpenerService openerService: IOpenerService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 
@@ -114,6 +118,31 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		this._register(list.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
+
+			if (e.element && 'reference' in e.element && typeof e.element.reference === 'object') {
+				const uriOrLocation = 'variableName' in e.element.reference ? e.element.reference.value : e.element.reference;
+				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
+					uriOrLocation?.uri;
+				if (uri) {
+					this.contextMenuService.showContextMenu({
+						getAnchor: () => e.anchor,
+						getActions: () => {
+							return [{
+								id: 'workbench.action.chat.copyReference',
+								title: localize('copyReference', "Copy"),
+								label: localize('copyReference', "Copy"),
+								tooltip: localize('copyReference', "Copy"),
+								enabled: e.element?.kind === 'reference',
+								class: undefined,
+								run: () => {
+									void this.clipboardService.writeResources([uri]);
+								}
+							}];
+						}
+					});
+				}
+			}
+
 		}));
 
 		const maxItemsShown = 6;
