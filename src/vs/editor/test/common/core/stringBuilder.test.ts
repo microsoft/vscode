@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { writeUInt16LE } from 'vs/base/common/buffer';
-import { CharCode } from 'vs/base/common/charCode';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { decodeUTF16LE, StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { writeUInt16LE } from '../../../../base/common/buffer.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { decodeUTF16LE, StringBuilder } from '../../../common/core/stringBuilder.js';
 
 suite('decodeUTF16LE', () => {
 

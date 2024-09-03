@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env } from 'vs/base/common/process';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { GeneralShellType, PosixShellType, TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Schemas } from 'vs/base/common/network';
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { join } from 'vs/base/common/path';
+import { env } from '../../../../base/common/process.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { GeneralShellType, PosixShellType, TerminalSettingId, TerminalShellType } from '../../../../platform/terminal/common/terminal.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isWindows, OperatingSystem } from '../../../../base/common/platform.js';
+import { join } from '../../../../base/common/path.js';
 
 /**
  * Tracks a list of generic entries.

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { RequestService } from 'vs/platform/request/browser/requestService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
-import { INativeHostService } from 'vs/platform/native/common/native';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { RequestService } from '../../../../platform/request/browser/requestService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 
 export class NativeRequestService extends RequestService {
 

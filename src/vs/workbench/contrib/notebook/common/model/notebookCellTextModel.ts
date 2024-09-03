@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { hash, StringSHA1 } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import { Range } from 'vs/editor/common/core/range';
-import * as model from 'vs/editor/common/model';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { hash, StringSHA1 } from '../../../../../base/common/hash.js';
+import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import * as UUID from '../../../../../base/common/uuid.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import * as model from '../../../../../editor/common/model.js';
+import { PieceTreeTextBuffer } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
+import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from '../notebookCommon.js';
+import { ThrottledDelayer } from '../../../../../base/common/async.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -416,6 +416,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	equal(b: NotebookCellTextModel): boolean {
 		if (this.language !== b.language) {
+			return false;
+		}
+
+		if (this.outputs.length !== b.outputs.length) {
 			return false;
 		}
 

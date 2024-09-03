@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMatch } from 'vs/base/common/filters';
-import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { format, trim } from 'vs/base/common/strings';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol } from 'vs/editor/common/languages';
-import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
-import { localize } from 'vs/nls';
-import { IQuickInputButton, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Position } from 'vs/editor/common/core/position';
-import { findLast } from 'vs/base/common/arraysFind';
-import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { URI } from 'vs/base/common/uri';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IMatch } from '../../../../base/common/filters.js';
+import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from '../../../../base/common/fuzzyScorer.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { format, trim } from '../../../../base/common/strings.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ScrollType } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol } from '../../../common/languages.js';
+import { IOutlineModelService } from '../../documentSymbols/browser/outlineModel.js';
+import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
+import { localize } from '../../../../nls.js';
+import { IQuickInputButton, IQuickPick, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { Position } from '../../../common/core/position.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
+import { IQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind;

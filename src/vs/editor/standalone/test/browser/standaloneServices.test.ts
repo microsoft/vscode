@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
-import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService } from 'vs/editor/standalone/browser/standaloneServices';
-import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { StandaloneCodeEditorService } from '../../browser/standaloneCodeEditorService.js';
+import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService } from '../../browser/standaloneServices.js';
+import { StandaloneThemeService } from '../../browser/standaloneThemeService.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
 
 suite('StandaloneKeybindingService', () => {
 

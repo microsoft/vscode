@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { IProgress } from 'vs/platform/progress/common/progress';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
 
 export class Position {
 	constructor(readonly line: number, readonly character: number) { }

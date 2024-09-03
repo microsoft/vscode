@@ -12,37 +12,37 @@
  */
 
 // ESM-comment-begin
-// Keep bootstrap-amd.js from redefining 'fs'.
-delete process.env['ELECTRON_RUN_AS_NODE'];
-
-const path = require('path');
-const http = require('http');
-const os = require('os');
-const readline = require('readline');
-const performance = require('perf_hooks').performance;
-const bootstrapNode = require('./bootstrap-node');
-const bootstrapAmd = require('./bootstrap-amd');
-const { resolveNLSConfiguration } = require('./vs/base/node/nls');
-const product = require('./bootstrap-meta').product;
-const perf = require(`./vs/base/common/performance`);
-const minimist = require('minimist');
+// // Keep bootstrap-amd.js from redefining 'fs'.
+// delete process.env['ELECTRON_RUN_AS_NODE'];
+//
+// const path = require('path');
+// const http = require('http');
+// const os = require('os');
+// const readline = require('readline');
+// const performance = require('perf_hooks').performance;
+// const bootstrapNode = require('./bootstrap-node');
+// const bootstrapAmd = require('./bootstrap-amd');
+// const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+// const product = require('./bootstrap-meta').product;
+// const perf = require(`./vs/base/common/performance`);
+// const minimist = require('minimist');
 // ESM-comment-end
 // ESM-uncomment-begin
-// import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
-// import * as path from 'path';
-// import * as http from 'http';
-// import * as os from 'os';
-// import * as readline from 'readline';
-// import { performance }from 'perf_hooks';
-// import { fileURLToPath } from 'url';
-// import minimist from 'minimist';
-// import * as bootstrapNode from './bootstrap-node.js';
-// import * as bootstrapAmd from './bootstrap-amd.js';
-// import { resolveNLSConfiguration } from './vs/base/node/nls.js';
-// import { product } from './bootstrap-meta.js';
-// import * as perf from './vs/base/common/performance.js';
-//
-// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
+import * as path from 'path';
+import * as http from 'http';
+import * as os from 'os';
+import * as readline from 'readline';
+import { performance } from 'perf_hooks';
+import { fileURLToPath } from 'url';
+import minimist from 'minimist';
+import * as bootstrapNode from './bootstrap-node.js';
+import * as bootstrapAmd from './bootstrap-amd.js';
+import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+import { product } from './bootstrap-meta.js';
+import * as perf from './vs/base/common/performance.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 
 perf.mark('code/server/start');

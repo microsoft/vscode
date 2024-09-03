@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Action } from 'vs/base/common/actions';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { listFocusForeground, listFocusBackground, foreground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
-import { getAriaLabelForExtension } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
+import * as dom from '../../../../base/browser/dom.js';
+import { localize } from '../../../../nls.js';
+import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Action } from '../../../../base/common/actions.js';
+import { IExtensionsWorkbenchService, IExtension } from '../common/extensions.js';
+import { Event } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListService, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
+import { IAsyncDataSource, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { Delegate, Renderer } from './extensionsList.js';
+import { listFocusForeground, listFocusBackground, foreground, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getAriaLabelForExtension } from './extensionsViews.js';
 
 export class ExtensionsGridView extends Disposable {
 

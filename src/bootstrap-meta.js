@@ -11,11 +11,11 @@
  */
 
 // ESM-uncomment-begin
-// import { createRequire } from 'node:module';
-//
-// const require = createRequire(import.meta.url);
-// /** @type any */
-// const module = { exports: {} };
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 /** @type Partial<IProductConfiguration> & { BUILD_INSERT_PRODUCT_CONFIGURATION?: string } */
@@ -36,6 +36,6 @@ module.exports.product = productObj;
 module.exports.pkg = pkgObj;
 
 // ESM-uncomment-begin
-// export const product = module.exports.product;
-// export const pkg = module.exports.pkg;
+export const product = module.exports.product;
+export const pkg = module.exports.pkg;
 // ESM-uncomment-end

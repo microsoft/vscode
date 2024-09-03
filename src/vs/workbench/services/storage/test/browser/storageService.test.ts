@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IStorageChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/workbench/services/storage/browser/storageService';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IStorageChangeEvent, Storage } from '../../../../../base/parts/storage/common/storage.js';
+import { flakySuite } from '../../../../../base/test/common/testUtils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { createSuite } from '../../../../../platform/storage/test/common/storageService.test.js';
+import { IUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { BrowserStorageService, IndexedDBStorageDatabase } from '../../browser/storageService.js';
+import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EnablementState, IExtensionManagementServer, IResourceExtension } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IPager } from '../../../../base/common/paging.js';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IExtensionManifest, ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IView, IViewPaneContainer } from '../../../common/views.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionsStatus } from '../../../services/extensions/common/extensions.js';
+import { IExtensionEditorOptions } from './extensionsInput.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 

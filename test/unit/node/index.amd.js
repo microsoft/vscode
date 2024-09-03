@@ -17,7 +17,6 @@ const minimatch = require('minimatch');
 const coverage = require('../coverage');
 const minimist = require('minimist');
 const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
-const bootstrapNode = require('../../../src/bootstrap-node');
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
@@ -105,6 +104,8 @@ function main() {
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);
 	});
+
+	const bootstrapNode = require(`../../../${out}/bootstrap-node`);
 
 	const loaderConfig = {
 		nodeRequire: require,

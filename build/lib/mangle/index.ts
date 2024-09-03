@@ -12,7 +12,7 @@ import * as ts from 'typescript';
 import { pathToFileURL } from 'url';
 import * as workerpool from 'workerpool';
 import { StaticLanguageServiceHost } from './staticLanguageServiceHost';
-import { isESM } from '../esm';
+import { isAMD } from '../amd';
 const buildfile = require('../../buildfile');
 
 class ShortIdent {
@@ -280,7 +280,7 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 	return false;
 }
 
-const skippedExportMangledFiles = function () { // using a function() to ensure late isESM() check
+const skippedExportMangledFiles = function () { // using a function() to ensure late isAMD() check
 	return [
 		// Build
 		'css.build',
@@ -300,7 +300,7 @@ const skippedExportMangledFiles = function () { // using a function() to ensure 
 		'pfs',
 
 		// entry points
-		...isESM() ? [
+		...!isAMD() ? [
 			buildfile.entrypoint('vs/server/node/server.main'),
 			buildfile.base,
 			buildfile.workerExtensionHost,
