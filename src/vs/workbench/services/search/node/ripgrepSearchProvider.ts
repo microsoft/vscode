@@ -36,13 +36,10 @@ export class RipgrepSearchProvider implements TextSearchProviderNew {
 				// Ripgrep search engine can only provide file-scheme results, but we want to use it to search some schemes that are backed by the filesystem, but with some other provider as the frontend,
 				// case in point vscode-userdata. In these cases we translate the query to a file, and translate the results back to the frontend scheme.
 				const translatedOptions = { ...extendedOptions, folder: folderOption.folder.with({ scheme: Schemas.file }) };
-				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, translatedOptions, (data) => progress.report({ result: { ...data, uri: data.uri.with({ scheme: folderOption.folder.scheme }) }, folder: folderOption.folder }), token));
+				const progressTranslator = new Progress<SearchResultFromFolder<TextSearchResultNew>>(data => progress.report({ folder: data.folder, result: { ...data.result, uri: data.result.uri.with({ scheme: folderOption.folder.scheme }) } }));
+				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, translatedOptions, folderOption.folder, progressTranslator, token));
 			} else {
-				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query,
-					extendedOptions,
-					(data: TextSearchResultNew) => progress.report({ folder: folderOption.folder, result: data }),
-					token
-				));
+				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, extendedOptions, folderOption.folder, progress, token));
 			}
 		})).then((e => {
 			const complete: TextSearchCompleteNew = {
