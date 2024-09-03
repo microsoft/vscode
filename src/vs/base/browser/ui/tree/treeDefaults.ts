@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { Action } from 'vs/base/common/actions';
-import * as nls from 'vs/nls';
+import { AsyncDataTree } from './asyncDataTree.js';
+import { Action } from '../../../common/actions.js';
+import * as nls from '../../../../nls.js';
 
 export class CollapseAllAction<TInput, T, TFilterData = void> extends Action {
 

@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { HoverOperation, HoverResult, HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer, MarginHoverComputerOptions } from 'vs/editor/contrib/hover/browser/marginHoverComputer';
+import * as dom from '../../../../base/browser/dom.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { HoverOperation, HoverStartMode } from './hoverOperation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { HoverWidget } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverWidget } from './hoverTypes.js';
+import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from './marginHoverComputer.js';
+import { isMousePositionWithinElement } from './hoverUtils.js';
 
 const $ = dom.$;
 
@@ -35,8 +36,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 
 	constructor(
 		editor: ICodeEditor,
-		languageService: ILanguageService,
-		openerService: IOpenerService,
+		@ILanguageService languageService: ILanguageService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 		this._editor = editor;
@@ -59,7 +60,9 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 				this._updateFont();
 			}
 		}));
-
+		this._register(dom.addStandardDisposableListener(this._hover.containerDomNode, 'mouseleave', (e) => {
+			this._onMouseLeave(e);
+		}));
 		this._editor.addOverlayWidget(this);
 	}
 
@@ -177,5 +180,13 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (laneOrLine === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
 		this._hover.containerDomNode.style.left = `${left}px`;
 		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+	}
+
+	private _onMouseLeave(e: MouseEvent): void {
+		const editorDomNode = this._editor.getDomNode();
+		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
+		if (isMousePositionOutsideOfEditor) {
+			this.hide();
+		}
 	}
 }

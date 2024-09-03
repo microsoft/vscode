@@ -4,19 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
+'use strict';
 
-const perf = require('./vs/base/common/performance');
-const performance = require('perf_hooks').performance;
-const product = require('../product.json');
-const readline = require('readline');
-const http = require('http');
+/**
+ * @import { INLSConfiguration } from './vs/nls'
+ * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
+ */
+
+// ESM-comment-begin
+// // Keep bootstrap-amd.js from redefining 'fs'.
+// delete process.env['ELECTRON_RUN_AS_NODE'];
+//
+// const path = require('path');
+// const http = require('http');
+// const os = require('os');
+// const readline = require('readline');
+// const performance = require('perf_hooks').performance;
+// const bootstrapNode = require('./bootstrap-node');
+// const bootstrapAmd = require('./bootstrap-amd');
+// const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+// const product = require('./bootstrap-meta').product;
+// const perf = require(`./vs/base/common/performance`);
+// const minimist = require('minimist');
+// ESM-comment-end
+// ESM-uncomment-begin
+import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
+import * as path from 'path';
+import * as http from 'http';
+import * as os from 'os';
+import * as readline from 'readline';
+import { performance } from 'perf_hooks';
+import { fileURLToPath } from 'url';
+import minimist from 'minimist';
+import * as bootstrapNode from './bootstrap-node.js';
+import * as bootstrapAmd from './bootstrap-amd.js';
+import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+import { product } from './bootstrap-meta.js';
+import * as perf from './vs/base/common/performance.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
 
 perf.mark('code/server/start');
 // @ts-ignore
 global.vscodeServerStartTime = performance.now();
 
 async function start() {
-	const minimist = require('minimist');
 
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
@@ -38,16 +71,15 @@ async function start() {
 
 	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
+	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
+
 	if (shouldSpawnCli) {
-		loadCode().then((mod) => {
+		loadCode(nlsConfiguration).then((mod) => {
 			mod.spawnCli();
 		});
 		return;
 	}
 
-	/**
-	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
-	 */
 	/** @type {IServerAPI | null} */
 	let _remoteExtensionHostAgentServer = null;
 	/** @type {Promise<IServerAPI> | null} */
@@ -55,7 +87,7 @@ async function start() {
 	/** @returns {Promise<IServerAPI>} */
 	const getRemoteExtensionHostAgentServer = () => {
 		if (!_remoteExtensionHostAgentServerPromise) {
-			_remoteExtensionHostAgentServerPromise = loadCode().then(async (mod) => {
+			_remoteExtensionHostAgentServerPromise = loadCode(nlsConfiguration).then(async (mod) => {
 				const server = await mod.createServer(address);
 				_remoteExtensionHostAgentServer = server;
 				return server;
@@ -63,9 +95,6 @@ async function start() {
 		}
 		return _remoteExtensionHostAgentServerPromise;
 	};
-
-	const http = require('http');
-	const os = require('os');
 
 	if (Array.isArray(product.serverLicense) && product.serverLicense.length) {
 		console.log(product.serverLicense.join('\n'));
@@ -248,15 +277,18 @@ async function findFreePort(host, start, end) {
 	return undefined;
 }
 
-/** @returns { Promise<typeof import('./vs/server/node/server.main')> } */
-function loadCode() {
+/**
+ * @param {INLSConfiguration} nlsConfiguration
+ * @returns { Promise<typeof import('./vs/server/node/server.main')> }
+ */
+function loadCode(nlsConfiguration) {
 	return new Promise((resolve, reject) => {
-		const path = require('path');
 
-		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
+		/** @type {INLSConfiguration} */
+		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
 
 		// See https://github.com/microsoft/vscode-remote-release/issues/6543
-		// We would normally install a SIGPIPE listener in bootstrap.js
+		// We would normally install a SIGPIPE listener in bootstrap-node.js
 		// But in certain situations, the console itself can be in a broken pipe state
 		// so logging SIGPIPE to the console will cause an infinite async loop
 		process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';
@@ -264,12 +296,12 @@ function loadCode() {
 		if (process.env['VSCODE_DEV']) {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
-			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-			require('./bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+			process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
+			bootstrapNode.devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 		} else {
-			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
+			delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		}
-		require('./bootstrap-amd').load('vs/server/node/server.main', resolve, reject);
+		bootstrapAmd.load('vs/server/node/server.main', resolve, reject);
 	});
 }
 
@@ -306,6 +338,5 @@ function prompt(question) {
 		});
 	});
 }
-
 
 start();

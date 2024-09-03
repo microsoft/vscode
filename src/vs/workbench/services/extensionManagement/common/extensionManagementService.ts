@@ -3,43 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
+import { Emitter, Event, EventMultiplexer } from '../../../../base/common/event.js';
 import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo,
 	IProductVersion,
 	ExtensionInstallSource,
-	DidUpdateExtensionMetadata
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { areSameExtensions, computeTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { coalesce } from 'vs/base/common/arrays';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { Promises } from 'vs/base/common/async';
-import { IWorkspaceTrustRequestService, WorkspaceTrustRequestButton } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isString, isUndefined } from 'vs/base/common/types';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionsScannerService, IScannedExtension } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+	DidUpdateExtensionMetadata,
+	UninstallExtensionInfo
+} from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from './extensionManagement.js';
+import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { areSameExtensions, computeTargetPlatform } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { localize } from '../../../../nls.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IDownloadService } from '../../../../platform/download/common/download.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../base/common/severity.js';
+import { IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { Promises } from '../../../../base/common/async.js';
+import { IWorkspaceTrustRequestService, WorkspaceTrustRequestButton } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { isString, isUndefined } from '../../../../base/common/types.js';
+import { FileChangesEvent, IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IExtensionsScannerService, IScannedExtension } from '../../../../platform/extensionManagement/common/extensionsScannerService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): extension is IGalleryExtension {
 	return extension.type === 'gallery';
@@ -147,52 +148,72 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return result;
 	}
 
-	async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		if (extension.isWorkspaceScoped) {
-			return this.uninstallExtensionFromWorkspace(extension);
-		}
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
-		}
-		if (this.servers.length > 1) {
-			if (isLanguagePackExtension(extension.manifest)) {
-				return this.uninstallEverywhere(extension, options);
-			}
-			return this.uninstallInServer(extension, server, options);
-		}
-		return server.extensionManagementService.uninstall(extension, options);
+	uninstall(extension: ILocalExtension, options: UninstallOptions): Promise<void> {
+		return this.uninstallExtensions([{ extension, options }]);
 	}
 
-	private async uninstallEverywhere(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		const server = this.getServer(extension);
-		if (!server) {
-			return Promise.reject(`Invalid location ${extension.location.toString()}`);
-		}
-		const promise = server.extensionManagementService.uninstall(extension, options);
-		const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
-		if (otherServers.length) {
-			for (const otherServer of otherServers) {
-				const installed = await otherServer.extensionManagementService.getInstalled();
-				extension = installed.filter(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier))[0];
-				if (extension) {
-					await otherServer.extensionManagementService.uninstall(extension, options);
+	async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
+		const workspaceExtensions: ILocalExtension[] = [];
+		const groupedExtensions = new Map<IExtensionManagementServer, UninstallExtensionInfo[]>();
+
+		const addExtensionToServer = (server: IExtensionManagementServer, extension: ILocalExtension, options?: UninstallOptions) => {
+			let extensions = groupedExtensions.get(server);
+			if (!extensions) {
+				groupedExtensions.set(server, extensions = []);
+			}
+			extensions.push({ extension, options });
+		};
+
+		for (const { extension, options } of extensions) {
+			if (extension.isWorkspaceScoped) {
+				workspaceExtensions.push(extension);
+				continue;
+			}
+
+			const server = this.getServer(extension);
+			if (!server) {
+				throw new Error(`Invalid location ${extension.location.toString()}`);
+			}
+			addExtensionToServer(server, extension, options);
+			if (this.servers.length > 1 && isLanguagePackExtension(extension.manifest)) {
+				const otherServers: IExtensionManagementServer[] = this.servers.filter(s => s !== server);
+				for (const otherServer of otherServers) {
+					const installed = await otherServer.extensionManagementService.getInstalled();
+					const extensionInOtherServer = installed.find(i => !i.isBuiltin && areSameExtensions(i.identifier, extension.identifier));
+					if (extensionInOtherServer) {
+						addExtensionToServer(otherServer, extensionInOtherServer, options);
+					}
 				}
 			}
 		}
-		return promise;
+
+		const promises: Promise<void>[] = [];
+		for (const workspaceExtension of workspaceExtensions) {
+			promises.push(this.uninstallExtensionFromWorkspace(workspaceExtension));
+		}
+		for (const [server, extensions] of groupedExtensions.entries()) {
+			promises.push(this.uninstallInServer(server, extensions));
+		}
+
+		const result = await Promise.allSettled(promises);
+		const errors = result.filter(r => r.status === 'rejected').map(r => r.reason);
+		if (errors.length) {
+			throw new Error(errors.map(e => e.message).join('\n'));
+		}
 	}
 
-	private async uninstallInServer(extension: ILocalExtension, server: IExtensionManagementServer, options?: UninstallOptions): Promise<void> {
-		if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-			const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getInstalled(ExtensionType.User);
-			const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
-				&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
-			if (dependentNonUIExtensions.length) {
-				return Promise.reject(new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+	private async uninstallInServer(server: IExtensionManagementServer, extensions: UninstallExtensionInfo[]): Promise<void> {
+		if (server === this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			for (const { extension } of extensions) {
+				const installedExtensions = await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.getInstalled(ExtensionType.User);
+				const dependentNonUIExtensions = installedExtensions.filter(i => !this.extensionManifestPropertiesService.prefersExecuteOnUI(i.manifest)
+					&& i.manifest.extensionDependencies && i.manifest.extensionDependencies.some(id => areSameExtensions({ id }, extension.identifier)));
+				if (dependentNonUIExtensions.length) {
+					throw (new Error(this.getDependentsErrorMessage(extension, dependentNonUIExtensions)));
+				}
 			}
 		}
-		return server.extensionManagementService.uninstall(extension, options);
+		return server.extensionManagementService.uninstallExtensions(extensions);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
@@ -226,19 +247,16 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
+	async resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> {
+		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.resetPinnedStateForAllUserExtensions(pinned)));
+	}
+
 	zip(extension: ILocalExtension): Promise<URI> {
 		const server = this.getServer(extension);
 		if (server) {
 			return server.extensionManagementService.zip(extension);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
-	}
-
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promises.settled(this.servers
-			// Filter out web server
-			.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer)
-			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
 	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI> {
@@ -378,6 +396,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			servers.push(server);
 		}
 
+		installOptions = { ...(installOptions || {}), isApplicationScoped: extension.isApplicationScoped };
 		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 	}
 

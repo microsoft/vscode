@@ -3,43 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import * as lifecycle from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import * as nls from 'vs/nls';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { AbstractExpressionDataSource, renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { VariablesRenderer, VisualizedVariableRenderer, openContextMenuForVariableTreeElement } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
+import * as dom from '../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { AsyncDataTree } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import * as lifecycle from '../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { IDimension } from '../../../../editor/common/core/dimension.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import * as nls from '../../../../nls.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { AbstractExpressionDataSource, renderExpressionValue } from './baseDebugView.js';
+import { LinkDetector } from './linkDetector.js';
+import { VariablesRenderer, VisualizedVariableRenderer, openContextMenuForVariableTreeElement } from './variablesView.js';
+import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from '../common/debug.js';
+import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
+import { getEvaluatableExpressionAtPosition } from '../common/debugUtils.js';
 
 const $ = dom.$;
 
@@ -83,7 +83,11 @@ export class DebugHoverWidget implements IContentWidget {
 	// editor.IContentWidget.allowEditorOverflow
 	readonly allowEditorOverflow = true;
 
-	private _isVisible: boolean;
+	// todo@connor4312: move more properties that are only valid while a hover
+	// is happening into `_isVisible`
+	private _isVisible?: {
+		store: lifecycle.DisposableStore;
+	};
 	private safeTriangle?: dom.SafeTriangle;
 	private showCancellationSource?: CancellationTokenSource;
 	private domNode!: HTMLElement;
@@ -117,7 +121,6 @@ export class DebugHoverWidget implements IContentWidget {
 	) {
 		this.toDispose = [];
 
-		this._isVisible = false;
 		this.showAtPosition = null;
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 		this.debugHoverComputer = this.instantiationService.createInstance(DebugHoverComputer, this.editor);
@@ -215,7 +218,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	isVisible(): boolean {
-		return this._isVisible;
+		return !!this._isVisible;
 	}
 
 	willBeVisible(): boolean {
@@ -239,7 +242,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	async showAt(position: Position, focus: boolean, mouseEvent?: IMouseEvent): Promise<void | ShowDebugHoverResult> {
-		this.showCancellationSource?.cancel();
+		this.showCancellationSource?.dispose(true);
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
 
@@ -293,14 +296,16 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		this.showAtPosition = position;
-		this._isVisible = true;
+		const store = new lifecycle.DisposableStore();
+		this._isVisible = { store };
 
 		if (!expression.hasChildren) {
 			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			renderExpressionValue(expression, this.valueContainer, {
+			renderExpressionValue(store, expression, this.valueContainer, {
 				showChanged: false,
-				colorize: true
+				colorize: true,
+				hover: false,
 			}, this.hoverService);
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
@@ -381,7 +386,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	hide(): void {
 		if (this.showCancellationSource) {
-			this.showCancellationSource.cancel();
+			this.showCancellationSource.dispose(true);
 			this.showCancellationSource = undefined;
 		}
 
@@ -392,7 +397,9 @@ export class DebugHoverWidget implements IContentWidget {
 		if (dom.isAncestorOfActiveElement(this.domNode)) {
 			this.editor.focus();
 		}
-		this._isVisible = false;
+		this._isVisible.store.dispose();
+		this._isVisible = undefined;
+
 		this.highlightDecorations.clear();
 		this.editor.layoutContentWidget(this);
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
@@ -451,8 +458,10 @@ interface IDebugHoverComputeResult {
 }
 
 class DebugHoverComputer {
-	private _currentRange: Range | undefined;
-	private _currentExpression: string | undefined;
+	private _current?: {
+		range: Range;
+		expression: string;
+	};
 
 	constructor(
 		private editor: ICodeEditor,
@@ -474,30 +483,35 @@ class DebugHoverComputer {
 		}
 
 		const { range, matchingExpression } = result;
-		const rangeChanged = this._currentRange ?
-			!this._currentRange.equalsRange(range) :
-			true;
-		this._currentExpression = matchingExpression;
-		this._currentRange = Range.lift(range);
-		return { rangeChanged, range: this._currentRange };
+		const rangeChanged = !this._current?.range.equalsRange(range);
+		this._current = { expression: matchingExpression, range: Range.lift(range) };
+		return { rangeChanged, range: this._current.range };
 	}
 
 	async evaluate(session: IDebugSession): Promise<IExpression | undefined> {
-		if (!this._currentExpression) {
+		if (!this._current) {
 			this.logService.error('No expression to evaluate');
 			return;
 		}
 
+		const textModel = this.editor.getModel();
+		const debugSource = textModel && session.getSourceForUri(textModel?.uri);
+
 		if (session.capabilities.supportsEvaluateForHovers) {
-			const expression = new Expression(this._currentExpression);
-			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
+			const expression = new Expression(this._current.expression);
+			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover', undefined, debugSource ? {
+				line: this._current.range.startLineNumber,
+				column: this._current.range.startColumn,
+				source: debugSource.raw,
+			} : undefined);
 			return expression;
 		} else {
 			const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (focusedStackFrame) {
 				return await findExpressionInStackFrame(
 					focusedStackFrame,
-					coalesce(this._currentExpression.split('.').map(word => word.trim())));
+					coalesce(this._current.expression.split('.').map(word => word.trim()))
+				);
 			}
 		}
 

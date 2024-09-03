@@ -3,18 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { streamToBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { localize } from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from '../../log/common/log.js';
+import { Registry } from '../../registry/common/platform.js';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
+
+export interface AuthInfo {
+	isProxy: boolean;
+	scheme: string;
+	host: string;
+	port: number;
+	realm: string;
+	attempt: number;
+}
+
+export interface Credentials {
+	username: string;
+	password: string;
+}
 
 export interface IRequestService {
 	readonly _serviceBrand: undefined;
@@ -22,6 +36,8 @@ export interface IRequestService {
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 }
 
@@ -80,6 +96,8 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	abstract request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 	abstract resolveProxy(url: string): Promise<string | undefined>;
+	abstract lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	abstract lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	abstract loadCertificates(): Promise<string[]>;
 }
 
@@ -153,6 +171,12 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 			'http.proxyKerberosServicePrincipal': {
 				type: 'string',
 				markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set."),
+				restricted: true
+			},
+			'http.noProxy': {
+				type: 'array',
+				items: { type: 'string' },
+				markdownDescription: localize('noProxy', "Specifies domain names for which proxy settings should be ignored for HTTP/HTTPS requests."),
 				restricted: true
 			},
 			'http.proxyAuthorization': {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/objects';
-import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
+import { equals } from '../../../base/common/objects.js';
+import { IUserDataProfile, UseDefaultProfileFlags } from '../../userDataProfile/common/userDataProfile.js';
+import { ISyncUserDataProfile } from './userDataSync.js';
 
 interface IRelaxedMergeResult {
 	local: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] };

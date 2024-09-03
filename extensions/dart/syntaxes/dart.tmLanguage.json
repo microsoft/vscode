@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/bb8f7eebf5a1028e70dbebcf35cfef738dddc7fe",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/e8b053f9834cb44db0f49ac4a4567177bd943dbf",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -212,7 +212,7 @@
 				},
 				{
 					"name": "constant.numeric.dart",
-					"match": "(?<!\\$)\\b((0(x|X)[0-9a-fA-F]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b((0(x|X)[0-9a-fA-F][0-9a-fA-F_]*)|(([0-9][0-9_]*\\.?[0-9_]*)|(\\.[0-9][0-9_]*))((e|E)(\\+|-)?[0-9][0-9_]*)?)\\b(?!\\$)"
 				},
 				{
 					"include": "#class-identifier"

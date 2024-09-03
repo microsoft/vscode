@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import * as objects from 'vs/base/common/objects';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { getNodeType, parse, ParseError } from 'vs/base/common/json';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { basename, isEqual, joinPath } from 'vs/base/common/resources';
-import * as semver from 'vs/base/common/semver/semver';
-import Severity from 'vs/base/common/severity';
-import { isEmptyObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductVersion, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
-import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { revive } from 'vs/base/common/marshalling';
-import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { coalesce } from '../../../base/common/arrays.js';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import * as objects from '../../../base/common/objects.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { getNodeType, parse, ParseError } from '../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { FileAccess, Schemas } from '../../../base/common/network.js';
+import * as path from '../../../base/common/path.js';
+import * as platform from '../../../base/common/platform.js';
+import { basename, isEqual, joinPath } from '../../../base/common/resources.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import Severity from '../../../base/common/severity.js';
+import { isEmptyObject } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IProductVersion, Metadata } from './extensionManagement.js';
+import { areSameExtensions, computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from './extensionManagementUtil.js';
+import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, ExtensionIdentifierMap, parseEnabledApiProposalNames } from '../../extensions/common/extensions.js';
+import { validateExtensionManifest } from '../../extensions/common/extensionValidator.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension } from './extensionsProfileScannerService.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { localizeManifest } from './extensionNls.js';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -554,14 +554,19 @@ type NlsConfiguration = {
 
 class ExtensionsScanner extends Disposable {
 
+	private readonly extensionsEnabledWithApiProposalVersion: string[];
+
 	constructor(
 		private readonly obsoleteFile: URI,
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
+		@IProductService productService: IProductService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
+		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -653,7 +658,7 @@ class ExtensionsScanner extends Disposable {
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
-				const extension: IRelaxedScannedExtension = {
+				let extension: IRelaxedScannedExtension = {
 					type,
 					identifier,
 					manifest,
@@ -665,7 +670,14 @@ class ExtensionsScanner extends Disposable {
 					isValid: true,
 					validations: []
 				};
-				return input.validate ? this.validate(extension, input) : extension;
+				if (input.validate) {
+					extension = this.validate(extension, input);
+				}
+				if (manifest.enabledApiProposals && (!this.environmentService.isBuilt || this.extensionsEnabledWithApiProposalVersion.includes(id.toLowerCase()))) {
+					manifest.originalEnabledApiProposals = manifest.enabledApiProposals;
+					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
+				}
+				return extension;
 			}
 		} catch (e) {
 			if (input.type !== ExtensionType.System) {
@@ -677,7 +689,8 @@ class ExtensionsScanner extends Disposable {
 
 	validate(extension: IRelaxedScannedExtension, input: ExtensionScannerInput): IRelaxedScannedExtension {
 		let isValid = true;
-		const validations = validateExtensionManifest(input.productVersion, input.productDate, input.location, extension.manifest, extension.isBuiltin);
+		const validateApiVersion = this.environmentService.isBuilt && this.extensionsEnabledWithApiProposalVersion.includes(extension.identifier.id.toLowerCase());
+		const validations = validateExtensionManifest(input.productVersion, input.productDate, input.location, extension.manifest, extension.isBuiltin, validateApiVersion);
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {
 				isValid = false;
@@ -689,7 +702,7 @@ class ExtensionsScanner extends Disposable {
 		return extension;
 	}
 
-	async scanExtensionManifest(extensionLocation: URI): Promise<IScannedExtensionManifest | null> {
+	private async scanExtensionManifest(extensionLocation: URI): Promise<IScannedExtensionManifest | null> {
 		const manifestLocation = joinPath(extensionLocation, 'package.json');
 		let content;
 		try {
@@ -713,7 +726,7 @@ class ExtensionsScanner extends Disposable {
 			return null;
 		}
 		if (getNodeType(manifest) !== 'object') {
-			this.logService.error(this.formatMessage(extensionLocation, localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", manifestLocation.path)));
+			this.logService.error(this.formatMessage(extensionLocation, localize('jsonParseInvalidType', "Invalid manifest file {0}: Not a JSON object.", manifestLocation.path)));
 			return null;
 		}
 		return manifest;
@@ -878,9 +891,11 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
+		@IProductService productService: IProductService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService
 	) {
-		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, logService);
+		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, productService, environmentService, logService);
 	}
 
 	override async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {

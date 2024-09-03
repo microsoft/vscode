@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { mock } from 'vs/base/test/common/mock';
-import { Event } from 'vs/base/common/event';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IActiveNotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { setupInstantiationService, withTestNotebook } from '../testNotebookEditor.js';
+import { OutlineTarget } from '../../../../../services/outline/browser/outline.js';
+import { IFileIconTheme, IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IMarkerService } from '../../../../../../platform/markers/common/markers.js';
+import { MarkerService } from '../../../../../../platform/markers/common/markerService.js';
+import { CellKind, IOutputDto, NotebookCellMetadata } from '../../../common/notebookCommon.js';
+import { IActiveNotebookEditor, INotebookEditorPane } from '../../../browser/notebookBrowser.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NotebookCellOutline } from '../../../browser/contrib/outline/notebookOutline.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
+import { IEditorPaneSelectionChangeEvent } from '../../../../../common/editor.js';
 
 suite('Notebook Outline', function () {
 
@@ -32,6 +35,7 @@ suite('Notebook Outline', function () {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
+		instantiationService.set(ILanguageFeaturesService, new LanguageFeaturesService());
 		instantiationService.set(IMarkerService, disposables.add(new MarkerService()));
 		instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
 			override onDidFileIconThemeChange = Event.None;
@@ -52,6 +56,7 @@ suite('Notebook Outline', function () {
 					return editor;
 				}
 				override onDidChangeModel: Event<void> = Event.None;
+				override onDidChangeSelection: Event<IEditorPaneSelectionChangeEvent> = Event.None;
 			}, OutlineTarget.OutlinePane);
 
 			disposables.add(outline);

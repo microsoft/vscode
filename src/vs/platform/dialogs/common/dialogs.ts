@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { basename } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { deepClone } from 'vs/base/common/objects';
+import { Event } from '../../../base/common/event.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { basename } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ITelemetryData } from '../../telemetry/common/telemetry.js';
+import { MessageBoxOptions } from '../../../base/parts/sandbox/common/electronTypes.js';
+import { mnemonicButtonLabel } from '../../../base/common/labels.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IProductService } from '../../product/common/productService.js';
+import { deepClone } from '../../../base/common/objects.js';
 
 export interface IDialogArgs {
 	readonly confirmArgs?: IConfirmDialogArgs;

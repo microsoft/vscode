@@ -3,20 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
-import * as https from 'https';
-import * as tls from 'tls';
-import * as net from 'net';
+// ESM-comment-begin
+// import * as http from 'http';
+// import * as https from 'https';
+// import * as tls from 'tls';
+// import * as net from 'net';
+// ESM-comment-end
 
-import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { URI } from 'vs/base/common/uri';
-import { ILogService, LogLevel as LogServiceLevel } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtHostWorkspaceProvider } from '../common/extHostWorkspace.js';
+import { ExtHostConfigProvider } from '../common/extHostConfiguration.js';
+import { MainThreadTelemetryShape } from '../common/extHost.protocol.js';
+import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
+import { ExtHostExtensionService } from './extHostExtensionService.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
+import { AuthInfo } from '../../../platform/request/common/request.js';
+
+// ESM-uncomment-begin
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const http = require('http');
+const https = require('https');
+const tls = require('tls');
+const net = require('net');
+// ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
 
@@ -32,9 +44,10 @@ export function connectProxyResolver(
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
-		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, mainThreadTelemetry, configProvider, {}, initData.remote.isRemote),
+		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, {}, initData.remote.isRemote, doUseHostProxy),
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
+		getNoProxyConfig: () => configProvider.getConfiguration('http').get<string[]>('noProxy') || [],
 		addCertificatesV1: () => certSettingV1(configProvider),
 		addCertificatesV2: () => certSettingV2(configProvider),
 		log: extHostLogService,
@@ -67,6 +80,11 @@ export function connectProxyResolver(
 				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
 				promises.push(certs);
 			}
+			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
+			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
+				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
+				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
+			}
 			return (await Promise.all(promises)).flat();
 		},
 		env: process.env,
@@ -78,19 +96,15 @@ export function connectProxyResolver(
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
 
-	function proxyAssign(module: any, patch: any) {
-		return new Proxy(module, {
-			get(target, prop) {
-				return prop in patch ? patch[prop] : target[prop];
-			}
-		});
+	function mergeModules(module: any, patch: any) {
+		return Object.assign(module.default || module, patch);
 	}
 
 	return {
-		http: proxyAssign(http, createHttpPatch(params, http, resolveProxy)),
-		https: proxyAssign(https, createHttpPatch(params, https, resolveProxy)),
-		net: proxyAssign(net, createNetPatch(params, net)),
-		tls: proxyAssign(tls, createTlsPatch(params, tls))
+		http: mergeModules(http, createHttpPatch(params, http, resolveProxy)),
+		https: mergeModules(https, createHttpPatch(params, https, resolveProxy)),
+		net: mergeModules(net, createNetPatch(params, net)),
+		tls: mergeModules(tls, createTlsPatch(params, tls))
 	};
 }
 
@@ -108,7 +122,7 @@ const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof 
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
-			const node_module = <any>globalThis._VSCODE_NODE_MODULES.module;
+			const node_module = require('module');
 			const original = node_module._load;
 			node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 				if (request === 'net') {
@@ -138,14 +152,17 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 }
 
 async function lookupProxyAuthorization(
+	extHostWorkspace: IExtHostWorkspaceProvider,
 	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape,
 	configProvider: ExtHostConfigProvider,
 	proxyAuthenticateCache: Record<string, string | string[] | undefined>,
+	basicAuthCache: Record<string, string | undefined>,
 	isRemote: boolean,
+	useHostProxy: boolean,
 	proxyURL: string,
 	proxyAuthenticate: string | string[] | undefined,
-	state: { kerberosRequested?: boolean }
+	state: { kerberosRequested?: boolean; basicAuthCacheUsed?: boolean; basicAuthAttempt?: number }
 ): Promise<string | undefined> {
 	const cached = proxyAuthenticateCache[proxyURL];
 	if (proxyAuthenticate) {
@@ -156,8 +173,9 @@ async function lookupProxyAuthorization(
 	const authenticate = Array.isArray(header) ? header : typeof header === 'string' ? [header] : [];
 	sendTelemetry(mainThreadTelemetry, authenticate, isRemote);
 	if (authenticate.some(a => /^(Negotiate|Kerberos)( |$)/i.test(a)) && !state.kerberosRequested) {
+		state.kerberosRequested = true;
+
 		try {
-			state.kerberosRequested = true;
 			const kerberos = await import('kerberos');
 			const url = new URL(proxyURL);
 			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
@@ -167,7 +185,54 @@ async function lookupProxyAuthorization(
 			const response = await client.step('');
 			return 'Negotiate ' + response;
 		} catch (err) {
-			extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+		}
+
+		if (isRemote && useHostProxy) {
+			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup on host', `proxyURL:${proxyURL}`);
+			const auth = await extHostWorkspace.lookupKerberosAuthorization(proxyURL);
+			if (auth) {
+				return 'Negotiate ' + auth;
+			}
+		}
+	}
+	const basicAuthHeader = authenticate.find(a => /^Basic( |$)/i.test(a));
+	if (basicAuthHeader) {
+		try {
+			const cachedAuth = basicAuthCache[proxyURL];
+			if (cachedAuth) {
+				if (state.basicAuthCacheUsed) {
+					extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication deleting cached credentials', `proxyURL:${proxyURL}`);
+					delete basicAuthCache[proxyURL];
+				} else {
+					extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication using cached credentials', `proxyURL:${proxyURL}`);
+					state.basicAuthCacheUsed = true;
+					return cachedAuth;
+				}
+			}
+			state.basicAuthAttempt = (state.basicAuthAttempt || 0) + 1;
+			const realm = / realm="([^"]+)"/i.exec(basicAuthHeader)?.[1];
+			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication lookup', `proxyURL:${proxyURL}`, `realm:${realm}`);
+			const url = new URL(proxyURL);
+			const authInfo: AuthInfo = {
+				scheme: 'basic',
+				host: url.hostname,
+				port: Number(url.port),
+				realm: realm || '',
+				isProxy: true,
+				attempt: state.basicAuthAttempt,
+			};
+			const credentials = await extHostWorkspace.lookupAuthorization(authInfo);
+			if (credentials) {
+				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication received credentials', `proxyURL:${proxyURL}`, `realm:${realm}`);
+				const auth = 'Basic ' + Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+				basicAuthCache[proxyURL] = auth;
+				return auth;
+			} else {
+				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication received no credentials', `proxyURL:${proxyURL}`, `realm:${realm}`);
+			}
+		} catch (err) {
+			extHostLogService.error('ProxyResolver#lookupProxyAuthorization Basic authentication failed', err);
 		}
 	}
 	return undefined;

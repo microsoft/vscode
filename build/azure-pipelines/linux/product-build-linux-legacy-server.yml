@@ -5,6 +5,9 @@ parameters:
     type: boolean
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_BUILD_AMD
+    type: boolean
+    default: false
 
 steps:
   - task: NodeTool@0
@@ -15,7 +18,7 @@ steps:
 
   - template: ../distro/download-distro.yml
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
@@ -34,8 +37,8 @@ steps:
   - script: |
       set -e
       # Start X server
-      sudo apt-get update
-      sudo apt-get install -y pkg-config \
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
         dbus \
         xvfb \
         libgtk-3-0 \
@@ -84,16 +87,6 @@ steps:
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
 
-  - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
-    - task: Docker@1
-      displayName: "Pull Docker image"
-      inputs:
-        azureSubscriptionEndpoint: "vscode-builds-subscription"
-        azureContainerRegistry: vscodehub.azurecr.io
-        command: "Run an image"
-        imageName: vscode-linux-build-agent:bionic-arm32v7
-        containerCommand: uname
-
   - script: |
       set -e
       # To workaround the issue of yarn not respecting the registry value from .npmrc
@@ -129,17 +122,7 @@ steps:
       VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
       ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
         VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
-      ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
-        VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-arm32v7
     displayName: Install dependencies
-
-  - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
-    - script: |
-        set -e
-        EXPECTED_GLIBC_VERSION="2.17" \
-        EXPECTED_GLIBCXX_VERSION="3.4.19" \
-        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-      displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
 
   - script: node build/azure-pipelines/distro/mixin-npm
     displayName: Mixin distro node modules
@@ -172,9 +155,11 @@ steps:
       yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/server/vscode-server-linux-legacy-$(VSCODE_ARCH).tar.gz"
+      UNARCHIVE_PATH="`pwd`/../vscode-server-linux-$(VSCODE_ARCH)"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
       echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+      echo "##vso[task.setvariable variable=SERVER_UNARCHIVE_PATH]$UNARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build server
@@ -192,6 +177,26 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build server (web)
 
+  - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+    - script: |
+        set -e
+        EXPECTED_GLIBC_VERSION="2.17" \
+        EXPECTED_GLIBCXX_VERSION="3.4.19" \
+        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+      env:
+        SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+      displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
+  - ${{ else }}:
+    - script: |
+        set -e
+        EXPECTED_GLIBC_VERSION="2.17" \
+        EXPECTED_GLIBCXX_VERSION="3.4.22" \
+        ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+      env:
+        SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+      displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - template: product-build-linux-test.yml
       parameters:
@@ -199,6 +204,7 @@ steps:
         VSCODE_RUN_UNIT_TESTS: false
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: false
+        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 

@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Disposable as DisposableCls, toDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IThreadFocusDto, IStackFrameFocusDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, MainContext, MainThreadDebugServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, DebugThread, DebugStackFrame, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebugVisualization, IDebugVisualizationContext, IDebuggerContribution, DebugVisualizationType, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
-import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { asPromise } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Disposable as DisposableCls, toDisposable } from '../../../base/common/lifecycle.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ISignService } from '../../../platform/sign/common/sign.js';
+import { IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IThreadFocusDto, IStackFrameFocusDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, MainContext, MainThreadDebugServiceShape } from './extHost.protocol.js';
+import { IExtHostEditorTabs } from './extHostEditorTabs.js';
+import { IExtHostExtensionService } from './extHostExtensionService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, DebugThread, DebugStackFrame, ThemeIcon } from './extHostTypes.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
+import { MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebugVisualization, IDebugVisualizationContext, IDebuggerContribution, DebugVisualizationType, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
+import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from '../../contrib/debug/common/debugUtils.js';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import type * as vscode from 'vscode';
-import { IExtHostConfiguration } from '../common/extHostConfiguration';
-import { IExtHostVariableResolverProvider } from './extHostVariableResolverService';
-import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { coalesce } from 'vs/base/common/arrays';
+import { IExtHostConfiguration } from './extHostConfiguration.js';
+import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
+import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
+import { IExtHostCommands } from './extHostCommands.js';
+import * as Convert from './extHostTypeConverters.js';
+import { coalesce } from '../../../base/common/arrays.js';
+import { IExtHostTesting } from './extHostTesting.js';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -123,6 +124,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		@IExtHostEditorTabs protected _editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider private _variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands private _commands: IExtHostCommands,
+		@IExtHostTesting private _testing: IExtHostTesting,
 	) {
 		super();
 
@@ -171,7 +173,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		return item ? this.convertVisualizerTreeItem(treeId, item) : undefined;
 	}
 
-	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: Readonly<IRelaxedExtensionDescription>, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
+	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: IExtensionDescription, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
 		const extensionId = ExtensionIdentifier.toKey(manifest.identifier);
 		const key = this.extensionVisKey(extensionId, id);
 		if (this._debugVisualizationProviders.has(key)) {
@@ -466,6 +468,8 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 	}
 
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean> {
+		const testRunMeta = options.testRun && this._testing.getMetadataForRun(options.testRun);
+
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, {
 			parentSessionID: options.parentSession ? options.parentSession.id : undefined,
 			lifecycleManagedByParent: options.lifecycleManagedByParent,
@@ -473,6 +477,10 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			noDebug: options.noDebug,
 			compact: options.compact,
 			suppressSaveBeforeStart: options.suppressSaveBeforeStart,
+			testRun: testRunMeta && {
+				runId: testRunMeta.runId,
+				taskId: testRunMeta.taskId,
+			},
 
 			// Check debugUI for back-compat, #147264
 			suppressDebugStatusbar: options.suppressDebugStatusbar ?? (options as any).debugUI?.simple,
@@ -1247,8 +1255,9 @@ export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
-		@IExtHostCommands commands: IExtHostCommands
+		@IExtHostCommands commands: IExtHostCommands,
+		@IExtHostTesting testing: IExtHostTesting,
 	) {
-		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands);
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 }

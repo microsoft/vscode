@@ -9,41 +9,44 @@ import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode1
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
-import * as dom from 'vs/base/browser/dom';
-import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IShellIntegration, ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalFont, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal, ITerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MarkNavigationAddon, ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
-import { localize } from 'vs/nls';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { Emitter } from 'vs/base/common/event';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { importAMDNodeModule } from 'vs/amdX';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { debounce } from 'vs/base/common/decorators';
-import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import type { ClipboardAddon as ClipboardAddonType, ClipboardSelectionType } from '@xterm/addon-clipboard';
+import * as dom from '../../../../../base/browser/dom.js';
+import { IXtermCore } from '../xterm-private.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { IShellIntegration, ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalFont, ITerminalConfiguration } from '../../common/terminal.js';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal, ITerminalConfigurationService } from '../terminal.js';
+import { LogLevel } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { MarkNavigationAddon, ScrollPosition } from './markNavigationAddon.js';
+import { localize } from '../../../../../nls.js';
+import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { PANEL_BACKGROUND } from '../../../../common/theme.js';
+import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_OVERVIEW_RULER_BORDER_COLOR } from '../../common/terminalColorRegistry.js';
+import { ShellIntegrationAddon } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { DecorationAddon } from './decorationAddon.js';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { importAMDNodeModule } from '../../../../../amdX.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TerminalContextKeys } from '../../common/terminalContextKey.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { debounce } from '../../../../../base/common/decorators.js';
+import { MouseWheelClassifier } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
 }
 
+let ClipboardAddon: typeof ClipboardAddonType;
 let ImageAddon: typeof ImageAddonType;
 let SearchAddon: typeof SearchAddonType;
 let SerializeAddon: typeof SerializeAddonType;
@@ -118,6 +121,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon;
 
+	// Always on dynamicly imported addons
+	private _clipboardAddon?: ClipboardAddonType;
+
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
@@ -143,6 +149,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 	private readonly _onDidRequestFreePort = this._register(new Emitter<string>());
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
+	private readonly _onDidRequestRefreshDimensions = this._register(new Emitter<void>());
+	readonly onDidRequestRefreshDimensions = this._onDidRequestRefreshDimensions.event;
 	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
@@ -229,7 +237,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			wordSeparator: config.wordSeparators,
-			overviewRulerWidth: 10,
+			overviewRuler: {
+				width: 14,
+				showTopBorder: true,
+			},
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
 			windowOptions: {
@@ -250,6 +261,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
+			}
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				this._updateTheme();
 			}
 		}));
 
@@ -273,6 +287,17 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+		this._getClipboardAddonConstructor().then(ClipboardAddon => {
+			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {
+				async readText(type: ClipboardSelectionType): Promise<string> {
+					return _clipboardService.readText(type === 'p' ? 'selection' : 'clipboard');
+				},
+				async writeText(type: ClipboardSelectionType, text: string): Promise<void> {
+					return _clipboardService.writeText(text, type === 'p' ? 'selection' : 'clipboard');
+				}
+			});
+			this.raw.loadAddon(this._clipboardAddon);
+		});
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
@@ -325,7 +350,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.open(container);
 		}
 
-		// TODO: Move before open to the DOM renderer doesn't initialize
+		// TODO: Move before open so the DOM renderer doesn't initialize
 		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
@@ -395,6 +420,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.customGlyphs = config.customGlyphs;
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
+		this.raw.options.overviewRuler = {
+			width: 14,
+			showTopBorder: true,
+		};
 		this._updateSmoothScrolling();
 		if (this._attached?.options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
@@ -674,6 +703,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._disposeOfWebglRenderer();
 			});
 			this._refreshImageAddon();
+			// WebGL renderer cell dimensions differ from the DOM renderer, make sure the terminal
+			// gets resized after the webgl addon is loaded
+			this._onDidRequestRefreshDimensions.fire();
 			// Uncomment to add the texture atlas to the DOM
 			// setTimeout(() => {
 			// 	if (this._webglAddon?.textureAtlas) {
@@ -708,6 +740,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 			this._imageAddon = undefined;
 		}
+	}
+
+	protected async _getClipboardAddonConstructor(): Promise<typeof ClipboardAddonType> {
+		if (!ClipboardAddon) {
+			ClipboardAddon = (await importAMDNodeModule<typeof import('@xterm/addon-clipboard')>('@xterm/addon-clipboard', 'lib/addon-clipboard.js')).ClipboardAddon;
+		}
+		return ClipboardAddon;
 	}
 
 	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {
@@ -760,6 +799,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			theme = this._themeService.getColorTheme();
 		}
 
+		const config = this._terminalConfigurationService.config;
+		const hideOverviewRuler = ['never', 'gutter'].includes(config.shellIntegration?.decorationsEnabled ?? '');
+
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
 		const backgroundColor = this._xtermColorProvider.getBackgroundColor(theme);
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
@@ -776,6 +818,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			selectionBackground: selectionBackgroundColor?.toString(),
 			selectionInactiveBackground: selectionInactiveBackgroundColor?.toString(),
 			selectionForeground: selectionForegroundColor?.toString(),
+			overviewRulerBorder: hideOverviewRuler ? '#0000' : theme.getColor(TERMINAL_OVERVIEW_RULER_BORDER_COLOR)?.toString(),
+			scrollbarSliderActiveBackground: theme.getColor(scrollbarSliderActiveBackground)?.toString(),
+			scrollbarSliderBackground: theme.getColor(scrollbarSliderBackground)?.toString(),
+			scrollbarSliderHoverBackground: theme.getColor(scrollbarSliderHoverBackground)?.toString(),
 			black: theme.getColor(ansiColorIdentifiers[0])?.toString(),
 			red: theme.getColor(ansiColorIdentifiers[1])?.toString(),
 			green: theme.getColor(ansiColorIdentifiers[2])?.toString(),
@@ -828,7 +874,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 }
 
-export function getXtermScaledDimensions(w: Window, font: ITerminalFont, width: number, height: number) {
+export function getXtermScaledDimensions(w: Window, font: ITerminalFont, width: number, height: number): { rows: number; cols: number } | null {
 	if (!font.charWidth || !font.charHeight) {
 		return null;
 	}

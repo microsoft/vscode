@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { ITerminalLinkDetector, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { URI } from 'vs/base/common/uri';
+import { ITerminalLinkDetector, TerminalLinkType } from '../../browser/links.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import type { IBufferLine } from '@xterm/xterm';
 
 export async function assertLinkHelper(

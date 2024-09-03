@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
-import * as UUID from 'vs/base/common/uuid';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CellLayoutState, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { BaseCellViewModel } from './baseCellViewModel';
-import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { ICellExecutionError, ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { observableValue } from 'vs/base/common/observable';
+import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
+import { dispose } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import * as UUID from '../../../../../base/common/uuid.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import * as editorCommon from '../../../../../editor/common/editorCommon.js';
+import { PrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { CellEditState, CellFindMatch, CellLayoutState, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellOutputViewModel, ICellViewModel } from '../notebookBrowser.js';
+import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
+import { NotebookLayoutInfo } from '../notebookViewEvents.js';
+import { CellOutputViewModel } from './cellOutputViewModel.js';
+import { ViewContext } from './viewContext.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from '../../common/notebookCommon.js';
+import { ICellExecutionError, ICellExecutionStateChangedEvent } from '../../common/notebookExecutionStateService.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { BaseCellViewModel } from './baseCellViewModel.js';
 
 export const outputDisplayLimit = 500;
 
@@ -78,16 +78,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	get chatHeight() {
 		return this._chatHeight;
-	}
-
-	private _commentHeight = 0;
-
-	set commentHeight(height: number) {
-		if (this._commentHeight === height) {
-			return;
-		}
-		this._commentHeight = height;
-		this.layoutChange({ commentHeight: true }, 'CodeCellViewModel#commentHeight');
 	}
 
 	private _hoveringOutput: boolean = false;
@@ -193,6 +183,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				: 0,
 			chatHeight: 0,
 			statusBarHeight: 0,
+			commentOffset: 0,
 			commentHeight: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
@@ -289,11 +280,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorHeight,
 				editorWidth,
 				statusBarHeight,
-				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
+				commentOffset: outputContainerOffset + outputTotalHeight,
+				commentHeight,
 				totalHeight,
 				codeIndicatorHeight,
 				outputIndicatorHeight,
@@ -330,11 +322,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorWidth,
 				chatHeight: chatHeight,
 				statusBarHeight: 0,
-				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
+				commentOffset: outputContainerOffset + outputTotalHeight,
+				commentHeight,
 				totalHeight,
 				codeIndicatorHeight,
 				outputIndicatorHeight,
@@ -359,22 +352,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		super.restoreEditorViewState(editorViewStates);
 		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CellLayoutState.Measured) {
 			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				chatHeight: this._layoutInfo.chatHeight,
-				editorHeight: this._layoutInfo.editorHeight,
-				editorWidth: this._layoutInfo.editorWidth,
-				statusBarHeight: this.layoutInfo.statusBarHeight,
-				commentHeight: this.layoutInfo.commentHeight,
-				outputContainerOffset: this._layoutInfo.outputContainerOffset,
-				outputTotalHeight: this._layoutInfo.outputTotalHeight,
-				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
-				outputShowMoreContainerOffset: this._layoutInfo.outputShowMoreContainerOffset,
+				...this._layoutInfo,
 				totalHeight: totalHeight,
-				codeIndicatorHeight: this._layoutInfo.codeIndicatorHeight,
-				outputIndicatorHeight: this._layoutInfo.outputIndicatorHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				layoutState: CellLayoutState.FromCache,
-				estimatedHasHorizontalScrolling: this._layoutInfo.estimatedHasHorizontalScrolling
 			};
 		}
 	}
@@ -464,7 +444,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		this._ensureOutputsTop();
-		if (height < 28 && this._outputViewModels[index].hasMultiMimeType()) {
+
+		if (index === 0 || height > 0) {
+			this._outputViewModels[index].setVisible(true);
+		} else if (height === 0) {
+			this._outputViewModels[index].setVisible(false);
+		}
+
+		if (this._outputViewModels[index].visible.get() && height < 28) {
 			height = 28;
 		}
 
@@ -518,7 +505,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
-	startFind(value: string, options: INotebookSearchOptions): CellFindMatch | null {
+	startFind(value: string, options: INotebookFindOptions): CellFindMatch | null {
 		const matches = super.cellStartFind(value, options);
 
 		if (matches === null) {

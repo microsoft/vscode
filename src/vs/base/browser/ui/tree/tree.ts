@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { Event } from 'vs/base/common/event';
+import { IDragAndDropData } from '../../dnd.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../list/list.js';
+import { ListViewTargetSector } from '../list/listView.js';
+import { Event } from '../../../common/event.js';
 
 export const enum TreeVisibility {
 
@@ -119,6 +119,12 @@ export interface ICollapseStateChangeEvent<T, TFilterData> {
 	deep: boolean;
 }
 
+export interface ITreeListSpliceData<T, TFilterData> {
+	start: number;
+	deleteCount: number;
+	elements: ITreeNode<T, TFilterData>[];
+}
+
 export interface ITreeModelSpliceEvent<T, TFilterData> {
 	insertedNodes: ITreeNode<T, TFilterData>[];
 	deletedNodes: ITreeNode<T, TFilterData>[];
@@ -127,7 +133,8 @@ export interface ITreeModelSpliceEvent<T, TFilterData> {
 export interface ITreeModel<T, TFilterData, TRef> {
 	readonly rootRef: TRef;
 
-	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidSpliceModel: Event<ITreeModelSpliceEvent<T, TFilterData>>;
+	readonly onDidSpliceRenderedNodes: Event<ITreeListSpliceData<T, TFilterData>>;
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 

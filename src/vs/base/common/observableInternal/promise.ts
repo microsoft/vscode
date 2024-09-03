@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { IObservable, IReader, observableValue, transaction } from './base';
-import { Derived, derived } from 'vs/base/common/observableInternal/derived';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
-import { strictEquals } from 'vs/base/common/equals';
-import { CancellationError } from 'vs/base/common/errors';
+import { autorun } from './autorun.js';
+import { IObservable, IReader, observableValue, transaction } from './base.js';
+import { Derived, derived } from './derived.js';
+import { CancellationToken, CancellationTokenSource } from '../cancellation.js';
+import { DebugNameData, DebugOwner } from './debugName.js';
+import { strictEquals } from '../equals.js';
+import { CancellationError } from '../errors.js';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);
@@ -40,6 +40,10 @@ export class ObservableLazy<T> {
  * A promise whose state is observable.
  */
 export class ObservablePromise<T> {
+	public static fromFn<T>(fn: () => Promise<T>): ObservablePromise<T> {
+		return new ObservablePromise(fn());
+	}
+
 	private readonly _value = observableValue<PromiseResult<T> | undefined>(this, undefined);
 
 	/**
@@ -179,7 +183,7 @@ export function derivedWithCancellationToken<T>(computeFn: (reader: IReader, can
 export function derivedWithCancellationToken<T>(owner: object, computeFn: (reader: IReader, cancellationToken: CancellationToken) => T): IObservable<T>;
 export function derivedWithCancellationToken<T>(computeFnOrOwner: ((reader: IReader, cancellationToken: CancellationToken) => T) | object, computeFnOrUndefined?: ((reader: IReader, cancellationToken: CancellationToken) => T)): IObservable<T> {
 	let computeFn: (reader: IReader, store: CancellationToken) => T;
-	let owner: Owner;
+	let owner: DebugOwner;
 	if (computeFnOrUndefined === undefined) {
 		computeFn = computeFnOrOwner as any;
 		owner = undefined;

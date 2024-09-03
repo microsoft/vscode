@@ -17,11 +17,20 @@ declare class AsarFilesystem {
 	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number } }, options: {}): Promise<void>;
 }
 
-export function createAsar(folderPath: string, unpackGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
+export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
 
 	const shouldUnpackFile = (file: VinylFile): boolean => {
 		for (let i = 0; i < unpackGlobs.length; i++) {
 			if (minimatch(file.relative, unpackGlobs[i])) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	const shouldSkipFile = (file: VinylFile): boolean => {
+		for (const skipGlob of skipGlobs) {
+			if (minimatch(file.relative, skipGlob)) {
 				return true;
 			}
 		}
@@ -77,6 +86,9 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		}
 		if (!file.stat.isFile()) {
 			throw new Error(`unknown item in stream!`);
+		}
+		if (shouldSkipFile(file)) {
+			return;
 		}
 		const shouldUnpack = shouldUnpackFile(file);
 		insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);

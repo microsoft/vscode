@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { localize } from 'vs/nls';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { localize } from '../../../../nls.js';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 export const diffMoveBorder = registerColor(
 	'diffEditor.move.border',
-	{ dark: '#8b8b8b9c', light: '#8b8b8b9c', hcDark: '#8b8b8b9c', hcLight: '#8b8b8b9c', },
+	'#8b8b8b9c',
 	localize('diffEditor.move.border', 'The border color for text that got moved in the diff editor.')
 );
 
 export const diffMoveBorderActive = registerColor(
 	'diffEditor.moveActive.border',
-	{ dark: '#FFA500', light: '#FFA500', hcDark: '#FFA500', hcLight: '#FFA500', },
+	'#FFA500',
 	localize('diffEditor.moveActive.border', 'The active border color for text that got moved in the diff editor.')
 );
 

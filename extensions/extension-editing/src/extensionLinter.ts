@@ -149,7 +149,8 @@ export class ExtensionLinter {
 					const effectiveProposalNames = extensionEnabledApiProposals[extensionId];
 					if (Array.isArray(effectiveProposalNames) && enabledApiProposals.children) {
 						for (const child of enabledApiProposals.children) {
-							if (child.type === 'string' && !effectiveProposalNames.includes(getNodeValue(child))) {
+							const proposalName = child.type === 'string' ? getNodeValue(child) : undefined;
+							if (typeof proposalName === 'string' && !effectiveProposalNames.includes(proposalName.split('@')[0])) {
 								const start = document.positionAt(child.offset);
 								const end = document.positionAt(child.offset + child.length);
 								diagnostics.push(new Diagnostic(new Range(start, end), apiProposalNotListed, DiagnosticSeverity.Error));

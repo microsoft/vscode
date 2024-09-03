@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, autorun, observableValue } from 'vs/base/common/observable';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import * as coverUtils from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { calculateDisplayedStat } from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
-import { AbstractFileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
+import { h } from '../../../../base/browser/dom.js';
+import type { IManagedHover, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ITransaction, autorun, observableValue } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from '../../files/browser/explorerFileContrib.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from '../common/configuration.js';
+import { AbstractFileCoverage } from '../common/testCoverage.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
 
 export interface TestCoverageBarsOptions {
 	/**
@@ -67,7 +66,7 @@ export class ManagedTestCoverageBars extends Disposable {
 	});
 
 	private readonly visibleStore = this._register(new DisposableStore());
-	private readonly customHovers: IUpdatableHover[] = [];
+	private readonly customHovers: IManagedHover[] = [];
 
 	/** Gets whether coverage is currently visible for the resource. */
 	public get visible() {
@@ -82,8 +81,8 @@ export class ManagedTestCoverageBars extends Disposable {
 		super();
 	}
 
-	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IUpdatableHoverTooltipMarkdownString | undefined) {
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
+	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IManagedHoverTooltipMarkdownString | undefined) {
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
 	}
 
 	public setCoverageInfo(coverage: CoverageBarSource | undefined) {
@@ -121,7 +120,7 @@ export class ManagedTestCoverageBars extends Disposable {
 
 		const precision = this.options.compact ? 0 : 2;
 		const thresholds = getTestingConfiguration(this.configurationService, TestingConfigKeys.CoverageBarThresholds);
-		const overallStat = calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
+		const overallStat = coverUtils.calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
 		if (this.options.overall !== false) {
 			el.overall.textContent = coverUtils.displayPercent(overallStat, precision);
 		} else {
@@ -165,7 +164,7 @@ const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCov
 const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.format(coverage.declaration.covered), nf.format(coverage.declaration.total), coverUtils.displayPercent(coverUtils.percent(coverage.declaration)));
 const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.format(coverage.branch.covered), nf.format(coverage.branch.total), coverUtils.displayPercent(coverUtils.percent(coverage.branch)));
 
-const getOverallHoverText = (coverage: CoverageBarSource): IUpdatableHoverTooltipMarkdownString => {
+const getOverallHoverText = (coverage: CoverageBarSource): IManagedHoverTooltipMarkdownString => {
 	const str = [
 		stmtCoverageText(coverage),
 		fnCoverageText(coverage),

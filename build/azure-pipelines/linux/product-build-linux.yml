@@ -11,6 +11,9 @@ parameters:
     type: boolean
   - name: VSCODE_ARCH
     type: string
+  - name: VSCODE_BUILD_AMD
+    type: boolean
+    default: false
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -27,7 +30,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml@self
 
-    - task: AzureKeyVault@1
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
         azureSubscription: "vscode-builds-subscription"
@@ -46,8 +49,8 @@ steps:
   - script: |
       set -e
       # Start X server
-      sudo apt-get update
-      sudo apt-get install -y pkg-config \
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
         dbus \
         xvfb \
         libgtk-3-0 \
@@ -111,6 +114,26 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  # Step will be used by both Install dependencies and building rpm package,
+  # hence avoid adding it behind NODE_MODULES_RESTORED condition.
+  - script: |
+      set -e
+      SYSROOT_ARCH=$VSCODE_ARCH
+      if [ "$SYSROOT_ARCH" == "x64" ]; then
+        SYSROOT_ARCH="amd64"
+      fi
+      export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+      SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+    env:
+      VSCODE_ARCH: $(VSCODE_ARCH)
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download vscode sysroots
+
+  - script: |
+      set -e
 
       source ./build/azure-pipelines/linux/setup-env.sh
 
@@ -130,16 +153,6 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
-
-      EXPECTED_GLIBC_VERSION="2.28" \
-      EXPECTED_GLIBCXX_VERSION="3.4.25" \
-      ./build/azure-pipelines/linux/verify-glibc-requirements.sh
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Check GLIBC and GLIBCXX dependencies in remote/node_modules
-
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: node build/azure-pipelines/distro/mixin-npm
@@ -213,9 +226,11 @@ steps:
         yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
+        UNARCHIVE_PATH="`pwd`/../vscode-server-linux-$(VSCODE_ARCH)"
         mkdir -p $(dirname $ARCHIVE_PATH)
         tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
         echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+        echo "##vso[task.setvariable variable=SERVER_UNARCHIVE_PATH]$UNARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
@@ -232,6 +247,36 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
 
+    - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+      - script: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.25" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
+    - ${{ else }}:
+      - script: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+
+          EXPECTED_GLIBC_VERSION="2.28" \
+          EXPECTED_GLIBCXX_VERSION="3.4.26" \
+          ./build/azure-pipelines/linux/verify-glibc-requirements.sh
+        env:
+          SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
+          npm_config_arch: $(NPM_ARCH)
+          VSCODE_ARCH: $(VSCODE_ARCH)
+        displayName: Check GLIBC and GLIBCXX dependencies in server archive
+
   - ${{ else }}:
     - script: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
@@ -245,6 +290,7 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
+        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
@@ -264,7 +310,19 @@ steps:
 
     - script:  |
         set -e
+        TRIPLE=""
+        if [ "$VSCODE_ARCH" == "x64" ]; then
+          TRIPLE="x86_64-linux-gnu"
+        elif [ "$VSCODE_ARCH" == "arm64" ]; then
+          TRIPLE="aarch64-linux-gnu"
+        elif [ "$VSCODE_ARCH" == "armhf" ]; then
+          TRIPLE="arm-rpi-linux-gnueabihf"
+        fi
+        export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+        export STRIP="$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/strip"
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+      env:
+        VSCODE_ARCH: $(VSCODE_ARCH)
       displayName: Prepare rpm package
 
     - script:  |

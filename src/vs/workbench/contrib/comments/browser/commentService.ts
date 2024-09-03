@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread, CommentingRangeResourceHint } from 'vs/editor/common/languages';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
-import { IModelService } from 'vs/editor/common/services/model';
+import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread, CommentingRangeResourceHint } from '../../../../editor/common/languages.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Range, IRange } from '../../../../editor/common/core/range.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ICommentThreadChangedEvent } from '../common/commentModel.js';
+import { CommentMenus } from './commentMenus.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CommentsModel, ICommentsModel } from './commentsModel.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 

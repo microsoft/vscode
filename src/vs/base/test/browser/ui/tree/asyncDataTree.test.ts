@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AsyncDataTree, CompressibleAsyncDataTree, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { Iterable } from 'vs/base/common/iterator';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { AsyncDataTree, CompressibleAsyncDataTree, ITreeCompressionDelegate } from '../../../../browser/ui/tree/asyncDataTree.js';
+import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressibleTreeRenderer } from '../../../../browser/ui/tree/objectTree.js';
+import { IAsyncDataSource, ITreeNode } from '../../../../browser/ui/tree/tree.js';
+import { timeout } from '../../../../common/async.js';
+import { Iterable } from '../../../../common/iterator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 interface Element {
 	id: string;

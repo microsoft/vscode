@@ -3,11 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
-//@ts-check
+// ESM-uncomment-begin
+/** @type any */
+const module = { exports: {} };
+// ESM-uncomment-end
 
 (function () {
+	// ESM-comment-begin
+	// const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	const isESM = true;
+	// ESM-uncomment-end
 
 	/**
 	 * @returns {{mark(name:string):void, getMarks():{name:string, startTime:number}[]}}
@@ -42,6 +52,7 @@
 
 		// Identify browser environment when following property is not present
 		// https://nodejs.org/dist/latest-v16.x/docs/api/perf_hooks.html#performancenodetiming
+		// @ts-ignore
 		if (typeof performance === 'object' && typeof performance.mark === 'function' && !performance.nodeTiming) {
 			// in a browser context, reuse performance-util
 
@@ -78,7 +89,7 @@
 		} else if (typeof process === 'object') {
 			// node.js: use the normal polyfill but add the timeOrigin
 			// from the node perf_hooks API as very first mark
-			const timeOrigin = performance?.timeOrigin ?? Math.round((require.__$__nodeRequire || require)('perf_hooks').performance.timeOrigin);
+			const timeOrigin = performance?.timeOrigin;// ?? Math.round((require.__$__nodeRequire ?? require /* TODO@esm this is fishy */)('perf_hooks').performance.timeOrigin);
 			return _definePolyfillMarks(timeOrigin);
 
 		} else {
@@ -111,7 +122,7 @@
 		sharedObj = {};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		// amd
 		define([], function () { return _factory(sharedObj); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
@@ -119,7 +130,13 @@
 		module.exports = _factory(sharedObj);
 	} else {
 		console.trace('perf-util defined in UNKNOWN context (neither requirejs or commonjs)');
+		// @ts-ignore
 		sharedObj.perf = _factory(sharedObj);
 	}
 
 })();
+
+// ESM-uncomment-begin
+export const mark = module.exports.mark;
+export const getMarks = module.exports.getMarks;
+// ESM-uncomment-end
