@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-
+import * as dom from 'vs/base/browser/dom';
 
 export class EditContextWrapper {
 
@@ -85,6 +85,35 @@ export class EditContextWrapper {
 
 	public get compositionRangeWithinEditor(): Range | undefined {
 		return this._compositionRangeWithinEditor;
+	}
+}
+
+export class FocusTracker extends Disposable {
+	private _isFocused: boolean = false;
+
+	constructor(
+		private readonly _domNode: HTMLElement,
+		private readonly _onFocusChange: (newFocusValue: boolean) => void,
+	) {
+		super();
+		this._register(dom.addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
+		this._register(dom.addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
+	}
+
+	private _handleFocusedChanged(focused: boolean): void {
+		if (this._isFocused === focused) {
+			return;
+		}
+		this._isFocused = focused;
+		this._onFocusChange(this._isFocused);
+	}
+
+	public focus(): void {
+		this._domNode.focus();
+	}
+
+	get isFocused(): boolean {
+		return this._isFocused;
 	}
 }
 

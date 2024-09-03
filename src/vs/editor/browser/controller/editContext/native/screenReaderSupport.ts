@@ -22,12 +22,12 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 export class ScreenReaderSupport {
 
 	// Configuration values
-	private _contentLeft!: number;
-	private _contentWidth!: number;
-	private _lineHeight!: number;
-	private _fontInfo!: FontInfo;
-	private _accessibilitySupport!: AccessibilitySupport;
-	private _accessibilityPageSize!: number;
+	private _contentLeft: number = 1;
+	private _contentWidth: number = 1;
+	private _lineHeight: number = 1;
+	private _fontInfo: FontInfo | undefined;
+	private _accessibilitySupport: AccessibilitySupport = AccessibilitySupport.Unknown;
+	private _accessibilityPageSize: number = 1;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: ScreenReaderContentState | undefined;
@@ -41,40 +41,6 @@ export class ScreenReaderSupport {
 		this._updateDomAttributes();
 	}
 
-	// --- Public methods ---
-
-	public prepareRender(ctx: RenderingContext): void {
-		this.writeScreenReaderContent();
-	}
-
-	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._screenReaderContentState) {
-			return;
-		}
-		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this._domNode, this._fontInfo);
-
-		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
-		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const top = verticalOffsetForPrimaryLineNumber - editorScrollTop;
-
-		this._domNode.setTop(top);
-		this._domNode.setLeft(this._contentLeft);
-		this._domNode.setWidth(this._contentWidth);
-		this._domNode.setHeight(this._lineHeight);
-
-		// Setting position within the screen reader content by modifying scroll position
-		const textContentBeforeSelection = this._screenReaderContentState.value.substring(0, this._screenReaderContentState.rangeOffsetStart);
-		const numberOfLinesOfContentBeforeSelection = newlinecount(textContentBeforeSelection);
-		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
-	}
-
-	public setAriaOptions(): void { }
-
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
-		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
-	}
-
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
@@ -82,19 +48,6 @@ export class ScreenReaderSupport {
 			this.writeScreenReaderContent();
 		}
 	}
-
-	public writeScreenReaderContent(): void {
-		this._screenReaderContentState = this._getScreenReaderContentState();
-		if (!this._screenReaderContentState) {
-			return;
-		}
-		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
-			this._domNode.domNode.textContent = this._screenReaderContentState.value;
-		}
-		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.rangeOffsetStart, this._screenReaderContentState.rangeOffsetEnd);
-	}
-
-	// --- Private methods ---
 
 	private _updateConfigurationSettings(): void {
 		const options = this._context.configuration.options;
@@ -115,7 +68,51 @@ export class ScreenReaderSupport {
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 	}
 
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
+		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
+	}
+
+	public prepareRender(ctx: RenderingContext): void {
+		this.writeScreenReaderContent();
+	}
+
+	public render(ctx: RestrictedRenderingContext): void {
+		if (!this._screenReaderContentState) {
+			return;
+		}
+		// For correct alignment of the screen reader content, we need to apply the correct font
+		applyFontInfo(this._domNode, this._fontInfo!);
+
+		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
+		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const top = verticalOffsetForPrimaryLineNumber - editorScrollTop;
+
+		this._domNode.setTop(top);
+		this._domNode.setLeft(this._contentLeft);
+		this._domNode.setWidth(this._contentWidth);
+		this._domNode.setHeight(this._lineHeight);
+
+		// Setting position within the screen reader content by modifying scroll position
+		const textContentBeforeSelection = this._screenReaderContentState.value.substring(0, this._screenReaderContentState.rangeOffsetStart);
+		const numberOfLinesOfContentBeforeSelection = newlinecount(textContentBeforeSelection);
+		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
+	}
+
+	public setAriaOptions(): void { }
+
+	public writeScreenReaderContent(): void {
+		this._screenReaderContentState = this._getScreenReaderContentState();
+		if (!this._screenReaderContentState) {
+			return;
+		}
+		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
+			this._domNode.domNode.textContent = this._screenReaderContentState.value;
+		}
+		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.rangeOffsetStart, this._screenReaderContentState.rangeOffsetEnd);
+	}
+
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
+		// Make the screen reader content always be visible because of the bug and also set the selection
 		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 			return;
 		}
