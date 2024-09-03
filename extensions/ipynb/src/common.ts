@@ -65,7 +65,3 @@ export interface CellMetadata {
 	 */
 	execution_count?: number;
 }
-
-export function useCustomPropertyInMetadata() {
-	return !workspace.getConfiguration('jupyter', undefined).get<boolean>('experimental.dropCustomMetadata', true);
-}
