@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as nbformat from '@jupyterlab/nbformat';
-import { workspace } from 'vscode';
 
 /**
  * Metadata we store in VS Code cell output items.
