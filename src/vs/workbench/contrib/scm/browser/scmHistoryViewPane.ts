@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -790,13 +790,40 @@ export class SCMHistoryViewPane extends ViewPane {
 						return;
 					}
 
-					store.add(autorun(reader => {
+					const currentHistoryItemGroupId = derived(reader => {
 						const historyProvider = repository.provider.historyProvider.read(reader);
-						const currentHistoryItemGroupId = historyProvider?.currentHistoryItemGroupId.read(reader);
-						const currentHistoryItemGroupRevision = historyProvider?.currentHistoryItemGroupRevision.read(reader);
-						const currentHistoryItemGroupRemoteId = historyProvider?.currentHistoryItemGroupRemoteId.read(reader);
+						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
 
-						if (!currentHistoryItemGroupId && !currentHistoryItemGroupRevision && !currentHistoryItemGroupRemoteId) {
+						return currentHistoryItemGroup?.id;
+					});
+
+					const currentHistoryItemGroupRevision = derived(reader => {
+						const historyProvider = repository.provider.historyProvider.read(reader);
+						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+
+						return currentHistoryItemGroup?.revision;
+					});
+
+					const currentHistoryItemGroupRemoteId = derived(reader => {
+						const historyProvider = repository.provider.historyProvider.read(reader);
+						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+
+						return currentHistoryItemGroup?.remote?.id;
+					});
+
+					const currentHistoryItemGroupRemoteRevision = derived(reader => {
+						const historyProvider = repository.provider.historyProvider.read(reader);
+						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+
+						return currentHistoryItemGroup?.remote?.revision;
+					});
+
+					store.add(autorun(reader => {
+						const historyItemGroupId = currentHistoryItemGroupId.read(reader);
+						const historyItemGroupRevision = currentHistoryItemGroupRevision.read(reader);
+						const historyItemGroupRemoteId = currentHistoryItemGroupRemoteId.read(reader);
+
+						if (!historyItemGroupId && !historyItemGroupRevision && !historyItemGroupRemoteId) {
 							return;
 						}
 
@@ -804,10 +831,9 @@ export class SCMHistoryViewPane extends ViewPane {
 					}));
 
 					store.add(autorun(reader => {
-						const historyProvider = repository.provider.historyProvider.read(reader);
-						const currentHistoryItemGroupRemoteRevision = historyProvider?.currentHistoryItemGroupRemoteRevision.read(reader);
+						const historyItemGroupRemoteRevision = currentHistoryItemGroupRemoteRevision.read(reader);
 
-						if (!currentHistoryItemGroupRemoteRevision) {
+						if (!historyItemGroupRemoteRevision) {
 							return;
 						}
 
