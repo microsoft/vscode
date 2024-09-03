@@ -145,14 +145,12 @@
 
 .scm-view .monaco-list-row .history-item > .label-container {
 	display: flex;
-	opacity: 0.75;
 	flex-shrink: 0;
 	gap: 4px;
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .codicon {
 	font-size: 14px;
-	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
 	border-radius: 2px;
 	margin: 1px 0;
 	padding: 2px
@@ -546,7 +544,7 @@
 
 .scm-history-view .history-item-load-more .history-item-placeholder.shimmer .monaco-icon-label-container {
 	height: 18px;
-	background: var(--vscode-scm-historyItemStatisticsBorder);
+	background: var(--vscode-scm-historyItemDefaultLabelBackground);
 	border-radius: 2px;
 	opacity: 0.5;
 }

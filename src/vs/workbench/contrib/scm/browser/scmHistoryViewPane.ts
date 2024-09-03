@@ -60,9 +60,12 @@ import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { clamp } from '../../../../base/common/numbers.js';
 
-const historyItemStatisticsBorder = registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
-const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
-const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
+const historyItemDefaultLabelForeground = registerColor('scm.historyItemDefaultLabelForeground', foreground, localize('scm.historyItemDefaultLabelForeground', "History item default label foreground color."));
+const historyItemDefaultLabelBackground = registerColor('scm.historyItemDefaultLabelBackground', transparent(foreground, 0.2), localize('scm.historyItemDefaultLabelBackground', "History item default label background color."));
+
+//TODO@lszomoru - should these colors come from the extension
+const historyItemHoverAdditionsForeground = registerColor('scm.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemHoverAdditionsForeground', "History item hover additions foreground color."));
+const historyItemHoverDeletionsForeground = registerColor('scm.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
@@ -246,6 +249,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
 				const icon = append(templateData.labelContainer, $('div.label'));
 				icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+
+				icon.style.color = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(foreground);
+				icon.style.backgroundColor = label.color ? asCssVariable(label.color.id) : asCssVariable(historyItemDefaultLabelBackground);
 			}
 		}
 	}
@@ -278,15 +284,15 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				localize('filesChanged', "{0} files changed", historyItem.statistics.files)}</span>`);
 
 			if (historyItem.statistics.insertions) {
-				const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
-				markdown.appendMarkdown(`,&nbsp;<span style="color:${historyItemAdditionsForegroundColor};">${historyItem.statistics.insertions === 1 ?
+				const additionsForegroundColor = colorTheme.getColor(historyItemHoverAdditionsForeground);
+				markdown.appendMarkdown(`,&nbsp;<span style="color:${additionsForegroundColor};">${historyItem.statistics.insertions === 1 ?
 					localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
 					localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)')}</span>`);
 			}
 
 			if (historyItem.statistics.deletions) {
-				const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
-				markdown.appendMarkdown(`,&nbsp;<span style="color:${historyItemDeletionsForegroundColor};">${historyItem.statistics.deletions === 1 ?
+				const deletionsForegroundColor = colorTheme.getColor(historyItemHoverDeletionsForeground);
+				markdown.appendMarkdown(`,&nbsp;<span style="color:${deletionsForegroundColor};">${historyItem.statistics.deletions === 1 ?
 					localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
 					localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)')}</span>`);
 			}
@@ -295,12 +301,12 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		if ((historyItem.labels ?? []).length > 0) {
 			markdown.appendMarkdown(`\n\n---\n\n`);
 			markdown.appendMarkdown((historyItem.labels ?? []).map(label => {
-				const historyItemGroupHoverLabelIconId = ThemeIcon.isThemeIcon(label.icon) ? label.icon.id : '';
+				const labelIconId = ThemeIcon.isThemeIcon(label.icon) ? label.icon.id : '';
 
-				const historyItemGroupHoverLabelBackgroundColor = label.color ? asCssVariable(label.color.id) : asCssVariable(historyItemStatisticsBorder);
-				const historyItemGroupHoverLabelForegroundColor = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(foreground);
+				const labelBackgroundColor = label.color ? asCssVariable(label.color.id) : asCssVariable(historyItemDefaultLabelBackground);
+				const labelForegroundColor = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(historyItemDefaultLabelForeground);
 
-				return `<span style="color:${historyItemGroupHoverLabelForegroundColor};background-color:${historyItemGroupHoverLabelBackgroundColor};border-radius:2px;">&nbsp;$(${historyItemGroupHoverLabelIconId})&nbsp;${label.title}&nbsp;</span>`;
+				return `<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:2px;">&nbsp;$(${labelIconId})&nbsp;${label.title}&nbsp;</span>`;
 			}).join('&nbsp;&nbsp;'));
 		}
 
