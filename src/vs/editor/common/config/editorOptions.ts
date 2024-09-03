@@ -2938,6 +2938,12 @@ export interface IEditorInlayHintsOptions {
 	 * Defaults to false.
 	 */
 	padding?: boolean;
+
+	/**
+	 * Maximum length for inlay hints per line
+	 * Set to 0 to have an unlimited length.
+	 */
+	maximumLength?: number;
 }
 
 /**
@@ -2948,7 +2954,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false };
+		const defaults: EditorInlayHintsOptions = { enabled: 'on', fontSize: 0, fontFamily: '', padding: false, maximumLength: 43 };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2978,6 +2984,11 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					type: 'boolean',
 					default: defaults.padding,
 					description: nls.localize('inlayHints.padding', "Enables the padding around the inlay hints in the editor.")
+				},
+				'editor.inlayHints.maximumLength': {
+					type: 'number',
+					default: defaults.maximumLength,
+					markdownDescription: nls.localize('inlayHints.maximumLength', "Maximum overall length of inlay hints, for a single line, before they get truncated by the editor. Set to `0` to never truncate")
 				}
 			}
 		);
@@ -2995,7 +3006,8 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			enabled: stringSet<'on' | 'off' | 'offUnlessPressed' | 'onUnlessPressed'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'offUnlessPressed', 'onUnlessPressed']),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
-			padding: boolean(input.padding, this.defaultValue.padding)
+			padding: boolean(input.padding, this.defaultValue.padding),
+			maximumLength: EditorIntOption.clampedInt(input.maximumLength, this.defaultValue.maximumLength, 0, Number.MAX_SAFE_INTEGER),
 		};
 	}
 }

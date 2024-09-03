@@ -19,10 +19,6 @@ import { reset } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 
-export function isSCMRepositoryArray(element: any): element is ISCMRepository[] {
-	return Array.isArray(element) && element.every(r => isSCMRepository(r));
-}
-
 export function isSCMViewService(element: any): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
 }

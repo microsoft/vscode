@@ -111,7 +111,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			this._model = model;
 		}
 		const eventDispatcher = this.modelSpecificResources.add(new NotebookDiffEditorEventDispatcher());
-		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.instantiationService, this.configurationService, eventDispatcher, this.notebookService, undefined, true));
+		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, undefined, true));
 		await this.viewModel.computeDiff(this.modelSpecificResources.add(new CancellationTokenSource()).token);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);

@@ -19,6 +19,7 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 # Don't generate build_id links to prevent conflicts when installing multiple
 # versions of VS Code alongside each other (e.g. `code` and `code-insiders`)
 %define _build_id_links none
+%define __strip @@STRIP@@
 
 %install
 # Destination directories

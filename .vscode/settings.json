@@ -34,6 +34,7 @@
 		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
+		"build/loader.min": true
 	},
 	"files.readonlyInclude": {
 		"**/node_modules/**/*.*": true,
@@ -162,7 +163,7 @@
 		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
-		"src/vs/workbench/workbench.web.main.ts"
+		"src/vs/workbench/workbench.web.main.internal.ts"
 	],
 	"[github-issues]": {
 		"editor.wordWrap": "on"

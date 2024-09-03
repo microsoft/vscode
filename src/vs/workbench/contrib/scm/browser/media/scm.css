@@ -169,6 +169,14 @@
 	border-radius: 14px;
 }
 
+.scm-view .monaco-list-row .history-item .monaco-icon-label.history-item-current .label-name {
+	font-weight: 600;
+}
+
+.scm-view .monaco-list-row .history-item .monaco-icon-label.history-item-current .label-description {
+	font-weight: 500;
+}
+
 .scm-view .monaco-list-row .history > .name,
 .scm-view .monaco-list-row .resource-group > .name {
 	flex: 1;
@@ -470,6 +478,20 @@
 }
 
 /* Graph */
+
+.monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker {
+	display: flex;
+}
+
+.monaco-toolbar .action-label.scm-graph-repository-picker {
+	align-items: center;
+	font-weight: normal;
+	line-height: 16px;
+}
+
+.monaco-toolbar .action-label.scm-graph-repository-picker .codicon {
+	font-size: 14px;
+}
 
 .scm-history-view .scm-provider .label-name {
 	font-weight: bold;

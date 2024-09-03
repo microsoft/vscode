@@ -170,10 +170,8 @@ function Set-MappedKeyHandler {
 	}
 }
 
-function Get-KeywordCompletionResult(
-	$Keyword,
-	$Description = $Keyword
-) {
+function Get-KeywordCompletionResult {
+	param ($Keyword, $Description = $Keyword)
 	[System.Management.Automation.CompletionResult]::new($Keyword, $Keyword, [System.Management.Automation.CompletionResultType]::Keyword, $Description)
 }
 

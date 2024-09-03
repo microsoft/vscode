@@ -49,8 +49,8 @@ steps:
   - script: |
       set -e
       # Start X server
-      sudo apt-get update
-      sudo apt-get install -y pkg-config \
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
         dbus \
         xvfb \
         libgtk-3-0 \
@@ -114,6 +114,26 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+    displayName: Install build dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  # Step will be used by both Install dependencies and building rpm package,
+  # hence avoid adding it behind NODE_MODULES_RESTORED condition.
+  - script: |
+      set -e
+      SYSROOT_ARCH=$VSCODE_ARCH
+      if [ "$SYSROOT_ARCH" == "x64" ]; then
+        SYSROOT_ARCH="amd64"
+      fi
+      export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+      SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+    env:
+      VSCODE_ARCH: $(VSCODE_ARCH)
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download vscode sysroots
+
+  - script: |
+      set -e
 
       source ./build/azure-pipelines/linux/setup-env.sh
 
@@ -290,7 +310,19 @@ steps:
 
     - script:  |
         set -e
+        TRIPLE=""
+        if [ "$VSCODE_ARCH" == "x64" ]; then
+          TRIPLE="x86_64-linux-gnu"
+        elif [ "$VSCODE_ARCH" == "arm64" ]; then
+          TRIPLE="aarch64-linux-gnu"
+        elif [ "$VSCODE_ARCH" == "armhf" ]; then
+          TRIPLE="arm-rpi-linux-gnueabihf"
+        fi
+        export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots
+        export STRIP="$VSCODE_SYSROOT_DIR/$TRIPLE/$TRIPLE/bin/strip"
         yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+      env:
+        VSCODE_ARCH: $(VSCODE_ARCH)
       displayName: Prepare rpm package
 
     - script:  |

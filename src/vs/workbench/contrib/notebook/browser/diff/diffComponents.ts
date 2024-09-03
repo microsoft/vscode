@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { DiffElementCellViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel } from './diffElementViewModel.js';
+import { DiffElementCellViewModelBase, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel } from './diffElementViewModel.js';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, CellDiffPlaceholderRenderTemplate, IDiffCellMarginOverlay, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE } from './notebookDiffEditorBrowser.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -47,6 +47,7 @@ import { DiffNestedCellViewModel } from './diffNestedCellViewModel.js';
 import { localize } from '../../../../../nls.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { getFormattedMetadataJSON } from '../../common/model/notebookCellTextModel.js';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -93,6 +94,7 @@ class PropertyHeader extends Disposable {
 	protected _toolbar!: WorkbenchToolBar;
 	protected _menu!: IMenu;
 	protected _propertyExpanded?: IContextKey<boolean>;
+	protected _propertyChanged?: IContextKey<boolean>;
 
 	constructor(
 		readonly cell: DiffElementCellViewModelBase,
@@ -122,30 +124,14 @@ class PropertyHeader extends Disposable {
 	}
 
 	buildHeader(): void {
-		const metadataChanged = this.accessor.checkIfModified(this.cell);
 		this._foldingIndicator = DOM.append(this.propertyHeaderContainer, DOM.$('.property-folding-indicator'));
 		this._foldingIndicator.classList.add(this.accessor.prefix);
-		this._updateFoldingIcon();
 		const metadataStatus = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-status'));
-
 		this._statusSpan = DOM.append(metadataStatus, DOM.$('span'));
 		this._description = DOM.append(metadataStatus, DOM.$('span.property-description'));
 
-		if (metadataChanged) {
-			this._statusSpan.textContent = this.accessor.changedLabel;
-			this._statusSpan.style.fontWeight = 'bold';
-			if (metadataChanged.reason) {
-				this._description.textContent = metadataChanged.reason;
-			}
-			this.propertyHeaderContainer.classList.add('modified');
-		} else {
-			this._statusSpan.textContent = this.accessor.unChangedLabel;
-			this._description.textContent = '';
-			this.propertyHeaderContainer.classList.remove('modified');
-		}
-
 		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
-		this._toolbar = new WorkbenchToolBar(cellToolbarContainer, {
+		this._toolbar = this._register(new WorkbenchToolBar(cellToolbarContainer, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
 					const item = new CodiconActionViewItem(action, { hoverDelegate: options.hoverDelegate }, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
@@ -154,61 +140,49 @@ class PropertyHeader extends Disposable {
 
 				return undefined;
 			}
-		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
-		this._register(this._toolbar);
+		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService));
 		this._toolbar.context = {
 			cell: this.cell
 		};
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
 		this._register(scopedContextKeyService);
-		const propertyChanged = NOTEBOOK_DIFF_CELL_PROPERTY.bindTo(scopedContextKeyService);
-		propertyChanged.set(!!metadataChanged);
+		this._propertyChanged = NOTEBOOK_DIFF_CELL_PROPERTY.bindTo(scopedContextKeyService);
 		this._propertyExpanded = NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED.bindTo(scopedContextKeyService);
 
-		this._menu = this.menuService.createMenu(this.accessor.menuId, scopedContextKeyService);
-		this._register(this._menu);
-
-		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
-		this._toolbar.setActions(actions);
-
-		this._register(this._menu.onDidChange(() => {
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
-			this._toolbar.setActions(actions);
-		}));
+		this._menu = this._register(this.menuService.createMenu(this.accessor.menuId, scopedContextKeyService));
+		this._register(this._menu.onDidChange(() => this.updateMenu()));
 
 		this._register(this.notebookEditor.onMouseUp(e => {
-			if (!e.event.target) {
+			if (!e.event.target || e.target !== this.cell) {
 				return;
 			}
 
 			const target = e.event.target as HTMLElement;
 
-			if (target === this.propertyHeaderContainer ||
+			if (
+				target === this.propertyHeaderContainer ||
 				target === this._foldingIndicator || this._foldingIndicator.contains(target) ||
 				target === metadataStatus || metadataStatus.contains(target)
 			) {
-				const cellViewModel = e.target;
-
-				if (cellViewModel === this.cell) {
-					const oldFoldingState = this.accessor.getFoldingState(this.cell);
-					this.accessor.updateFoldingState(this.cell, oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
-					this._updateFoldingIcon();
-					this.accessor.updateInfoRendering(this.cell.renderOutput);
-				}
+				const oldFoldingState = this.accessor.getFoldingState(this.cell);
+				this.accessor.updateFoldingState(this.cell, oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
+				this._updateFoldingIcon();
+				this.accessor.updateInfoRendering(this.cell.renderOutput);
 			}
-
-			return;
 		}));
 
-		this._updateFoldingIcon();
+		this.refresh();
 		this.accessor.updateInfoRendering(this.cell.renderOutput);
 	}
-
 	refresh() {
+		this.updateMenu();
+		this._updateFoldingIcon();
+
 		const metadataChanged = this.accessor.checkIfModified(this.cell);
+		if (this._propertyChanged) {
+			this._propertyChanged.set(!!metadataChanged);
+		}
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
@@ -216,14 +190,21 @@ class PropertyHeader extends Disposable {
 				this._description.textContent = metadataChanged.reason;
 			}
 			this.propertyHeaderContainer.classList.add('modified');
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(this._menu, undefined, actions);
-			this._toolbar.setActions(actions);
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
 			this._statusSpan.style.fontWeight = 'normal';
 			this._description.textContent = '';
 			this.propertyHeaderContainer.classList.remove('modified');
+		}
+	}
+
+	private updateMenu() {
+		const metadataChanged = this.accessor.checkIfModified(this.cell);
+		if (metadataChanged) {
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+			this._toolbar.setActions(actions);
+		} else {
 			this._toolbar.setActions([]);
 		}
 	}
@@ -572,7 +553,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					return;
 				}
 
-				const modifiedMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
+				const modifiedMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel?.transientOptions.transientCellMetadata, this.cell.modified?.metadata || {}, this.cell.modified?.language);
 				modifiedMetadataModel.object.textEditorModel.setValue(modifiedMetadataSource);
 			}));
 
@@ -591,7 +572,7 @@ abstract class AbstractElementRenderer extends Disposable {
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
 			const mode = this.languageService.createById('jsonc');
-			const originalMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel!,
+			const originalMetadataSource = getFormattedMetadataJSON(this.notebookEditor.textModel?.transientOptions.transientCellMetadata,
 				this.cell.type === 'insert'
 					? this.cell.modified!.metadata || {}
 					: this.cell.original!.metadata || {});
@@ -690,8 +671,8 @@ abstract class AbstractElementRenderer extends Disposable {
 			this.notebookEditor.textModel!.transientOptions.transientOutputs
 				? []
 				: this.cell.type === 'insert'
-					? this.cell.modified!.outputs || []
-					: this.cell.original!.outputs || []);
+					? this.cell.modified?.outputs || []
+					: this.cell.original?.outputs || []);
 		const outputModel = this.modelService.createModel(originaloutputSource, mode, undefined, true);
 		this._outputEditorDisposeStore.add(outputModel);
 		this._outputEditor.setModel(outputModel);
@@ -1117,7 +1098,7 @@ export class DeletedElement extends SingleSideDiffElement {
 			const span = DOM.append(this._outputEmptyElement, DOM.$('span'));
 			span.innerText = 'No outputs to render';
 
-			if (this.cell.original!.outputs.length === 0) {
+			if (!this.cell.original?.outputs.length) {
 				this._outputEmptyElement.style.display = 'block';
 			} else {
 				this._outputEmptyElement.style.display = 'none';
@@ -1209,7 +1190,7 @@ export class InsertElement extends SingleSideDiffElement {
 			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
 			this._outputEmptyElement.innerText = 'No outputs to render';
 
-			if (this.cell.modified!.outputs.length === 0) {
+			if (!this.cell.modified?.outputs.length) {
 				this._outputEmptyElement.style.display = 'block';
 			} else {
 				this._outputEmptyElement.style.display = 'none';
