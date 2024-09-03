@@ -29,7 +29,7 @@ export const historyItemGroupBase = registerColor('scmGraph.historyItemGroupBase
 /**
  * History item hover color
  */
-export const historyItemGroupHoverLabelForeground = registerColor('scmGraph.historyItemGroupHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemGroupHoverLabelForeground', "History item group hover label foreground color."));
+export const historyItemGroupHoverLabelForeground = registerColor('scmGraph.historyItemHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemHoverLabelForeground', "History item hover label foreground color."));
 
 /**
  * History graph color registry
