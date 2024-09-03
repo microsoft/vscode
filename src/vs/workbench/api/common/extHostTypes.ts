@@ -4475,6 +4475,13 @@ export class ChatResponseReferencePart {
 	}
 }
 
+export class ChatResponseCodeblockUriPart {
+	value: vscode.Uri;
+	constructor(value: vscode.Uri) {
+		this.value = value;
+	}
+}
+
 export class ChatResponseCodeCitationPart {
 	value: vscode.Uri;
 	license: string;

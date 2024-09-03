@@ -32,7 +32,7 @@
     "watch-client-amd": "node ./node_modules/gulp/bin/gulp.js watch-client-amd",
     "watch-clientd": "deemon npm run watch-client",
     "kill-watch-clientd": "deemon --kill npm run watch-client",
-    "watch-extensions": "node ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",
+    "watch-extensions": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",
     "watch-extensionsd": "deemon npm run watch-extensions",
     "kill-watch-extensionsd": "deemon --kill npm run watch-extensions",
     "precommit": "node build/hygiene.js",
