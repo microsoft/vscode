@@ -22,6 +22,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { canASAR } from '../../../../base/common/amd.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { PromiseResult } from '../../../../base/common/observableInternal/promise.js';
+import { Position } from '../../../common/core/position.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -151,8 +152,13 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	private _newEdits = true;
 	private _applyEdits(model: ITextModel, changes: IModelContentChange[]) {
 		for (const change of changes) {
-			const newEndOffset = change.rangeOffset + change.text.length;
-			const newEndPosition = model.getPositionAt(newEndOffset);
+			const startingPositionLine = change.range.startLineNumber;
+			const startingPositionCharacter = change.range.startColumn;
+			const lines = change.text.split(/\r?\n/g);
+			const newEndPosition = new Position(
+				startingPositionLine + lines.length - 1,
+				(lines.length > 1) ? lines.pop()!.length : startingPositionCharacter
+			);
 
 			this.tree?.edit({
 				startIndex: change.rangeOffset,
