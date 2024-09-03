@@ -94,12 +94,6 @@ export class ScreenReaderSupport {
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.rangeOffsetStart, this._screenReaderContentState.rangeOffsetEnd);
 	}
 
-	/* Last rendered data needed for correct hit-testing and determining the mouse position.
-	 * Without this, the selection will blink as incorrect mouse position is calculated */
-	public getLastRenderData(): Position | null {
-		return this._primarySelection.getPosition();
-	}
-
 	// --- Private methods ---
 
 	private _updateConfigurationSettings(): void {

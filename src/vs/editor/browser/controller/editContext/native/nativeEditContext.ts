@@ -157,7 +157,7 @@ export class NativeEditContext extends AbstractEditContext {
 	/* Last rendered data needed for correct hit-testing and determining the mouse position.
 	 * Without this, the selection will blink as incorrect mouse position is calculated */
 	public getLastRenderData(): Position | null {
-		return this._screenReaderSupport.getLastRenderData();
+		return this._primarySelection.getPosition();
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
