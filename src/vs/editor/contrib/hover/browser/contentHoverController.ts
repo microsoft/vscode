@@ -218,8 +218,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _showHover(hoverResult: HoverResult<ContentHoverComputerOptions>): void {
 		const fragment = document.createDocumentFragment();
-		const hoverParts = hoverResult.hoverParts;
-		const disposables = this._renderHoverPartsInFragment(fragment, hoverParts);
+		const disposables = this._renderHoverPartsInFragment(fragment, hoverResult.hoverParts);
 		const fragmentHasContent = fragment.hasChildNodes();
 		if (fragmentHasContent) {
 			this._doShowHover(fragment, hoverResult, disposables);

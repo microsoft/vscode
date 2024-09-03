@@ -14,8 +14,8 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 export interface ContentHoverComputerOptions {
 	anchor: HoverAnchor;
 	focus: boolean;
-	insistOnKeepingHoverVisible: boolean;
 	source: HoverStartSource;
+	insistOnKeepingHoverVisible: boolean;
 }
 
 export class ContentHoverComputer implements IHoverComputer<ContentHoverComputerOptions, IHoverPart> {
@@ -64,8 +64,9 @@ export class ContentHoverComputer implements IHoverComputer<ContentHoverComputer
 		});
 	}
 
-	public computeAsync(options: ContentHoverComputerOptions | undefined, token: CancellationToken): AsyncIterableObject<IHoverPart> {
-		const anchor = options?.anchor;
+	public computeAsync(options: ContentHoverComputerOptions, token: CancellationToken): AsyncIterableObject<IHoverPart> {
+		const anchor = options.anchor;
+
 		if (!this._editor.hasModel() || !anchor) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -82,12 +83,12 @@ export class ContentHoverComputer implements IHoverComputer<ContentHoverComputer
 		);
 	}
 
-	public computeSync(options: ContentHoverComputerOptions | undefined): IHoverPart[] {
-		const anchor = options?.anchor;
-		if (!this._editor.hasModel() || !anchor) {
+	public computeSync(options: ContentHoverComputerOptions): IHoverPart[] {
+		if (!this._editor.hasModel()) {
 			return [];
 		}
 
+		const anchor = options.anchor;
 		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, anchor);
 
 		let result: IHoverPart[] = [];

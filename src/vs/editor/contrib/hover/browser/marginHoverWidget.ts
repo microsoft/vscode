@@ -31,6 +31,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	private readonly _hoverOperation: HoverOperation<MarginHoverComputerOptions, IHoverMessage>;
 	private readonly _renderDisposeables = this._register(new DisposableStore());
 
+	private _hoverComputerOptions: MarginHoverComputerOptions | undefined;
+
 	constructor(
 		editor: ICodeEditor,
 		languageService: ILanguageService,
@@ -62,6 +64,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	}
 
 	public override dispose(): void {
+		this._hoverComputerOptions = undefined;
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
@@ -84,11 +87,11 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	}
 
 	private _onModelDecorationsChanged(): void {
-		if (this._isVisible) {
+		if (this._isVisible && this._hoverComputerOptions) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
-			this._hoverOperation.start(HoverStartMode.Delayed, undefined);
+			this._hoverOperation.start(HoverStartMode.Delayed, this._hoverComputerOptions);
 		}
 	}
 
@@ -112,7 +115,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		}
 		this._hoverOperation.cancel();
 		this.hide();
-		this._hoverOperation.start(HoverStartMode.Delayed, { lineNumber, laneOrLine });
+		this._hoverComputerOptions = { lineNumber, laneOrLine };
+		this._hoverOperation.start(HoverStartMode.Delayed, this._hoverComputerOptions);
 	}
 
 	public hide(): void {
@@ -121,6 +125,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 			return;
 		}
 		this._isVisible = false;
+		this._hoverComputerOptions = undefined;
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 	}
 
@@ -157,7 +162,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		this._updateFont();
 	}
 
-	private _showAt(lineNumber: number, laneOrLine: LaneOrLineNumber,): void {
+	private _showAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
 		if (!this._isVisible) {
 			this._isVisible = true;
 			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);

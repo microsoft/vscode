@@ -27,7 +27,7 @@ export class MarginHoverComputer implements IHoverComputer<MarginHoverComputerOp
 	) {
 	}
 
-	public computeSync(opts: MarginHoverComputerOptions | undefined): IHoverMessage[] {
+	public computeSync(opts: MarginHoverComputerOptions): IHoverMessage[] {
 
 		if (!opts) {
 			return [];
