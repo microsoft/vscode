@@ -43,7 +43,7 @@ import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { EditContextType, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -105,7 +105,6 @@ export class View extends ViewEventHandler {
 	private _renderAnimationFrame: IDisposable | null;
 
 	// Edit context
-	private _editContextType: EditContextType;
 	private _editContext: AbstractEditContext;
 
 	constructor(
@@ -132,8 +131,7 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
-		this._editContext = this._instantiateEditContext(this._editContextType);
+		this._editContext = this._instantiateEditContext();
 		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
@@ -355,7 +353,8 @@ export class View extends ViewEventHandler {
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
-	private _instantiateEditContext(editContextType: EditContextType): AbstractEditContext {
+	private _instantiateEditContext(): AbstractEditContext {
+		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
 		let editContextHandler: AbstractEditContext;
 		if (editContextType === 'native') {
 			editContextHandler = this._instantiationService.createInstance(NativeEditContext, this._context, this._viewController);
@@ -365,22 +364,6 @@ export class View extends ViewEventHandler {
 		return editContextHandler;
 	}
 
-	private _updateEditContext(): void {
-		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
-		if (this._editContextType === editContextType) {
-			return;
-		}
-		this._editContextType = editContextType;
-		this._editContext.dispose();
-		this._editContext = this._instantiateEditContext(editContextType);
-		this._editContext.appendTo(this._overflowGuardContainer);
-		// Replace the view parts with the new edit context
-		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
-		if (indexOfEditContextHandler !== -1) {
-			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
-		}
-	}
-
 	// --- begin event handlers
 	public override handleEvents(events: viewEvents.ViewEvent[]): void {
 		super.handleEvents(events);
@@ -388,7 +371,6 @@ export class View extends ViewEventHandler {
 	}
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this.domNode.setClassName(this._getEditorClassName());
-		this._updateEditContext();
 		this._applyLayout();
 		return false;
 	}
