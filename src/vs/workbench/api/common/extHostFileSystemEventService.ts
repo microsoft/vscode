@@ -119,7 +119,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		const disposable = Disposable.from();
 
 		if (typeof globPattern === 'string') {
-			return disposable; // workspacew is already watched by default, no need to watch again!
+			return disposable; // workspace is already watched by default, no need to watch again!
 		}
 
 		if (options?.ignoreChangeEvents && options?.ignoreCreateEvents && options?.ignoreDeleteEvents) {
