@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { transaction } from 'vs/base/common/observable';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -19,11 +18,12 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { IEditorIdentifier, IResourceMergeEditorInput } from '../../../../common/editor.js';
 import { MergeEditorInput, MergeEditorInputData } from '../mergeEditorInput.js';
 import { IMergeEditorInputModel } from '../mergeEditorInputModel.js';
-import { ModifiedBaseRangeStateKind } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
 import { MergeEditor } from '../view/mergeEditor.js';
 import { MergeEditorViewModel } from '../view/viewModel.js';
 import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from '../../common/mergeEditor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { transaction } from '../../../../../base/common/observable.js';
+import { ModifiedBaseRangeStateKind } from '../model/modifiedBaseRange.js';
 
 abstract class MergeEditorAction extends Action2 {
 	constructor(desc: Readonly<IAction2Options>) {
