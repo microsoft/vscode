@@ -12,7 +12,6 @@ import { groupBy } from '../../../../base/common/collections.js';
 import { splitGlobAware } from '../../../../base/common/glob.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
 import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
@@ -28,7 +27,7 @@ export class RipgrepTextSearchEngine {
 
 	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, callback: (data: TextSearchResultNew) => void, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		return Promise.all(options.folderOptions.map(folderOption => {
 			const extendedOptions: RipgrepTextSearchOptions = {
 				folderOptions: folderOption,
@@ -38,7 +37,7 @@ export class RipgrepTextSearchEngine {
 				maxFileSize: options.maxFileSize,
 				surroundingContext: options.surroundingContext
 			};
-			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token);
+			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, callback, token);
 		})).then((e => {
 			const complete: TextSearchCompleteNew = {
 				// todo: get this to actually check
@@ -48,7 +47,7 @@ export class RipgrepTextSearchEngine {
 		}));
 	}
 
-	provideTextSearchResultsWithRgOptions(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResultsWithRgOptions(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, callback: (data: TextSearchResultNew) => void, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -84,7 +83,7 @@ export class RipgrepTextSearchEngine {
 			ripgrepParser.on('result', (match: TextSearchResultNew) => {
 				gotResult = true;
 				dataWithoutResult = '';
-				progress.report(match);
+				callback(match);
 			});
 
 			let isDone = false;
