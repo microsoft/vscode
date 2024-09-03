@@ -63,7 +63,6 @@ import { clamp } from '../../../../base/common/numbers.js';
 const historyItemDefaultLabelForeground = registerColor('scm.historyItemDefaultLabelForeground', foreground, localize('scm.historyItemDefaultLabelForeground', "History item default label foreground color."));
 const historyItemDefaultLabelBackground = registerColor('scm.historyItemDefaultLabelBackground', transparent(foreground, 0.2), localize('scm.historyItemDefaultLabelBackground', "History item default label background color."));
 
-//TODO@lszomoru - should these colors come from the extension
 const historyItemHoverAdditionsForeground = registerColor('scm.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemHoverAdditionsForeground', "History item hover additions foreground color."));
 const historyItemHoverDeletionsForeground = registerColor('scm.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
@@ -251,7 +250,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
 
 				icon.style.color = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(foreground);
-				icon.style.backgroundColor = label.color ? asCssVariable(label.color.id) : asCssVariable(historyItemDefaultLabelBackground);
+				icon.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemDefaultLabelBackground);
 			}
 		}
 	}
@@ -303,7 +302,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			markdown.appendMarkdown((historyItem.labels ?? []).map(label => {
 				const labelIconId = ThemeIcon.isThemeIcon(label.icon) ? label.icon.id : '';
 
-				const labelBackgroundColor = label.color ? asCssVariable(label.color.id) : asCssVariable(historyItemDefaultLabelBackground);
+				const labelBackgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemDefaultLabelBackground);
 				const labelForegroundColor = label.color ? asCssVariable(historyItemGroupHoverLabelForeground) : asCssVariable(historyItemDefaultLabelForeground);
 
 				return `<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:2px;">&nbsp;$(${labelIconId})&nbsp;${label.title}&nbsp;</span>`;
@@ -585,6 +584,7 @@ class SCMHistoryViewModel extends Disposable {
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
 	readonly repository = latestChangedValue(this, [this._selectedRepository, this._firstRepository]);
+	private readonly _historyItemGroupIds = observableValue<'all' | 'auto' | string[]>(this, 'auto');
 
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
 
@@ -665,15 +665,7 @@ class SCMHistoryViewModel extends Disposable {
 		}
 
 		// Create the color map
-		const colorMap = new Map<string, ColorIdentifier>([
-			[currentHistoryItemGroup.name, historyItemGroupLocal]
-		]);
-		if (currentHistoryItemGroup.remote) {
-			colorMap.set(currentHistoryItemGroup.remote.name, historyItemGroupRemote);
-		}
-		if (currentHistoryItemGroup.base) {
-			colorMap.set(currentHistoryItemGroup.base.name, historyItemGroupBase);
-		}
+		const colorMap = this._getHistoryItemsColorMap(currentHistoryItemGroup);
 
 		return toISCMHistoryItemViewModelArray(state.items, colorMap)
 			.map(historyItemViewModel => ({
@@ -685,6 +677,24 @@ class SCMHistoryViewModel extends Disposable {
 
 	setRepository(repository: ISCMRepository): void {
 		this._selectedRepository.set(repository, undefined);
+	}
+
+	private _getHistoryItemsColorMap(currentHistoryItemGroup: ISCMHistoryItemGroup): Map<string, ColorIdentifier> {
+		if (this._historyItemGroupIds.get() !== 'auto') {
+			return new Map<string, ColorIdentifier>();
+		}
+
+		const colorMap = new Map<string, ColorIdentifier>([
+			[currentHistoryItemGroup.name, historyItemGroupLocal]
+		]);
+		if (currentHistoryItemGroup.remote) {
+			colorMap.set(currentHistoryItemGroup.remote.name, historyItemGroupRemote);
+		}
+		if (currentHistoryItemGroup.base) {
+			colorMap.set(currentHistoryItemGroup.base.name, historyItemGroupBase);
+		}
+
+		return colorMap;
 	}
 
 	override dispose(): void {

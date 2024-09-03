@@ -299,8 +299,17 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 			});
 		}
 
+		// Add colors to labels
+		const labels = (historyItem.labels ?? [])
+			.map(label => {
+				return { ...label, color: colorMap.get(label.title) };
+			});
+
 		viewModels.push({
-			historyItem,
+			historyItem: {
+				...historyItem,
+				labels
+			},
 			inputSwimlanes,
 			outputSwimlanes,
 		});
