@@ -33,7 +33,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private historyItemDecorations = new Map<string, FileDecoration>();
 	private historyItemLabels = new Map<string, ThemeIcon>([
 		['HEAD -> refs/heads/', new ThemeIcon('target')],
-		['refs/tags/', new ThemeIcon('tag')],
+		['tag: refs/tags/', new ThemeIcon('tag')],
 		['refs/heads/', new ThemeIcon('git-branch')],
 		['refs/remotes/', new ThemeIcon('cloud')],
 	]);
