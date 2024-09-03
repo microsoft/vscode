@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemLabel, ThemeColor } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemLabel } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, dispose } from './util';
 import { toGitUri } from './uri';
@@ -31,11 +31,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private historyItemDecorations = new Map<string, FileDecoration>();
-	private historyItemLabels = new Map<string, { icon: ThemeIcon; color?: ThemeColor }>([
-		['HEAD -> refs/heads/', { icon: new ThemeIcon('target'), color: new ThemeColor('gitGraph.currentBranchLabelBackground') }],
-		['refs/tags/', { icon: new ThemeIcon('tag'), color: new ThemeColor('gitGraph.tagLabelBackground') }],
-		['refs/heads/', { icon: new ThemeIcon('git-branch') }],
-		['refs/remotes/', { icon: new ThemeIcon('cloud') }],
+	private historyItemLabels = new Map<string, ThemeIcon>([
+		['HEAD -> refs/heads/', new ThemeIcon('target')],
+		['refs/tags/', new ThemeIcon('tag')],
+		['refs/heads/', new ThemeIcon('git-branch')],
+		['refs/remotes/', new ThemeIcon('cloud')],
 	]);
 
 	private disposables: Disposable[] = [];
@@ -130,7 +130,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				const newLineIndex = commit.message.indexOf('\n');
 				const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
-				const labels = this.resolveHistoryItemLabels(commit, this.currentHistoryItemGroup!);
+				const labels = this.resolveHistoryItemLabels(commit);
 
 				return {
 					id: commit.hash,
@@ -223,26 +223,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private resolveHistoryItemLabels(commit: Commit, currentHistoryItemGroup: SourceControlHistoryItemGroup): SourceControlHistoryItemLabel[] {
+	private resolveHistoryItemLabels(commit: Commit): SourceControlHistoryItemLabel[] {
 		const labels: SourceControlHistoryItemLabel[] = [];
 
 		for (const label of commit.refNames) {
 			for (const [key, value] of this.historyItemLabels) {
 				if (label.startsWith(key)) {
-					let color: ThemeColor | undefined = undefined;
-					switch (label) {
-						case currentHistoryItemGroup.base?.id:
-							color = new ThemeColor('gitGraph.currentBranchBaseLabelBackground');
-							break;
-						case currentHistoryItemGroup.remote?.id:
-							color = new ThemeColor('gitGraph.currentBranchRemoteLabelBackground');
-							break;
-						default:
-							color = value.color;
-							break;
-					}
-
-					labels.push({ title: label.substring(key.length), icon: value.icon, color });
+					labels.push({ title: label.substring(key.length), icon: value });
 					break;
 				}
 			}

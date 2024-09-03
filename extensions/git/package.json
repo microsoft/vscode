@@ -3217,46 +3217,6 @@
           "highContrast": "#8db9e2",
           "highContrastLight": "#1258a7"
         }
-      },
-      {
-        "id": "gitGraph.currentBranchLabelBackground",
-        "description": "%colors.currentBranchLabelBackground%",
-        "defaults": {
-          "light": "#1A85FF",
-          "dark": "#3794FF",
-          "highContrast": "#3794FF",
-          "highContrastLight": "#1A85FF"
-        }
-      },
-      {
-        "id": "gitGraph.currentBranchRemoteLabelBackground",
-        "description": "%colors.currentBranchRemoteLabelBackground%",
-        "defaults": {
-          "light": "#652D90",
-          "dark": "#B180D7",
-          "highContrast": "#B180D7",
-          "highContrastLight": "#652D90"
-        }
-      },
-      {
-        "id": "gitGraph.currentBranchBaseLabelBackground",
-        "description": "%colors.currentBranchBaseLabelBackground%",
-        "defaults": {
-          "light": "#D18616",
-          "dark": "#D18616",
-          "highContrast": "#AB5A00",
-          "highContrastLight": "#0F4A85"
-        }
-      },
-      {
-        "id": "gitGraph.tagLabelBackground",
-        "description": "%colors.tagLabelBackground%",
-        "defaults": {
-          "light": "#28632B",
-          "dark": "#28632B",
-          "highContrast": "#28632B",
-          "highContrastLight": "#28632B"
-        }
       }
     ],
     "configurationDefaults": {
