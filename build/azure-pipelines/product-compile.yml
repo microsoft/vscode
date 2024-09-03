@@ -1,7 +1,7 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
-  - name: VSCODE_BUILD_ESM
+  - name: VSCODE_BUILD_AMD
     type: boolean
     default: false
 
@@ -15,7 +15,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ./distro/download-distro.yml@self
 
-    - task: AzureKeyVault@1
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
         azureSubscription: "vscode-builds-subscription"
@@ -101,9 +101,9 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
-  - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
-    - script: node migrate.mjs --disable-watch
-      displayName: Migrate to ESM
+  - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+    - script: node migrate.mjs --disable-watch --enable-esm-to-amd
+      displayName: Migrate ESM -> AMD
 
   - template: common/install-builtin-extensions.yml@self
 

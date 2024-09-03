@@ -3,57 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
-import { VSBuffer, encodeBase64 } from 'vs/base/common/buffer';
-import { IDataTransferFile, IDataTransferItem, UriList } from 'vs/base/common/dataTransfer';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import * as htmlContent from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import * as marked from 'vs/base/common/marked/marked';
-import { parse, revive } from 'vs/base/common/marshalling';
-import { Mimes } from 'vs/base/common/mime';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { basename } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isDefined, isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as editorRange from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import * as encodedTokenAttributes from 'vs/editor/common/encodedTokenAttributes';
-import * as languageSelector from 'vs/editor/common/languageSelector';
-import * as languages from 'vs/editor/common/languages';
-import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
-import { IViewBadge } from 'vs/workbench/common/views';
-import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
-import { IToolData, IToolResult } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import * as chatProvider from 'vs/workbench/contrib/chat/common/languageModels';
-import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
-import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import * as search from 'vs/workbench/contrib/search/common/search';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { asArray, coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
+import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
+import { IDataTransferFile, IDataTransferItem, UriList } from '../../../base/common/dataTransfer.js';
+import { createSingleCallFunction } from '../../../base/common/functional.js';
+import * as htmlContent from '../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
+import * as marked from '../../../base/common/marked/marked.js';
+import { parse, revive } from '../../../base/common/marshalling.js';
+import { Mimes } from '../../../base/common/mime.js';
+import { cloneAndChange } from '../../../base/common/objects.js';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../base/common/prefixTree.js';
+import { basename } from '../../../base/common/resources.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { isDefined, isEmptyObject, isNumber, isString, isUndefinedOrNull } from '../../../base/common/types.js';
+import { URI, UriComponents, isUriComponents } from '../../../base/common/uri.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { RenderLineNumbersType } from '../../../editor/common/config/editorOptions.js';
+import { IPosition } from '../../../editor/common/core/position.js';
+import * as editorRange from '../../../editor/common/core/range.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
+import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from '../../../editor/common/editorCommon.js';
+import * as encodedTokenAttributes from '../../../editor/common/encodedTokenAttributes.js';
+import * as languageSelector from '../../../editor/common/languageSelector.js';
+import * as languages from '../../../editor/common/languages.js';
+import { EndOfLineSequence, TrackedRangeStickiness } from '../../../editor/common/model.js';
+import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
+import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
+import * as extHostProtocol from './extHost.protocol.js';
+import { CommandsConverter } from './extHostCommands.js';
+import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
+import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
+import { IViewBadge } from '../../common/views.js';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
+import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import * as chatProvider from '../../contrib/chat/common/languageModels.js';
+import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
+import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
+import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
+import * as search from '../../contrib/search/common/search.js';
+import { TestId } from '../../contrib/testing/common/testId.js';
+import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from '../../contrib/testing/common/testTypes.js';
+import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import type * as vscode from 'vscode';
-import * as types from './extHostTypes';
+import * as types from './extHostTypes.js';
 
 export namespace Command {
 
@@ -2041,6 +2041,43 @@ export namespace TestCoverage {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
+	function toLocation(location: IPosition | editorRange.IRange): types.Position | types.Range;
+	function toLocation(location: IPosition | editorRange.IRange | undefined): types.Position | types.Range | undefined;
+	function toLocation(location: IPosition | editorRange.IRange | undefined): types.Position | types.Range | undefined {
+		if (!location) { return undefined; }
+		return 'endLineNumber' in location ? Range.to(location) : Position.to(location);
+	}
+
+	export function to(serialized: CoverageDetails.Serialized): vscode.FileCoverageDetail {
+		if (serialized.type === DetailType.Statement) {
+			const branches: vscode.BranchCoverage[] = [];
+			if (serialized.branches) {
+				for (const branch of serialized.branches) {
+					branches.push({
+						executed: branch.count,
+						location: toLocation(branch.location),
+						label: branch.label
+					});
+				}
+			}
+			return new types.StatementCoverage(
+				serialized.count,
+				toLocation(serialized.location),
+				serialized.branches?.map(b => new types.BranchCoverage(
+					b.count,
+					toLocation(b.location)!,
+					b.label,
+				))
+			);
+		} else {
+			return new types.DeclarationCoverage(
+				serialized.name,
+				serialized.count,
+				toLocation(serialized.location),
+			);
+		}
+	}
+
 	export function fromDetails(coverage: vscode.FileCoverageDetail): CoverageDetails.Serialized {
 		if (typeof coverage.executed === 'number' && coverage.executed < 0) {
 			throw new Error(`Invalid coverage count ${coverage.executed}`);
@@ -2276,18 +2313,19 @@ export namespace LanguageModelChatMessageRole {
 export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		let content: string = '';
-		let content2: vscode.LanguageModelChatMessageFunctionResultPart | undefined;
-		if (message.content.type === 'text') {
-			content = message.content.value;
-		} else {
-			content2 = new types.LanguageModelFunctionResultPart(message.content.name, message.content.value, message.content.isError);
-		}
+		const content2 = message.content.map(c => {
+			if (c.type === 'text') {
+				return c.value;
+			} else if (c.type === 'tool_result') {
+				return new types.LanguageModelToolResultPart(c.toolCallId, c.value, c.isError);
+			} else {
+				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
+			}
+		});
+		const content = content2.find(c => typeof c === 'string') ?? '';
 		const role = LanguageModelChatMessageRole.to(message.role);
 		const result = new types.LanguageModelChatMessage(role, content, message.name);
-		if (content2 !== undefined) {
-			result.content2 = content2;
-		}
+		result.content2 = content2;
 		return result;
 	}
 
@@ -2296,21 +2334,32 @@ export namespace LanguageModelChatMessage {
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
-		let content: chatProvider.IChatMessagePart;
+		const content = message.content2.map((c): chatProvider.IChatMessagePart => {
+			if (c instanceof types.LanguageModelToolResultPart) {
+				return {
+					type: 'tool_result',
+					toolCallId: c.toolCallId,
+					value: c.content,
+					isError: c.isError
+				};
+			} else if (c instanceof types.LanguageModelToolCallPart) {
+				return {
+					type: 'tool_use',
+					toolCallId: c.toolCallId,
+					name: c.name,
+					parameters: c.parameters
+				};
+			} else {
+				if (typeof c !== 'string') {
+					throw new Error('Unexpected chat message content type');
+				}
 
-		if (message.content2 instanceof types.LanguageModelFunctionResultPart) {
-			content = {
-				type: 'function_result',
-				name: message.content2.name,
-				value: message.content2.content,
-				isError: message.content2.isError
-			};
-		} else {
-			content = {
-				type: 'text',
-				value: message.content
-			};
-		}
+				return {
+					type: 'text',
+					value: c
+				};
+			}
+		});
 
 		return {
 			role,
@@ -2454,6 +2503,19 @@ export namespace ChatResponseWarningPart {
 	}
 }
 
+export namespace ChatResponseMovePart {
+	export function from(part: vscode.ChatResponseMovePart): Dto<IChatMoveMessage> {
+		return {
+			kind: 'move',
+			uri: part.uri,
+			range: Range.from(part.range),
+		};
+	}
+	export function to(part: Dto<IChatMoveMessage>): vscode.ChatResponseMovePart {
+		return new types.ChatResponseMovePart(URI.revive(part.uri), Range.to(part.range));
+	}
+}
+
 export namespace ChatTask {
 	export function from(part: vscode.ChatResponseProgressPart2): IChatTaskDto {
 		return {
@@ -2561,7 +2623,7 @@ export namespace ChatResponseCodeCitationPart {
 
 export namespace ChatResponsePart {
 
-	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
+	export function from(part: vscode.ChatResponsePart | vscode.ChatResponseTextEditPart | vscode.ChatResponseMarkdownWithVulnerabilitiesPart | vscode.ChatResponseDetectedParticipantPart | vscode.ChatResponseWarningPart | vscode.ChatResponseConfirmationPart | vscode.ChatResponseReferencePart2 | vscode.ChatResponseMovePart, commandsConverter: CommandsConverter, commandDisposables: DisposableStore): extHostProtocol.IChatProgressDto {
 		if (part instanceof types.ChatResponseMarkdownPart) {
 			return ChatResponseMarkdownPart.from(part);
 		} else if (part instanceof types.ChatResponseAnchorPart) {
@@ -2586,6 +2648,8 @@ export namespace ChatResponsePart {
 			return ChatResponseConfirmationPart.from(part);
 		} else if (part instanceof types.ChatResponseCodeCitationPart) {
 			return ChatResponseCodeCitationPart.from(part);
+		} else if (part instanceof types.ChatResponseMovePart) {
+			return ChatResponseMovePart.from(part);
 		}
 
 		return {
@@ -2629,6 +2693,7 @@ export namespace ChatAgentRequest {
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
+			isParticipantDetected: request.isParticipantDetected ?? false,
 			references: variableReferences.map(ChatPromptReference.to),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),

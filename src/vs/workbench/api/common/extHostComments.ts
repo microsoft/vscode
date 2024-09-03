@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
-import { ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
+import { asPromise } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { debounce } from '../../../base/common/decorators.js';
+import { Emitter } from '../../../base/common/event.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import * as languages from '../../../editor/common/languages.js';
+import { ExtensionIdentifierMap, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import * as extHostTypeConverter from './extHostTypeConverters.js';
+import * as types from './extHostTypes.js';
 import type * as vscode from 'vscode';
-import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
-import { ExtHostCommands } from './extHostCommands';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { MarshalledCommentThread } from 'vs/workbench/common/comments';
+import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol.js';
+import { ExtHostCommands } from './extHostCommands.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { MarshalledCommentThread } from '../../common/comments.js';
 
 type ProviderHandle = number;
 

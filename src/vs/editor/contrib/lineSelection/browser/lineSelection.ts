@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { CursorChangeReason } from '../../../common/cursorEvents.js';
+import { CursorMoveCommands } from '../../../common/cursor/cursorMoveCommands.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import * as nls from '../../../../nls.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 export class ExpandLineSelectionAction extends EditorAction {
 	constructor() {

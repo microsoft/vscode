@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { lastOrDefault } from 'vs/base/common/arrays';
-import { deepClone } from 'vs/base/common/objects';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { buttonForeground } from 'vs/platform/theme/common/colorRegistry';
-import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from 'vs/platform/theme/common/colors/chartsColors';
-import { asCssVariable, ColorIdentifier, registerColor } from 'vs/platform/theme/common/colorUtils';
-import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
-import { rot } from 'vs/base/common/numbers';
+import { localize } from '../../../../nls.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { buttonForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
+import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorUtils.js';
+import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from '../common/history.js';
+import { rot } from '../../../../base/common/numbers.js';
+import { svgElem } from '../../../../base/browser/dom.js';
 
-const SWIMLANE_HEIGHT = 22;
-const SWIMLANE_WIDTH = 11;
+export const SWIMLANE_HEIGHT = 22;
+export const SWIMLANE_WIDTH = 11;
 const CIRCLE_RADIUS = 4;
 const SWIMLANE_CURVE_RADIUS = 5;
 
@@ -228,6 +228,20 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	return svg;
 }
 
+export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNode[]): HTMLElement {
+	const elements = svgElem('svg', {
+		style: { height: `${SWIMLANE_HEIGHT}px`, width: `${SWIMLANE_WIDTH * (columns.length + 1)}px`, }
+	});
+
+	// Draw |
+	for (let index = 0; index < columns.length; index++) {
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, columns[index].color);
+		elements.root.append(path);
+	}
+
+	return elements.root;
+}
+
 export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, string>()): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
@@ -235,7 +249,7 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 	for (let index = 0; index < historyItems.length; index++) {
 		const historyItem = historyItems[index];
 
-		const outputSwimlanesFromPreviousItem = lastOrDefault(viewModels)?.outputSwimlanes ?? [];
+		const outputSwimlanesFromPreviousItem = viewModels.at(-1)?.outputSwimlanes ?? [];
 		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
 		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
 
@@ -284,8 +298,17 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 			});
 		}
 
+		// Add colors to labels
+		const labels = (historyItem.labels ?? [])
+			.map(label => {
+				return { ...label, color: colorMap.get(label.title) };
+			});
+
 		viewModels.push({
-			historyItem,
+			historyItem: {
+				...historyItem,
+				labels
+			},
 			inputSwimlanes,
 			outputSwimlanes,
 		});

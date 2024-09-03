@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IFileChange } from 'vs/platform/files/common/files';
-import { AbstractUniversalWatcherClient, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
-import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { getDelayedChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IFileChange } from '../../../../platform/files/common/files.js';
+import { AbstractUniversalWatcherClient, ILogMessage, IRecursiveWatcher } from '../../../../platform/files/common/watcher.js';
+import { IUtilityProcessWorkerWorkbenchService } from '../../utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
 
 export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
+import { BrandedService, IConstructorSignature } from '../../platform/instantiation/common/instantiation.js';
 
 /**
  * A feature that will be loaded when the first code editor is constructed and disposed when the system shuts down.

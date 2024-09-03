@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Memento } from 'vs/workbench/common/memento';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { localize2 } from '../../../../../../nls.js';
+import { Categories } from '../../../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
+import { Memento } from '../../../../../common/memento.js';
+import { NotebookSetting } from '../../../common/notebookCommon.js';
+import { HAS_OPENED_NOTEBOOK } from '../../../common/notebookContextKeys.js';
+import { NotebookEditorInput } from '../../../common/notebookEditorInput.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 
 const hasOpenedNotebookKey = 'hasOpenedNotebook';
 const hasShownGettingStartedKey = 'hasShownNotebookGettingStarted';

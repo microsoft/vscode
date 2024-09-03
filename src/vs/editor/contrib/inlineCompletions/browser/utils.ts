@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorunOpts } from 'vs/base/common/observable';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, autorunOpts } from '../../../../base/common/observable.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IModelDeltaDecoration } from '../../../common/model.js';
 
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {

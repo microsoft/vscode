@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { NotebookFindInputFilterButton } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
-import * as nls from 'vs/nls';
-import { IFindInputToggleOpts } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { Codicon } from 'vs/base/common/codicons';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Emitter } from 'vs/base/common/event';
+import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IFindInputOptions } from '../../../../base/browser/ui/findinput/findInput.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ContextScopedFindInput } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { NotebookFindFilters } from '../../notebook/browser/contrib/find/findFilters.js';
+import { NotebookFindInputFilterButton } from '../../notebook/browser/contrib/find/notebookFindReplaceWidget.js';
+import * as nls from '../../../../nls.js';
+import { IFindInputToggleOpts } from '../../../../base/browser/ui/findinput/findInputToggles.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 const NLS_AI_TOGGLE_LABEL = nls.localize('aiDescription', "Use AI");
 

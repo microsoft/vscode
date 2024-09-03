@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse, stringify } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, ISyncResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { IRemoteUserData, IResourceRefHandle, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSynchroniser, IWorkspaceState, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { EditSession, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
-import { IWorkspaceIdentityService } from 'vs/workbench/services/workspaces/common/workspaceIdentityService';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { parse, stringify } from '../../../../base/common/marshalling.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, ISyncResourcePreview } from '../../../../platform/userDataSync/common/abstractSynchronizer.js';
+import { IRemoteUserData, IResourceRefHandle, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSynchroniser, IWorkspaceState, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { EditSession, IEditSessionsStorageService } from './editSessions.js';
+import { IWorkspaceIdentityService } from '../../../services/workspaces/common/workspaceIdentityService.js';
 
 
 class NullBackupStoreService implements IUserDataSyncLocalStoreService {

@@ -100,24 +100,22 @@ function discoverAndReadFiles(ts, options) {
     options.entryPoints.forEach((entryPoint) => enqueue(entryPoint));
     while (queue.length > 0) {
         const moduleId = queue.shift();
-        const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
+        let redirectedModuleId = moduleId;
+        if (options.redirects[moduleId]) {
+            redirectedModuleId = options.redirects[moduleId];
+        }
+        const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
         if (fs.existsSync(dts_filename)) {
             const dts_filecontents = fs.readFileSync(dts_filename).toString();
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
             continue;
         }
-        const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+        const js_filename = path.join(options.sourcesRoot, redirectedModuleId + '.js');
         if (fs.existsSync(js_filename)) {
             // This is an import for a .js file, so ignore it...
             continue;
         }
-        let ts_filename;
-        if (options.redirects[moduleId]) {
-            ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');
-        }
-        else {
-            ts_filename = path.join(options.sourcesRoot, moduleId + '.ts');
-        }
+        const ts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.ts');
         const ts_filecontents = fs.readFileSync(ts_filename).toString();
         const info = ts.preProcessFile(ts_filecontents);
         for (let i = info.importedFiles.length - 1; i >= 0; i--) {

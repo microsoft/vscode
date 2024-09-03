@@ -353,6 +353,8 @@
 
 .cell-comment-container.review-widget {
 	border-left: 1px solid var(--vscode-peekView-border); border-right: 1px solid var(--vscode-peekView-border);
+	/* Restore text-wrap to default value to avoid inheriting nowrap from monaco-list. */
+	text-wrap: initial;
 }
 
 .cell-comment-container.review-widget > .head {
@@ -445,6 +447,13 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-symbolHighlight {
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
+
+/** Cell Multi-Selection highlight */
+.nb-multicursor-selection {
+	min-width: 2px;
+	background-color: fuchsia;
+}
+
 
 /** Cell Search Range selection highlight */
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-multiCellHighlight .cell-focus-indicator,

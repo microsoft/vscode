@@ -4,40 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { execFile, exec } from 'child_process';
-import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { getSystemShell } from 'vs/base/node/shell';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from 'vs/platform/terminal/common/terminal';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
+import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { IProcessEnvironment, isWindows, OperatingSystem, OS } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { getSystemShell } from '../../../base/node/shell.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
+import { RequestStore } from '../common/requestStore.js';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from '../common/terminal.js';
+import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
+import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
-import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { localize } from 'vs/nls';
-import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
-import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
-import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from '../common/terminalProcess.js';
+import { getWindowsBuildNumber } from './terminalEnvironment.js';
+import { TerminalProcess } from './terminalProcess.js';
+import { localize } from '../../../nls.js';
+import { ignoreProcessNames } from './childProcessMonitor.js';
+import { TerminalAutoResponder } from '../common/terminalAutoResponder.js';
+import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { ShellIntegrationAddon } from '../common/xterm/shellIntegrationAddon.js';
+import { formatMessageForTerminal } from '../common/terminalStrings.js';
+import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
+import { IProductService } from '../../product/common/productService.js';
 import { join } from 'path';
-import { memoize } from 'vs/base/common/decorators';
-import * as performance from 'vs/base/common/performance';
+import { memoize } from '../../../base/common/decorators.js';
+import * as performance from '../../../base/common/performance.js';
 // ESM-comment-begin
-import { Terminal as XtermTerminal } from '@xterm/headless';
+// import { Terminal as XtermTerminal } from '@xterm/headless';
 // ESM-comment-end
 // ESM-uncomment-begin
-// import pkg from '@xterm/headless';
-// type XtermTerminal = pkg.Terminal;
-// const { Terminal: XtermTerminal } = pkg;
+import pkg from '@xterm/headless';
+type XtermTerminal = pkg.Terminal;
+const { Terminal: XtermTerminal } = pkg;
 // ESM-uncomment-end
 
 export function traceRpc(_target: any, key: string, descriptor: any) {
@@ -607,7 +607,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {
 		const pty = this._ptys.get(id);
 		if (!pty) {
-			throw new ErrorNoTelemetry(`Could not find pty on pty host`);
+			throw new ErrorNoTelemetry(`Could not find pty ${id} on pty host`);
 		}
 		return pty;
 	}

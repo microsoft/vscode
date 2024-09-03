@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 class BracketPairColorizer2TelemetryContribution {
 	constructor(

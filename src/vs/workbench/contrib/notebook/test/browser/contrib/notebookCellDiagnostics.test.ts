@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { waitForState } from 'vs/base/common/observable';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { ChatAgentLocation, IChatAgent, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CellDiagnostics } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { waitForState } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
+import { ChatAgentLocation, IChatAgent, IChatAgentData, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { CellDiagnostics } from '../../../browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib.js';
+import { CodeCellViewModel } from '../../../browser/viewModel/codeCellViewModel.js';
+import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
+import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
+import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from '../testNotebookEditor.js';
+import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 
 
 suite('notebookCellDiagnostics', () => {

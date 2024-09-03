@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { DecorationSegment, LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Range } from '../../../common/core/range.js';
+import { DecorationSegment, LineDecoration, LineDecorationsNormalizer } from '../../../common/viewLayout/lineDecorations.js';
+import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel.js';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 

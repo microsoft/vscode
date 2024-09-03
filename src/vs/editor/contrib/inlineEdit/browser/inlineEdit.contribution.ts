@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from '../../../browser/editorExtensions.js';
 // import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { AcceptInlineEdit, JumpBackInlineEdit, JumpToInlineEdit, RejectInlineEdit, TriggerInlineEdit } from 'vs/editor/contrib/inlineEdit/browser/commands';
+import { AcceptInlineEdit, JumpBackInlineEdit, JumpToInlineEdit, RejectInlineEdit, TriggerInlineEdit } from './commands.js';
 // import { InlineEditHoverParticipant } from 'vs/editor/contrib/inlineEdit/browser/hoverParticipant';
-import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
+import { InlineEditController } from './inlineEditController.js';
 
 registerEditorAction(AcceptInlineEdit);
 registerEditorAction(RejectInlineEdit);
