@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstIdxMonotonousOrArrLen } from './arraysFind.js';
 import { CancellationToken } from './cancellation.js';
 import { CancellationError } from './errors.js';
 import { ISplice } from './sequence.js';
-import { findFirstIdxMonotonousOrArrLen } from './arraysFind.js';
 
 /**
  * Returns the last element of an array.
@@ -411,18 +411,6 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 		seen.add(key);
 		return true;
 	};
-}
-
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[0] : notFoundValue;
-}
-
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[array.length - 1] : notFoundValue;
 }
 
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
