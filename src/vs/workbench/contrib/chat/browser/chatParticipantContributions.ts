@@ -69,7 +69,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					type: 'string'
 				},
 				disambiguation: {
-					description: localize('chatParticipantDisambiguation', "Metadata to help with automatically routing user questions to this chat participant."),
+					description: localize('chatParticipantDisambiguation', "Metadata to help with automatically routing user questions to this chat participant. You must add `contribChatParticipantDetection` to `enabledApiProposals` to use this API."),
 					type: 'array',
 					items: {
 						additionalProperties: false,
@@ -122,7 +122,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								type: 'boolean'
 							},
 							disambiguation: {
-								description: localize('chatCommandDisambiguation', "Metadata to help with automatically routing user questions to this chat command."),
+								description: localize('chatCommandDisambiguation', "Metadata to help with automatically routing user questions to this chat command. You must add `contribChatParticipantDetection` to `enabledApiProposals` to use this API."),
 								type: 'array',
 								items: {
 									additionalProperties: false,
@@ -218,13 +218,25 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						description: string;
 						examples: string[];
 					}[] = [];
+
+					let hasLoggedParticipantDetectionApiWarning = false;
 					if (providerDescriptor.disambiguation?.length) {
-						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation);
+						if (isProposedApiEnabled(extension.description, 'contribChatParticipantDetection')) {
+							participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation);
+						} else if (!hasLoggedParticipantDetectionApiWarning) {
+							this.logService.warn(`'${extension.description.identifier.value}' must add API proposal: 'contribChatParticipantDetection' to 'enabledApiProposals' to contribute disambiguation metadata.`);
+							hasLoggedParticipantDetectionApiWarning = true;
+						}
 					}
 					if (providerDescriptor.commands) {
 						for (const command of providerDescriptor.commands) {
 							if (command.disambiguation?.length) {
-								participantsAndCommandsDisambiguation.push(...command.disambiguation);
+								if (isProposedApiEnabled(extension.description, 'contribChatParticipantDetection')) {
+									participantsAndCommandsDisambiguation.push(...command.disambiguation);
+								} else if (!hasLoggedParticipantDetectionApiWarning) {
+									this.logService.warn(`'${extension.description.identifier.value}' must add API proposal: 'contribChatParticipantDetection' to 'enabledApiProposals' to contribute disambiguation metadata.`);
+									hasLoggedParticipantDetectionApiWarning = true;
+								}
 							}
 						}
 					}
