@@ -11,7 +11,7 @@ import { Gesture } from '../../touch.js';
 import { alert, AriaRole } from '../aria/aria.js';
 import { CombinedSpliceable } from './splice.js';
 import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
-import { binarySearch, firstOrDefault, range } from '../../../common/arrays.js';
+import { binarySearch, range } from '../../../common/arrays.js';
 import { timeout } from '../../../common/async.js';
 import { Color } from '../../../common/color.js';
 import { memoize } from '../../../common/decorators.js';
@@ -1718,7 +1718,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	getAnchor(): number | undefined {
-		return firstOrDefault(this.anchor.get(), undefined);
+		return this.anchor.get().at(0);
 	}
 
 	getAnchorElement(): T | undefined {

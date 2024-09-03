@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { lastOrDefault } from '../../../../base/common/arrays.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { buttonForeground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -250,7 +249,7 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 	for (let index = 0; index < historyItems.length; index++) {
 		const historyItem = historyItems[index];
 
-		const outputSwimlanesFromPreviousItem = lastOrDefault(viewModels)?.outputSwimlanes ?? [];
+		const outputSwimlanesFromPreviousItem = viewModels.at(-1)?.outputSwimlanes ?? [];
 		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
 		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
 

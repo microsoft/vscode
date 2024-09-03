@@ -10,7 +10,6 @@ import { onUnexpectedError, setUnexpectedErrorHandler } from '../../../base/comm
 import { combinedDisposable, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
-import { firstOrDefault } from '../../../base/common/arrays.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ProxyChannel, StaticRouter } from '../../../base/parts/ipc/common/ipc.js';
 import { IClientConnectionFilter, Server as UtilityProcessMessagePortServer, once } from '../../../base/parts/ipc/node/ipc.mp.js';
@@ -514,7 +513,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			return false;
 		}
 
-		const port = firstOrDefault(e.ports);
+		const port = e.ports.at(0);
 		if (port) {
 			this.onDidWindowConnectRaw.fire(port);
 
