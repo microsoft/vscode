@@ -30,6 +30,9 @@ function src(base: string, maps = `${base}/**/*.map`) {
 }
 
 function main(): Promise<void> {
+	if (isAMD()) {
+		return Promise.resolve(); // in AMD we run into some issues, but we want to unblock the build for recovery
+	}
 	const sources: any[] = [];
 
 	// vscode client maps (default)
@@ -72,8 +75,6 @@ function main(): Promise<void> {
 
 main().catch(err => {
 	console.error(err);
-	if (!isAMD()) {
-		process.exit(1); // in AMD we run into some issues, but we want to unblock the build for recovery
-	}
+	process.exit(1);
 });
 

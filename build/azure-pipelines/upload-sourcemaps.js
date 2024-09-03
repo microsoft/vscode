@@ -26,6 +26,9 @@ function src(base, maps = `${base}/**/*.map`) {
     }));
 }
 function main() {
+    if ((0, amd_1.isAMD)()) {
+        return Promise.resolve(); // in AMD we run into some issues, but we want to unblock the build for recovery
+    }
     const sources = [];
     // vscode client maps (default)
     if (!base) {
@@ -62,8 +65,6 @@ function main() {
 }
 main().catch(err => {
     console.error(err);
-    if (!(0, amd_1.isAMD)()) {
-        process.exit(1); // in AMD we run into some issues, but we want to unblock the build for recovery
-    }
+    process.exit(1);
 });
 //# sourceMappingURL=upload-sourcemaps.js.map
