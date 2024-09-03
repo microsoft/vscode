@@ -14,15 +14,6 @@ export class EditContextWrapper {
 
 	constructor(private readonly _editContext: EditContext) { }
 
-	equals(other: EditContextWrapper): boolean {
-		return (
-			this.text === other.text
-			&& this.selectionStart === other.selectionStart
-			&& this.selectionEnd === other.selectionEnd
-			&& this.textStartPositionWithinEditor.equals(other.textStartPositionWithinEditor)
-		);
-	}
-
 	onTextUpdate(listener: (this: GlobalEventHandlers, ev: TextUpdateEvent) => void) {
 		return editContextAddDisposableListener(this._editContext, 'textupdate', listener);
 	}

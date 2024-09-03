@@ -28,12 +28,13 @@ import { Position } from 'vs/editor/common/core/position';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CursorState } from 'vs/editor/common/cursorCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 // Boolean which controls whether we should show the control, selection and character bounds
 const showControlBounds = false;
 
 export class NativeEditContext extends AbstractEditContext {
-
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContextWrapper;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -45,11 +46,13 @@ export class NativeEditContext extends AbstractEditContext {
 	private _renderingContext: RenderingContext | undefined;
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
+	private readonly _focusTracker: FocusTracker;
+
 	constructor(
 		context: ViewContext,
 		private readonly _viewController: ViewController,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(context);
 
@@ -57,15 +60,18 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.setClassName(`native-edit-context ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		this._updateDomAttributes();
 
+		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, () => {
+			this._context.viewModel.setHasFocus(this._hasFocus);
+		}));
+
 		const editContext = showControlBounds ? new DebugEditContext() : new EditContext();
 		this.domNode.domNode.editContext = editContext;
 		this._editContext = new EditContextWrapper(editContext);
 
-		this._screenReaderSupport = new ScreenReaderSupport(this.domNode, context, keybindingService);
+		this._screenReaderSupport = this._instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
 		// Dom node events
-		this._register(dom.addDisposableListener(this.domNode.domNode, 'focus', () => this._setHasFocus(true)));
-		this._register(dom.addDisposableListener(this.domNode.domNode, 'blur', () => this._setHasFocus(false)));
+
 		this._register(dom.addDisposableListener(this.domNode.domNode, 'copy', async () => this._ensureClipboardGetsEditorSelection()));
 		this._register(dom.addDisposableListener(this.domNode.domNode, 'keyup', (e) => this._viewController.emitKeyUp(new StandardKeyboardEvent(e))));
 		this._register(dom.addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
@@ -188,19 +194,9 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport.writeScreenReaderContent();
 	}
 
-	public isFocused(): boolean {
-		return this._hasFocus;
-	}
+	public isFocused(): boolean { return this._focusTracker.isFocused; }
+	public focus(): void { this._focusTracker.focus(); }
 
-	public focus(): void {
-		this._setHasFocus(true);
-		this.refreshFocusState();
-	}
-
-	public refreshFocusState(): void {
-		const hasFocus = dom.getActiveElement() === this.domNode.domNode;
-		this._setHasFocus(hasFocus);
-	}
 
 	// --- Private methods ---
 
@@ -286,19 +282,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._context.viewModel.setCursorStates('editContext', CursorChangeReason.Explicit, newCursorStates);
 	}
 
-	private _setHasFocus(newHasFocus: boolean): void {
-		if (this._hasFocus === newHasFocus) {
-			// no change
-			return;
-		}
-		this._hasFocus = newHasFocus;
-		if (this._hasFocus) {
-			this.domNode.domNode.focus();
-			this._context.viewModel.setHasFocus(true);
-		} else {
-			this._context.viewModel.setHasFocus(false);
-		}
-	}
 
 	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; textStartPositionWithinEditor: Position } {
 		const selectionStartOffset = this._primarySelection.startColumn - 1;
@@ -436,3 +419,31 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 }
 
+class FocusTracker extends Disposable {
+	private _isFocused: boolean = false;
+
+	constructor(
+		private readonly _domNode: HTMLElement,
+		private readonly _onFocusChange: (newFocusValue: boolean) => void,
+	) {
+		super();
+		this._register(dom.addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
+		this._register(dom.addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
+	}
+
+	private _handleFocusedChanged(focused: boolean): void {
+		if (this._isFocused === focused) {
+			return;
+		}
+		this._isFocused = focused;
+		this._onFocusChange(this._isFocused);
+	}
+
+	public focus(): void {
+		this._domNode.focus();
+	}
+
+	get isFocused(): boolean {
+		return this._isFocused;
+	}
+}

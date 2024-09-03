@@ -10,6 +10,7 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Position } from 'vs/editor/common/core/position';
 import * as nls from 'vs/nls';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 
 export interface ISimpleModel {
 	getLineCount(): number;

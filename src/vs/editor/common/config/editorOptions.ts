@@ -5223,7 +5223,7 @@ class EditContextOption extends BaseEditorOption<EditorOption.editContext, IEdit
 		super(
 			EditorOption.editContext, 'editContext', defaults,
 			{
-				'editor.editContext.type': {
+				'editor.experimental.useEditContext': {
 					type: 'string',
 					markdownDescription: nls.localize('editContext.type', "Controls the type of the edit context that is used."),
 					enum: [

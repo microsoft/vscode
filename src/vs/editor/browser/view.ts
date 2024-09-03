@@ -365,22 +365,6 @@ export class View extends ViewEventHandler {
 		return editContextHandler;
 	}
 
-	private _updateEditContext(): void {
-		const editContextType = this._context.configuration.options.get(EditorOption.editContext).type;
-		if (this._editContextType === editContextType) {
-			return;
-		}
-		this._editContextType = editContextType;
-		this._editContext.dispose();
-		this._editContext = this._instantiateEditContext(editContextType);
-		this._editContext.appendTo(this._overflowGuardContainer);
-		// Replace the view parts with the new edit context
-		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
-		if (indexOfEditContextHandler !== -1) {
-			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
-		}
-	}
-
 	// --- begin event handlers
 	public override handleEvents(events: viewEvents.ViewEvent[]): void {
 		super.handleEvents(events);

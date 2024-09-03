@@ -18,16 +18,19 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IViewModel } from 'vs/editor/common/viewModel';
 
 export class ScreenReaderSupport {
 
 	// Configuration values
-	private _contentLeft!: number;
-	private _contentWidth!: number;
-	private _lineHeight!: number;
-	private _fontInfo!: FontInfo;
-	private _accessibilitySupport!: AccessibilitySupport;
-	private _accessibilityPageSize!: number;
+	private _contentLeft: number = -1;
+	private _contentWidth: number = -1;
+	private _lineHeight: number = -1;
+	private _fontInfo: FontInfo | null = null;
+	private _accessibilitySupport = AccessibilitySupport.Unknown;
+	private _accessibilityPageSize: number = -1;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: ScreenReaderContentState | undefined;
@@ -41,40 +44,6 @@ export class ScreenReaderSupport {
 		this._updateDomAttributes();
 	}
 
-	// --- Public methods ---
-
-	public prepareRender(ctx: RenderingContext): void {
-		this.writeScreenReaderContent();
-	}
-
-	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._screenReaderContentState) {
-			return;
-		}
-		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this._domNode, this._fontInfo);
-
-		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
-		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
-		const top = verticalOffsetForPrimaryLineNumber - editorScrollTop;
-
-		this._domNode.setTop(top);
-		this._domNode.setLeft(this._contentLeft);
-		this._domNode.setWidth(this._contentWidth);
-		this._domNode.setHeight(this._lineHeight);
-
-		// Setting position within the screen reader content by modifying scroll position
-		const textContentBeforeSelection = this._screenReaderContentState.value.substring(0, this._screenReaderContentState.rangeOffsetStart);
-		const numberOfLinesOfContentBeforeSelection = newlinecount(textContentBeforeSelection);
-		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
-	}
-
-	public setAriaOptions(): void { }
-
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
-		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
-	}
-
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
@@ -82,25 +51,6 @@ export class ScreenReaderSupport {
 			this.writeScreenReaderContent();
 		}
 	}
-
-	public writeScreenReaderContent(): void {
-		this._screenReaderContentState = this._getScreenReaderContentState();
-		if (!this._screenReaderContentState) {
-			return;
-		}
-		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
-			this._domNode.domNode.textContent = this._screenReaderContentState.value;
-		}
-		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.rangeOffsetStart, this._screenReaderContentState.rangeOffsetEnd);
-	}
-
-	/* Last rendered data needed for correct hit-testing and determining the mouse position.
-	 * Without this, the selection will blink as incorrect mouse position is calculated */
-	public getLastRenderData(): Position | null {
-		return this._primarySelection.getPosition();
-	}
-
-	// --- Private methods ---
 
 	private _updateConfigurationSettings(): void {
 		const options = this._context.configuration.options;
@@ -121,44 +71,84 @@ export class ScreenReaderSupport {
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 	}
 
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
+		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
+	}
+
+	public prepareRender(ctx: RenderingContext): void {
+		this.writeScreenReaderContent();
+	}
+
+	public render(ctx: RestrictedRenderingContext): void {
+		if (!this._screenReaderContentState) {
+			return;
+		}
+		// For correct alignment of the screen reader content, we need to apply the correct font
+		applyFontInfo(this._domNode, this._fontInfo!);
+
+		const verticalOffsetForPrimaryLineNumber = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.positionLineNumber);
+		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const top = verticalOffsetForPrimaryLineNumber - editorScrollTop;
+
+		this._domNode.setTop(top);
+		this._domNode.setLeft(this._contentLeft);
+		this._domNode.setWidth(this._contentWidth);
+		this._domNode.setHeight(this._lineHeight);
+
+		// Setting position within the screen reader content by modifying scroll position
+		const textContentBeforeSelection = this._screenReaderContentState.value.substring(0, this._screenReaderContentState.rangeOffsetStart);
+		const numberOfLinesOfContentBeforeSelection = newlinecount(textContentBeforeSelection);
+		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
+	}
+
+	public setAriaOptions(): void { }
+
+
+	public writeScreenReaderContent(): void {
+		this._screenReaderContentState = this._getScreenReaderContentState();
+		if (!this._screenReaderContentState) {
+			return;
+		}
+		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
+			this._domNode.domNode.textContent = this._screenReaderContentState.value;
+		}
+		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.rangeOffsetStart, this._screenReaderContentState.rangeOffsetEnd);
+	}
+
+
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
 		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 			return;
 		}
-		const simpleModel: ISimpleModel = {
-			getLineCount: (): number => {
-				return this._context.viewModel.getLineCount();
-			},
-			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.viewModel.getLineMaxColumn(lineNumber);
-			},
-			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.viewModel.getValueInRange(range, eol);
-			},
-			getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => {
-				return this._context.viewModel.getValueLengthInRange(range, eol);
-			},
-			modifyPosition: (position: Position, offset: number): Position => {
-				return this._context.viewModel.modifyPosition(position, offset);
-			}
-		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(
+			createSimpleModelFromViewModel(this._context.viewModel),
+			this._primarySelection,
+			this._accessibilityPageSize,
+			this._accessibilitySupport === AccessibilitySupport.Unknown
+		);
 	}
+}
 
-	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
-		const activeDocument = dom.getActiveWindow().document;
-		const activeDocumentSelection = activeDocument.getSelection();
-		if (!activeDocumentSelection) {
-			return;
-		}
-		const textContent = this._domNode.domNode.firstChild;
-		if (!textContent) {
-			return;
-		}
-		const range = new globalThis.Range();
-		range.setStart(textContent, selectionOffsetStart);
-		range.setEnd(textContent, selectionOffsetEnd);
-		activeDocumentSelection.removeAllRanges();
-		activeDocumentSelection.addRange(range);
+function createSimpleModelFromViewModel(viewModel: IViewModel): ISimpleModel {
+	return {
+		getLineCount: (): number => viewModel.getLineCount(),
+		getLineMaxColumn: (lineNumber: number): number => viewModel.getLineMaxColumn(lineNumber),
+		getValueInRange: (range: Range, eol: EndOfLinePreference): string => viewModel.getValueInRange(range, eol),
+		getValueLengthInRange: (range: Range, eol: EndOfLinePreference): number => viewModel.getValueLengthInRange(range, eol),
+		modifyPosition: (position: Position, offset: number): Position => viewModel.modifyPosition(position, offset)
+	};
+}
+
+function setDomSelection(node: Node, selection: OffsetRange): void {
+	const activeDocument = dom.getActiveWindow().document;
+	const activeDocumentSelection = activeDocument.getSelection();
+	if (!activeDocumentSelection) {
+		throw new BugIndicatingError();
 	}
+	activeDocumentSelection.removeAllRanges();
+
+	const range = new globalThis.Range();
+	range.setStart(node, selection.start);
+	range.setEnd(node, selection.endExclusive);
+	activeDocumentSelection.addRange(range);
 }
