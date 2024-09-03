@@ -74,7 +74,8 @@ function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | 
 }
 
 function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBaseUrl?: string): string {
-	if (/^((http:)|(https:)|(file:))/.test(workerScriptUrl) && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
+	const workerScriptUrlIsAbsolute = /^((http:)|(https:)|(file:)|(vscode-file:))/.test(workerScriptUrl);
+	if (workerScriptUrlIsAbsolute && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
 	} else {
@@ -93,6 +94,12 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 		}
 	}
 
+	if (!isESM && !workerScriptUrlIsAbsolute) {
+		// we have to convert relative script URLs to the origin because importScripts
+		// does not work unless the script URL is absolute
+		workerScriptUrl = new URL(workerScriptUrl, globalThis.origin).toString();
+	}
+
 	const blob = new Blob([coalesce([
 		`/*${label}*/`,
 		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };` : undefined,
@@ -101,7 +108,7 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 		`globalThis._VSCODE_FILE_ROOT = '${globalThis._VSCODE_FILE_ROOT}';`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
-		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`, //
+		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`,
 		isESM ? `globalThis.postMessage({ type: 'vscode-worker-ready' });` : undefined, // in ESM signal we are ready after the async import
 		`/*${label}*/`
 	]).join('')], { type: 'application/javascript' });
