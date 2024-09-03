@@ -6,7 +6,7 @@
 import { Barrier } from '../../../base/common/async.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
-import { derived, observableValue, observableValueOpts } from '../../../base/common/observable.js';
+import { observableValue, observableValueOpts } from '../../../base/common/observable.js';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from '../../contrib/scm/common/scm.js';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol.js';
@@ -161,12 +161,6 @@ class MainThreadSCMResource implements ISCMResource {
 }
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
-	readonly currentHistoryItemGroupId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.id);
-	readonly currentHistoryItemGroupName = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.name);
-	readonly currentHistoryItemGroupRevision = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.revision);
-	readonly currentHistoryItemGroupRemoteId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.remote?.id);
-	readonly currentHistoryItemGroupRemoteRevision = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.remote?.revision);
-
 	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: () => false }, undefined);
 	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 

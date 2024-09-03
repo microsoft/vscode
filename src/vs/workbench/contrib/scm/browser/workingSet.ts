@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -63,11 +63,17 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 	private _onDidAddRepository(repository: ISCMRepository): void {
 		const disposables = new DisposableStore();
 
-		disposables.add(autorun(async reader => {
+		const currentHistoryItemGroupId = derived(reader => {
 			const historyProvider = repository.provider.historyProvider.read(reader);
-			const currentHistoryItemGroupId = historyProvider?.currentHistoryItemGroupId.read(reader);
+			const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
 
-			if (!currentHistoryItemGroupId) {
+			return currentHistoryItemGroup?.id;
+		});
+
+		disposables.add(autorun(async reader => {
+			const historyItemGroupId = currentHistoryItemGroupId.read(reader);
+
+			if (!historyItemGroupId) {
 				return;
 			}
 
@@ -75,20 +81,20 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 			const repositoryWorkingSets = this._workingSets.get(providerKey);
 
 			if (!repositoryWorkingSets) {
-				this._workingSets.set(providerKey, { currentHistoryItemGroupId, editorWorkingSets: new Map() });
+				this._workingSets.set(providerKey, { currentHistoryItemGroupId: historyItemGroupId, editorWorkingSets: new Map() });
 				return;
 			}
 
 			// Editors for the current working set are automatically restored
-			if (repositoryWorkingSets.currentHistoryItemGroupId === currentHistoryItemGroupId) {
+			if (repositoryWorkingSets.currentHistoryItemGroupId === historyItemGroupId) {
 				return;
 			}
 
 			// Save the working set
-			this._saveWorkingSet(providerKey, currentHistoryItemGroupId, repositoryWorkingSets);
+			this._saveWorkingSet(providerKey, historyItemGroupId, repositoryWorkingSets);
 
 			// Restore the working set
-			await this._restoreWorkingSet(providerKey, currentHistoryItemGroupId);
+			await this._restoreWorkingSet(providerKey, historyItemGroupId);
 		}));
 
 		this._repositoryDisposables.set(repository, disposables);
