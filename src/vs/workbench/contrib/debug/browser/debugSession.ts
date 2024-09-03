@@ -553,8 +553,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this._dataBreakpointInfo({ name: address, bytes, asAddress: true });
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined> {
-		return this._dataBreakpointInfo({ name, variablesReference });
+	dataBreakpointInfo(name: string, variablesReference?: number, frameId?: number): Promise<IDataBreakpointInfoResponse | undefined> {
+		return this._dataBreakpointInfo({ name, variablesReference, frameId });
 	}
 
 	private async _dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<IDataBreakpointInfoResponse | undefined> {

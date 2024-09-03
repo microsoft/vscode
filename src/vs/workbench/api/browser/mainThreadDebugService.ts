@@ -8,8 +8,7 @@ import { URI as uri, UriComponents } from '../../../base/common/uri.js';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization, DataBreakpointSetType } from '../../contrib/debug/common/debug.js';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto,
-	IDataBreakpointInfo
+	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
 } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import severity from '../../../base/common/severity.js';
@@ -236,8 +235,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this.debugService.addDataBreakpoint({
 					description: dto.label,
 					src: dto.source.type === 'variable' ? { type: DataBreakpointSetType.Variable, dataId: dto.source.dataId }
-						: dto.source.type === 'dynamicVariable' ? { type: DataBreakpointSetType.DynamicVariable, name: dto.source.name, variablesReference: dto.source.variablesReference }
-							: { type: DataBreakpointSetType.Address, address: dto.source.address, bytes: dto.source.bytes },
+						: dto.source.type === 'address' ? { type: DataBreakpointSetType.Address, address: dto.source.address, bytes: dto.source.bytes }
+							: dto.source.type === 'expression' ? { type: DataBreakpointSetType.Expression, expression: dto.source.expression }
+								: dto.source.frameId ? { type: DataBreakpointSetType.Scoped, expression: dto.source.expression, frameId: dto.source.frameId }
+									: dto.source.variablesReference ? { type: DataBreakpointSetType.Scoped, variable: dto.source.variable, variablesReference: dto.source.variablesReference }
+										: { type: DataBreakpointSetType.Variable, dataId: '' }, // should not happen
 					condition: dto.condition,
 					enabled: dto.enabled,
 					hitCondition: dto.hitCondition,
@@ -376,22 +378,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
 	}
 
-	public $getDataBreakpointInfo(sessionId: DebugSessionUUID, name: string, variablesReference?: number): Promise<IDataBreakpointInfo | undefined> {
-		const session = this.debugService.getModel().getSession(sessionId, true);
-		if (session) {
-			return Promise.resolve(session.dataBreakpointInfo(name, variablesReference));
-		}
-		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
-	}
-
-	public $getDataBytesBreakpointInfo(sessionId: DebugSessionUUID, address: string, bytes?: number): Promise<IDataBreakpointInfo | undefined> {
-		const session = this.debugService.getModel().getSession(sessionId, true);
-		if (session) {
-			return Promise.resolve(session.dataBytesBreakpointInfo(address, bytes));
-		}
-		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
-	}
-
 	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
 		if (sessionId) {
 			const session = this.debugService.getModel().getSession(sessionId, true);
@@ -473,7 +459,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					condition: fbp.condition,
 					hitCondition: fbp.hitCondition,
 					logMessage: fbp.logMessage,
-					functionName: fbp.name
+					functionName: fbp.name,
+					mode: fbp.mode
 				} satisfies IFunctionBreakpointDto;
 			} else if ('src' in bp) {
 				const dbp: IDataBreakpoint = bp;
@@ -481,15 +468,19 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					type: 'data',
 					id: dbp.getId(),
 					source: dbp.src.type === DataBreakpointSetType.Variable ? { type: 'variable', dataId: dbp.src.dataId }
-						: dbp.src.type === DataBreakpointSetType.DynamicVariable ? { type: 'dynamicVariable', name: dbp.src.name, variablesReference: dbp.src.variablesReference }
-							: { type: 'address', address: dbp.src.address, bytes: dbp.src.bytes },
+						: dbp.src.type === DataBreakpointSetType.Address ? { type: 'address', address: dbp.src.address, bytes: dbp.src.bytes }
+							: dbp.src.type === DataBreakpointSetType.Expression ? { type: 'expression', expression: dbp.src.expression }
+								: dbp.src.frameId ? { type: 'scoped', expression: dbp.src.expression, frameId: dbp.src.frameId }
+									: dbp.src.variablesReference ? { type: 'scoped', variable: dbp.src.variable, variablesReference: dbp.src.variablesReference }
+										: { type: 'variable', dataId: '' }, // should not happen
 					enabled: dbp.enabled,
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,
 					logMessage: dbp.logMessage,
 					accessType: dbp.accessType,
 					label: dbp.description,
-					canPersist: dbp.canPersist
+					canPersist: dbp.canPersist,
+					mode: dbp.mode
 				} satisfies IDataBreakpointDto;
 			} else if ('uri' in bp) {
 				const sbp: IBreakpoint = bp;
@@ -503,6 +494,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					uri: sbp.uri,
 					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
 					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0,
+					mode: sbp.mode
 				} satisfies ISourceBreakpointDto;
 			} else {
 				return undefined;

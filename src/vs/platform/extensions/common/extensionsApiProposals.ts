@@ -154,6 +154,9 @@ const _allApiProposals = {
 	customEditorMove: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.customEditorMove.d.ts',
 	},
+	debugDataBreakpoints: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.debugDataBreakpoints.d.ts',
+	},
 	debugVisualization: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.debugVisualization.d.ts',
 	},

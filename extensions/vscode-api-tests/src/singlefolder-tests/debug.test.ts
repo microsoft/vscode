@@ -104,19 +104,46 @@ suite('vscode API - debug', function () {
 		assert.strictEqual(addressDbp.accessType, 'readWrite');
 	});
 
-	test('data breakpoint - dynamic variable', async function () {
-		debug.addBreakpoints([new DataBreakpoint({ type: 'dynamicVariable', name: 'i', variablesReference: 1000 }, 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
+	test('data breakpoint - expression', async function () {
+		debug.addBreakpoints([new DataBreakpoint({ type: 'expression', expression: 'i' }, 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
 		const dynamicVariableDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint;
 		assert.strictEqual(dynamicVariableDbp.condition, 'condition');
 		assert.strictEqual(dynamicVariableDbp.hitCondition, 'hitCondition');
 		assert.strictEqual(dynamicVariableDbp.logMessage, 'logMessage');
 		assert.strictEqual(dynamicVariableDbp.enabled, false);
 		assert.strictEqual(dynamicVariableDbp.label, 'data');
-		assert.strictEqual(dynamicVariableDbp.source.type, 'dynamicVariable');
-		assert.strictEqual(dynamicVariableDbp.source.name, 'i');
-		assert.strictEqual(dynamicVariableDbp.source.variablesReference, 1000);
+		assert.strictEqual(dynamicVariableDbp.source.type, 'expression');
+		assert.strictEqual(dynamicVariableDbp.source.expression, 'i');
 		assert.strictEqual(dynamicVariableDbp.canPersist, false);
 		assert.strictEqual(dynamicVariableDbp.accessType, 'readWrite');
+	});
+
+	test('data breakpoint - scoped', async function () {
+		debug.addBreakpoints([new DataBreakpoint({ type: 'scoped', expression: 'exp()', frameId: 1 }, 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
+		const scopedExpression = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint;
+		assert.strictEqual(scopedExpression.condition, 'condition');
+		assert.strictEqual(scopedExpression.hitCondition, 'hitCondition');
+		assert.strictEqual(scopedExpression.logMessage, 'logMessage');
+		assert.strictEqual(scopedExpression.enabled, false);
+		assert.strictEqual(scopedExpression.label, 'data');
+		assert.strictEqual(scopedExpression.source.type, 'scoped');
+		assert.strictEqual(scopedExpression.source.frameId, 1);
+		assert.strictEqual(scopedExpression.source.expression, 'exp()');
+		assert.strictEqual(scopedExpression.canPersist, false);
+		assert.strictEqual(scopedExpression.accessType, 'readWrite');
+
+		debug.addBreakpoints([new DataBreakpoint({ type: 'scoped', variable: 'var', variablesReference: 1 }, 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
+		const scopedVariable = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint;
+		assert.strictEqual(scopedVariable.condition, 'condition');
+		assert.strictEqual(scopedVariable.hitCondition, 'hitCondition');
+		assert.strictEqual(scopedVariable.logMessage, 'logMessage');
+		assert.strictEqual(scopedVariable.enabled, false);
+		assert.strictEqual(scopedVariable.label, 'data');
+		assert.strictEqual(scopedVariable.source.type, 'scoped');
+		assert.strictEqual(scopedVariable.source.variablesReference, 1);
+		assert.strictEqual(scopedVariable.source.variable, 'var');
+		assert.strictEqual(scopedVariable.canPersist, false);
+		assert.strictEqual(scopedVariable.accessType, 'readWrite');
 	});
 
 	test('start debugging', async function () {

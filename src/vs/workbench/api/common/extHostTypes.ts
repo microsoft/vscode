@@ -3088,7 +3088,10 @@ export class DataBreakpoint extends Breakpoint {
 		this.label = label ? label
 			: this.source.type === 'variable' ? `DataId '${this.source.dataId}'`
 				: this.source.type === 'address' ? `Address '${this.source.address}${this.source.bytes ? `,${this.source.bytes}'` : ''}`
-					: `Variable '${this.source.name}${this.source.variablesReference ? `,${this.source.variablesReference}` : ''}'`;
+					: this.source.type === 'expression' ? `Expression '${this.source.expression}'`
+						: this.source.frameId ? `Scoped '${this.source.expression}@${this.source.frameId}'`
+							: this.source.variablesReference ? `Scoped '${this.source.variable}@${this.source.variablesReference}'`
+								: `Unknown data breakpoint`;
 	}
 }
 
@@ -4129,7 +4132,7 @@ export function validateTestCoverageCount(cc?: vscode.TestCoverageCount) {
 	}
 
 	if (cc.covered > cc.total) {
-		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total(${cc.total})`);
+		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
 	}
 
 	if (cc.total < 0) {

@@ -1175,7 +1175,7 @@ export interface IDataBreakpointOptions extends IBaseBreakpointOptions {
 }
 
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
-	private readonly sessionDataIdForAddr = new WeakMap<IDebugSession, string | null>();
+	private readonly sessionDataId = new WeakMap<IDebugSession, string | null>();
 
 	public readonly description: string;
 	public readonly src: DataBreakpointSource;
@@ -1197,34 +1197,46 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		this.accessTypes = opts.accessTypes;
 		this.accessType = opts.accessType;
 		if (opts.initialSessionData) {
-			this.sessionDataIdForAddr.set(opts.initialSessionData.session, opts.initialSessionData.dataId);
+			this.sessionDataId.set(opts.initialSessionData.session, opts.initialSessionData.dataId);
 		}
 	}
 
 	async toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined> {
-		let dataId: string;
-		if (this.src.type === DataBreakpointSetType.Variable) {
-			dataId = this.src.dataId;
-		} else if (this.src.type === DataBreakpointSetType.DynamicVariable) {
-			let sessionDataId = this.sessionDataIdForAddr.get(session);
-			if (!sessionDataId) {
-				sessionDataId = (await session.dataBreakpointInfo(this.src.name, this.src.variablesReference))?.dataId;
-				if (!sessionDataId) {
-					return undefined;
+		let dataId = this.sessionDataId.get(session);
+		if (!dataId) {
+			if (this.src.type === DataBreakpointSetType.Variable) {
+				dataId = this.src.dataId;
+			} else if (this.src.type === DataBreakpointSetType.Address) {
+				const sessionDataId = (await session.dataBytesBreakpointInfo(this.src.address, this.src.bytes))?.dataId;
+				if (sessionDataId) {
+					this.sessionDataId.set(session, sessionDataId);
+					dataId = sessionDataId;
 				}
-				this.sessionDataIdForAddr.set(session, sessionDataId);
-			}
-			dataId = sessionDataId;
-		} else {
-			let sessionDataId = this.sessionDataIdForAddr.get(session);
-			if (!sessionDataId) {
-				sessionDataId = (await session.dataBytesBreakpointInfo(this.src.address, this.src.bytes))?.dataId;
-				if (!sessionDataId) {
-					return undefined;
+			} else if (this.src.type === DataBreakpointSetType.Expression) {
+				const sessionDataId = (await session.dataBreakpointInfo(this.src.expression))?.dataId;
+				if (sessionDataId) {
+					this.sessionDataId.set(session, sessionDataId);
+					dataId = sessionDataId;
 				}
-				this.sessionDataIdForAddr.set(session, sessionDataId);
+			} else {
+				// type === DataBreakpointSetType.Scoped
+				if (this.src.frameId) {
+					const sessionDataId = (await session.dataBreakpointInfo(this.src.expression, undefined, this.src.frameId))?.dataId;
+					if (sessionDataId) {
+						this.sessionDataId.set(session, sessionDataId);
+						dataId = sessionDataId;
+					}
+				} else if (this.src.variablesReference) {
+					const sessionDataId = (await session.dataBreakpointInfo(this.src.variable, this.src.variablesReference))?.dataId;
+					if (sessionDataId) {
+						this.sessionDataId.set(session, sessionDataId);
+						dataId = sessionDataId;
+					}
+				}
 			}
-			dataId = sessionDataId;
+		}
+		if (!dataId) {
+			return;
 		}
 
 		return {

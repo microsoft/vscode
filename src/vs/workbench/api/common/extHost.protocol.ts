@@ -1632,8 +1632,6 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$getDebugProtocolBreakpoint(id: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined>;
-	$getDataBreakpointInfo(id: DebugSessionUUID, name: string, variablesReference?: number): Promise<IDataBreakpointInfo | undefined>;
-	$getDataBytesBreakpointInfo(id: DebugSessionUUID, address: string, bytes?: number): Promise<IDataBreakpointInfo | undefined>;
 	$appendDebugConsole(value: string): void;
 	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void>;
@@ -2393,8 +2391,6 @@ export interface IFunctionBreakpointDto extends IBreakpointDto {
 	functionName: string;
 	mode?: string;
 }
-
-export type IDataBreakpointInfo = DebugProtocol.DataBreakpointInfoResponse['body'];
 
 export interface IDataBreakpointDto extends IBreakpointDto {
 	type: 'data';

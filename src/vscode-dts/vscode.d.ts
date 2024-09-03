@@ -16083,24 +16083,6 @@ declare module 'vscode' {
 		 * @returns A promise that resolves to the Debug Adapter Protocol breakpoint or `undefined`.
 		 */
 		getDebugProtocolBreakpoint(breakpoint: Breakpoint): Thenable<DebugProtocolBreakpoint | undefined>;
-
-		/**
-		 * Obtains information on a possible data breakpoint that could be set on an expression or variable.
-		 * This will fail if the corresponding capability `supportsDataBreakpoints` is not supported by this session.
-		 *
-		 * @param name The name of the variable's child to obtain data breakpoint information for. If `variablesReference` isn't specified, this can be an expression.
-		 * @param variablesReference Reference to the variable container if the data breakpoint is requested for a child of the container.
-		 */
-		getDataBreakpointInfo(name: string, variablesReference?: number): Thenable<DataBreakpointInfo | undefined>;
-
-		/**
-		 * Obtains information on a possible data breakpoint that could be set on an address for a given specified length.
-		 * This will fail if the corresponding capability `supportsDataBreakpoints` and `supportsDataBreakpointBytes` is not supported by this session.
-		 *
-		 * @param address A memory address as a decimal value, or hex value if it is prefixed with `0x`.
-		 * @param bytes If specified, returns information for the range of memory extending `bytes` number of bytes from the address.
-		 */
-		getDataBytesBreakpointInfo(address: string, bytes?: number): Thenable<DataBreakpointInfo | undefined>;
 	}
 
 	/**
@@ -16465,90 +16447,6 @@ declare module 'vscode' {
 		 */
 		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
 	}
-
-	/**
-	 * Information on a possible data breakpoint.
-	 */
-	export interface DataBreakpointInfo {
-		/** An identifier for the data on which a data breakpoint can be created or null if no data breakpoint is available. Breakpoints added using the `dataId` may outlive the lifetime of the associated `dataId`. */
-		dataId: string | null;
-		/** UI string that describes on what data the breakpoint is set on or why a data breakpoint is not available. */
-		description: string;
-		/** Attribute lists the available access types for a potential data breakpoint. */
-		accessTypes?: DataBreakpointAccessType[];
-		/** Attribute indicates that a potential data breakpoint could be persisted across sessions. */
-		canPersist?: boolean;
-	}
-
-	/**
-	 * The source for a data breakpoint.
-	 */
-	export type DataBreakpointSource =
-		| {
-			/** The source type for variable-based data breakpoints. */
-			type: 'variable';
-			/** An identifier for the data. If it was retrieved using a `variablesReference` it may only be valid in the current suspended state, otherwise it's valid indefinitely. */
-			dataId: string;
-		}
-		| {
-			/** The source type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
-			type: 'address';
-			/** A memory address as a decimal value, or hex value if it is prefixed with `0x`. */
-			address: string;
-			/** If specified, returns information for the range of memory extending `bytes` number of bytes from the address. */
-			bytes?: number;
-		}
-		| {
-			/** The source type for variables that are dynamically resolved when the breakpoint is activated. */
-			type: 'dynamicVariable';
-			/** The name of the variable's child to obtain data breakpoint information for. If `variablesReference` isn't specified, this can be an expression. */
-			name: string;
-			/** Reference to the variable container if the data breakpoint is requested for a child of the container. */
-			variablesReference?: number;
-		};
-
-
-	/**
-	 * A breakpoint specified by a variable or memory change.
-	 */
-	export class DataBreakpoint extends Breakpoint {
-		/**
-		 * The human-readable label for the data breakpoint.
-		 */
-		label: string;
-
-		/**
-		 * The source for the data breakpoint. If the `dataId` is known already, it can be specified directly using the `variable` type. Alternatively, VSCode may resolve the `dataId` based on the address or dynamic variable that is specified.
-		 */
-		source: DataBreakpointSource;
-
-		/**
-		 * Flag to indicate if the data breakpoint could be persisted across sessions.
-		 */
-		canPersist: boolean;
-
-		/**
-		 * The access type of the data.
-		 */
-		accessType: DataBreakpointAccessType;
-
-		/**
-		 * Create a new data breakpoint.
-		 *
-		 * @param source The source for the data breakpoint. If the `dataId` is known already, it can be specified directly. If the dataId is not known, it can be retrieved via the `getDataBreakpointInfo` or `getDataBytesBreakpointInfo` request from the session. Alternatively, an address or variable can be specified as source which will be resolved in the context of the session in a similar manner.
-		 * @param accessType The access type of the data breakpoint.
-		 * @param canPersist Flag to indicate if the data breakpoint could be persisted across sessions.
-		 * @param label The human-readable label for the data breakpoint.
-		 * @param enabled Is breakpoint enabled.
-		 * @param condition Expression for conditional breakpoints.
-		 * @param hitCondition Expression that controls how many hits of the breakpoint are ignored.
-		 * @param logMessage Log message to display when breakpoint is hit.
-		 */
-		constructor(source: DataBreakpointSource | string, accessType: DataBreakpointAccessType, canPersist?: boolean, label?: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
-	}
-
-	/** Access type for data breakpoints. */
-	export type DataBreakpointAccessType = 'read' | 'write' | 'readWrite';
 
 	/**
 	 * Debug console mode used by debug session, see {@link DebugSessionOptions options}.

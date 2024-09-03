@@ -31,6 +31,7 @@ import { IExtHostCommands } from './extHostCommands.js';
 import * as Convert from './extHostTypeConverters.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import { IExtHostTesting } from './extHostTesting.js';
+import { Mutable } from '../../../base/common/types.js';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -446,6 +447,20 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					functionName: bp.functionName,
 					mode: bp.mode,
 				});
+			} else if (bp instanceof DataBreakpoint) {
+				dtos.push({
+					type: 'data',
+					id: bp.id,
+					enabled: bp.enabled,
+					hitCondition: bp.hitCondition,
+					logMessage: bp.logMessage,
+					condition: bp.condition,
+					source: bp.source,
+					mode: bp.mode,
+					canPersist: bp.canPersist,
+					accessType: bp.accessType,
+					label: bp.label
+				});
 			}
 		}
 
@@ -756,21 +771,23 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 					const bp = this._breakpoints.get(bpd.id);
 					if (bp) {
 						if (bp instanceof FunctionBreakpoint && bpd.type === 'function') {
-							const fbp = <any>bp;
+							const fbp = <Mutable<FunctionBreakpoint>>bp;
 							fbp.enabled = bpd.enabled;
 							fbp.condition = bpd.condition;
 							fbp.hitCondition = bpd.hitCondition;
 							fbp.logMessage = bpd.logMessage;
 							fbp.functionName = bpd.functionName;
+							fbp.mode = bpd.mode;
 						} else if (bp instanceof SourceBreakpoint && bpd.type === 'source') {
-							const sbp = <any>bp;
+							const sbp = <Mutable<SourceBreakpoint>>bp;
 							sbp.enabled = bpd.enabled;
 							sbp.condition = bpd.condition;
 							sbp.hitCondition = bpd.hitCondition;
 							sbp.logMessage = bpd.logMessage;
 							sbp.location = new Location(URI.revive(bpd.uri), new Position(bpd.line, bpd.character));
+							sbp.mode = bpd.mode;
 						} else if (bp instanceof DataBreakpoint && bpd.type === 'data') {
-							const dbp = <any>bp;
+							const dbp = <Mutable<DataBreakpoint>>bp;
 							dbp.enabled = bpd.enabled;
 							dbp.condition = bpd.condition;
 							dbp.hitCondition = bpd.hitCondition;
@@ -778,6 +795,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 							dbp.label = bpd.label;
 							dbp.source = bpd.source;
 							dbp.canPersist = bpd.canPersist;
+							dbp.mode = bpd.mode;
 							dbp.accessType = bpd.accessType;
 						}
 						c.push(bp);
@@ -1143,12 +1161,6 @@ export class ExtHostDebugSession {
 			},
 			getDebugProtocolBreakpoint(breakpoint: vscode.Breakpoint): Promise<vscode.DebugProtocolBreakpoint | undefined> {
 				return that._debugServiceProxy.$getDebugProtocolBreakpoint(that._id, breakpoint.id);
-			},
-			getDataBreakpointInfo(name: string, variablesReference?: number): Promise<vscode.DataBreakpointInfo | undefined> {
-				return that._debugServiceProxy.$getDataBreakpointInfo(that._id, name, variablesReference);
-			},
-			getDataBytesBreakpointInfo(address: string, bytes?: number): Promise<vscode.DataBreakpointInfo | undefined> {
-				return that._debugServiceProxy.$getDataBytesBreakpointInfo(that._id, address, bytes);
 			}
 		});
 	}
