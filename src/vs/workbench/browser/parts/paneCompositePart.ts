@@ -344,14 +344,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return titleLabel;
 	}
 
-	protected updateCompositeBar(): void {
+	protected updateCompositeBar(updateCompositeBarOption: boolean = false): void {
 		const wasCompositeBarVisible = this.compositeBarPosition !== undefined;
 		const isCompositeBarVisible = this.shouldShowCompositeBar();
 		const previousPosition = this.compositeBarPosition;
 		const newPosition = isCompositeBarVisible ? this.getCompositeBarPosition() : undefined;
 
-		// Only update if the visibility or position has changed
-		if (previousPosition === newPosition) {
+		// Only update if the visibility or position has changed or if the composite bar options should be updated
+		if (!updateCompositeBarOption && previousPosition === newPosition) {
 			return;
 		}
 
@@ -401,6 +401,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		this.compositeBarPosition = newPosition;
+
+		if (updateCompositeBarOption) {
+			this.layoutCompositeBar();
+		}
 	}
 
 	protected override createHeaderArea(): HTMLElement {

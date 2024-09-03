@@ -514,6 +514,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'left',
 				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
 			},
+			'workbench.panel.showLabel': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('panelShowLabel', "Controls whether activity items in the panel title are shown as label or icon."),
+			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
 				'enum': ['left', 'bottom', 'top', 'right'],
