@@ -73,9 +73,6 @@ if (util.inspect && util.inspect['defaultOptions']) {
 	util.inspect['defaultOptions'].customInspect = false;
 }
 
-// VSCODE_GLOBALS: node_modules
-globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
-
 // VSCODE_GLOBALS: package/product.json
 globalThis._VSCODE_PRODUCT_JSON = require('../../../product.json');
 globalThis._VSCODE_PACKAGE_JSON = require('../../../package.json');
