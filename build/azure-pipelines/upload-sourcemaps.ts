@@ -8,6 +8,7 @@ import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
+import { isAMD } from '../lib/amd';
 // @ts-ignore
 import * as deps from '../lib/dependencies';
 import { ClientSecretCredential } from '@azure/identity';
@@ -71,6 +72,8 @@ function main(): Promise<void> {
 
 main().catch(err => {
 	console.error(err);
-	process.exit(1);
+	if (!isAMD()) {
+		process.exit(1); // in AMD we run into some issues, but we want to unblock the build for recovery
+	}
 });
 

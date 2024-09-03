@@ -8,6 +8,7 @@ const path = require("path");
 const es = require("event-stream");
 const vfs = require("vinyl-fs");
 const util = require("../lib/util");
+const amd_1 = require("../lib/amd");
 // @ts-ignore
 const deps = require("../lib/dependencies");
 const identity_1 = require("@azure/identity");
@@ -61,6 +62,8 @@ function main() {
 }
 main().catch(err => {
     console.error(err);
-    process.exit(1);
+    if (!(0, amd_1.isAMD)()) {
+        process.exit(1); // in AMD we run into some issues, but we want to unblock the build for recovery
+    }
 });
 //# sourceMappingURL=upload-sourcemaps.js.map
