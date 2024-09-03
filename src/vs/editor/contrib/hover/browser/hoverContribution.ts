@@ -10,7 +10,7 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { HoverParticipantRegistry } from './hoverTypes.js';
 import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
 import { MarkerHoverParticipant } from './markerHoverParticipant.js';
-import { ContentHoverController } from './contentHoverController2.js';
+import { ContentHoverController } from './contentHoverController.js';
 import { MarginHoverController } from './marginHoverController.js';
 import './hover.css';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';

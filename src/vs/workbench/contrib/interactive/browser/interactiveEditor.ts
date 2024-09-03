@@ -60,7 +60,7 @@ import { INTERACTIVE_WINDOW_EDITOR_ID } from '../../notebook/common/notebookComm
 import './interactiveEditor.css';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
 import { ReplInputHintContentWidget } from './replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
