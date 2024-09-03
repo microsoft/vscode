@@ -6,22 +6,18 @@
 import { AsyncIterableObject } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Range } from '../../../common/core/range.js';
-import { IModelDecoration, ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
+import { IModelDecoration, ITextModel } from '../../../common/model.js';
 import { DocumentColorProvider, IColorInformation } from '../../../common/languages.js';
 import { getColorPresentations, getColors } from './color.js';
 import { ColorDetector } from './colorDetector.js';
 import { ColorPickerModel } from './colorPickerModel.js';
-import { ColorPickerWidget } from './colorPickerWidget.js';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../hover/browser/hoverTypes.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
-import { Dimension } from '../../../../base/browser/dom.js';
 import * as nls from '../../../../nls.js';
+import { HoverColorPicker, StandaloneColorPicker } from './colorPickerWidget.js';
 
 export interface IColorHover {
 	readonly range: Range;

@@ -14,11 +14,19 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import './colorPicker.css';
 import { ColorPickerModel } from './colorPickerModel.js';
-import { IEditorHoverColorPickerWidget } from '../../hover/browser/hoverTypes.js';
+import { IEditorHoverColorPickerWidget, IEditorHoverRenderContext } from '../../hover/browser/hoverTypes.js';
 import { localize } from '../../../../nls.js';
 import { editorHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
+import { ColorHover, IColorHover } from './colorHoverParticipant.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { ITextModel, TrackedRangeStickiness } from '../../../common/model.js';
+import { getColorPresentations } from './color.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
 
 const $ = dom.$;
 
@@ -224,7 +232,6 @@ class StandaloneColorPickerBody extends AbstractColorPickerBody {
 	constructor(container: HTMLElement, model: ColorPickerModel, private foundInEditor: boolean, private pixelRatio: number) {
 		super(container, model);
 
-		dom.append(container, this._domNode);
 		this._register(this._saturationBox);
 		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
 		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
@@ -386,14 +393,14 @@ abstract class Strip extends Disposable {
 	constructor(container: HTMLElement, protected model: ColorPickerModel, type: ColorPickerType) {
 		super();
 		switch (type) {
-			case (ColorPickerType.Hover): {
-				this.domNode = dom.append(container, $('.strip'));
-				this.overlay = dom.append(this.domNode, $('.overlay'));
-				break;
-			}
 			case (ColorPickerType.Standalone): {
 				this.domNode = dom.append(container, $('.standalone-strip'));
 				this.overlay = dom.append(this.domNode, $('.standalone-overlay'));
+				break;
+			}
+			case (ColorPickerType.Hover): {
+				this.domNode = dom.append(container, $('.strip'));
+				this.overlay = dom.append(this.domNode, $('.overlay'));
 				break;
 			}
 		}
@@ -553,7 +560,7 @@ export class StandaloneColorPickerWidget extends Widget implements IEditorHoverC
 
 	body: StandaloneColorPickerBody;
 
-	constructor(container: Node, foundInEditor: boolean, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
+	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService, foundInEditor: boolean) {
 		super();
 
 		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
@@ -668,7 +675,7 @@ export class StandaloneColorPicker extends AbstractColorPicker {
 		super(editor, colorHover, context);
 		const model = colorHover.model;
 		const pixelRatio = editor.getOption(EditorOption.pixelRatio);
-		this._colorPicker = this._register(new StandaloneColorPickerWidget(context.fragment, foundInEditor, model, pixelRatio, themeService));
+		this._colorPicker = this._register(new StandaloneColorPickerWidget(context.fragment, model, pixelRatio, themeService, foundInEditor));
 	}
 
 	public layout(): void {
