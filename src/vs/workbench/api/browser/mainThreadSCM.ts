@@ -42,7 +42,9 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 }
 
 function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
-	const labels = historyItemDto.labels?.map(l => ({ title: l.title, icon: getIconFromIconDto(l.icon) }));
+	const labels = historyItemDto.labels?.map(l => ({
+		title: l.title, icon: getIconFromIconDto(l.icon)
+	}));
 
 	return { ...historyItemDto, labels };
 }

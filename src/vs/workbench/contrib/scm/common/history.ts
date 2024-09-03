@@ -51,6 +51,7 @@ export interface ISCMHistoryItemStatistics {
 export interface ISCMHistoryItemLabel {
 	readonly title: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly color?: ColorIdentifier;
 }
 
 export interface ISCMHistoryItem {
