@@ -37,8 +37,8 @@ steps:
   - script: |
       set -e
       # Start X server
-      sudo apt-get update
-      sudo apt-get install -y pkg-config \
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
         dbus \
         xvfb \
         libgtk-3-0 \
