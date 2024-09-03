@@ -27,7 +27,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 
 	protected _installInterceptor(): void {
 		const that = this;
-		const node_module = <any>globalThis._VSCODE_NODE_MODULES.module;
+		const node_module = require('module');
 		const originalLoad = node_module._load;
 		node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 			request = applyAlternatives(request);

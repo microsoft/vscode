@@ -945,6 +945,14 @@
 							},
 							{
 								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.internal"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.internal.js"
+							},
+							{
+								"when": "hasBrowser",
 								"pattern": "vs/workbench/~"
 							},
 							{
@@ -994,6 +1002,25 @@
 					},
 					{
 						"target": "src/vs/workbench/workbench.web.main.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
+						]
+					},
+					{
+						"target": "src/vs/workbench/workbench.web.main.internal.ts",
 						"layer": "browser",
 						"restrictions": [
 							"vs/base/~",

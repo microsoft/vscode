@@ -62,7 +62,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'string',
 			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
-				localize('accessibleDiffView.auto', "The accessible diff viewer is based screen reader mode being enabled."),
+				localize('accessibleDiffView.auto', "The accessible diff viewer is based on screen reader mode being enabled."),
 				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],

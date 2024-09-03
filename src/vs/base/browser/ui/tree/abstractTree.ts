@@ -29,7 +29,6 @@ import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { clamp } from '../../../common/numbers.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
-import { ISpliceable } from '../../../common/sequence.js';
 import { isNumber } from '../../../common/types.js';
 import './media/tree.css';
 import { localize } from '../../../../nls.js';
@@ -67,7 +66,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	private autoExpandDisposable: IDisposable = Disposable.None;
 	private readonly disposables = new DisposableStore();
 
-	constructor(private modelProvider: () => ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
+	constructor(private model: ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
 
 	getDragURI(node: ITreeNode<T, TFilterData>): string | null {
 		return this.dnd.getDragURI(node.element);
@@ -100,11 +99,10 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 		if (didChangeAutoExpandNode && typeof result !== 'boolean' && result.autoExpand) {
 			this.autoExpandDisposable = disposableTimeout(() => {
-				const model = this.modelProvider();
-				const ref = model.getNodeLocation(targetNode);
+				const ref = this.model.getNodeLocation(targetNode);
 
-				if (model.isCollapsed(ref)) {
-					model.setCollapsed(ref, false);
+				if (this.model.isCollapsed(ref)) {
+					this.model.setCollapsed(ref, false);
 				}
 
 				this.autoExpandNode = undefined;
@@ -122,19 +120,17 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 		}
 
 		if (result.bubble === TreeDragOverBubble.Up) {
-			const model = this.modelProvider();
-			const ref = model.getNodeLocation(targetNode);
-			const parentRef = model.getParentNodeLocation(ref);
-			const parentNode = model.getNode(parentRef);
-			const parentIndex = parentRef && model.getListIndex(parentRef);
+			const ref = this.model.getNodeLocation(targetNode);
+			const parentRef = this.model.getParentNodeLocation(ref);
+			const parentNode = this.model.getNode(parentRef);
+			const parentIndex = parentRef && this.model.getListIndex(parentRef);
 
 			return this.onDragOver(data, parentNode, parentIndex, targetSector, originalEvent, false);
 		}
 
-		const model = this.modelProvider();
-		const ref = model.getNodeLocation(targetNode);
-		const start = model.getListIndex(ref);
-		const length = model.getListRenderCount(ref);
+		const ref = this.model.getNodeLocation(targetNode);
+		const start = this.model.getListIndex(ref);
+		const length = this.model.getListRenderCount(ref);
 
 		return { ...result, feedback: range(start, start + length) };
 	}
@@ -156,7 +152,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 	}
 }
 
-function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, TFilterData, TRef>, options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
+function asListOptions<T, TFilterData, TRef>(model: ITreeModel<T, TFilterData, TRef>, options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
 	return options && {
 		...options,
 		identityProvider: options.identityProvider && {
@@ -164,7 +160,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.identityProvider!.getId(el.element);
 			}
 		},
-		dnd: options.dnd && new TreeNodeListDragAndDrop(modelProvider, options.dnd),
+		dnd: options.dnd && new TreeNodeListDragAndDrop(model, options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {
 			isSelectionSingleChangeEvent(e) {
 				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
@@ -176,7 +172,6 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
 			getSetSize(node) {
-				const model = modelProvider();
 				const ref = model.getNodeLocation(node);
 				const parentRef = model.getParentNodeLocation(ref);
 				const parentNode = model.getNode(parentRef);
@@ -349,7 +344,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 	constructor(
 		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
-		private modelProvider: () => ITreeModel<T, TFilterData, TRef>,
+		private model: ITreeModel<T, TFilterData, TRef>,
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
 		private activeNodes: Collection<ITreeNode<T, TFilterData>>,
 		private renderedIndentGuides: SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>,
@@ -497,17 +492,16 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		}
 
 		const disposableStore = new DisposableStore();
-		const model = this.modelProvider();
 
 		while (true) {
-			const ref = model.getNodeLocation(node);
-			const parentRef = model.getParentNodeLocation(ref);
+			const ref = this.model.getNodeLocation(node);
+			const parentRef = this.model.getParentNodeLocation(ref);
 
 			if (!parentRef) {
 				break;
 			}
 
-			const parent = model.getNode(parentRef);
+			const parent = this.model.getNode(parentRef);
 			const guide = $<HTMLDivElement>('.indent-guide', { style: `width: ${this.indent}px` });
 
 			if (this.activeIndentNodes.has(parent)) {
@@ -535,17 +529,16 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		}
 
 		const set = new Set<ITreeNode<T, TFilterData>>();
-		const model = this.modelProvider();
 
 		nodes.forEach(node => {
-			const ref = model.getNodeLocation(node);
+			const ref = this.model.getNodeLocation(node);
 			try {
-				const parentRef = model.getParentNodeLocation(ref);
+				const parentRef = this.model.getParentNodeLocation(ref);
 
 				if (node.collapsible && node.children.length > 0 && !node.collapsed) {
 					set.add(node);
 				} else if (parentRef) {
-					set.add(model.getNode(parentRef));
+					set.add(this.model.getNode(parentRef));
 				}
 			} catch {
 				// noop
@@ -1054,7 +1047,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	) {
 		this._mode = tree.options.defaultFindMode ?? TreeFindMode.Highlight;
 		this._matchType = tree.options.defaultFindMatchType ?? TreeFindMatchType.Fuzzy;
-		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
+		model.onDidSpliceModel(this.onDidSpliceModel, this, this.disposables);
 	}
 
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
@@ -2500,7 +2493,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
 
-	get onDidChangeModel(): Event<void> { return Event.signal(this.model.onDidSplice); }
+	get onDidChangeModel(): Event<void> { return Event.signal(this.model.onDidSpliceModel); }
 	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
 	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
 
@@ -2532,34 +2525,35 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private _options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {
-		this.treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
-
-		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
-		const activeNodes = this.disposables.add(new EventCollection(onDidChangeActiveNodes.event));
-		const renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, renderedIndentGuides, _options));
-		for (const r of this.renderers) {
-			this.disposables.add(r);
-		}
-
 		let filter: FindFilter<T> | undefined;
-
 		if (_options.keyboardNavigationLabelProvider) {
 			filter = new FindFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as any as ITreeFilter<T, FuzzyScore>);
 			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
 			this.disposables.add(filter);
 		}
 
+		this.model = this.createModel(_user, _options);
+		this.treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
+
+		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
+		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
+		const activeNodes = this.disposables.add(new EventCollection(onDidChangeActiveNodes.event));
+		const renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
+		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, this.model, onDidChangeCollapseStateRelay.event, activeNodes, renderedIndentGuides, _options));
+		for (const r of this.renderers) {
+			this.disposables.add(r);
+		}
+
 		this.focus = new Trait(() => this.view.getFocusedElements()[0], _options.identityProvider);
 		this.selection = new Trait(() => this.view.getSelectedElements()[0], _options.identityProvider);
 		this.anchor = new Trait(() => this.view.getAnchorElement(), _options.identityProvider);
-		this.view = new TreeNodeList(_user, container, this.treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this, stickyScrollProvider: () => this.stickyScrollController });
+		this.view = new TreeNodeList(_user, container, this.treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(this.model, _options), tree: this, stickyScrollProvider: () => this.stickyScrollController });
 
-		this.model = this.createModel(_user, this.view, _options);
+		this.disposables.add(this.model.onDidSpliceRenderedNodes(({ start, deleteCount, elements }) => this.view.splice(start, deleteCount, elements)));
+
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
-		const onDidModelSplice = Event.forEach(this.model.onDidSplice, e => {
+		const onDidModelSplice = Event.forEach(this.model.onDidSpliceModel, e => {
 			this.eventBufferer.bufferEvents(() => {
 				this.focus.onDidModelSplice(e);
 				this.selection.onDidModelSplice(e);
@@ -3113,7 +3107,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.model.setCollapsed(location, undefined, recursive);
 	}
 
-	protected abstract createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
+	protected abstract createModel(user: string, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
 	navigate(start?: TRef): ITreeNavigator<T> {
 		return new TreeNavigator(this.view, this.model, start);

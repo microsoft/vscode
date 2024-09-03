@@ -22,6 +22,7 @@ const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
 const { isAMD } = require('./lib/amd');
+const VinylFile = require('vinyl');
 
 const REPO_ROOT = path.dirname(__dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -105,9 +106,10 @@ const vscodeWebEntryPoints = !isAMD() ? [
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
-	buildfile.workbenchWeb()
+	buildfile.workbenchWeb(),
+	buildfile.entrypoint('vs/workbench/workbench.web.main.internal') // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 ].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.web.main'),
+	buildfile.entrypoint('vs/workbench/workbench.web.main.internal'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -229,8 +231,21 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
-		const sources = es.merge(src, extensions)
-			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
+		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); // TODO@esm remove line when we stop supporting web-amd-esm-bridge
+
+		const sources = es.merge(...(!isAMD() ? [src, extensions, loader] : [src, extensions]))
+			.pipe(filter(['**', '!**/*.js.map'], { dot: true }))
+			// TODO@esm remove me once we stop supporting our web-esm-bridge
+			.pipe(es.through(function (file) {
+				if (file.relative === 'out/vs/workbench/workbench.web.main.internal.css') {
+					this.emit('data', new VinylFile({
+						contents: file.contents,
+						path: file.path.replace('workbench.web.main.internal.css', 'workbench.web.main.css'),
+						base: file.base
+					}));
+				}
+				this.emit('data', file);
+			}));
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })

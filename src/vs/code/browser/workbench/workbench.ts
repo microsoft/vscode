@@ -20,7 +20,7 @@ import { isFolderToOpen, isWorkspaceToOpen } from '../../../platform/window/comm
 import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from '../../../workbench/browser/web.api.js';
 import { AuthenticationSessionInfo } from '../../../workbench/services/authentication/browser/authenticationService.js';
 import type { IURLCallbackProvider } from '../../../workbench/services/url/browser/urlService.js';
-import { create } from '../../../workbench/workbench.web.main.js';
+import { create } from '../../../workbench/workbench.web.main.internal.js';
 
 interface ISecretStorageCrypto {
 	seal(data: string): Promise<string>;
