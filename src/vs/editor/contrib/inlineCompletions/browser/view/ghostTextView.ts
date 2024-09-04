@@ -6,7 +6,7 @@
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import * as strings from '../../../../../base/common/strings.js';
 import './ghostTextView.css';
 import { applyFontInfo } from '../../../../browser/config/domFontInfo.js';
