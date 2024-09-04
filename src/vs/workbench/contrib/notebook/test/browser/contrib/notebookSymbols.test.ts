@@ -65,7 +65,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell without symbols cache', function () {
 		setSymbolsForTextModel([{ name: 'var', range: {} }]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
 		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 1, 'no entries created');
@@ -74,10 +74,10 @@ suite('Notebook Symbols', function () {
 
 	test('Cell with simple symbols', async function () {
 		setSymbolsForTextModel([{ name: 'var1', range: {} }, { name: 'var2', range: {} }]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(cell, 0);
 
 		assert.equal(entries.length, 3, 'wrong number of outline entries');
@@ -96,10 +96,10 @@ suite('Notebook Symbols', function () {
 			{ name: 'root1', range: {}, children: [{ name: 'nested1', range: {} }, { name: 'nested2', range: {} }] },
 			{ name: 'root2', range: {}, children: [{ name: 'nested1', range: {} }] }
 		]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 6, 'wrong number of outline entries');
@@ -119,12 +119,12 @@ suite('Notebook Symbols', function () {
 	test('Multiple Cells with symbols', async function () {
 		setSymbolsForTextModel([{ name: 'var1', range: {} }], '$1');
 		setSymbolsForTextModel([{ name: 'var2', range: {} }], '$2');
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
 
 		const cell1 = createCellViewModel(1, '$1');
 		const cell2 = createCellViewModel(1, '$2');
-		await entryFactory.cacheSymbols(cell1, outlineModelService, CancellationToken.None);
-		await entryFactory.cacheSymbols(cell2, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell1, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell2, CancellationToken.None);
 
 		const entries1 = entryFactory.getOutlineEntries(createCellViewModel(1, '$1'), 0);
 		const entries2 = entryFactory.getOutlineEntries(createCellViewModel(1, '$2'), 0);
