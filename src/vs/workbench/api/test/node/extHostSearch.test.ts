@@ -702,25 +702,6 @@ suite('ExtHostSearch', () => {
 			const { results } = await runFileSearch(query);
 			compareURIs(results, reportedResults);
 		});
-
-		test('Works when provider returns files that are not in the original workspace', async () => {
-			const reportedResults = [
-				joinPath(rootFolderB, 'file1.ts'),
-				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'subfolder/file3.ts')
-			];
-
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					return Promise.resolve(reportedResults);
-				}
-			});
-
-			const { results, stats } = await runFileSearch(getSimpleQuery());
-			assert(!stats.limitHit);
-			assert.strictEqual(results.length, 3);
-			compareURIs(results, reportedResults);
-		});
 	});
 
 	suite('Text:', () => {
@@ -1313,25 +1294,6 @@ suite('ExtHostSearch', () => {
 			};
 
 			const { results } = await runTextSearch(query);
-			assertResults(results, providedResults);
-		});
-
-
-		test('Works when provider returns files that are not in the original workspace', async () => {
-			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(rootFolderB, 'file1.ts'),
-				makeTextResult(rootFolderA, 'file2.ts')
-			];
-
-			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					providedResults.forEach(r => progress.report(r));
-					return Promise.resolve(null!);
-				}
-			});
-
-			const { results, stats } = await runTextSearch(getSimpleQuery('foo'));
-			assert(!stats.limitHit);
 			assertResults(results, providedResults);
 		});
 	});
