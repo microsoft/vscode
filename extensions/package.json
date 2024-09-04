@@ -14,7 +14,8 @@
     "esbuild": "0.23.0",
     "vscode-grammar-updater": "^1.1.0"
   },
-  "resolutions": {
-    "node-gyp-build": "4.8.1"
+  "overrides": {
+    "node-gyp-build": "4.8.1",
+    "node-addon-api": "8.1.0"
   }
 }
