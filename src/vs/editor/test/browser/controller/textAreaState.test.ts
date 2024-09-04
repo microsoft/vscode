@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from '../../../browser/controller/textAreaState.js';
+import { ITextAreaWrapper, TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { createTextModel } from '../../common/testTextModel.js';
+import { PagedScreenReaderStrategy } from '../../../browser/controller/editContext/screenReaderUtils.js';
 
 class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 

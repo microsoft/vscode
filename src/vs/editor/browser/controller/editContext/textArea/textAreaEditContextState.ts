@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from '../../../base/common/strings.js';
-import { Position } from '../../common/core/position.js';
-import { Range } from '../../common/core/range.js';
-import { EndOfLinePreference } from '../../common/model.js';
+import { commonPrefixLength, commonSuffixLength } from '../../../../../base/common/strings.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { ITypeData } from '../editContextUtils.js';
+import { ScreenReaderContentState } from '../screenReaderUtils.js';
 
 export const _debugComposition = false;
 
@@ -115,12 +116,12 @@ export class TextAreaState {
 		}
 
 		const prefixLength = Math.min(
-			strings.commonPrefixLength(previousState.value, currentState.value),
+			commonPrefixLength(previousState.value, currentState.value),
 			previousState.selectionStart,
 			currentState.selectionStart
 		);
 		const suffixLength = Math.min(
-			strings.commonSuffixLength(previousState.value, currentState.value),
+			commonSuffixLength(previousState.value, currentState.value),
 			previousState.value.length - previousState.selectionEnd,
 			currentState.value.length - currentState.selectionEnd
 		);
@@ -187,8 +188,8 @@ export class TextAreaState {
 			};
 		}
 
-		const prefixLength = Math.min(strings.commonPrefixLength(previousState.value, currentState.value), previousState.selectionEnd);
-		const suffixLength = Math.min(strings.commonSuffixLength(previousState.value, currentState.value), previousState.value.length - previousState.selectionEnd);
+		const prefixLength = Math.min(commonPrefixLength(previousState.value, currentState.value), previousState.selectionEnd);
+		const suffixLength = Math.min(commonSuffixLength(previousState.value, currentState.value), previousState.value.length - previousState.selectionEnd);
 		const previousValue = previousState.value.substring(prefixLength, previousState.value.length - suffixLength);
 		const currentValue = currentState.value.substring(prefixLength, currentState.value.length - suffixLength);
 		const previousSelectionStart = previousState.selectionStart - prefixLength;

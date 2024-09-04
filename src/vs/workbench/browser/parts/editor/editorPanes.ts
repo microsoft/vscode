@@ -10,7 +10,7 @@ import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById } from '../../../../base/browser/dom.js';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById, isEditableElement } from '../../../../base/browser/dom.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from '../../editor.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';

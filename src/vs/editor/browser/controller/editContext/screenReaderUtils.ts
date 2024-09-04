@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Position } from 'vs/editor/common/core/position';
-import * as nls from 'vs/nls';
+import { EndOfLinePreference } from '../../../common/model.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
+import * as nls from '../../../../nls.js';
 
 export interface ISimpleModel {
 	getLineCount(): number;

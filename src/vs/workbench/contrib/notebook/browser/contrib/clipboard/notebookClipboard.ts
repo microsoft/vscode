@@ -28,7 +28,7 @@ import { Categories } from '../../../../../../platform/action/common/actionCommo
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { showWindowLogActionId } from '../../../../../services/log/common/logConstants.js';
-import { getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { getActiveElement, getWindow, isAncestor, isEditableElement, isHTMLElement } from '../../../../../../base/browser/dom.js';
 
 let _logging: boolean = false;
 function toggleLogging() {

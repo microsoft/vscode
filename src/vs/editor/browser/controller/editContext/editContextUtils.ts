@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
+import { FastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { Position } from '../../../common/core/position.js';
+import { IEditorAriaOptions } from '../../editorBrowser.js';
+import { ViewPart } from '../../view/viewPart.js';
 
 export interface ITypeData {
 	text: string;

@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from '../../../base/browser/browser.js';
-import * as dom from '../../../base/browser/dom.js';
-import { DomEmitter } from '../../../base/browser/event.js';
-import { IKeyboardEvent, StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { inputLatency } from '../../../base/browser/performance.js';
-import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Mimes } from '../../../base/common/mime.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
-import * as strings from '../../../base/common/strings.js';
-import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from './textAreaState.js';
-import { Position } from '../../common/core/position.js';
-import { Selection } from '../../common/core/selection.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { ILogService } from '../../../platform/log/common/log.js';
+import * as browser from '../../../../../base/browser/browser.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { DomEmitter } from '../../../../../base/browser/event.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { inputLatency } from '../../../../../base/browser/performance.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ClipboardDataToCopy, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { _debugComposition, ITextAreaWrapper, TextAreaState } from './textAreaEditContextState.js';
+import { ITypeData } from '../editContextUtils.js';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';

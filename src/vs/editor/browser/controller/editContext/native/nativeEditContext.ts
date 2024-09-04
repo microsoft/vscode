@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./nativeEditContext';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import * as dom from 'vs/base/browser/dom';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EndOfLinePreference, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DebugEditContext } from 'vs/editor/browser/controller/editContext/native/debugEditContext';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/clipboardUtils';
-import * as browser from 'vs/base/browser/browser';
-import { EditContextWrapper, FocusTracker } from 'vs/editor/browser/controller/editContext/native/nativeEditContextUtils';
-import { AbstractEditContext, ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
-import { ScreenReaderSupport } from 'vs/editor/browser/controller/editContext/native/screenReaderSupport';
-import { Position } from 'vs/editor/common/core/position';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CursorState } from 'vs/editor/common/cursorCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isFirefox } from '../../../../../base/browser/browser.js';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { CursorState } from '../../../../common/cursorCommon.js';
+import { CursorChangeReason } from '../../../../common/cursorEvents.js';
+import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
+import { ViewContext } from '../../../../common/viewModel/viewContext.js';
+import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
+import { ViewController } from '../../../view/viewController.js';
+import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { AbstractEditContext, ITypeData } from '../editContextUtils.js';
+import { DebugEditContext } from './debugEditContext.js';
+import { EditContextWrapper, FocusTracker } from './nativeEditContextUtils.js';
+import { ScreenReaderSupport } from './screenReaderSupport.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { Position } from '../../../../common/core/position.js';
 
 // Boolean which controls whether we should show the control, selection and character bounds
 const showControlBounds = false;
@@ -66,9 +65,9 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
 		// Dom node events
-		this._register(dom.addDisposableListener(this.domNode.domNode, 'copy', async () => this._ensureClipboardGetsEditorSelection(clipboardService)));
-		this._register(dom.addDisposableListener(this.domNode.domNode, 'keyup', (e) => viewController.emitKeyUp(new StandardKeyboardEvent(e))));
-		this._register(dom.addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
+		this._register(addDisposableListener(this.domNode.domNode, 'copy', async () => this._ensureClipboardGetsEditorSelection(clipboardService)));
+		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => viewController.emitKeyUp(new StandardKeyboardEvent(e))));
+		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 
@@ -174,13 +173,13 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport.render(ctx);
 	}
 
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
 		return true;
 	}
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
 		this._screenReaderSupport.onConfigurationChanged(e);
 		this._updateDomAttributes();
 		return true;
@@ -409,7 +408,7 @@ export class NativeEditContext extends AbstractEditContext {
 		InMemoryClipboardMetadataManager.INSTANCE.set(
 			// When writing "LINE\r\n" to the clipboard and then pasting,
 			// Firefox pastes "LINE\n", so let's work around this quirk
-			(browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
+			(isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
 		clipboardService.writeText(dataToCopy.text);

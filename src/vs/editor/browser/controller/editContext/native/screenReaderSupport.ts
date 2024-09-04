@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy, ScreenReaderContentState } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { RestrictedRenderingContext, RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import * as dom from 'vs/base/browser/dom';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
+import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { FontInfo } from '../../../../common/config/fontInfo.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { EndOfLinePreference } from '../../../../common/model.js';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
+import { ViewContext } from '../../../../common/viewModel/viewContext.js';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
+import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
 
 export class ScreenReaderSupport {
 
@@ -41,7 +41,7 @@ export class ScreenReaderSupport {
 		this._updateDomAttributes();
 	}
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -68,7 +68,7 @@ export class ScreenReaderSupport {
 		this._domNode.domNode.style.tabSize = `${tabSize * spaceWidth}px`;
 	}
 
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
+	public onCursorStateChanged(e: ViewCursorStateChangedEvent): void {
 		this._primarySelection = e.selections[0] ?? new Selection(1, 1, 1, 1);
 	}
 
@@ -137,7 +137,7 @@ export class ScreenReaderSupport {
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
-		const activeDocument = dom.getActiveWindow().document;
+		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
 			return;

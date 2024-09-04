@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as platform from 'vs/base/common/platform';
-import { IViewModel } from 'vs/editor/common/viewModel';
-import { Range } from 'vs/editor/common/core/range';
+import { IViewModel } from '../../../common/viewModel.js';
+import { Range } from '../../../common/core/range.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 export function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], emptySelectionClipboard: boolean, copyWithSyntaxHighlighting: boolean): ClipboardDataToCopy {
-	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, platform.isWindows);
+	const rawTextToCopy = viewModel.getPlainTextToCopy(modelSelections, emptySelectionClipboard, isWindows);
 	const newLineCharacter = viewModel.model.getEOL();
 
 	const isFromEmptySelection = (emptySelectionClipboard && modelSelections.length === 1 && modelSelections[0].isEmpty());

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import * as dom from 'vs/base/browser/dom';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
 
 export class EditContextWrapper {
 
@@ -96,8 +96,8 @@ export class FocusTracker extends Disposable {
 		private readonly _onFocusChange: (newFocusValue: boolean) => void,
 	) {
 		super();
-		this._register(dom.addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
-		this._register(dom.addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
+		this._register(addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
+		this._register(addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
 	}
 
 	private _handleFocusedChanged(focused: boolean): void {

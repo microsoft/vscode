@@ -13,7 +13,6 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { IPointerHandlerHelper } from './controller/mouseHandler.js';
 import { PointerHandlerLastRenderData } from './controller/mouseTarget.js';
 import { PointerHandler } from './controller/pointerHandler.js';
-import { IVisibleRangeProvider, TextAreaHandler } from './controller/textAreaHandler.js';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from './editorBrowser.js';
 import { RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
 import { ICommandDelegate, ViewController } from './view/viewController.js';
@@ -56,6 +55,9 @@ import { IViewModel } from '../common/viewModel.js';
 import { ViewContext } from '../common/viewModel/viewContext.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
+import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
+import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
+import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 
 
 export interface IContentWidgetData {

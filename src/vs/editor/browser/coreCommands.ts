@@ -29,7 +29,7 @@ import { KeybindingWeight, KeybindingsRegistry } from '../../platform/keybinding
 import { EditorOption } from '../common/config/editorOptions.js';
 import { IViewModel } from '../common/viewModel.js';
 import { ISelection } from '../common/core/selection.js';
-import { getActiveElement } from '../../base/browser/dom.js';
+import { getActiveElement, isEditableElement } from '../../base/browser/dom.js';
 import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
