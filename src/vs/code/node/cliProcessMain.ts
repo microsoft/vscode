@@ -38,7 +38,7 @@ import { InstantiationService } from '../../platform/instantiation/common/instan
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILanguagePackService } from '../../platform/languagePacks/common/languagePacks.js';
 import { NativeLanguagePackService } from '../../platform/languagePacks/node/languagePacks.js';
-import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
+import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel, NullLogger } from '../../platform/log/common/log.js';
 import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
 import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
 import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
@@ -195,7 +195,7 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		const requestService = new RequestService(new NullLogger(), configurationService, environmentService, logService);
 		services.set(IRequestService, requestService);
 
 		// Download Service

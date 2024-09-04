@@ -11,7 +11,7 @@ import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from '../../log/common/log.js';
+import { ILogger } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
@@ -68,25 +68,18 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly logger: ILogger;
 	private counter = 0;
 
-	constructor(
-		loggerService: ILoggerService
-	) {
+	constructor(protected readonly logger: ILogger) {
 		super();
-		this.logger = loggerService.createLogger('network', {
-			name: localize('request', "Network Requests"),
-			when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
-		});
 	}
 
-	protected async logAndRequest(stack: string, options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
-		const prefix = `${stack} #${++this.counter}: ${options.url}`;
-		this.logger.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
+	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		const prefix = `#${++this.counter}: ${options.url}`;
+		this.logger.info(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		try {
 			const result = await request();
-			this.logger.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
+			this.logger.info(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
 			return result;
 		} catch (error) {
 			this.logger.error(`${prefix} - error`, options.type, getErrorMessage(error));
