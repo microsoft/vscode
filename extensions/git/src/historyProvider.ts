@@ -127,15 +127,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			await ensureEmojis();
 
 			return commits.map(commit => {
-				const newLineIndex = commit.message.indexOf('\n');
-				const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
-
 				const labels = this.resolveHistoryItemLabels(commit);
 
 				return {
 					id: commit.hash,
 					parentIds: commit.parents,
-					message: emojify(subject),
+					message: emojify(commit.message),
 					author: commit.authorName,
 					icon: new ThemeIcon('git-commit'),
 					displayId: commit.hash.substring(0, 8),

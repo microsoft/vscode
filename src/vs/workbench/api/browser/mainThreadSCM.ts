@@ -46,7 +46,11 @@ function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
 		title: l.title, icon: getIconFromIconDto(l.icon)
 	}));
 
-	return { ...historyItemDto, labels };
+	const newLineIndex = historyItemDto.message.indexOf('\n');
+	const subject = newLineIndex === -1 ?
+		historyItemDto.message : `${historyItemDto.message.substring(0, newLineIndex)}\u2026`;
+
+	return { ...historyItemDto, subject, labels };
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {

@@ -235,7 +235,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const currentHistoryItemGroup = provider.historyProvider.get()?.currentHistoryItemGroup?.get();
 		const extraClasses = currentHistoryItemGroup?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
-		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches, extraClasses });
+		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
 		templateData.labelContainer.textContent = '';
 		for (const label of historyItem.labels ?? []) {
@@ -408,6 +408,7 @@ class HistoryItemActionRunner extends ActionRunner {
 				{
 					id: h.historyItemViewModel.historyItem.id,
 					parentIds: h.historyItemViewModel.historyItem.parentIds,
+					subject: h.historyItemViewModel.historyItem.subject,
 					message: h.historyItemViewModel.historyItem.message,
 					displayId: h.historyItemViewModel.historyItem.displayId,
 					author: h.historyItemViewModel.historyItem.author,
@@ -418,6 +419,7 @@ class HistoryItemActionRunner extends ActionRunner {
 			args.push({
 				id: context.historyItemViewModel.historyItem.id,
 				parentIds: context.historyItemViewModel.historyItem.parentIds,
+				subject: context.historyItemViewModel.historyItem.subject,
 				message: context.historyItemViewModel.historyItem.message,
 				displayId: context.historyItemViewModel.historyItem.displayId,
 				author: context.historyItemViewModel.historyItem.author,
