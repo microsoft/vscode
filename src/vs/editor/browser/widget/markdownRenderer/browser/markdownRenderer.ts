@@ -105,10 +105,14 @@ export class MarkdownRenderer {
 			},
 			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
-				callback: (link) => openLinkFromMarkdown(this._openerService, link, markdown.isTrusted),
+				callback: (link) => this.openMarkdownLink(link, markdown),
 				disposables: disposables
 			}
 		};
+	}
+
+	protected async openMarkdownLink(link: string, markdown: IMarkdownString) {
+		await openLinkFromMarkdown(this._openerService, link, markdown.isTrusted);
 	}
 }
 
