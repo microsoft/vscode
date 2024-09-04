@@ -209,6 +209,7 @@ class WordHighlighter {
 	private readonly model: ITextModel;
 	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
+
 	private readonly textModelService: ITextModelService;
 	private readonly codeEditorService: ICodeEditorService;
 
@@ -225,7 +226,7 @@ class WordHighlighter {
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
-	private readonly runDelayer: Delayer<void> = this.toUnhook.add(new Delayer<void>(50));
+	private readonly runDelayer: Delayer<void> = this.toUnhook.add(new Delayer<void>(25));
 
 	private static storedDecorationIDs: ResourceMap<string[]> = new ResourceMap();
 	private static query: IWordHighlighterQuery | null = null;
@@ -236,17 +237,20 @@ class WordHighlighter {
 		multiProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>,
 		contextKeyService: IContextKeyService,
 		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 	) {
 		this.editor = editor;
 		this.providers = providers;
 		this.multiDocumentProviders = multiProviders;
+
 		this.codeEditorService = codeEditorService;
 		this.textModelService = textModelService;
+
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
 		this.model = this.editor.getModel();
+
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (this._ignorePositionChangeEvent) {
 				// We are changing the position => ignore this event
@@ -305,6 +309,19 @@ class WordHighlighter {
 						console.warn('Unknown occurrencesHighlight setting value:', newValue);
 						break;
 				}
+			}
+		}));
+		this.toUnhook.add(editor.onDidBlurEditorWidget(() => {
+			// logic is as follows
+			// - didBlur => active null => stopall
+			// - didBlur => active nb   => if this.editor is notebook, do nothing (new cell, so we don't want to stopAll)
+			//              active nb   => if this.editor is NOT nb,   stopAll
+
+			const activeEditor = this.codeEditorService.getFocusedCodeEditor();
+			if (!activeEditor) { // clicked into nb cell list, outline, terminal, etc
+				this._stopAll();
+			} else if (activeEditor.getModel()?.uri.scheme === Schemas.vscodeNotebookCell && this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) { // switched tabs from non-nb to nb
+				this._stopAll();
 			}
 		}));
 
@@ -596,7 +613,6 @@ class WordHighlighter {
 
 	private async _run(multiFileConfigChange?: boolean): Promise<void> {
 
-		let workerRequestIsValid;
 		const hasTextFocus = this.editor.hasTextFocus();
 
 		if (!hasTextFocus) { // new nb cell scrolled in, didChangeModel fires
@@ -627,12 +643,6 @@ class WordHighlighter {
 				return;
 			}
 
-			// All the effort below is trying to achieve this:
-			// - when cursor is moved to a word, trigger immediately a findOccurrences request
-			// - 250ms later after the last cursor move event, render the occurrences
-			// - no flickering!
-			workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this.decorations));
-
 			WordHighlighter.query = {
 				modelInfo: {
 					modelURI: this.model.uri,
@@ -641,26 +651,10 @@ class WordHighlighter {
 			};
 		}
 
-		// There are 4 cases:
-		// a) old workerRequest is valid & completed, renderDecorationsTimer fired
-		// b) old workerRequest is valid & completed, renderDecorationsTimer not fired
-		// c) old workerRequest is valid, but not completed
-		// d) old workerRequest is not valid
-
-		// For a) no action is needed
-		// For c), member 'lastCursorPositionChangeTime' will be used when installing the timer so no action is needed
 
 		this.lastCursorPositionChangeTime = (new Date()).getTime();
 
-		if (workerRequestIsValid) {
-			if (this.workerRequestCompleted && this.renderDecorationsTimer !== -1) {
-				// case b)
-				// Delay the firing of renderDecorationsTimer by an extra 250 ms
-				clearTimeout(this.renderDecorationsTimer);
-				this.renderDecorationsTimer = -1;
-				this._beginRenderDecorations();
-			}
-		} else if (isEqual(this.editor.getModel().uri, WordHighlighter.query.modelInfo?.modelURI)) { // only trigger new worker requests from the primary model that initiated the query
+		if (isEqual(this.editor.getModel().uri, WordHighlighter.query.modelInfo?.modelURI)) { // only trigger new worker requests from the primary model that initiated the query
 			// case d)
 
 			// check if the new queried word is contained in the range of a stored decoration for this model
@@ -700,10 +694,8 @@ class WordHighlighter {
 					this._beginRenderDecorations();
 				}
 			}, onUnexpectedError);
-		} else {
-			// new wordHighlighter coming from a different model, NOT the query model. This happens with the following:
-			// 1) a new notebook cell is scrolled into view
-			// 2) switching editor tabs -- won't have focus, missing above case (triggered initially by restoreViewState)
+		} else if (this.model.uri.scheme === Schemas.vscodeNotebookCell) {
+			// new wordHighlighter coming from a different model, NOT the query model, need to create a textModel ref
 
 			// this._stopAll(multiFileConfigChange ? this.model.uri : undefined);
 
@@ -714,14 +706,9 @@ class WordHighlighter {
 				return;
 			}
 
-			if (this.model.uri.scheme === Schemas.vscodeNotebookCell) {
-				const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
-				const queryModel = queryModelRef.object.textEditorModel;
-				this.workerRequest = this.computeWithModel(queryModel, WordHighlighter.query.modelInfo.selection, [this.model]);
-			} else {
-				const otherModelsToHighlight = this.getOtherModelsToHighlight(this.editor.getModel());
-				this.workerRequest = this.computeWithModel(this.model, this.editor.getSelection(), otherModelsToHighlight);
-			}
+			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
+			const queryModel = queryModelRef.object.textEditorModel;
+			this.workerRequest = this.computeWithModel(queryModel, WordHighlighter.query.modelInfo.selection, [this.model]);
 
 			this.workerRequest?.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
@@ -799,6 +786,9 @@ class WordHighlighter {
 				}
 			}
 		}
+
+		// clear the worker request when decorations are completed
+		this.workerRequest = null;
 	}
 
 	public dispose(): void {
@@ -833,6 +823,10 @@ export class WordHighlighterContribution extends Disposable implements IEditorCo
 		};
 		this._register(editor.onDidChangeModel((e) => {
 			if (this._wordHighlighter) {
+				if (!e.newModelUrl && e.oldModelUrl?.scheme !== Schemas.vscodeNotebookCell) { // happens when switching tabs to a notebook that has focus in the cell list, no new model URI (this also doesn't make it to the wordHighlighter, bc no editor.hasModel)
+					this.wordHighlighter?.stop();
+				}
+
 				this._wordHighlighter.dispose();
 				this._wordHighlighter = null;
 			}
