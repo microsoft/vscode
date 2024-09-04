@@ -15,19 +15,19 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
-export interface MarginHoverComputerOptions {
+export interface GlyphHoverComputerOptions {
 	lineNumber: number;
 	laneOrLine: LaneOrLineNumber;
 }
 
-export class MarginHoverComputer implements IHoverComputer<MarginHoverComputerOptions, IHoverMessage> {
+export class GlyphHoverComputer implements IHoverComputer<GlyphHoverComputerOptions, IHoverMessage> {
 
 	constructor(
 		private readonly _editor: ICodeEditor
 	) {
 	}
 
-	public computeSync(opts: MarginHoverComputerOptions): IHoverMessage[] {
+	public computeSync(opts: GlyphHoverComputerOptions): IHoverMessage[] {
 
 		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
 			return {
