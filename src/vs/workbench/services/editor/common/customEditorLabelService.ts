@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { ParsedPattern, parse as parseGlob } from 'vs/base/common/glob';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isAbsolute, parse as parsePath, ParsedPath } from 'vs/base/common/path';
-import { relativePath as getRelativePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ParsedPattern, parse as parseGlob } from '../../../../base/common/glob.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isAbsolute, parse as parsePath, ParsedPath, dirname } from '../../../../base/common/path.js';
+import { dirname as resourceDirname, relativePath as getRelativePath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { MRUCache } from '../../../../base/common/map.js';
 
 interface ICustomEditorLabelObject {
 	readonly [key: string]: string;
@@ -39,6 +40,8 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	private patterns: ICustomEditorLabelPattern[] = [];
 	private enabled = true;
 
+	private cache = new MRUCache<string, string | null>(1000);
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -48,10 +51,10 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		this.storeEnablementState();
 		this.storeCustomPatterns();
 
-		this.registerListernes();
+		this.registerListeners();
 	}
 
-	private registerListernes(): void {
+	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			// Cache the enabled state
 			if (e.affectsConfiguration(CustomEditorLabelService.SETTING_ID_ENABLED)) {
@@ -64,6 +67,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 			// Cache the patterns
 			else if (e.affectsConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS)) {
+				this.cache.clear();
 				this.storeCustomPatterns();
 				this._onDidChange.fire();
 			}
@@ -112,52 +116,75 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	getName(resource: URI): string | undefined {
-		if (!this.enabled) {
+		if (!this.enabled || this.patterns.length === 0) {
 			return undefined;
 		}
-		return this.applyPatterns(resource);
+
+		const key = resource.toString();
+		const cached = this.cache.get(key);
+		if (cached !== undefined) {
+			return cached ?? undefined;
+		}
+
+		const result = this.applyPatterns(resource);
+		this.cache.set(key, result ?? null);
+
+		return result;
 	}
 
 	private applyPatterns(resource: URI): string | undefined {
-		if (this.patterns.length === 0) {
-			return undefined;
-		}
-
 		const root = this.workspaceContextService.getWorkspaceFolder(resource);
 		let relativePath: string | undefined;
 
 		for (const pattern of this.patterns) {
 			let relevantPath: string;
 			if (root && !pattern.isAbsolutePath) {
-				relevantPath = relativePath = relativePath ?? getRelativePath(root.uri, resource) ?? resource.path;
+				if (!relativePath) {
+					relativePath = getRelativePath(resourceDirname(root.uri), resource) ?? resource.path;
+				}
+				relevantPath = relativePath;
 			} else {
 				relevantPath = resource.path;
 			}
 
 			if (pattern.parsedPattern(relevantPath)) {
-				return this.applyTempate(pattern.template, resource);
+				return this.applyTemplate(pattern.template, resource, relevantPath);
 			}
 		}
 
 		return undefined;
 	}
 
-	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|dirname\((\d+)\))\}/g;
-	private applyTempate(template: string, resource: URI): string {
+	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|extname\((?<extnameN>[-+]?\d+)\)|dirname\((?<dirnameN>[-+]?\d+)\))\}/g;
+	private readonly _filenameCaptureExpression = /(?<filename>^\.*[^.]*)/;
+	private applyTemplate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
-		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, arg: string) => {
+		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: any[]) => {
 			parsedPath = parsedPath ?? parsePath(resource.path);
-			switch (variable) {
-				case 'filename':
-					return parsedPath.name;
-				case 'extname':
-					return parsedPath.ext.slice(1);
-				default: { // dirname and dirname(arg)
-					const n = variable === 'dirname' ? 0 : parseInt(arg);
-					const nthDir = this.getNthDirname(parsedPath, n);
-					if (nthDir) {
-						return nthDir;
-					}
+			// named group matches
+			const { dirnameN = '0', extnameN = '0' }: { dirnameN?: string; extnameN?: string } = args.pop();
+
+			if (variable === 'filename') {
+				const { filename } = this._filenameCaptureExpression.exec(parsedPath.base)?.groups ?? {};
+				if (filename) {
+					return filename;
+				}
+			} else if (variable === 'extname') {
+				const extension = this.getExtnames(parsedPath.base);
+				if (extension) {
+					return extension;
+				}
+			} else if (variable.startsWith('extname')) {
+				const n = parseInt(extnameN);
+				const nthExtname = this.getNthExtname(parsedPath.base, n);
+				if (nthExtname) {
+					return nthExtname;
+				}
+			} else if (variable.startsWith('dirname')) {
+				const n = parseInt(dirnameN);
+				const nthDir = this.getNthDirname(dirname(relevantPath), n);
+				if (nthDir) {
+					return nthDir;
 				}
 			}
 
@@ -165,20 +192,49 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		});
 	}
 
-	private getNthDirname(path: ParsedPath, n: number): string | undefined {
-		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
-		const pathFragments = path.dir.split('/');
+	private removeLeadingDot(path: string): string {
+		let withoutLeadingDot = path;
+		while (withoutLeadingDot.startsWith('.')) {
+			withoutLeadingDot = withoutLeadingDot.slice(1);
+		}
+		return withoutLeadingDot;
+	}
 
-		const length = pathFragments.length;
-		const nth = length - 1 - n;
-		if (nth < 0) {
+	private getNthDirname(path: string, n: number): string | undefined {
+		// grand-parent/parent/filename.ext1.ext2 -> [grand-parent, parent]
+		path = path.startsWith('/') ? path.slice(1) : path;
+		const pathFragments = path.split('/');
+
+		return this.getNthFragment(pathFragments, n);
+	}
+
+	private getExtnames(fullFileName: string): string {
+		return this.removeLeadingDot(fullFileName).split('.').slice(1).join('.');
+	}
+
+	private getNthExtname(fullFileName: string, n: number): string | undefined {
+		// file.ext1.ext2.ext3 -> [file, ext1, ext2, ext3]
+		const extensionNameFragments = this.removeLeadingDot(fullFileName).split('.');
+		extensionNameFragments.shift(); // remove the first element which is the file name
+
+		return this.getNthFragment(extensionNameFragments, n);
+	}
+
+	private getNthFragment(fragments: string[], n: number): string | undefined {
+		const length = fragments.length;
+
+		let nth;
+		if (n < 0) {
+			nth = Math.abs(n) - 1;
+		} else {
+			nth = length - n - 1;
+		}
+
+		const nthFragment = fragments[nth];
+		if (nthFragment === undefined || nthFragment === '') {
 			return undefined;
 		}
-		const nthDir = pathFragments[nth];
-		if (nthDir === undefined || nthDir === '') {
-			return undefined;
-		}
-		return nthDir;
+		return nthFragment;
 	}
 }
 

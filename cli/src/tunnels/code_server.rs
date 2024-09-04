@@ -394,6 +394,16 @@ impl<'a> ServerBuilder<'a> {
 		}
 	}
 
+	/// Removes a cached server.
+	pub async fn evict(&self) -> Result<(), WrappedError> {
+		let name = get_server_folder_name(
+			self.server_params.release.quality,
+			&self.server_params.release.commit,
+		);
+
+		self.launcher_paths.server_cache.delete(&name)
+	}
+
 	/// Ensures the server is set up in the configured directory.
 	pub async fn setup(&self) -> Result<(), AnyError> {
 		debug!(
@@ -407,7 +417,8 @@ impl<'a> ServerBuilder<'a> {
 			&self.server_params.release.commit,
 		);
 
-		self.launcher_paths
+		let result = self
+			.launcher_paths
 			.server_cache
 			.create(name, |target_dir| async move {
 				let tmpdir =
@@ -433,7 +444,11 @@ impl<'a> ServerBuilder<'a> {
 				.await?;
 
 				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
-				unzip_downloaded_release(&archive_path, &server_dir, SilentCopyProgress())?;
+				unzip_downloaded_release(
+					&archive_path,
+					&server_dir,
+					self.logger.get_download_logger("server inflate progress:"),
+				)?;
 
 				if !skip_requirements_check().await {
 					let output = capture_command_and_check_status(
@@ -456,7 +471,12 @@ impl<'a> ServerBuilder<'a> {
 
 				Ok(())
 			})
-			.await?;
+			.await;
+
+		if let Err(e) = result {
+			error!(self.logger, "Error installing server: {}", e);
+			return Err(e);
+		}
 
 		debug!(self.logger, "Server setup complete");
 
@@ -469,7 +489,7 @@ impl<'a> ServerBuilder<'a> {
 			.arg("--enable-remote-auto-shutdown")
 			.arg(format!("--port={}", port));
 
-		let child = self.spawn_server_process(cmd)?;
+		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
@@ -477,16 +497,16 @@ impl<'a> ServerBuilder<'a> {
 			monitor_server::<PortMatcher, u16>(child, Some(log_file), plog, false);
 
 		let port = match timeout(Duration::from_secs(8), listen_rx).await {
-			Err(e) => {
+			Err(_) => {
 				origin.kill().await;
-				Err(wrap(e, "timed out looking for port"))
+				return Err(CodeError::ServerOriginTimeout.into());
 			}
-			Ok(Err(e)) => {
+			Ok(Err(s)) => {
 				origin.kill().await;
-				Err(wrap(e, "server exited without writing port"))
+				return Err(CodeError::ServerUnexpectedExit(format!("{}", s)).into());
 			}
-			Ok(Ok(p)) => Ok(p),
-		}?;
+			Ok(Ok(p)) => p,
+		};
 
 		info!(self.logger, "Server started");
 
@@ -543,7 +563,7 @@ impl<'a> ServerBuilder<'a> {
 			.arg("--enable-remote-auto-shutdown")
 			.arg(format!("--socket-path={}", socket.display()));
 
-		let child = self.spawn_server_process(cmd)?;
+		let child = self.spawn_server_process(cmd).await?;
 		let log_file = self.get_logfile()?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
@@ -551,16 +571,16 @@ impl<'a> ServerBuilder<'a> {
 			monitor_server::<SocketMatcher, PathBuf>(child, Some(log_file), plog, false);
 
 		let socket = match timeout(Duration::from_secs(30), listen_rx).await {
-			Err(e) => {
+			Err(_) => {
 				origin.kill().await;
-				Err(wrap(e, "timed out looking for socket"))
+				return Err(CodeError::ServerOriginTimeout.into());
 			}
-			Ok(Err(e)) => {
+			Ok(Err(s)) => {
 				origin.kill().await;
-				Err(wrap(e, "server exited without writing socket"))
+				return Err(CodeError::ServerUnexpectedExit(format!("{}", s)).into());
 			}
-			Ok(Ok(socket)) => Ok(socket),
-		}?;
+			Ok(Ok(socket)) => socket,
+		};
 
 		info!(self.logger, "Server started");
 
@@ -571,26 +591,7 @@ impl<'a> ServerBuilder<'a> {
 		})
 	}
 
-	/// Starts with a given opaque set of args. Does not set up any port or
-	/// socket, but does return one if present, in the form of a channel.
-	pub async fn start_opaque_with_args<M, R>(
-		&self,
-		args: &[String],
-	) -> Result<(CodeServerOrigin, Receiver<R>), AnyError>
-	where
-		M: ServerOutputMatcher<R>,
-		R: 'static + Send + std::fmt::Debug,
-	{
-		let mut cmd = self.get_base_command();
-		cmd.args(args);
-
-		let child = self.spawn_server_process(cmd)?;
-		let plog = self.logger.prefixed(&log::new_code_server_prefix());
-
-		Ok(monitor_server::<M, R>(child, None, plog, true))
-	}
-
-	fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
+	async fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
 		info!(self.logger, "Starting server...");
 
 		debug!(self.logger, "Starting server with command... {:?}", cmd);
@@ -602,13 +603,20 @@ impl<'a> ServerBuilder<'a> {
 		// Original issue: https://github.com/microsoft/vscode/issues/184058
 		// Partial fix: https://github.com/microsoft/vscode/pull/184621
 		#[cfg(target_os = "windows")]
-		let cmd = cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+		let cmd = cmd.creation_flags(
+			winapi::um::winbase::CREATE_NO_WINDOW
+				| winapi::um::winbase::CREATE_NEW_PROCESS_GROUP
+				| get_should_use_breakaway_from_job()
+					.await
+					.then_some(winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB)
+					.unwrap_or_default(),
+		);
 
 		let child = cmd
 			.stderr(std::process::Stdio::piped())
 			.stdout(std::process::Stdio::piped())
 			.spawn()
-			.map_err(|e| wrap(e, "error spawning server"))?;
+			.map_err(|e| CodeError::ServerUnexpectedExit(format!("{}", e)))?;
 
 		self.server_paths
 			.write_pid(child.id().expect("expected server to have pid"))?;
@@ -859,4 +867,14 @@ pub async fn download_cli_into_cache(
 			Err(CodeError::CorruptDownload("cli directory is empty").into())
 		}
 	}
+}
+
+#[cfg(target_os = "windows")]
+async fn get_should_use_breakaway_from_job() -> bool {
+	let mut cmd = Command::new("cmd");
+	cmd.creation_flags(
+		winapi::um::winbase::CREATE_NO_WINDOW | winapi::um::winbase::CREATE_BREAKAWAY_FROM_JOB,
+	);
+
+	cmd.args(["/C", "echo ok"]).output().await.is_ok()
 }

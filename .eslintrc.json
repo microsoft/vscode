@@ -70,7 +70,10 @@
 		],
 		"local/code-translation-remind": "warn",
 		"local/code-no-native-private": "warn",
+		"local/code-parameter-properties-must-have-explicit-accessibility": "warn",
 		"local/code-no-nls-in-standalone-editor": "warn",
+		"local/code-no-potentially-unsafe-disposables": "warn",
+		"local/code-no-dangerous-type-assertions": "off",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
 		"local/code-must-use-super-dispose": "warn",
@@ -140,6 +143,14 @@
 		},
 		{
 			"files": [
+				"src/**/*.ts"
+			],
+			"rules": {
+				"local/code-no-static-self-ref": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/vs/**/*.test.ts"
 			],
 			"rules": {
@@ -148,21 +159,13 @@
 					{
 						// Files should (only) be removed from the list they adopt the leak detector
 						"exclude": [
-							"src/vs/base/test/browser/browser.test.ts",
-							"src/vs/base/test/browser/ui/scrollbar/scrollableElement.test.ts",
-							"src/vs/base/test/browser/ui/scrollbar/scrollbarState.test.ts",
 							"src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts",
-							"src/vs/editor/test/common/services/languageService.test.ts",
-							"src/vs/editor/test/node/classification/typescript.test.ts",
 							"src/vs/platform/configuration/test/common/configuration.test.ts",
-							"src/vs/platform/extensions/test/common/extensionValidator.test.ts",
 							"src/vs/platform/opener/test/common/opener.test.ts",
 							"src/vs/platform/registry/test/common/platform.test.ts",
-							"src/vs/platform/remote/test/common/remoteHosts.test.ts",
 							"src/vs/platform/workspace/test/common/workspace.test.ts",
 							"src/vs/platform/workspaces/test/electron-main/workspaces.test.ts",
 							"src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts",
-							"src/vs/workbench/api/test/common/extHostExtensionActivator.test.ts",
 							"src/vs/workbench/api/test/node/extHostTunnelService.test.ts",
 							"src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts",
 							"src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts",
@@ -173,7 +176,6 @@
 							"src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts",
 							"src/vs/workbench/contrib/tasks/test/common/taskConfiguration.test.ts",
 							"src/vs/workbench/services/commands/test/common/commandService.test.ts",
-							"src/vs/workbench/services/extensions/test/common/extensionDescriptionRegistry.test.ts",
 							"src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts",
 							"src/vs/workbench/test/browser/quickAccess.test.ts"
 						]
@@ -313,6 +315,10 @@
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
 						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name=/^HTML\\w+/]",
+						"message": "Use DOM.isHTMLElement() and related methods to support multi-window scenarios."
 					},
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
@@ -610,7 +616,6 @@
 				"src/**/*.ts"
 			],
 			"rules": {
-				"local/code-no-look-behind-regex": "warn",
 				"local/code-import-patterns": [
 					"warn",
 					{
@@ -647,10 +652,10 @@
 							"events",
 							"fs",
 							"fs/promises",
-							"graceful-fs",
 							"http",
 							"https",
 							"minimist",
+							"node:module",
 							"native-keymap",
 							"native-watchdog",
 							"net",
@@ -669,7 +674,7 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"@xterm/addon-canvas",
+							"@xterm/addon-clipboard",
 							"@xterm/addon-image",
 							"@xterm/addon-search",
 							"@xterm/addon-serialize",
@@ -687,6 +692,7 @@
 						"when": "test",
 						"allow": [
 							"vs/css.build",
+							"vs/css.build.js",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -750,7 +756,8 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"vs/editor/~"
+							"vs/editor/~",
+							"@vscode/tree-sitter-wasm" // node module allowed even in /common/
 						]
 					},
 					{
@@ -933,6 +940,18 @@
 							},
 							{
 								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.js"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.internal"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.internal.js"
+							},
+							{
+								"when": "hasBrowser",
 								"pattern": "vs/workbench/~"
 							},
 							{
@@ -971,11 +990,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/terminal.all"
+							"vs/workbench/contrib/terminal/terminal.all",
+							"vs/workbench/contrib/terminal/terminal.all.js"
 						]
 					},
 					{
@@ -988,11 +1009,32 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
+						]
+					},
+					{
+						"target": "src/vs/workbench/workbench.web.main.internal.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1005,11 +1047,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1019,11 +1063,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
-						"restrictions": []
-					},
-					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{
@@ -1031,7 +1071,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
+						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js,bootstrap-cli.js,bootstrap-server.js}",
 						"restrictions": []
 					}
 				]
@@ -1097,7 +1137,9 @@
 				"local/code-no-runtime-import": [
 					"error",
 					{
-						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": ["**/*"]
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"**/*"
+						]
 					}
 				]
 			}

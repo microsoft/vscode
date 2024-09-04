@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallExtensionInfo, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient, ExtensionEventResult } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { Emitter } from 'vs/base/common/event';
-import { delta } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, InstallExtensionResult, InstallExtensionInfo, IProductVersion, UninstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient, ExtensionEventResult } from '../../../../platform/extensionManagement/common/extensionManagementIpc.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { delta } from '../../../../base/common/arrays.js';
+import { compare } from '../../../../base/common/strings.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from './extensionManagement.js';
 
 export abstract class ProfileAwareExtensionManagementChannelClient extends BaseExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -32,19 +32,15 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		}));
 	}
 
-	protected override fireEvent(event: Emitter<InstallExtensionEvent>, data: InstallExtensionEvent): Promise<void>;
-	protected override fireEvent(event: Emitter<readonly InstallExtensionResult[]>, data: InstallExtensionResult[]): Promise<void>;
-	protected override fireEvent(event: Emitter<UninstallExtensionEvent>, data: UninstallExtensionEvent): Promise<void>;
-	protected override fireEvent(event: Emitter<DidUninstallExtensionEvent>, data: DidUninstallExtensionEvent): Promise<void>;
-	protected override fireEvent(event: Emitter<ExtensionEventResult>, data: ExtensionEventResult): Promise<void>;
-	protected override fireEvent(event: Emitter<ExtensionEventResult[]>, data: ExtensionEventResult[]): Promise<void>;
+	protected override async fireEvent<E extends ExtensionEventResult>(event: Emitter<E>, data: E): Promise<void>;
+	protected override async fireEvent<E extends ExtensionEventResult>(event: Emitter<readonly E[]>, data: E[]): Promise<void>;
 	protected override async fireEvent(arg0: any, arg1: any): Promise<void> {
 		if (Array.isArray(arg1)) {
 			const event = arg0 as Emitter<ExtensionEventResult[]>;
 			const data = arg1 as ExtensionEventResult[];
 			const filtered = [];
 			for (const e of data) {
-				const result = this.filterEvent(e);
+				const result = this.filterEvent(e.profileLocation, e.applicationScoped ?? e.local?.isApplicationScoped ?? false);
 				if (result instanceof Promise ? await result : result) {
 					filtered.push(e);
 				}
@@ -55,7 +51,7 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		} else {
 			const event = arg0 as Emitter<ExtensionEventResult>;
 			const data = arg1 as ExtensionEventResult;
-			const result = this.filterEvent(data);
+			const result = this.filterEvent(data.profileLocation, data.applicationScoped ?? data.local?.isApplicationScoped ?? false);
 			if (result instanceof Promise ? await result : result) {
 				event.fire(data);
 			}
@@ -87,6 +83,14 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 	override async uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
 		options = { ...options, profileLocation: await this.getProfileLocation(options?.profileLocation) };
 		return super.uninstall(extension, options);
+	}
+
+	override async uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void> {
+		const infos: UninstallExtensionInfo[] = [];
+		for (const { extension, options } of extensions) {
+			infos.push({ extension, options: { ...options, profileLocation: await this.getProfileLocation(options?.profileLocation) } });
+		}
+		return super.uninstallExtensions(infos);
 	}
 
 	override async getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
@@ -141,5 +145,5 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		return profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource;
 	}
 
-	protected abstract filterEvent(e: ExtensionEventResult): boolean | Promise<boolean>;
+	protected abstract filterEvent(profileLocation: URI, isApplicationScoped: boolean): boolean | Promise<boolean>;
 }

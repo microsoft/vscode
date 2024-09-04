@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Emitter } from '../../../../base/common/event.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from '../../../../editor/contrib/codeAction/browser/codeAction.js';
+import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/types.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { CodeActionsExtensionPoint, ContributedCodeAction } from '../common/codeActionsExtensionPoint.js';
+import { IExtensionPoint } from '../../../services/extensions/common/extensionsRegistry.js';
 
 const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	return {
@@ -34,15 +35,26 @@ const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	};
 };
 
-const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
-	'source.fixAll': createCodeActionsAutoSave(nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")),
-});
+const createNotebookCodeActionsAutoSave = (description: string): IJSONSchema => {
+	return {
+		type: ['string', 'boolean'],
+		enum: ['explicit', 'never', true, false],
+		enumDescriptions: [
+			nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.'),
+			nls.localize('never', 'Never triggers Code Actions on save.'),
+			nls.localize('explicitBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'),
+			nls.localize('neverBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "never".')
+		],
+		default: 'explicit',
+		description: description
+	};
+};
+
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	oneOf: [
 		{
 			type: 'object',
-			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
 				type: 'string'
 			},
@@ -69,17 +81,56 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 	}
 });
 
+const notebookCodeActionsOnSaveSchema: IConfigurationPropertySchema = {
+	oneOf: [
+		{
+			type: 'object',
+			additionalProperties: {
+				type: 'string'
+			},
+		},
+		{
+			type: 'array',
+			items: { type: 'string' }
+		}
+	],
+	markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
+	type: 'object',
+	additionalProperties: {
+		type: ['string', 'boolean'],
+		enum: ['explicit', 'never', true, false],
+		// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
+		// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
+	},
+	default: {}
+};
+
+export const notebookEditorConfiguration = Object.freeze<IConfigurationNode>({
+	...editorConfigurationBaseNode,
+	properties: {
+		'notebook.codeActionsOnSave': notebookCodeActionsOnSaveSchema
+	}
+});
+
 export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
+	private settings: Set<string> = new Set<string>();
 
 	private readonly _onDidChangeContributions = this._register(new Emitter<void>());
 
 	constructor(
 		codeActionsExtensionPoint: IExtensionPoint<CodeActionsExtensionPoint[]>,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ILanguageFeaturesService private readonly languageFeatures: ILanguageFeaturesService
 	) {
 		super();
+
+		// TODO: @justschen caching of code actions based on extensions loaded: https://github.com/microsoft/vscode/issues/216019
+		languageFeatures.codeActionProvider.onDidChange(() => {
+			this.updateSettingsFromCodeActionProviders();
+			this.updateConfigurationSchemaFromContribs();
+		}, 2000);
 
 		codeActionsExtensionPoint.setHandler(extensionPoints => {
 			this._contributedCodeActions = extensionPoints.flatMap(x => x.value).filter(x => Array.isArray(x.actions));
@@ -93,26 +144,54 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		});
 	}
 
+	private updateSettingsFromCodeActionProviders(): void {
+		const providers = this.languageFeatures.codeActionProvider.allNoModel();
+		providers.forEach(provider => {
+			if (provider.providedCodeActionKinds) {
+				provider.providedCodeActionKinds.forEach(kind => {
+					if (!this.settings.has(kind) && CodeActionKind.Source.contains(new HierarchicalKind(kind))) {
+						this.settings.add(kind);
+					}
+				});
+			}
+		});
+	}
+
 	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
-		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
+		const newProperties: IJSONSchemaMap = {};
+		const newNotebookProperties: IJSONSchemaMap = {};
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
+			this.settings.add(sourceAction);
 			newProperties[sourceAction] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
+			newNotebookProperties[sourceAction] = createNotebookCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
 		}
 		codeActionsOnSaveSchema.properties = newProperties;
+		notebookCodeActionsOnSaveSchema.properties = newNotebookProperties;
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+			.notifyConfigurationSchemaUpdated(editorConfiguration);
+	}
+
+	private updateConfigurationSchemaFromContribs() {
+		const properties: IJSONSchemaMap = { ...codeActionsOnSaveSchema.properties };
+		const notebookProperties: IJSONSchemaMap = { ...notebookCodeActionsOnSaveSchema.properties };
+		for (const codeActionKind of this.settings) {
+			if (!properties[codeActionKind]) {
+				properties[codeActionKind] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", codeActionKind));
+				notebookProperties[codeActionKind] = createNotebookCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", codeActionKind));
+			}
+		}
+		codeActionsOnSaveSchema.properties = properties;
+		notebookCodeActionsOnSaveSchema.properties = notebookProperties;
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			.notifyConfigurationSchemaUpdated(editorConfiguration);
 	}
 
 	private getSourceActions(contributions: readonly CodeActionsExtensionPoint[]) {
-		const defaultKinds = Object.keys(codeActionsOnSaveDefaultProperties).map(value => new HierarchicalKind(value));
 		const sourceActions = new Map<string, { readonly title: string }>();
 		for (const contribution of contributions) {
 			for (const action of contribution.actions) {
 				const kind = new HierarchicalKind(action.kind);
-				if (CodeActionKind.Source.contains(kind)
-					// Exclude any we already included by default
-					&& !defaultKinds.some(defaultKind => defaultKind.contains(kind))
-				) {
+				if (CodeActionKind.Source.contains(kind)) {
 					sourceActions.set(kind.value, action);
 				}
 			}

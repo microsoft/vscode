@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh } from 'vs/base/common/platform';
-import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateReadService } from 'vs/platform/state/node/state';
-import { machineIdKey, sqmIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { getMachineId, getSqmMachineId, getdevDeviceId } from '../../../base/node/id.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateReadService } from '../../state/node/state.js';
+import { machineIdKey, sqmIdKey, devDeviceIdKey } from '../common/telemetry.js';
 
 
 export async function resolveMachineId(stateService: IStateReadService, logService: ILogService): Promise<string> {
@@ -28,4 +28,13 @@ export async function resolveSqmId(stateService: IStateReadService, logService: 
 	}
 
 	return sqmId;
+}
+
+export async function resolvedevDeviceId(stateService: IStateReadService, logService: ILogService): Promise<string> {
+	let devDeviceId = stateService.getItem<string>(devDeviceIdKey);
+	if (typeof devDeviceId !== 'string') {
+		devDeviceId = await getdevDeviceId(logService.error.bind(logService));
+	}
+
+	return devDeviceId;
 }

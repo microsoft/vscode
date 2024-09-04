@@ -5,12 +5,14 @@
 
 import type { IMarker, Terminal } from '@xterm/xterm';
 import { deepStrictEqual } from 'assert';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
+import { writeP } from '../../../browser/terminalTestHelpers.js';
 
 suite('PartialCommandDetectionCapability', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let xterm: Terminal;
 	let capability: PartialCommandDetectionCapability;
 	let addEvents: IMarker[];
@@ -23,13 +25,11 @@ suite('PartialCommandDetectionCapability', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal;
-		capability = new PartialCommandDetectionCapability(xterm);
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
+		capability = store.add(new PartialCommandDetectionCapability(xterm));
 		addEvents = [];
-		capability.onCommandFinished(e => addEvents.push(e));
+		store.add(capability.onCommandFinished(e => addEvents.push(e)));
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should not add commands when the cursor position is too close to the left side', async () => {
 		assertCommands([]);

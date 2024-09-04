@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import * as dom from 'vs/base/browser/dom';
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color, HSVA, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./colorPicker';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
-import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { localize } from 'vs/nls';
-import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointerMoveMonitor.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Color, HSVA, RGBA } from '../../../../base/common/color.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import './colorPicker.css';
+import { ColorPickerModel } from './colorPickerModel.js';
+import { IEditorHoverColorPickerWidget } from '../../hover/browser/hoverTypes.js';
+import { localize } from '../../../../nls.js';
+import { editorHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 
 const $ = dom.$;
 
@@ -468,6 +468,7 @@ export class InsertButton extends Disposable {
 export class ColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
 
 	private static readonly ID = 'editor.contrib.colorPickerWidget';
+	private readonly _domNode: HTMLElement;
 
 	body: ColorPickerBody;
 	header: ColorPickerHeader;
@@ -477,11 +478,11 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
 
-		const element = $('.colorpicker-widget');
-		container.appendChild(element);
+		this._domNode = $('.colorpicker-widget');
+		container.appendChild(this._domNode);
 
-		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
-		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
+		this.header = this._register(new ColorPickerHeader(this._domNode, this.model, themeService, standaloneColorPicker));
+		this.body = this._register(new ColorPickerBody(this._domNode, this.model, this.pixelRatio, standaloneColorPicker));
 	}
 
 	getId(): string {
@@ -490,5 +491,9 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 	layout(): void {
 		this.body.layout();
+	}
+
+	get domNode(): HTMLElement {
+		return this._domNode;
 	}
 }

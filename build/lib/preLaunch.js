@@ -12,7 +12,7 @@ const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 const rootDir = path.resolve(__dirname, '..', '..');
 function runProcess(command, args = []) {
     return new Promise((resolve, reject) => {
-        const child = (0, child_process_1.spawn)(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env });
+        const child = (0, child_process_1.spawn)(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env, shell: process.platform === 'win32' });
         child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
         child.on('error', reject);
     });

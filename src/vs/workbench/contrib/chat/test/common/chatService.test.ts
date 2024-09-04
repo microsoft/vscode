@@ -3,64 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { assertSnapshot } from 'vs/base/test/common/snapshot';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { ProviderResult } from 'vs/editor/common/languages';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatFollowup, IChatProgress, IChatProvider, IChatRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
-import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { MockChatService } from 'vs/workbench/contrib/chat/test/common/mockChatService';
-import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
-import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-
-class SimpleTestProvider extends Disposable implements IChatProvider {
-	private static sessionId = 0;
-
-	readonly displayName = 'Test';
-
-	constructor(readonly id: string) {
-		super();
-	}
-
-	async prepareSession(): Promise<IChat> {
-		return {
-			id: SimpleTestProvider.sessionId++,
-		};
-	}
-
-	async provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void): Promise<{ session: IChat; followups: never[] }> {
-		return { session: request.session, followups: [] };
-	}
-}
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ChatAgentLocation, ChatAgentService, IChatAgent, IChatAgentImplementation, IChatAgentService } from '../../common/chatAgents.js';
+import { ISerializableChatData } from '../../common/chatModel.js';
+import { IChatFollowup, IChatService } from '../../common/chatService.js';
+import { ChatService } from '../../common/chatServiceImpl.js';
+import { ChatSlashCommandService, IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
+import { MockChatService } from './mockChatService.js';
+import { MockChatVariablesService } from './mockChatVariables.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
+import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	name: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
+	publisherDisplayName: '',
+	extensionPublisherId: '',
+	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
 	metadata: {},
 	slashCommands: [],
+	disambiguation: [],
 	async invoke(request, progress, history, token) {
 		progress({
 			documents: [
@@ -82,6 +67,21 @@ const chatAgentWithUsedContext: IChatAgent = {
 	},
 };
 
+function getAgentData(id: string) {
+	return {
+		name: id,
+		id: id,
+		extensionId: nullExtensionDescription.identifier,
+		extensionPublisherId: '',
+		publisherDisplayName: '',
+		extensionDisplayName: '',
+		locations: [ChatAgentLocation.Panel],
+		metadata: {},
+		slashCommands: [],
+		disambiguation: [],
+	};
+}
+
 suite('ChatService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -93,6 +93,7 @@ suite('ChatService', () => {
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatVariablesService, new MockChatVariablesService()],
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
 		)));
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -100,44 +101,37 @@ suite('ChatService', () => {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IViewsService, new TestExtensionService());
-		instantiationService.stub(IChatContributionService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 
 		chatAgentService = instantiationService.createInstance(ChatAgentService);
 		instantiationService.stub(IChatAgentService, chatAgentService);
 
-		const agent = {
+		const agent: IChatAgentImplementation = {
 			async invoke(request, progress, history, token) {
 				return {};
 			},
-		} satisfies IChatAgentImplementation;
-		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
-		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		};
+		testDisposables.add(chatAgentService.registerAgent('testAgent', { ...getAgentData('testAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, getAgentData(chatAgentWithUsedContextId)));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
-		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
+		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
 	});
 
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const provider1 = testDisposables.add(new SimpleTestProvider('provider1'));
-		const provider2 = testDisposables.add(new SimpleTestProvider('provider2'));
-		testDisposables.add(testService.registerProvider(provider1));
-		testDisposables.add(testService.registerProvider(provider2));
-
-		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
+		const session1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		await session1.waitForInitialization();
-		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] });
+		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
-		const session2 = testDisposables.add(testService.startSession('provider2', CancellationToken.None));
+		const session2 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		await session2.waitForInitialization();
-		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] });
+		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
 		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
-		testDisposables.add(testService2.registerProvider(provider1));
-		testDisposables.add(testService2.registerProvider(provider2));
 		const retrieved1 = testDisposables.add(testService2.getOrRestoreSession(session1.sessionId)!);
 		await retrieved1.waitForInitialization();
 		const retrieved2 = testDisposables.add(testService2.getOrRestoreSession(session2.sessionId)!);
@@ -146,72 +140,74 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});
 
-	test('Handles failed session startup', async () => {
-		function getFailProvider(providerId: string) {
-			return new class implements IChatProvider {
-				readonly id = providerId;
-				readonly displayName = 'Test';
-
-				lastInitialState = undefined;
-
-				prepareSession(initialState: any): ProviderResult<any> {
-					throw new Error('Failed to start session');
-				}
-
-				async provideReply(request: IChatRequest) {
-					return { session: request.session, followups: [] };
-				}
-			};
-		}
-
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const provider1 = getFailProvider('provider1');
-		testDisposables.add(testService.registerProvider(provider1));
-
-		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
-		await assert.rejects(() => session1.waitForInitialization());
-	});
-
-	test('Can\'t register same provider id twice', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const id = 'testProvider';
-		testDisposables.add(testService.registerProvider({
-			id,
-			prepareSession: function (token: CancellationToken): ProviderResult<IChat | undefined> {
-				throw new Error('Function not implemented.');
-			}
-		}));
-
-		assert.throws(() => {
-			testDisposables.add(testService.registerProvider({
-				id,
-				prepareSession: function (token: CancellationToken): ProviderResult<IChat | undefined> {
-					throw new Error('Function not implemented.');
-				}
-			}));
-		}, 'Expected to throw for dupe provider');
-	});
-
 	test('addCompleteRequest', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 
-		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, { message: 'test response' });
+		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, 0, { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
-		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
+		assert.strictEqual(model.getRequests()[0].response?.response.toString(), 'test response');
+	});
+
+	test('sendRequest fails', async () => {
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
+		assert(response);
+		await response.responseCompletePromise;
+
+		await assertSnapshot(model.toExport());
+	});
+
+	test('history', async () => {
+		const historyLengthAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				return {
+					metadata: { historyLength: history.length }
+				};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('defaultAgent', { ...getAgentData('defaultAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgent('agent2', getAgentData('agent2')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('defaultAgent', historyLengthAgent));
+		testDisposables.add(chatAgentService.registerAgentImplementation('agent2', historyLengthAgent));
+
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+
+		// Send a request to default agent
+		const response = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'defaultAgent' });
+		assert(response);
+		await response.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 1);
+		assert.strictEqual(model.getRequests()[0].response?.result?.metadata?.historyLength, 0);
+
+		// Send a request to agent2- it can't see the default agent's message
+		const response2 = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'agent2' });
+		assert(response2);
+		await response2.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 2);
+		assert.strictEqual(model.getRequests()[1].response?.result?.metadata?.historyLength, 0);
+
+		// Send a request to defaultAgent - the default agent can see agent2's message
+		const response3 = await testService.sendRequest(model.sessionId, `test request`, { agentId: 'defaultAgent' });
+		assert(response3);
+		await response3.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 3);
+		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
 	});
 
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
-		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' }, fullName: 'test' });
+		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' } });
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 
-		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
 		await assertSnapshot(model.toExport());
@@ -219,8 +215,12 @@ suite('ChatService', () => {
 		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
 		await response.responseCompletePromise;
-
 		assert.strictEqual(model.getRequests().length, 1);
+
+		const response2 = await testService.sendRequest(model.sessionId, `test request 2`);
+		assert(response2);
+		await response2.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 2);
 
 		await assertSnapshot(model.toExport());
 	});
@@ -232,9 +232,8 @@ suite('ChatService', () => {
 		// create the first service, send request, get response, and serialize the state
 		{  // serapate block to not leak variables in outer scope
 			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-			testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 
-			const chatModel1 = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
+			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 			assert.strictEqual(chatModel1.getRequests().length, 0);
 
 			const response = await testService.sendRequest(chatModel1.sessionId, `@${chatAgentWithUsedContextId} test request`);
@@ -242,13 +241,12 @@ suite('ChatService', () => {
 
 			await response.responseCompletePromise;
 
-			serializedChatData = chatModel1.toJSON();
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
 		}
 
 		// try deserializing the state into a new service
 
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
-		testDisposables.add(testService2.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 
 		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2);

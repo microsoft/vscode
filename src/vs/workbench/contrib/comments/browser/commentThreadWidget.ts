@@ -3,42 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/review';
-import * as dom from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as languages from 'vs/editor/common/languages';
-import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { CommentReply } from 'vs/workbench/contrib/comments/browser/commentReply';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
-import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
-import { CommentThreadAdditionalActions } from 'vs/workbench/contrib/comments/browser/commentThreadAdditionalActions';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { IRange } from 'vs/editor/common/core/range';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
-import { localize } from 'vs/nls';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import './media/review.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { IMarkdownRendererOptions } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { CommentMenus } from './commentMenus.js';
+import { CommentReply } from './commentReply.js';
+import { ICommentService } from './commentService.js';
+import { CommentThreadBody } from './commentThreadBody.js';
+import { CommentThreadHeader } from './commentThreadHeader.js';
+import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
+import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { PANEL_BORDER } from '../../../common/theme.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { LayoutableEditor } from './simpleCommentEditor.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
@@ -88,7 +89,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._header = new CommentThreadHeader<T>(
+		this._register(this._header = new CommentThreadHeader<T>(
 			container,
 			{
 				collapse: this.collapse.bind(this)
@@ -98,12 +99,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._contextKeyService,
 			this._scopedInstantiationService,
 			contextMenuService
-		);
+		));
 
 		this._header.updateCommentThread(this._commentThread);
 
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
+		this._register(toDisposable(() => bodyElement.remove()));
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({
@@ -155,6 +157,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
+		this._register(new DomEmitter(this.container, 'keydown').event(e => {
+			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
+				if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+					this._parentEditor.setSelection(this.commentThread.range);
+				}
+				this.collapse();
+			}
+		}));
 	}
 
 	private _setAriaLabel(): void {
@@ -205,7 +215,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}, true));
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>) {
+	async updateCommentThread(commentThread: languages.CommentThread<T>) {
 		const shouldCollapse = (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) && (this._commentThreadState === languages.CommentThreadState.Unresolved)
 			&& (commentThread.state === languages.CommentThreadState.Resolved);
 		this._commentThreadState = commentThread.state;
@@ -214,7 +224,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
-		this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
+		await this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
@@ -230,15 +240,15 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
-	display(lineHeight: number) {
+	async display(lineHeight: number, focus: boolean) {
 		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
-		this._body.display();
+		await this._body.display();
 
 		// create comment thread only when it supports reply
 		if (this._commentThread.canReply) {
-			this._createCommentForm();
+			this._createCommentForm(focus);
 		}
 		this._createAdditionalActions();
 
@@ -272,7 +282,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 				this._commentReply.updateCanReply();
 			} else {
 				if (this._commentThread.canReply) {
-					this._createCommentForm();
+					this._createCommentForm(false);
 				}
 			}
 		}));
@@ -286,7 +296,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}));
 	}
 
-	private _createCommentForm() {
+	private _createCommentForm(focus: boolean) {
 		this._commentReply = this._scopedInstantiationService.createInstance(
 			CommentReply,
 			this._owner,
@@ -299,6 +309,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentOptions,
 			this._pendingComment,
 			this,
+			focus,
 			this._containerDelegate.actionRunner
 		);
 
@@ -349,6 +360,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (widthInPixel !== undefined) {
 			this._commentReply?.layout(widthInPixel);
 		}
+	}
+
+	ensureFocusIntoNewEditingComment() {
+		this._body.ensureFocusIntoNewEditingComment();
 	}
 
 	focusCommentEditor() {

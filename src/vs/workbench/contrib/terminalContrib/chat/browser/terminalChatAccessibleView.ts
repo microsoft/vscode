@@ -3,36 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { TerminalChatController } from './terminalChatController.js';
+import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { TerminalChatContextKeys } from '../../../terminal/browser/terminalContribExports.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 
-export class TerminalInlineChatAccessibleViewContribution extends Disposable {
-	static ID: 'terminalInlineChatAccessibleViewContribution';
-	constructor() {
-		super();
-		this._register(AccessibleViewAction.addImplementation(105, 'terminalInlineChat', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const terminalService = accessor.get(ITerminalService);
-			const controller: TerminalChatController | undefined = terminalService.activeInstance?.getContribution(TerminalChatController.ID) ?? undefined;
-			if (!controller?.lastResponseContent) {
-				return false;
-			}
-			const responseContent = controller.lastResponseContent;
-			accessibleViewService.show({
-				id: AccessibleViewProviderId.TerminalChat,
-				verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-				provideContent(): string { return responseContent; },
-				onClose() {
-					controller.focus();
-				},
-				options: { type: AccessibleViewType.View }
-			});
-			return true;
-		}, TerminalChatContextKeys.focused));
+export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {
+	readonly priority = 105;
+	readonly name = 'terminalInlineChat';
+	readonly type = AccessibleViewType.View;
+	readonly when = TerminalChatContextKeys.focused;
+	getProvider(accessor: ServicesAccessor) {
+		const terminalService = accessor.get(ITerminalService);
+		const controller: TerminalChatController | undefined = terminalService.activeInstance?.getContribution(TerminalChatController.ID) ?? undefined;
+		if (!controller?.lastResponseContent) {
+			return;
+		}
+		const responseContent = controller.lastResponseContent;
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.TerminalChat,
+			{ type: AccessibleViewType.View },
+			() => { return responseContent; },
+			() => {
+				controller.focus();
+			},
+			AccessibilityVerbositySettingId.InlineChat,
+		);
 	}
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { DebugNameData, IDebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
-import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { strictEquals, EqualityComparer } from '../equals.js';
+import { DisposableStore, IDisposable } from '../lifecycle.js';
+import { keepObserved, recomputeInitiallyAndOnChange } from '../observable.js';
+import { DebugNameData, DebugOwner, getFunctionName } from './debugName.js';
+import type { derivedOpts } from './derived.js';
+import { getLogger } from './logging.js';
 
 /**
  * Represents an observable value.
@@ -65,6 +65,8 @@ export interface IObservable<T, TChange = unknown> {
 	 */
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+
+	flatten<TNew>(this: IObservable<IObservable<TNew>>): IObservable<TNew>;
 
 	/**
 	 * Makes sure this value is computed eagerly.
@@ -201,9 +203,9 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(owner: Owner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(fnOrOwner: Owner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
-		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as Owner;
+	public map<TNew>(owner: DebugOwner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as DebugOwner;
 		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
 		return _derived(
@@ -232,6 +234,20 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 		);
 	}
 
+	/**
+	 * @sealed
+	 * Converts an observable of an observable value into a direct observable of the value.
+	*/
+	public flatten<TNew>(this: IObservable<IObservable<TNew, any>>): IObservable<TNew, unknown> {
+		return _derived(
+			{
+				owner: undefined,
+				debugName: () => `${this.debugName} (flattened)`,
+			},
+			(reader) => this.read(reader).read(reader),
+		);
+	}
+
 	public recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T> {
 		store.add(_recomputeInitiallyAndOnChange!(this, handleValue));
 		return this;
@@ -248,6 +264,10 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	}
 
 	public abstract get debugName(): string;
+
+	protected get debugValue() {
+		return this.get();
+	}
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
@@ -381,19 +401,6 @@ export function observableValue<T, TChange = void>(nameOrOwner: string | object,
 	return new ObservableValue(debugNameData, initialValue, strictEquals);
 }
 
-export function observableValueOpts<T>(
-	options: IDebugNameData & {
-		equalsFn?: EqualityComparer<T>;
-	},
-	initialValue: T
-): ISettableObservable<T> {
-	return new ObservableValue(
-		new DebugNameData(options.owner, options.debugName, undefined),
-		initialValue,
-		options.equalsFn ?? strictEquals,
-	);
-}
-
 export class ObservableValue<T, TChange = void>
 	extends BaseObservable<T, TChange>
 	implements ISettableObservable<T, TChange> {
@@ -416,7 +423,7 @@ export class ObservableValue<T, TChange = void>
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this._equalityComparator(this._value, value)) {
+		if (change === undefined && this._equalityComparator(this._value, value)) {
 			return;
 		}
 

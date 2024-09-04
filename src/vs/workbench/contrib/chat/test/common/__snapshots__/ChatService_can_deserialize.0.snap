@@ -1,8 +1,9 @@
 {
   requesterUsername: "test",
   requesterAvatarIconUri: undefined,
-  responderUsername: "test",
+  responderUsername: "",
   responderAvatarIconUri: undefined,
+  initialLocation: "panel",
   welcomeMessage: undefined,
   requests: [
     {
@@ -10,7 +11,6 @@
         text: "@ChatProviderWithUsedContext test request",
         parts: [
           {
-            kind: "agent",
             range: {
               start: 0,
               endExclusive: 28
@@ -22,11 +22,21 @@
               endColumn: 29
             },
             agent: {
-              id: "ChatProviderWithUsedContext",
               name: "ChatProviderWithUsedContext",
-              description: undefined,
-              metadata: {  }
-            }
+              id: "ChatProviderWithUsedContext",
+              extensionId: {
+                value: "nullExtensionDescription",
+                _lower: "nullextensiondescription"
+              },
+              extensionPublisherId: "",
+              publisherDisplayName: "",
+              extensionDisplayName: "",
+              locations: [ "panel" ],
+              metadata: {  },
+              slashCommands: [  ],
+              disambiguation: [  ]
+            },
+            kind: "agent"
           },
           {
             range: {
@@ -50,32 +60,27 @@
       followups: undefined,
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
-        id: "ChatProviderWithUsedContext",
         name: "ChatProviderWithUsedContext",
-        description: undefined,
+        id: "ChatProviderWithUsedContext",
         extensionId: {
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionPublisherId: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
         metadata: {  },
         slashCommands: [  ],
-        locations: [ "panel" ],
-        isDefault: undefined
+        disambiguation: [  ]
       },
       slashCommand: undefined,
       usedContext: {
         documents: [
           {
-            uri: {
-              scheme: "file",
-              authority: "",
-              path: "/test/path/to/file",
-              query: "",
-              fragment: "",
-              _formatted: null,
-              _fsPath: null
-            },
+            uri: URI(file:///test/path/to/file),
             version: 3,
             ranges: [
               {
@@ -89,8 +94,8 @@
         ],
         kind: "usedContext"
       },
-      contentReferences: [  ]
+      contentReferences: [  ],
+      codeCitations: [  ]
     }
-  ],
-  providerId: "testProvider"
+  ]
 }

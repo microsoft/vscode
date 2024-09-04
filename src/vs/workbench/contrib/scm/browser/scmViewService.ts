@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from 'vs/workbench/contrib/scm/common/scm';
-import { Iterable } from 'vs/base/common/iterator';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { debounce } from 'vs/base/common/decorators';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
-import { basename } from 'vs/base/common/resources';
-import { binarySearch } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from '../common/scm.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { SCMMenus } from './menus.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
+import { basename } from '../../../../base/common/resources.js';
+import { binarySearch } from '../../../../base/common/arrays.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -159,6 +160,7 @@ export class SCMViewService implements ISCMViewService {
 	constructor(
 		@ISCMService scmService: ISCMService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -184,6 +186,14 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		storageService.onWillSaveState(this.onWillSaveState, this, this.disposables);
+
+		// Maintain repository selection when the extension host restarts.
+		// Extension host is restarted after installing an extension update
+		// or during a profile switch.
+		extensionService.onWillStop(() => {
+			this.onWillSaveState();
+			this.didFinishLoading = false;
+		}, this, this.disposables);
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -197,7 +207,7 @@ export class SCMViewService implements ISCMViewService {
 
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
 
-		if (this.previousState) {
+		if (this.previousState && !this.didFinishLoading) {
 			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
 
 			if (index === -1) {
@@ -375,9 +385,9 @@ export class SCMViewService implements ISCMViewService {
 
 		const all = this.repositories.map(r => getProviderStorageKey(r.provider));
 		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.provider)));
-		const raw = JSON.stringify({ all, sortKey: this._repositoriesSortKey, visible });
+		this.previousState = { all, sortKey: this._repositoriesSortKey, visible };
 
-		this.storageService.store('scm:view:visibleRepositories', raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store('scm:view:visibleRepositories', JSON.stringify(this.previousState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	@debounce(5000)
@@ -391,7 +401,6 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		this.didFinishLoading = true;
-		this.previousState = undefined;
 	}
 
 	dispose(): void {

@@ -7,7 +7,14 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, contextBridge } = require('electron');
+	/**
+	 * @import { ISandboxConfiguration }  from '../common/sandboxTypes'
+	 * @import { IpcRenderer }  from './electronTypes'
+	 * @import { IpcRendererEvent }  from 'electron'
+	 * @import { ISandboxNodeProcess }  from './globals'
+	 */
+
+	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
 
 	//#region Utilities
 
@@ -40,10 +47,6 @@
 	//#endregion
 
 	//#region Resolve Configuration
-
-	/**
-	 * @typedef {import('../common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 */
 
 	/** @type {ISandboxConfiguration | undefined} */
 	let configuration = undefined;
@@ -122,9 +125,6 @@
 		/**
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
-		 *
-		 * @typedef {import('./electronTypes').IpcRenderer} IpcRenderer
-		 * @typedef {import('electron').IpcRendererEvent} IpcRendererEvent
 		 *
 		 * @type {IpcRenderer}
 		 */
@@ -238,12 +238,23 @@
 		},
 
 		/**
+		 * Support for subset of Electron's `webUtils` type.
+		 */
+		webUtils: {
+
+			/**
+			 * @param {File} file
+			 */
+			getPathForFile(file) {
+				return webUtils.getPathForFile(file);
+			}
+		},
+
+		/**
 		 * Support for a subset of access to node.js global `process`.
 		 *
 		 * Note: when `sandbox` is enabled, the only properties available
 		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
-		 *
-		 * @typedef {import('./globals').ISandboxNodeProcess} ISandboxNodeProcess
 		 *
 		 * @type {ISandboxNodeProcess}
 		 */

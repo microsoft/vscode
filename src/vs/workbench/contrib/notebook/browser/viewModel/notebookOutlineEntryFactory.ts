@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IOutlineModelService, OutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { localize } from 'vs/nls';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { OutlineEntry } from './OutlineEntry';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind } from 'vs/editor/common/languages';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { renderMarkdownAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IOutlineModelService, OutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { localize } from '../../../../../nls.js';
+import { ICellViewModel } from '../notebookBrowser.js';
+import { getMarkdownHeadersInCell } from './foldingModel.js';
+import { OutlineEntry } from './OutlineEntry.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { SymbolKind } from '../../../../../editor/common/languages.js';
+
+export const enum NotebookOutlineConstants {
+	NonHeaderOutlineLevel = 7,
+}
 
 type entryDesc = {
 	name: string;
@@ -23,15 +26,30 @@ type entryDesc = {
 	kind: SymbolKind;
 };
 
+function getMarkdownHeadersInCellFallbackToHtmlTags(fullContent: string) {
+	const headers = Array.from(getMarkdownHeadersInCell(fullContent));
+	if (headers.length) {
+		return headers;
+	}
+	// no markdown syntax headers, try to find html tags
+	const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
+	if (match) {
+		const level = parseInt(match[1]);
+		const text = match[2].trim();
+		headers.push({ depth: level, text });
+	}
+	return headers;
+}
+
 export class NotebookOutlineEntryFactory {
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
-
+	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number; text: string }[] }>();
 	constructor(
 		private readonly executionStateService: INotebookExecutionStateService
 	) { }
 
-	public getOutlineEntries(cell: ICellViewModel, target: OutlineTarget, index: number): OutlineEntry[] {
+	public getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[] {
 		const entries: OutlineEntry[] = [];
 
 		const isMarkdown = cell.cellKind === CellKind.Markup;
@@ -44,20 +62,13 @@ export class NotebookOutlineEntryFactory {
 
 		if (isMarkdown) {
 			const fullContent = cell.getText().substring(0, 10000);
-			for (const { depth, text } of getMarkdownHeadersInCell(fullContent)) {
+			const cache = this.cachedMarkdownOutlineEntries.get(cell);
+			const headers = cache?.alternativeId === cell.getAlternativeId() ? cache.headers : Array.from(getMarkdownHeadersInCellFallbackToHtmlTags(fullContent));
+			this.cachedMarkdownOutlineEntries.set(cell, { alternativeId: cell.getAlternativeId(), headers });
+
+			for (const { depth, text } of headers) {
 				hasHeader = true;
 				entries.push(new OutlineEntry(index++, depth, cell, text, false, false));
-			}
-
-			if (!hasHeader) {
-				// no markdown syntax headers, try to find html tags
-				const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
-				if (match) {
-					hasHeader = true;
-					const level = parseInt(match[1]);
-					const text = match[2].trim();
-					entries.push(new OutlineEntry(index++, level, cell, text, false, false));
-				}
 			}
 
 			if (!hasHeader) {
@@ -75,10 +86,8 @@ export class NotebookOutlineEntryFactory {
 				// Gathering symbols from the model is an async operation, but this provider is syncronous.
 				// So symbols need to be precached before this function is called to get the full list.
 				if (cachedEntries) {
-					// push code cell that is a parent of cached symbols if we are targeting the outlinePane
-					if (target === OutlineTarget.OutlinePane) {
-						entries.push(new OutlineEntry(index++, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-					}
+					// push code cell entry that is a parent of cached symbols, always necessary. filtering for quickpick done in that provider.
+					entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 					cachedEntries.forEach((cached) => {
 						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.range, cached.kind));
 					});
@@ -90,7 +99,7 @@ export class NotebookOutlineEntryFactory {
 					// empty or just whitespace
 					preview = localize('empty', "empty cell");
 				}
-				entries.push(new OutlineEntry(index++, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
+				entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 			}
 		}
 

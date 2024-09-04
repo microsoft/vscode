@@ -1,6 +1,9 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_BUILD_AMD
+    type: boolean
+    default: false
 
 steps:
   - task: NodeTool@0
@@ -12,7 +15,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ./distro/download-distro.yml@self
 
-    - task: AzureKeyVault@1
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
         azureSubscription: "vscode-builds-subscription"
@@ -64,7 +67,7 @@ steps:
 
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
+        if [ $i -eq 5 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
         fi
@@ -98,17 +101,23 @@ steps:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
+  - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+    - script: node migrate.mjs --disable-watch --enable-esm-to-amd
+      displayName: Migrate ESM -> AMD
+
   - template: common/install-builtin-extensions.yml@self
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
     - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (non-OSS)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -133,12 +142,21 @@ steps:
 
     - script: |
         set -e
-        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_STORAGE_ACCOUNT="vscodeweb" \
         AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
         AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
         AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
           node build/azure-pipelines/upload-sourcemaps
       displayName: Upload sourcemaps to Azure
+
+    - script: |
+        set -e
+        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+        AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+        AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+          node build/azure-pipelines/upload-sourcemaps
+      displayName: Upload sourcemaps to Azure (Deprecated)
 
     - script: ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Generate lists of telemetry events

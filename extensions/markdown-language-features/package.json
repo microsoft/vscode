@@ -16,8 +16,7 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "documentPaste",
-    "dropMetadata"
+    "documentPaste"
   ],
   "activationEvents": [
     "onLanguage:markdown",
@@ -495,7 +494,7 @@
           ]
         },
         "markdown.editor.filePaste.enabled": {
-          "type": "boolean",
+          "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
           "default": "smart",
@@ -709,14 +708,11 @@
             "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
           ]
         },
-        "markdown.experimental.updateLinksOnPaste": {
+        "markdown.editor.updateLinksOnPaste.enabled": {
           "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnPaste%",
+          "markdownDescription": "%configuration.markdown.editor.updateLinksOnPaste.enabled%",
           "scope": "resource",
-          "tags": [
-            "experimental"
-          ]
+          "default": true
         }
       }
     },
@@ -757,8 +753,8 @@
     ]
   },
   "scripts": {
-    "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features-server && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
-    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService watch-extension:markdown-language-features-server",
+    "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
+    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
     "build-notebook": "node ./esbuild-notebook",
@@ -771,11 +767,12 @@
     "dompurify": "^3.0.5",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
-    "markdown-it-front-matter": "^0.2.1",
+    "markdown-it-front-matter": "^0.2.4",
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.8",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { patternsEquals } from 'vs/base/common/glob';
-import { BaseWatcher } from 'vs/platform/files/node/watcher/baseWatcher';
-import { isLinux } from 'vs/base/common/platform';
-import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
-import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { isEqual } from 'vs/base/common/extpath';
+import { Event } from '../../../../../base/common/event.js';
+import { patternsEquals } from '../../../../../base/common/glob.js';
+import { BaseWatcher } from '../baseWatcher.js';
+import { isLinux } from '../../../../../base/common/platform.js';
+import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from '../../../common/watcher.js';
+import { NodeJSFileWatcherLibrary } from './nodejsWatcherLib.js';
+import { isEqual } from '../../../../../base/common/extpath.js';
 
 export interface INodeJSWatcherInstance {
 
@@ -29,8 +29,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	readonly onDidError = Event.None;
 
 	readonly watchers = new Set<INodeJSWatcherInstance>();
-
-	private verboseLogging = false;
 
 	constructor(protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined) {
 		super();
@@ -144,8 +142,8 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		return Array.from(mapCorrelationtoRequests.values()).map(requests => Array.from(requests.values())).flat();
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
+	override async setVerboseLogging(enabled: boolean): Promise<void> {
+		super.setVerboseLogging(enabled);
 
 		for (const watcher of this.watchers) {
 			watcher.instance.setVerboseLogging(enabled);

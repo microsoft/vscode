@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { EventType as TouchEventType } from 'vs/base/browser/touch';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Delayer } from 'vs/base/common/async';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { NotebookSectionArgs } from 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { CellFoldingState, INotebookEditor } from '../notebookBrowser.js';
+import { INotebookCellList } from '../view/notebookRenderingCommon.js';
+import { OutlineEntry } from '../viewModel/OutlineEntry.js';
+import { NotebookCellOutlineDataSource } from '../viewModel/notebookOutlineDataSource.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { Delayer } from '../../../../../base/common/async.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { foldingCollapsedIcon, foldingExpandedIcon } from '../../../../../editor/contrib/folding/browser/foldingDecorations.js';
+import { MarkupCellViewModel } from '../viewModel/markupCellViewModel.js';
+import { FoldingController } from '../controller/foldingController.js';
+import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
+import { NotebookSectionArgs } from '../controller/sectionActions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookCellOutlineDataSourceFactory } from '../viewModel/notebookOutlineDataSourceFactory.js';
 
 export class NotebookStickyLine extends Disposable {
 	constructor(
@@ -102,6 +104,9 @@ export class NotebookStickyScroll extends Disposable {
 
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
+	private notebookCellOutlineReference?: IReference<NotebookCellOutlineDataSource>;
+
+	private readonly _layoutDisposableStore = this._register(new DisposableStore());
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -139,9 +144,10 @@ export class NotebookStickyScroll extends Disposable {
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
-		private readonly notebookOutline: NotebookCellOutlineProvider,
 		private readonly notebookCellList: INotebookCellList,
+		private readonly layoutFn: (delta: number) => void,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -187,37 +193,37 @@ export class NotebookStickyScroll extends Disposable {
 				this.init();
 			} else {
 				this._disposables.clear();
-				this.notebookOutline.dispose();
+				this.notebookCellOutlineReference?.dispose();
 				this.disposeCurrentStickyLines();
 				DOM.clearNode(this.domNode);
 				this.updateDisplay();
 			}
-		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
+		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled && this.notebookCellOutlineReference?.object) {
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookCellOutlineReference?.object?.entries, this.getCurrentStickyHeight()));
 		}
 	}
 
 	private init() {
-		this.notebookOutline.init();
-		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
+		const { object: notebookCellOutline } = this.notebookCellOutlineReference = this.instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineDataSourceFactory).getOrCreate(this.notebookEditor));
+		this._register(this.notebookCellOutlineReference);
+		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
 
-		this._disposables.add(this.notebookOutline.onDidChange(() => {
-			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight());
+		this._disposables.add(notebookCellOutline.onDidChange(() => {
+			const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
 			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 				this.updateContent(recompute);
 			}
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
-			this.notebookOutline.init();
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight()));
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
 			const d = new Delayer(100);
 			d.trigger(() => {
 				d.dispose();
-				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.notebookOutline.entries, this.getCurrentStickyHeight());
+				const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
 				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 					this.updateContent(recompute);
 				}
@@ -266,8 +272,16 @@ export class NotebookStickyScroll extends Disposable {
 		const sizeDelta = this.getCurrentStickyHeight() - oldStickyHeight;
 		if (sizeDelta !== 0) {
 			this._onDidChangeNotebookStickyScroll.fire(sizeDelta);
+
+			const d = this._layoutDisposableStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
+				this.layoutFn(sizeDelta);
+				this.updateDisplay();
+
+				this._layoutDisposableStore.delete(d);
+			}));
+		} else {
+			this.updateDisplay();
 		}
-		this.updateDisplay();
 	}
 
 	private updateDisplay() {
@@ -365,7 +379,7 @@ export class NotebookStickyScroll extends Disposable {
 	override dispose() {
 		this._disposables.dispose();
 		this.disposeCurrentStickyLines();
-		this.notebookOutline.dispose();
+		this.notebookCellOutlineReference?.dispose();
 		super.dispose();
 	}
 }

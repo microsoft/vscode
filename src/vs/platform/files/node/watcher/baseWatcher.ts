@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watchFile, unwatchFile, Stats } from 'fs';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { DeferredPromise } from 'vs/base/common/async';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, IWatcherErrorEvent, isWatchRequestWithCorrelation, requestFilterToString } from '../../common/watcher.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { FileChangeType, IFileChange } from '../../common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { DeferredPromise, ThrottledDelayer } from '../../../../base/common/async.js';
 
 export abstract class BaseWatcher extends Disposable implements IWatcher {
 
@@ -27,6 +27,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	private readonly suspendedWatchRequests = this._register(new DisposableMap<number /* correlation ID */>());
 	private readonly suspendedWatchRequestsWithPolling = new Set<number /* correlation ID */>();
+
+	private readonly updateWatchersDelayer = this._register(new ThrottledDelayer<void>(this.getUpdateWatchersDelay()));
 
 	protected readonly suspendedWatchRequestPollingInterval: number = 5007; // node.js default
 
@@ -88,17 +90,21 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 				}
 			}
 
-			return await this.updateWatchers();
+			return await this.updateWatchers(false /* not delayed */);
 		} finally {
 			this.joinWatch.complete();
 		}
 	}
 
-	private updateWatchers(): Promise<void> {
-		return this.doWatch([
+	private updateWatchers(delayed: boolean): Promise<void> {
+		return this.updateWatchersDelayer.trigger(() => this.doWatch([
 			...this.allNonCorrelatedWatchRequests,
 			...Array.from(this.allCorrelatedWatchRequests.values()).filter(request => !this.suspendedWatchRequests.has(request.correlationId))
-		]);
+		]), delayed ? this.getUpdateWatchersDelay() : 0);
+	}
+
+	protected getUpdateWatchersDelay(): number {
+		return 800;
 	}
 
 	isSuspended(request: IUniversalWatchRequest): 'polling' | boolean {
@@ -130,14 +136,14 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 		this.monitorSuspendedWatchRequest(request, disposables);
 
-		this.updateWatchers();
+		this.updateWatchers(true /* delay this call as we might accumulate many failing watch requests on startup */);
 	}
 
 	private resumeWatchRequest(request: IWatchRequestWithCorrelation): void {
 		this.suspendedWatchRequests.deleteAndDispose(request.correlationId);
 		this.suspendedWatchRequestsWithPolling.delete(request.correlationId);
 
-		this.updateWatchers();
+		this.updateWatchers(false);
 	}
 
 	private monitorSuspendedWatchRequest(request: IWatchRequestWithCorrelation, disposables: DisposableStore): void {
@@ -231,12 +237,20 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	protected traceEvent(event: IFileChange, request: IUniversalWatchRequest): void {
-		const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
-		this.trace(typeof request.correlationId === 'number' ? `${traceMsg} (correlationId: ${request.correlationId})` : traceMsg);
+		if (this.verboseLogging) {
+			const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
+			this.traceWithCorrelation(traceMsg, request);
+		}
+	}
+
+	protected traceWithCorrelation(message: string, request: IUniversalWatchRequest): void {
+		if (this.verboseLogging) {
+			this.trace(`${message}${typeof request.correlationId === 'number' ? ` <${request.correlationId}> ` : ``}`);
+		}
 	}
 
 	protected requestToString(request: IUniversalWatchRequest): string {
-		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
+		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
 	}
 
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;
@@ -246,6 +260,11 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected abstract trace(message: string): void;
 	protected abstract warn(message: string): void;
 
-	abstract onDidError: Event<string>;
-	abstract setVerboseLogging(enabled: boolean): Promise<void>;
+	abstract onDidError: Event<IWatcherErrorEvent>;
+
+	protected verboseLogging = false;
+
+	async setVerboseLogging(enabled: boolean): Promise<void> {
+		this.verboseLogging = enabled;
+	}
 }

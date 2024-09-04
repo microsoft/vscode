@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from 'vs/base/common/assert';
-import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, IObserver, IChangeContext } from 'vs/base/common/observableInternal/base';
-import { DebugNameData, IDebugNameData } from 'vs/base/common/observableInternal/debugName';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { assertFn } from '../assert.js';
+import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from '../lifecycle.js';
+import { IReader, IObservable, IObserver, IChangeContext } from './base.js';
+import { DebugNameData, IDebugNameData } from './debugName.js';
+import { getLogger } from './logging.js';
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
@@ -76,7 +76,7 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 		{
 			owner: options.owner,
 			debugName: options.debugName,
-			debugReferenceFn: options.debugReferenceFn,
+			debugReferenceFn: options.debugReferenceFn ?? fn,
 			createEmptyChangeSummary: options.createEmptyChangeSummary,
 			handleChange: options.handleChange,
 		},
@@ -154,7 +154,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	constructor(
-		private readonly _debugNameData: DebugNameData,
+		public readonly _debugNameData: DebugNameData,
 		public readonly _runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
@@ -253,7 +253,7 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			const shouldReact = this._handleChange ? this._handleChange({
 				changedObservable: observable,
 				change,
-				didChange: o => o === observable as any,
+				didChange: (o): this is any => o === observable as any,
 			}, this.changeSummary!) : true;
 			if (shouldReact) {
 				this.state = AutorunState.stale;

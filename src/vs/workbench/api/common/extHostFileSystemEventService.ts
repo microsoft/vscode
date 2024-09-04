@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from 'vs/base/common/event';
-import { GLOBSTAR, GLOB_SPLIT, parse } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from '../../../base/common/event.js';
+import { GLOBSTAR, GLOB_SPLIT, parse } from '../../../base/common/glob.js';
+import { URI } from '../../../base/common/uri.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation, MainContext, IRelativePatternDto } from './extHost.protocol';
-import * as typeConverter from './extHostTypeConverters';
-import { Disposable, WorkspaceEdit } from './extHostTypes';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileOperation } from 'vs/platform/files/common/files';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { Lazy } from 'vs/base/common/lazy';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, SourceTargetPair, IWorkspaceEditDto, IWillRunFileOperationParticipation, MainContext, IRelativePatternDto } from './extHost.protocol.js';
+import * as typeConverter from './extHostTypeConverters.js';
+import { Disposable, WorkspaceEdit } from './extHostTypes.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { FileChangeFilter, FileOperation } from '../../../platform/files/common/files.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 export interface FileSystemWatcherCreateOptions {
 	readonly correlate: boolean;
@@ -122,6 +122,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			return disposable; // workspace is already watched by default, no need to watch again!
 		}
 
+		if (options?.ignoreChangeEvents && options?.ignoreCreateEvents && options?.ignoreDeleteEvents) {
+			return disposable; // no need to watch if we ignore all events
+		}
+
 		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystemEventService);
 
 		let recursive = false;
@@ -129,7 +133,26 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [] }, Boolean(correlate));
+		let filter: FileChangeFilter | undefined;
+		if (correlate) {
+			if (options?.ignoreChangeEvents || options?.ignoreCreateEvents || options?.ignoreDeleteEvents) {
+				filter = FileChangeFilter.UPDATED | FileChangeFilter.ADDED | FileChangeFilter.DELETED;
+
+				if (options?.ignoreChangeEvents) {
+					filter &= ~FileChangeFilter.UPDATED;
+				}
+
+				if (options?.ignoreCreateEvents) {
+					filter &= ~FileChangeFilter.ADDED;
+				}
+
+				if (options?.ignoreDeleteEvents) {
+					filter &= ~FileChangeFilter.DELETED;
+				}
+			}
+		}
+
+		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [], filter }, Boolean(correlate));
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
 	}

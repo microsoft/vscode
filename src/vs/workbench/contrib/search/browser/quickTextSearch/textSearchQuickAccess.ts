@@ -2,35 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IMatch } from 'vs/base/common/filters';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceSet } from 'vs/base/common/map';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IRange } from 'vs/editor/common/core/range';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
-import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Event } from 'vs/base/common/event';
-import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { Sequencer } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IMatch } from '../../../../../base/common/filters.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { basenameOrAuthority, dirname } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from '../../../../../platform/list/browser/listService.js';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
+import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from '../searchModel.js';
+import { SearchView, getEditorSelectionFromMatch } from '../searchView.js';
+import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ITextQueryBuilderOptions, QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
+import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from '../../../../services/search/common/search.js';
+import { Event } from '../../../../../base/common/event.js';
+import { PickerEditorState } from '../../../../browser/quickaccess.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { Sequencer } from '../../../../../base/common/async.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -98,15 +100,18 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		super.dispose();
 	}
 
-	override provide(picker: IQuickPick<ITextSearchQuickAccessItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+	override provide(picker: IQuickPick<ITextSearchQuickAccessItem, { useSeparators: true }>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
 		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
 			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
 		}
-		picker.customButton = true;
-		picker.customLabel = '$(link-external)';
+		picker.buttons = [{
+			location: QuickInputButtonLocation.Inline,
+			iconClass: ThemeIcon.asClassName(Codicon.goToSearch),
+			tooltip: localize('goToSearch', "See in Search Panel")
+		}];
 		this.editorViewState.reset();
-		disposables.add(picker.onDidCustom(() => {
+		disposables.add(picker.onDidTriggerButton(() => {
 			if (this.searchModel.searchResult.count() > 0) {
 				this.moveToSearchViewlet(undefined);
 			} else {
@@ -157,9 +162,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 
 		return {
 			openEditorPinned: !editorConfig?.enablePreviewFromQuickOpen || !editorConfig?.enablePreview,
-			preserveInput: searchConfig.experimental.quickAccess.preserveInput,
+			preserveInput: searchConfig.quickAccess.preserveInput,
 			maxResults: searchConfig.maxResults,
 			smartCase: searchConfig.smartCase,
+			sortOrder: searchConfig.sortOrder,
 		};
 	}
 
@@ -222,8 +228,18 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		}
 	}
 
-	private _getPicksFromMatches(matches: FileMatch[], limit: number): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
-		matches = matches.sort(searchComparer);
+
+	private _getPicksFromMatches(matches: FileMatch[], limit: number, firstFile?: URI): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
+		matches = matches.sort((a, b) => {
+			if (firstFile) {
+				if (firstFile === a.resource) {
+					return -1;
+				} else if (firstFile === b.resource) {
+					return 1;
+				}
+			}
+			return searchComparer(a, b, this.configuration.sortOrder);
+		});
 
 		const files = matches.length > limit ? matches.slice(0, limit) : matches;
 		const picks: Array<ITextSearchQuickAccessItem | IPickerQuickAccessSeparator> = [];
@@ -356,7 +372,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			return null;
 		}
 		const matches = allMatches.syncResults;
-		const syncResult = this._getPicksFromMatches(matches, MAX_FILES_SHOWN);
+		const syncResult = this._getPicksFromMatches(matches, MAX_FILES_SHOWN, this._editorService.activeEditor?.resource);
 		if (syncResult.length > 0) {
 			this.searchModel.searchResult.toggleHighlights(true);
 		}

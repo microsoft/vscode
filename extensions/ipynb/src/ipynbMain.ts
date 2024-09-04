@@ -8,7 +8,6 @@ import { NotebookSerializer } from './notebookSerializer';
 import { activate as keepNotebookModelStoreInSync } from './notebookModelStoreSync';
 import { notebookImagePasteSetup } from './notebookImagePaste';
 import { AttachmentCleaner } from './notebookAttachmentCleaner';
-import { useCustomPropertyInMetadata } from './common';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -34,11 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
 	keepNotebookModelStoreInSync(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
-		transientCellMetadata: useCustomPropertyInMetadata() ? {
-			breakpointMargin: true,
-			custom: false,
-			attachments: false
-		} : {
+		transientCellMetadata: {
 			breakpointMargin: true,
 			id: false,
 			metadata: false,
@@ -51,11 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('interactive', serializer, {
 		transientOutputs: false,
-		transientCellMetadata: useCustomPropertyInMetadata() ? {
-			breakpointMargin: true,
-			custom: false,
-			attachments: false
-		} : {
+		transientCellMetadata: {
 			breakpointMargin: true,
 			id: false,
 			metadata: false,
@@ -84,14 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
 		const language = 'python';
 		const cell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '', language);
 		const data = new vscode.NotebookData([cell]);
-		data.metadata = useCustomPropertyInMetadata() ? {
-			custom: {
-				cells: [],
-				metadata: {},
-				nbformat: 4,
-				nbformat_minor: 2
-			}
-		} : {
+		data.metadata = {
 			cells: [],
 			metadata: {},
 			nbformat: 4,
@@ -117,16 +101,9 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(cleaner);
 	}
 
-	// Update new file contribution
-	vscode.extensions.onDidChange(() => {
-		vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
-	});
-	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
-
-
 	return {
 		get dropCustomMetadata() {
-			return !useCustomPropertyInMetadata();
+			return true;
 		},
 		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);
@@ -138,26 +115,13 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 
 			const edit = new vscode.WorkspaceEdit();
-			if (useCustomPropertyInMetadata()) {
-				edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
-					...document.metadata,
-					custom: {
-						...(document.metadata.custom ?? {}),
-						metadata: <NotebookMetadata>{
-							...(document.metadata.custom?.metadata ?? {}),
-							...metadata
-						},
-					}
-				})]);
-			} else {
-				edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
-					...document.metadata,
-					metadata: <NotebookMetadata>{
-						...(document.metadata.metadata ?? {}),
-						...metadata
-					},
-				})]);
-			}
+			edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
+				...document.metadata,
+				metadata: <NotebookMetadata>{
+					...(document.metadata.metadata ?? {}),
+					...metadata
+				},
+			})]);
 			return vscode.workspace.applyEdit(edit);
 		},
 	};

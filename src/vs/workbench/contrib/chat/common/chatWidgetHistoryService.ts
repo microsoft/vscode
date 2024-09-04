@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../common/memento.js';
+import { ChatAgentLocation } from './chatAgents.js';
+import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
 
 export interface IChatHistoryEntry {
 	text: string;
@@ -20,8 +22,8 @@ export interface IChatWidgetHistoryService {
 	readonly onDidClearHistory: Event<void>;
 
 	clearHistory(): void;
-	getHistory(providerId: string): IChatHistoryEntry[];
-	saveHistory(providerId: string, history: IChatHistoryEntry[]): void;
+	getHistory(location: ChatAgentLocation): IChatHistoryEntry[];
+	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void;
 }
 
 interface IChatHistory {
@@ -50,15 +52,23 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 		this.viewState = loadedState;
 	}
 
-	getHistory(providerId: string): IChatHistoryEntry[] {
-		return this.viewState.history?.[providerId] ?? [];
+	getHistory(location: ChatAgentLocation): IChatHistoryEntry[] {
+		const key = this.getKey(location);
+		return this.viewState.history?.[key] ?? [];
 	}
 
-	saveHistory(providerId: string, history: IChatHistoryEntry[]): void {
+	private getKey(location: ChatAgentLocation): string {
+		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
+		return location === ChatAgentLocation.Panel ? CHAT_PROVIDER_ID : location;
+	}
+
+	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {
 		if (!this.viewState.history) {
 			this.viewState.history = {};
 		}
-		this.viewState.history[providerId] = history;
+
+		const key = this.getKey(location);
+		this.viewState.history[key] = history;
 		this.memento.saveMemento();
 	}
 

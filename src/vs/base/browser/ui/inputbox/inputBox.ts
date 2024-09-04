@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { equals } from 'vs/base/common/objects';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./inputBox';
-import * as nls from 'vs/nls';
+import * as dom from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
+import { IHistoryNavigationWidget } from '../../history.js';
+import { MarkdownRenderOptions } from '../../markdownRenderer.js';
+import { ActionBar } from '../actionbar/actionbar.js';
+import * as aria from '../aria/aria.js';
+import { AnchorAlignment, IContextViewProvider } from '../contextview/contextview.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { ScrollableElement } from '../scrollbar/scrollableElement.js';
+import { Widget } from '../widget.js';
+import { IAction } from '../../../common/actions.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { HistoryNavigator } from '../../../common/history.js';
+import { equals } from '../../../common/objects.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import './inputBox.css';
+import * as nls from '../../../../nls.js';
 
 
 const $ = dom.$;
@@ -113,7 +114,7 @@ export class InputBox extends Widget {
 	private cachedContentHeight: number | undefined;
 	private maxHeight: number = Number.POSITIVE_INFINITY;
 	private scrollableElement: ScrollableElement | undefined;
-	private hover: ICustomHover | undefined;
+	private hover: IManagedHover | undefined;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -234,7 +235,7 @@ export class InputBox extends Widget {
 	public setTooltip(tooltip: string): void {
 		this.tooltip = tooltip;
 		if (!this.hover) {
-			this.hover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.input, tooltip));
+			this.hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.input, tooltip));
 		} else {
 			this.hover.update(tooltip);
 		}

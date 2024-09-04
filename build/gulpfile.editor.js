@@ -29,19 +29,17 @@ const editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
-		exclude: ['vs/css', 'vs/nls'],
+		exclude: ['vs/css'],
 		prepend: [
-			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' },
-			{ path: 'out-editor-build/vs/nls.js', amdModuleId: 'vs/nls' }
+			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' }
 		],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
 		include: ['vs/editor/common/services/editorSimpleWorker'],
-		exclude: ['vs/nls'],
+		exclude: [],
 		prepend: [
 			{ path: 'vs/loader.js' },
-			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
 			{ path: 'vs/base/worker/workerMain.js' }
 		],
 		dest: 'vs/base/worker/workerMain.js'
@@ -81,12 +79,15 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /(^vs\/css!)/,
 		destRoot: path.join(root, 'out-editor-src'),
-		redirects: []
+		redirects: {
+			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/tree-sitter-web',
+		}
 	});
 });
 
 // Disable mangling for the editor, as it complicates debugging & quite a few users rely on private/protected fields.
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true }));
+// Disable NLS task to remove english strings to preserve backwards compatibility when we removed the `vs/nls!` AMD plugin.
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true, preserveEnglish: true }));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
 	{
@@ -99,7 +100,6 @@ const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimi
 				paths: {
 					'vs': 'out-editor-build/vs',
 					'vs/css': 'out-editor-build/vs/css.build',
-					'vs/nls': 'out-editor-build/vs/nls.build',
 					'vscode': 'empty:'
 				}
 			},
@@ -124,7 +124,6 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 			'vs/base/worker/workerMain.ts',
 		],
 		renames: {
-			'vs/nls.mock.ts': 'vs/nls.ts'
 		}
 	});
 });
@@ -136,7 +135,8 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	let result;
 	if (process.platform === 'win32') {
 		result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
-			cwd: path.join(__dirname, '../out-editor-esm')
+			cwd: path.join(__dirname, '../out-editor-esm'),
+			shell: true
 		});
 	} else {
 		result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {

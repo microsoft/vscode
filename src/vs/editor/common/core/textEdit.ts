@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert, assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Position } from 'vs/editor/common/core/position';
-import { PositionOffsetTransformer } from 'vs/editor/common/core/positionToOffset';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
+import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
+import { ISingleEditOperation } from './editOperation.js';
+import { Position } from './position.js';
+import { PositionOffsetTransformer } from './positionToOffset.js';
+import { Range } from './range.js';
+import { TextLength } from './textLength.js';
 
 export class TextEdit {
+	public static single(originalRange: Range, newText: string): TextEdit {
+		return new TextEdit([new SingleTextEdit(originalRange, newText)]);
+	}
+
 	constructor(public readonly edits: readonly SingleTextEdit[]) {
 		assertFn(() => checkAdjacentItems(edits, (a, b) => a.range.getEndPosition().isBeforeOrEqual(b.range.getStartPosition())));
 	}
@@ -161,10 +166,19 @@ export class SingleTextEdit {
 	static equals(first: SingleTextEdit, second: SingleTextEdit) {
 		return first.range.equalsRange(second.range) && first.text === second.text;
 	}
+
+	public toSingleEditOperation(): ISingleEditOperation {
+		return {
+			range: this.range,
+			text: this.text,
+		};
+	}
 }
 
 function rangeFromPositions(start: Position, end: Position): Range {
-	if (!start.isBeforeOrEqual(end)) {
+	if (start.lineNumber === end.lineNumber && start.column === Number.MAX_SAFE_INTEGER) {
+		return Range.fromPositions(end, end);
+	} else if (!start.isBeforeOrEqual(end)) {
 		throw new BugIndicatingError('start must be before end');
 	}
 	return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
@@ -208,6 +222,15 @@ export class LineBasedText extends AbstractText {
 	get length(): TextLength {
 		const lastLine = this._getLineContent(this._lineCount);
 		return new TextLength(this._lineCount - 1, lastLine.length);
+	}
+}
+
+export class ArrayText extends LineBasedText {
+	constructor(lines: string[]) {
+		super(
+			lineNumber => lines[lineNumber - 1],
+			lines.length
+		);
 	}
 }
 

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { watch } from 'fs';
-import { RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { realcase } from 'vs/base/node/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
+import { watch, promises } from 'fs';
+import { RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isEqualOrParent } from '../../../../../base/common/extpath.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { normalizeNFC } from '../../../../../base/common/normalization.js';
+import { basename, dirname, join } from '../../../../../base/common/path.js';
+import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { realcase } from '../../../../../base/node/extpath.js';
+import { Promises } from '../../../../../base/node/pfs.js';
+import { FileChangeType, IFileChange } from '../../../common/files.js';
+import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -51,6 +51,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+	private readonly filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
 
 	private readonly cts = new CancellationTokenSource();
 
@@ -81,7 +82,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				return;
 			}
 
-			const stat = await Promises.stat(realPath);
+			const stat = await promises.stat(realPath);
 
 			if (this.cts.token.isCancellationRequested) {
 				return;
@@ -146,7 +147,12 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private doWatchWithExistingWatcher(realPath: string, isDirectory: boolean, disposables: DisposableStore): boolean {
 		if (isDirectory) {
-			return false; // only supported for files where we have the full path known upfront
+			// TODO@bpasero recursive watcher re-use is currently not enabled
+			// for when folders are watched. this is because the dispatching
+			// in the recursive watcher for non-recurive requests is optimized
+			// for file changes  where we really only match on the exact path
+			// and not child paths.
+			return false;
 		}
 
 		const resource = URI.file(this.request.path);
@@ -168,7 +174,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 					// so that the client can correlate the event with the request
 					// properly. Without correlation, we do not have to do that
 					// because the event will appear on the global listener already.
-					this.onDidFilesChange([{ resource, type: change.type, cId: this.request.correlationId }]);
+					this.onFileChange({ resource, type: change.type, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 				}
 			}
 		});
@@ -253,7 +259,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 					return; // ignore if already disposed
 				}
 
-				this.trace(`[raw] ["${type}"] ${raw}`);
+				if (this.verboseLogging) {
+					this.traceWithCorrelation(`[raw] ["${type}"] ${raw}`);
+				}
 
 				// Normalize file name
 				let changedFileName = '';
@@ -446,17 +454,17 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Logging
 		if (this.verboseLogging) {
-			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+			this.traceWithCorrelation(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
 		}
 
 		// Add to aggregator unless excluded or not included (not if explicitly disabled)
 		if (!skipIncludeExcludeChecks && this.excludes.some(exclude => exclude(event.resource.fsPath))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored (excluded) ${event.resource.fsPath}`);
+				this.traceWithCorrelation(` >> ignored (excluded) ${event.resource.fsPath}`);
 			}
 		} else if (!skipIncludeExcludeChecks && this.includes && this.includes.length > 0 && !this.includes.some(include => include(event.resource.fsPath))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored (not included) ${event.resource.fsPath}`);
+				this.traceWithCorrelation(` >> ignored (not included) ${event.resource.fsPath}`);
 			}
 		} else {
 			this.fileChangesAggregator.work(event);
@@ -467,25 +475,41 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Coalesce events: merge events of same kind
 		const coalescedFileChanges = coalesceEvents(fileChanges);
-		if (coalescedFileChanges.length > 0) {
 
-			// Logging
-			if (this.verboseLogging) {
-				for (const event of coalescedFileChanges) {
-					this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+		// Filter events: based on request filter property
+		const filteredEvents: IFileChange[] = [];
+		for (const event of coalescedFileChanges) {
+			if (isFiltered(event, this.filter)) {
+				if (this.verboseLogging) {
+					this.traceWithCorrelation(` >> ignored (filtered) ${event.resource.fsPath}`);
 				}
+
+				continue;
 			}
 
-			// Broadcast to clients via throttled emitter
-			const worked = this.throttledFileChangesEmitter.work(coalescedFileChanges);
+			filteredEvents.push(event);
+		}
 
-			// Logging
-			if (!worked) {
-				this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-			} else {
-				if (this.throttledFileChangesEmitter.pending > 0) {
-					this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${coalescedFileChanges[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
-				}
+		if (filteredEvents.length === 0) {
+			return;
+		}
+
+		// Logging
+		if (this.verboseLogging) {
+			for (const event of filteredEvents) {
+				this.traceWithCorrelation(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+			}
+		}
+
+		// Broadcast to clients via throttled emitter
+		const worked = this.throttledFileChangesEmitter.work(filteredEvents);
+
+		// Logging
+		if (!worked) {
+			this.warn(`started ignoring events due to too many file change events at once (incoming: ${filteredEvents.length}, most recent change: ${filteredEvents[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		} else {
+			if (this.throttledFileChangesEmitter.pending > 0) {
+				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${filteredEvents[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 		}
 	}
@@ -526,6 +550,12 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	private trace(message: string): void {
 		if (!this.cts.token.isCancellationRequested && this.verboseLogging) {
 			this.onLogMessage?.({ type: 'trace', message: `[File Watcher (node.js)] ${message}` });
+		}
+	}
+
+	private traceWithCorrelation(message: string): void {
+		if (!this.cts.token.isCancellationRequested && this.verboseLogging) {
+			this.trace(`${message}${typeof this.request.correlationId === 'number' ? ` <${this.request.correlationId}> ` : ``}`);
 		}
 	}
 

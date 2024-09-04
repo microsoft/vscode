@@ -23,7 +23,7 @@ declare module 'vscode' {
 		 * Provide mapped edits for a given document.
 		 * @param document The document to provide mapped edits for.
 		 * @param codeBlocks Code blocks that come from an LLM's reply.
-		 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+		 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
 		 * @param context The context for providing mapped edits.
 		 * @param token A cancellation token.
 		 * @returns A provider result of text edits.
