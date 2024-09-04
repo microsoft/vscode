@@ -179,6 +179,9 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 				let importedFilepath = importedFilename;
 				if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
 					importedFilepath = path.join(path.dirname(file), importedFilepath);
+					if (importedFilepath.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
+						importedFilepath = importedFilepath.substr(0, importedFilepath.length - 3);
+					}
 				}
 
 				let relativePath: string;
