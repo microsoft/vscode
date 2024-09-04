@@ -7,12 +7,21 @@ import { createStyleSheetFromObservable } from '../../../../../base/browser/domO
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { readHotReloadableExport } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, autorun, constObservable, derived, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { ISettableObservable } from '../../../../../base/common/observableInternal/base.js';
 import { derivedDisposable } from '../../../../../base/common/observableInternal/derived.js';
 import { derivedObservableWithCache, mapObservableArrayCached } from '../../../../../base/common/observableInternal/utils.js';
 import { isUndefined } from '../../../../../base/common/types.js';
+import { localize } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor, reactToChange, reactToChangeWithStore } from '../../../../browser/observableCodeEditor.js';
@@ -22,20 +31,12 @@ import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
-import { inlineSuggestCommitId } from './commandIds.js';
-import { GhostTextView } from '../view/ghostTextView.js';
-import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
-import { localize } from '../../../../../nls.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { GhostTextView } from '../view/ghostTextView.js';
+import { inlineSuggestCommitId } from './commandIds.js';
+import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -105,11 +106,13 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
 
 	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) =>
-		store.add(this._instantiationService.createInstance(GhostTextView, this.editor, {
-			ghostText: ghostText,
-			minReservedLineCount: constObservable(0),
-			targetTextModel: this.model.map(v => v?.textModel),
-		}))
+		derivedDisposable((reader) =>
+			this._instantiationService.createInstance(readHotReloadableExport(GhostTextView, reader), this.editor, {
+				ghostText: ghostText,
+				minReservedLineCount: constObservable(0),
+				targetTextModel: this.model.map(v => v?.textModel),
+			})
+		).recomputeInitiallyAndOnChange(store)
 	).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _playAccessibilitySignal = observableSignal(this);
@@ -264,7 +267,7 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		return this._ghostTextWidgets.get()[0]?.ownsViewZone(viewZoneId) ?? false;
+		return this._ghostTextWidgets.get()[0]?.get().ownsViewZone(viewZoneId) ?? false;
 	}
 
 	public hide() {
