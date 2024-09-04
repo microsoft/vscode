@@ -159,20 +159,6 @@ steps:
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
       displayName: Mixin distro node modules
 
-  - ${{ else }}:
-    # Ref https://github.com/microsoft/vscode/issues/189019
-    # for the node-gyp rebuild step
-    - script: |
-        set -e
-
-        cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
-        cd ../.. && ./.github/workflows/check-clean-git-state.sh
-      env:
-        npm_config_arch: $(NPM_ARCH)
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Rebuild debug version of native modules (OSS)
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   - script: |
       set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
@@ -251,8 +237,6 @@ steps:
       - script: |
           set -e
 
-          source ./build/azure-pipelines/linux/setup-env.sh
-
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.25" \
           ./build/azure-pipelines/linux/verify-glibc-requirements.sh
@@ -265,8 +249,6 @@ steps:
     - ${{ else }}:
       - script: |
           set -e
-
-          source ./build/azure-pipelines/linux/setup-env.sh
 
           EXPECTED_GLIBC_VERSION="2.28" \
           EXPECTED_GLIBCXX_VERSION="3.4.26" \

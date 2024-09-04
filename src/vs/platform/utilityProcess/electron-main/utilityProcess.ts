@@ -252,7 +252,6 @@ export class UtilityProcess extends Disposable {
 		// Fork utility process
 		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
 			forceAllocationsToV8Sandbox?: boolean;
-			respondToAuthRequestsFromMainProcess?: boolean;
 		}>({
 			serviceName,
 			env,
