@@ -21,15 +21,11 @@ import { RestrictedRenderingContext, RenderingContext } from '../../../view/rend
 import { ViewController } from '../../../view/viewController.js';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContextUtils.js';
-import { DebugEditContext } from './debugEditContext.js';
 import { EditContextWrapper, FocusTracker } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
-
-// Boolean which controls whether we should show the control, selection and character bounds
-const showControlBounds = false;
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -59,7 +55,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
-		const editContext = showControlBounds ? new DebugEditContext() : new EditContext();
+		const editContext = new EditContext();
 		this.domNode.domNode.editContext = editContext;
 		this._editContext = new EditContextWrapper(editContext);
 
