@@ -194,12 +194,14 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		let time: number = 0;
 		let passes: number = 0;
 		this._newEdits = false;
+		this._logService.debug(`TreeSitter: Starting parse for ${model.uri.toString()}`);
 		do {
 			const timer = performance.now();
 			try {
 				tree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), this.tree);
 			} catch (e) {
 				// parsing can fail when the timeout is reached, will resume upon next loop
+				this._logService.debug('Error parsing tree-sitter tree', e);
 			} finally {
 				time += performance.now() - timer;
 				passes++;
@@ -214,7 +216,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
 		if ((tree?.rootNode.childCount === 0) && model.getValueLength() > 0) {
 			// Something has gone horribly wrong
-			this.tree = undefined;
+			tree = undefined;
 		}
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
 		return tree;
@@ -226,9 +228,9 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		if (position.lineNumber < textModel.getLineCount()) {
 			const range = new Range(position.lineNumber, position.column, (position.lineNumber + 1), position.column);
 			const text = textModel.getValueInRange(range);
-			this._logService.debug(`TreeSitter: Requested chunk ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length}) for actual text "${text}"`);
+			this._logService.debug(`TreeSitter: Requested chunk for ${textModel.uri.toString()} at ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length}) for actual text "${text}"`);
 		} else {
-			this._logService.debug(`TreeSitter: Requested chunk ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length})`);
+			this._logService.debug(`TreeSitter: Requested chunk for ${textModel.uri.toString()} at ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length})`);
 		}
 		return chunk;
 	}
