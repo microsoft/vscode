@@ -100,8 +100,8 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
-  - name: VSCODE_BUILD_ESM # TODO@bpasero TODO@esm remove me once ESM is shipped
-    displayName: "️❗ Build as ESM (!FOR TESTING ONLY!) ️❗"
+  - name: VSCODE_BUILD_AMD # TODO@bpasero TODO@esm remove me once AMD is removed
+    displayName: "️❗ Build as AMD (!FOR EMERGENCY ONLY!) ️❗"
     type: boolean
     default: false
 
@@ -114,8 +114,8 @@ variables:
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
-  - name: VSCODE_BUILD_ESM
-    value: ${{ parameters.VSCODE_BUILD_ESM }}
+  - name: VSCODE_BUILD_AMD
+    value: ${{ parameters.VSCODE_BUILD_AMD }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -201,6 +201,7 @@ extends:
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
       sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
     containers:
       snapcraft:
         image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
@@ -216,7 +217,7 @@ extends:
           - job: Compile
             timeoutInMinutes: 90
             pool:
-              name: 1es-ubuntu-20.04-x64
+              name: 1es-ubuntu-22.04-x64
               os: linux
             variables:
               VSCODE_ARCH: x64
@@ -224,7 +225,7 @@ extends:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                  VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
 
       - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - stage: CompileCLI
@@ -233,7 +234,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: CLILinuxX64
                 pool:
-                  name: 1es-ubuntu-20.04-x64
+                  name: 1es-ubuntu-22.04-x64
                   os: linux
                 steps:
                   - template: build/azure-pipelines/linux/cli-build-linux.yml@self
@@ -245,7 +246,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
               - job: CLILinuxGnuARM
                 pool:
-                  name: 1es-ubuntu-20.04-x64
+                  name: 1es-ubuntu-22.04-x64
                   os: linux
                 steps:
                   - template: build/azure-pipelines/linux/cli-build-linux.yml@self
@@ -257,7 +258,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
               - job: CLIAlpineX64
                 pool:
-                  name: 1es-ubuntu-20.04-x64
+                  name: 1es-ubuntu-22.04-x64
                   os: linux
                 steps:
                   - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
@@ -362,7 +363,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
@@ -377,7 +378,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -392,7 +393,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -408,7 +409,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -432,7 +433,7 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: arm64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -446,7 +447,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
@@ -461,7 +462,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -477,7 +478,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: true
@@ -493,7 +494,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -511,7 +512,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -537,7 +538,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: armhf
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -553,7 +554,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -578,7 +579,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true) }}:
@@ -591,7 +592,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: armhf
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_RUN_INTEGRATION_TESTS: false
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true) }}:
@@ -604,7 +605,7 @@ extends:
                     parameters:
                       VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_RUN_INTEGRATION_TESTS: false
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
@@ -614,7 +615,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
@@ -657,7 +658,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -671,7 +672,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: true
@@ -685,7 +686,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -700,7 +701,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -715,7 +716,7 @@ extends:
                     - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                       parameters:
                         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                        VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                        VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                         VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                         VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                         VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -747,7 +748,7 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_ESM: ${{ variables.VSCODE_BUILD_ESM }}
+                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -787,7 +788,7 @@ extends:
           dependsOn:
             - Compile
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
@@ -817,7 +818,7 @@ extends:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:
-              name: 1es-ubuntu-20.04-x64
+              name: 1es-ubuntu-22.04-x64
               os: linux
             jobs:
               - deployment: ApproveRelease
@@ -838,7 +839,7 @@ extends:
               - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
                 - ApproveRelease
             pool:
-              name: 1es-ubuntu-20.04-x64
+              name: 1es-ubuntu-22.04-x64
               os: linux
             jobs:
               - job: ReleaseBuild

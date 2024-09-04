@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as platform from 'vs/base/common/platform';
-import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
-import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { FloatHorizontalRange, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
-import { ViewLineOptions } from './viewLineOptions';
-import { ViewLinesGpu } from 'vs/editor/browser/viewParts/linesGpu/viewLinesGpu';
+import * as browser from '../../../../base/browser/browser.js';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import * as platform from '../../../../base/common/platform.js';
+import { IVisibleLine } from '../../view/viewLayer.js';
+import { RangeUtil } from './rangeUtil.js';
+import { StringBuilder } from '../../../common/core/stringBuilder.js';
+import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';
+import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
+import { InlineDecorationType } from '../../../common/viewModel.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
+import { DomReadingContext } from './domReadingContext.js';
+import type { ViewLineOptions } from './viewLineOptions.js';
+import { ViewLinesGpu } from '../linesGpu/viewLinesGpu.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {

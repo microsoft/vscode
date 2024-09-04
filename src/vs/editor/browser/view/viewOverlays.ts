@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { IVisibleLine, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNode.js';
+import { applyFontInfo } from '../config/domFontInfo.js';
+import { DynamicViewOverlay } from './dynamicViewOverlay.js';
+import { IVisibleLine, VisibleLinesCollection } from './viewLayer.js';
+import { ViewPart } from './viewPart.js';
+import { StringBuilder } from '../../common/core/stringBuilder.js';
+import { RenderingContext, RestrictedRenderingContext } from './renderingContext.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../common/viewEvents.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
 
 export class ViewOverlays extends ViewPart {
 	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
@@ -22,10 +21,7 @@ export class ViewOverlays extends ViewPart {
 	private _dynamicOverlays: DynamicViewOverlay[] = [];
 	private _isFocused: boolean = false;
 
-	constructor(
-		context: ViewContext,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
+	constructor(context: ViewContext) {
 		super(context);
 
 		this._visibleLines = new VisibleLinesCollection({
@@ -201,11 +197,8 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	private _contentWidth: number;
 
-	constructor(
-		context: ViewContext,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(context, instantiationService);
+	constructor(context: ViewContext) {
+		super(context);
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._contentWidth = layoutInfo.contentWidth;
@@ -238,11 +231,8 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	private _contentLeft: number;
 
-	constructor(
-		context: ViewContext,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(context, instantiationService);
+	constructor(context: ViewContext) {
+		super(context);
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);

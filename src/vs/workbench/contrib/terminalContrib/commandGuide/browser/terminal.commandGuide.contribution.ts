@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { combinedDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { terminalCommandGuideConfigSection, TerminalCommandGuideSettingId, type ITerminalCommandGuideConfiguration } from 'vs/workbench/contrib/terminalContrib/commandGuide/common/terminalCommandGuideConfiguration';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { combinedDisposable, Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { listInactiveSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../../../../platform/theme/common/colorUtils.js';
+import { PANEL_BORDER } from '../../../../common/theme.js';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
+import { ITerminalProcessInfo, ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { terminalCommandGuideConfigSection, TerminalCommandGuideSettingId, type ITerminalCommandGuideConfiguration } from '../common/terminalCommandGuideConfiguration.js';
 
 // #region Terminal Contributions
 
@@ -70,6 +70,7 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 				addDisposableListener(viewportElement, 'mousemove', (e: MouseEvent) => this._tryShowHighlight(screenElement, xterm, e)),
 				addDisposableListener(xterm.raw.element!, 'mouseout', () => xterm.markTracker.showCommandGuide(undefined)),
 				xterm.raw.onData(() => xterm.markTracker.showCommandGuide(undefined)),
+				toDisposable(() => xterm.markTracker.showCommandGuide(undefined)),
 			);
 		}
 	}

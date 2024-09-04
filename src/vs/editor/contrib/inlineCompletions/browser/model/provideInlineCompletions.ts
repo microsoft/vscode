@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/assert';
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { SetMap } from 'vs/base/common/map';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { getReadonlyEmptyArray } from '../utils';
-import { SnippetParser, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { assertNever } from '../../../../../base/common/assert.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { SetMap } from '../../../../../base/common/map.js';
+import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
+import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { ITextModel } from '../../../../common/model.js';
+import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { getReadonlyEmptyArray } from '../utils.js';
+import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
+import { LineEditWithAdditionalLines } from '../../../../common/tokenizationTextModelPart.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 
 export async function provideInlineCompletions(
 	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
@@ -333,8 +335,9 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 	const lineStart = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
 	const newLine = lineStart + text;
 
-	const newTokens = model.tokenization.tokenizeLineWithEdit(position, newLine.length - (position.column - 1), text);
-	const slicedTokens = newTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
+	const edit = LineEditWithAdditionalLines.replace(OffsetRange.ofStartAndLength(position.column - 1, newLine.length - (position.column - 1)), text);
+	const newTokens = model.tokenization.tokenizeLineWithEdit(position.lineNumber, edit);
+	const slicedTokens = newTokens?.mainLineTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
 	if (!slicedTokens) {
 		return text;
 	}

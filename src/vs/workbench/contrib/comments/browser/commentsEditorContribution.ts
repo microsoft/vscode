@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import 'vs/css!./media/review';
-import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CommentController, ID } from 'vs/workbench/contrib/comments/browser/commentsController';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { accessibilityHelpIsShown, accessibleViewCurrentProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
-import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { CommentsInputContentProvider } from 'vs/workbench/contrib/comments/browser/commentsInputContentProvider';
-import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import './media/review.css';
+import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICommentService } from './commentService.js';
+import { ctxCommentEditorFocused, SimpleCommentEditor } from './simpleCommentEditor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { CommentController, ID } from './commentsController.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { accessibilityHelpIsShown, accessibleViewCurrentProviderId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { CommentCommandId } from '../common/commentCommandIds.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
+import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);

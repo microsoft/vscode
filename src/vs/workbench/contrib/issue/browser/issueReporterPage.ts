@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escape } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
+import { escape } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
 
 const sendSystemInfoLabel = escape(localize('sendSystemInfo', "Include my system information"));
 const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my currently running processes"));
@@ -94,7 +94,7 @@ export default (): string => `
 				<span id="ext-loading" hidden></span>
 				<span class="ext-parens" hidden>(</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a><span class="ext-parens" hidden>)</span>
 			</label>
-			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}" style="white-space: pre-wrap;">
+			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}" style="white-space: pre-wrap; user-select: text;">
 				<!-- To be dynamically filled -->
 			</pre>
 		</div>

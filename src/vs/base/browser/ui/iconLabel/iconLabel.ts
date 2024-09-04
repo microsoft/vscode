@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./iconlabel';
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IMatch } from 'vs/base/common/filters';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { Range } from 'vs/base/common/range';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { isString } from 'vs/base/common/types';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { URI } from 'vs/base/common/uri';
+import './iconlabel.css';
+import * as dom from '../../dom.js';
+import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { IMatch } from '../../../common/filters.js';
+import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { equals } from '../../../common/objects.js';
+import { Range } from '../../../common/range.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import type { IManagedHoverTooltipMarkdownString } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { isString } from '../../../common/types.js';
+import { stripIcons } from '../../../common/iconLabels.js';
+import { URI } from '../../../common/uri.js';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;

@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
-import { State } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import * as dom from '../../../../../base/browser/dom.js';
+import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { renderExpressionValue, renderVariable, renderViewTree } from '../../browser/baseDebugView.js';
+import { LinkDetector } from '../../browser/linkDetector.js';
+import { isStatusbarInDebugMode } from '../../browser/statusbarColorProvider.js';
+import { State } from '../../common/debug.js';
+import { Expression, Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
+import { createTestSession } from './callStack.test.js';
+import { createMockDebugModel } from './mockDebugModel.js';
+import { MockSession } from '../common/mockDebug.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 const $ = dom.$;
 
 function assertVariable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, "add">, linkDetector: LinkDetector, displayType: boolean) {
