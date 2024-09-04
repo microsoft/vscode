@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import * as platform from '../../../../base/common/platform.js';
-import { $, append, reset } from '../../../../base/browser/dom.js';
+import { $, append, h, reset } from '../../../../base/browser/dom.js';
 import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -240,11 +240,20 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.labelContainer.textContent = '';
 		for (const label of historyItem.labels ?? []) {
 			if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
-				const icon = append(templateData.labelContainer, $('div.label'));
-				icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+				const elements = h('div.label', [
+					h('div.icon@icon'),
+					h('div.description@description')
+				]);
 
-				icon.style.color = label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground);
-				icon.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+				elements.root.style.color = label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground);
+				elements.root.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+
+				elements.icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+
+				elements.description.textContent = label.title;
+				elements.description.style.display = label.color ? '' : 'none';
+
+				append(templateData.labelContainer, elements.root);
 			}
 		}
 	}
