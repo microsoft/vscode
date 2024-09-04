@@ -6,7 +6,7 @@
 import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation.js';
 import { OutputChannel } from './ripgrepSearchUtils.js';
 import { RipgrepTextSearchEngine } from './ripgrepTextSearchEngine.js';
-import { TextSearchProviderNew, TextSearchCompleteNew, TextSearchResultNew, TextSearchQueryNew, TextSearchProviderOptions, SearchResultFromFolder, } from '../common/searchExtTypes.js';
+import { TextSearchProviderNew, TextSearchCompleteNew, TextSearchResultNew, TextSearchQueryNew, TextSearchProviderOptions, } from '../common/searchExtTypes.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { Schemas } from '../../../../base/common/network.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
@@ -18,7 +18,7 @@ export class RipgrepSearchProvider implements TextSearchProviderNew {
 		process.once('exit', () => this.dispose());
 	}
 
-	async provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	async provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		const numThreads = await this.getNumThreads();
 		const engine = new RipgrepTextSearchEngine(this.outputChannel, numThreads);
 
@@ -36,10 +36,10 @@ export class RipgrepSearchProvider implements TextSearchProviderNew {
 				// Ripgrep search engine can only provide file-scheme results, but we want to use it to search some schemes that are backed by the filesystem, but with some other provider as the frontend,
 				// case in point vscode-userdata. In these cases we translate the query to a file, and translate the results back to the frontend scheme.
 				const translatedOptions = { ...extendedOptions, folder: folderOption.folder.with({ scheme: Schemas.file }) };
-				const progressTranslator = new Progress<SearchResultFromFolder<TextSearchResultNew>>(data => progress.report({ folder: data.folder, result: { ...data.result, uri: data.result.uri.with({ scheme: folderOption.folder.scheme }) } }));
-				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, translatedOptions, folderOption.folder, progressTranslator, token));
+				const progressTranslator = new Progress<TextSearchResultNew>(data => progress.report({ ...data, uri: data.uri.with({ scheme: folderOption.folder.scheme }) }));
+				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, translatedOptions, progressTranslator, token));
 			} else {
-				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, extendedOptions, folderOption.folder, progress, token));
+				return this.withToken(token, token => engine.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token));
 			}
 		})).then((e => {
 			const complete: TextSearchCompleteNew = {

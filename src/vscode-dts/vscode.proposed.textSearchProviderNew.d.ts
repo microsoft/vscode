@@ -244,14 +244,6 @@ declare module 'vscode' {
 	export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
 
 	/**
-	 * A wrapper for a search result that indicates the original workspace folder that this result was found for.
-	 */
-	export type SearchResultFromFolder<T> = {
-		result: T;
-		folder: Uri;
-	};
-
-	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
 	 */
 	export interface TextSearchProviderNew {
@@ -265,7 +257,7 @@ declare module 'vscode' {
 		 * These results can be direct matches, or context that surrounds matches.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+		provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 	}
 
 	export namespace workspace {
