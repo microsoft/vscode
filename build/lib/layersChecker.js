@@ -235,6 +235,22 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
+    // Electron (node)
+    {
+        target: '**/vs/**/electron-node/**',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // --> types from electron.d.ts that duplicate from lib.dom.d.ts
+            'Event',
+            'Request'
+        ],
+        disallowedTypes: [
+            'ipcMain' // not allowed, use validatedIpcMain instead
+        ],
+        disallowedDefinitions: [
+            'lib.dom.d.ts' // no DOM
+        ]
+    },
     // Electron (main)
     {
         target: '**/vs/**/electron-main/**',

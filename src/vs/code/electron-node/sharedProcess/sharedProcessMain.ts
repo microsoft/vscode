@@ -102,7 +102,6 @@ import { LogService } from '../../../platform/log/common/logService.js';
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from '../../../platform/lifecycle/node/sharedProcessLifecycleService.js';
 import { RemoteTunnelService } from '../../../platform/remoteTunnel/node/remoteTunnelService.js';
 import { ExtensionsProfileScannerService } from '../../../platform/extensionManagement/node/extensionsProfileScannerService.js';
-import { RequestChannelClient } from '../../../platform/request/common/requestIpc.js';
 import { ExtensionRecommendationNotificationServiceChannelClient } from '../../../platform/extensionRecommendations/common/extensionRecommendationsIpc.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { NativeHostService } from '../../../platform/native/common/nativeHostService.js';
@@ -118,6 +117,7 @@ import { SharedProcessRawConnection, SharedProcessLifecycle } from '../../../pla
 import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { getDesktopEnvironment } from '../../../base/common/desktopEnvironmentInfo.js';
 import { getCodeDisplayProtocol, getDisplayProtocol } from '../../../base/node/osDisplayProtocolInfo.js';
+import { RequestService } from '../../../platform/request/electron-node/requestService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -270,7 +270,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		]);
 
 		// Request
-		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
+		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
 		services.set(IRequestService, requestService);
 
 		// Checksum
