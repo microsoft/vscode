@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew, TextSearchCompleteMessage } from './searchExtTypes.js';
+import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew, TextSearchCompleteMessage, SearchResultFromFolder } from './searchExtTypes.js';
 
 // old types that are retained for backward compatibility
 // TODO: delete this when search apis are adopted by all first-party extensions
