@@ -290,7 +290,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const endPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeEnd);
 			const decorationRange = Range.fromPositions(startPositionOfDecoration, endPositionOfDecoration);
 			const classNames = [
-				'ime',
+				'edit-context-format-decoration',
 				`underline-style-${f.underlineStyle.toLowerCase()}`,
 				`underline-thickness-${f.underlineThickness.toLowerCase()}`,
 			];

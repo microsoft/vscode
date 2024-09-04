@@ -13,8 +13,9 @@
 	text-wrap: nowrap;
 }
 
-.monaco-editor .ime {
+.monaco-editor .edit-context-format-decoration {
 	text-decoration-line: underline;
+	/* TODO @aiday chose a theme color */
 	text-decoration-color: blue;
 	color: var(--vscode-editor-foreground, inherit);
 	opacity: 0.8;
