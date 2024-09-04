@@ -20,7 +20,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
-import { TerminalEnvironmentManager } from './terminal';
+import { TerminalEnvironmentManager, TerminalShellExecutionManager } from './terminal';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
@@ -113,7 +113,8 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitTimelineProvider(model, cc),
-		new GitEditSessionIdentityProvider(model)
+		new GitEditSessionIdentityProvider(model),
+		new TerminalShellExecutionManager(model, logger)
 	);
 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();

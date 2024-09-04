@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import type { IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import * as DOM from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { SettingsTreeSettingElement } from './settingsTreeModels.js';
+import { POLICY_SETTING_TAG } from '../common/preferences.js';
+import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 
 const $ = DOM.$;
 

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { equals } from 'vs/base/common/objects';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { Event } from '../../../../base/common/event.js';
+import { equals } from '../../../../base/common/objects.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
+import { DefaultConfiguration } from '../../common/configurations.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { Registry } from '../../../registry/common/platform.js';
 
 suite('DefaultConfiguration', () => {
 
@@ -22,8 +22,7 @@ suite('DefaultConfiguration', () => {
 
 	function reset() {
 		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		const configurationDefaultsOverrides = configurationRegistry.getConfigurationDefaultsOverrides();
-		configurationRegistry.deregisterDefaultConfigurations([...configurationDefaultsOverrides.keys()].map(key => ({ extensionId: configurationDefaultsOverrides.get(key)?.source, overrides: { [key]: configurationDefaultsOverrides.get(key)?.value } })));
+		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
 	}
 
 	test('Test registering a property before initialize', async () => {
@@ -403,11 +402,12 @@ suite('DefaultConfiguration', () => {
 		configurationRegistry.registerDefaultConfigurations([node1]);
 		configurationRegistry.registerDefaultConfigurations([node2]);
 		await testObject.initialize();
+
 		configurationRegistry.deregisterDefaultConfigurations([node1]);
 		assert.ok(equals(testObject.configurationModel.getValue('[a]'), { 'b': { 'bb': '20', 'cc': '30' } }));
 		assert.ok(equals(testObject.configurationModel.contents, { '[a]': { 'b': { 'bb': '20', 'cc': '30' } }, 'b': {} }));
-		//assert.ok(equals(testObject.configurationModel.overrides, [{ '[a]': { 'b': { 'bb': '20', 'cc': '30' } } }])); TODO: Check this later
-		//assert.deepStrictEqual(testObject.configurationModel.keys.sort(), ['[a]', 'b']);
+		assert.ok(equals(testObject.configurationModel.overrides, [{ contents: { 'b': { 'bb': '20', 'cc': '30' } }, identifiers: ['a'], keys: ['b'] }]));
+		assert.deepStrictEqual(testObject.configurationModel.keys.sort(), ['[a]', 'b']);
 		assert.ok(equals(testObject.configurationModel.getOverrideValue('b', 'a'), { 'bb': '20', 'cc': '30' }));
 	});
 });

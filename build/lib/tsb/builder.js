@@ -550,7 +550,10 @@ class LanguageServiceHost {
             let found = false;
             while (!found && dirname.indexOf(stopDirname) === 0) {
                 dirname = path.dirname(dirname);
-                const resolvedPath = path.resolve(dirname, ref.fileName);
+                let resolvedPath = path.resolve(dirname, ref.fileName);
+                if (resolvedPath.endsWith('.js')) {
+                    resolvedPath = resolvedPath.slice(0, -3);
+                }
                 const normalizedPath = normalize(resolvedPath);
                 if (this.getScriptSnapshot(normalizedPath + '.ts')) {
                     this._dependencies.inertEdge(filename, normalizedPath + '.ts');

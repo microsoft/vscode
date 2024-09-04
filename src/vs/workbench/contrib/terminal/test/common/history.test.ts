@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, fail, strictEqual, ok } from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, ITerminalPersistedHistory, sanitizeFishHistoryCmd, TerminalPersistedHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { deepStrictEqual, strictEqual, ok } from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { join } from '../../../../../base/common/path.js';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
+import { env } from '../../../../../base/common/process.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, ITerminalPersistedHistory, sanitizeFishHistoryCmd, TerminalPersistedHistory } from '../../common/history.js';
+import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 function getConfig(limit: number) {
 	return {
@@ -328,10 +328,13 @@ suite('Terminal history', () => {
 			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IFileService, {
 				async readFile(resource: URI) {
-					const expected = URI.from({ scheme: fileScheme, path: filePath });
-					if (resource.scheme !== expected.scheme || resource.fsPath !== expected.fsPath) {
-						fail(`Unexpected file scheme/path ${resource.scheme} ${resource.fsPath}`);
-					}
+					const expected = URI.from({
+						scheme: fileScheme,
+						authority: remoteConnection?.remoteAuthority,
+						path: URI.file(filePath).path
+					});
+					// Sanitize the encoded `/` chars as they don't impact behavior
+					strictEqual(resource.toString().replaceAll('%5C', '/'), expected.toString().replaceAll('%5C', '/'));
 					return { value: VSBuffer.fromString(fileContent) };
 				}
 			} as Pick<IFileService, 'readFile'>);

@@ -4,18 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor, TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
-import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
-import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor, TestEditorInput } from '../../workbenchTestServices.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
+import { IEditorCommandsContext } from '../../../../common/editor.js';
+import { IListService, WorkbenchListWidget } from '../../../../../platform/list/browser/listService.js';
+
+class TestListService implements IListService {
+	declare readonly _serviceBrand: undefined;
+	readonly lastFocusedList: WorkbenchListWidget | undefined = undefined;
+}
 
 suite('Resolving Editor Commands Context', () => {
 
@@ -25,6 +31,8 @@ suite('Resolving Editor Commands Context', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
+
+	const testListService = new TestListService();
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -61,7 +69,6 @@ suite('Resolving Editor Commands Context', () => {
 	test('use editor group selection', async () => {
 		const accessor = await createServices();
 		const activeGroup = accessor.editorGroupService.activeGroup;
-		const instantiationService = accessor.instantiationService;
 
 		const input1 = input();
 		const input2 = input();
@@ -74,7 +81,7 @@ suite('Resolving Editor Commands Context', () => {
 
 		// use editor commands context
 		const editorCommandContext: IEditorCommandsContext = { groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(input1), preserveFocus: true };
-		const resolvedContext1 = instantiationService.invokeFunction(resolveCommandsContext, [editorCommandContext]);
+		const resolvedContext1 = resolveCommandsContext([editorCommandContext], accessor.editorService, accessor.editorGroupService, testListService);
 
 		assert.strictEqual(resolvedContext1.groupedEditors.length, 1);
 		assert.strictEqual(resolvedContext1.groupedEditors[0].group.id, activeGroup.id);
@@ -84,7 +91,7 @@ suite('Resolving Editor Commands Context', () => {
 		assert.strictEqual(resolvedContext1.preserveFocus, true);
 
 		// use URI
-		const resolvedContext2 = instantiationService.invokeFunction(resolveCommandsContext, [input2.resource]);
+		const resolvedContext2 = resolveCommandsContext([input2.resource], accessor.editorService, accessor.editorGroupService, testListService);
 
 		assert.strictEqual(resolvedContext2.groupedEditors.length, 1);
 		assert.strictEqual(resolvedContext2.groupedEditors[0].group.id, activeGroup.id);
@@ -95,7 +102,7 @@ suite('Resolving Editor Commands Context', () => {
 
 		// use URI and commandContext
 		const editor1CommandContext: IEditorCommandsContext = { groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(input1), preserveFocus: true };
-		const resolvedContext3 = instantiationService.invokeFunction(resolveCommandsContext, [input1.resource, editor1CommandContext]);
+		const resolvedContext3 = resolveCommandsContext([editor1CommandContext], accessor.editorService, accessor.editorGroupService, testListService);
 
 		assert.strictEqual(resolvedContext3.groupedEditors.length, 1);
 		assert.strictEqual(resolvedContext3.groupedEditors[0].group.id, activeGroup.id);
@@ -108,7 +115,6 @@ suite('Resolving Editor Commands Context', () => {
 	test('don\'t use editor group selection', async () => {
 		const accessor = await createServices();
 		const activeGroup = accessor.editorGroupService.activeGroup;
-		const instantiationService = accessor.instantiationService;
 
 		const input1 = input();
 		const input2 = input();
@@ -121,7 +127,7 @@ suite('Resolving Editor Commands Context', () => {
 
 		// use editor commands context
 		const editorCommandContext: IEditorCommandsContext = { groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(input3), preserveFocus: true };
-		const resolvedContext1 = instantiationService.invokeFunction(resolveCommandsContext, [editorCommandContext]);
+		const resolvedContext1 = resolveCommandsContext([editorCommandContext], accessor.editorService, accessor.editorGroupService, testListService);
 
 		assert.strictEqual(resolvedContext1.groupedEditors.length, 1);
 		assert.strictEqual(resolvedContext1.groupedEditors[0].group.id, activeGroup.id);
@@ -130,7 +136,7 @@ suite('Resolving Editor Commands Context', () => {
 		assert.strictEqual(resolvedContext1.preserveFocus, true);
 
 		// use URI
-		const resolvedContext2 = instantiationService.invokeFunction(resolveCommandsContext, [input3.resource]);
+		const resolvedContext2 = resolveCommandsContext([input3.resource], accessor.editorService, accessor.editorGroupService, testListService);
 
 		assert.strictEqual(resolvedContext2.groupedEditors.length, 1);
 		assert.strictEqual(resolvedContext2.groupedEditors[0].group.id, activeGroup.id);
@@ -142,7 +148,6 @@ suite('Resolving Editor Commands Context', () => {
 	test('inactive edior group command context', async () => {
 		const accessor = await createServices();
 		const editorGroupService = accessor.editorGroupService;
-		const instantiationService = accessor.instantiationService;
 
 		const group1 = editorGroupService.activeGroup;
 		const group2 = editorGroupService.addGroup(group1, GroupDirection.RIGHT);
@@ -160,7 +165,7 @@ suite('Resolving Editor Commands Context', () => {
 
 		// use editor commands context of inactive group with editor index
 		const editorCommandContext1: IEditorCommandsContext = { groupId: group2.id, editorIndex: group2.getIndexOfEditor(input21), preserveFocus: true };
-		const resolvedContext1 = instantiationService.invokeFunction(resolveCommandsContext, [editorCommandContext1]);
+		const resolvedContext1 = resolveCommandsContext([editorCommandContext1], accessor.editorService, accessor.editorGroupService, testListService);
 
 		assert.strictEqual(resolvedContext1.groupedEditors.length, 1);
 		assert.strictEqual(resolvedContext1.groupedEditors[0].group.id, group2.id);
@@ -170,7 +175,7 @@ suite('Resolving Editor Commands Context', () => {
 
 		// use editor commands context of inactive group without editor index
 		const editorCommandContext2: IEditorCommandsContext = { groupId: group2.id, preserveFocus: true };
-		const resolvedContext2 = instantiationService.invokeFunction(resolveCommandsContext, [editorCommandContext2]);
+		const resolvedContext2 = resolveCommandsContext([editorCommandContext2], accessor.editorService, accessor.editorGroupService, testListService);
 
 		assert.strictEqual(resolvedContext2.groupedEditors.length, 1);
 		assert.strictEqual(resolvedContext2.groupedEditors[0].group.id, group2.id);

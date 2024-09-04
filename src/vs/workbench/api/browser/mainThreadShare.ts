@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, ExtHostShareShape, IDocumentFilterDto, MainContext, MainThreadShareShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IShareProvider, IShareService, IShareableItem } from 'vs/workbench/contrib/share/common/share';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable, dispose } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { ExtHostContext, ExtHostShareShape, IDocumentFilterDto, MainContext, MainThreadShareShape } from '../common/extHost.protocol.js';
+import { IShareProvider, IShareService, IShareableItem } from '../../contrib/share/common/share.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadShare)
 export class MainThreadShare implements MainThreadShareShape {

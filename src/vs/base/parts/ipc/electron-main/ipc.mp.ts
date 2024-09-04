@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, IpcMainEvent, MessagePortMain } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
+import { validatedIpcMain } from './ipcMain.js';
+import { Event } from '../../../common/event.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { generateUuid } from '../../../common/uuid.js';
+import { Client as MessagePortClient } from '../common/ipc.mp.js';
 
 /**
  * An implementation of a `IPCClient` on top of Electron `MessagePortMain`.

@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ITypeData } from 'vs/editor/browser/controller/editContext/editContextUtils';
-import { ScreenReaderContentState } from 'vs/editor/browser/controller/editContext/screenReaderUtils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import * as strings from '../../../base/common/strings.js';
+import { Position } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
+import { EndOfLinePreference } from '../../common/model.js';
 
 export const _debugComposition = false;
 

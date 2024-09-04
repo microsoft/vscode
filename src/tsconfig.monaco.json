@@ -8,10 +8,10 @@
 		],
 		"paths": {},
 		"module": "amd",
-		"moduleResolution": "classic",
+		"moduleResolution": "node",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es2018",
+		"target": "ES2022",
 		"sourceMap": false,
 		"declaration": true
 	},

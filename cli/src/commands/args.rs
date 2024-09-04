@@ -230,8 +230,8 @@ pub struct CommandShellArgs {
 	#[clap(long)]
 	pub on_socket: bool,
 	/// Listen on a host/port instead of stdin/stdout.
-	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
-	pub on_port: Option<u16>,
+	#[clap(long, num_args = 0..=2, default_missing_value = "0")]
+	pub on_port: Vec<u16>,
 	/// Listen on a host/port instead of stdin/stdout.
 	#[clap[long]]
 	pub on_host: Option<String>,

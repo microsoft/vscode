@@ -4,21 +4,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.date = void 0;
-function getRoundedBuildDate() {
-    const now = new Date();
-    const minutes = now.getMinutes();
-    if (minutes >= 30) {
-        now.setHours(now.getHours() + 1);
-    }
-    now.setMinutes(0, 0, 0);
-    return now;
-}
+exports.writeISODate = writeISODate;
+exports.readISODate = readISODate;
+const path = require("path");
+const fs = require("fs");
+const root = path.join(__dirname, '..', '..');
 /**
- * An attempt to produce a stable date for the build that can be
- * used across processes and build steps that run in parallel almost
- * at the same time. The current time is rounded up or down to the
- * closest hour.
+ * Writes a `outDir/date` file with the contents of the build
+ * so that other tasks during the build process can use it and
+ * all use the same date.
  */
-exports.date = getRoundedBuildDate().toISOString();
+function writeISODate(outDir) {
+    const result = () => new Promise((resolve, _) => {
+        const outDirectory = path.join(root, outDir);
+        fs.mkdirSync(outDirectory, { recursive: true });
+        const date = new Date().toISOString();
+        fs.writeFileSync(path.join(outDirectory, 'date'), date, 'utf8');
+        resolve();
+    });
+    result.taskName = 'build-date-file';
+    return result;
+}
+function readISODate(outDir) {
+    const outDirectory = path.join(root, outDir);
+    return fs.readFileSync(path.join(outDirectory, 'date'), 'utf8');
+}
 //# sourceMappingURL=date.js.map

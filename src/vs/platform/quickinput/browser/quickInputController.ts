@@ -3,29 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { isString } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
-import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from 'vs/platform/quickinput/browser/quickInput';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { mainWindow } from 'vs/base/browser/window';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
-import { QuickPickFocus } from '../common/quickInput';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import 'vs/platform/quickinput/browser/quickInputActions';
+import * as dom from '../../../base/browser/dom.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Button } from '../../../base/browser/ui/button/button.js';
+import { CountBadge } from '../../../base/browser/ui/countBadge/countBadge.js';
+import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, dispose } from '../../../base/common/lifecycle.js';
+import Severity from '../../../base/common/severity.js';
+import { isString } from '../../../base/common/types.js';
+import { localize } from '../../../nls.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus } from '../common/quickInput.js';
+import { QuickInputBox } from './quickInputBox.js';
+import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from './quickInput.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { QuickInputTree } from './quickInputTree.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import './quickInputActions.js';
 
 const $ = dom.$;
 
@@ -156,6 +155,9 @@ export class QuickInputController extends Disposable {
 		const countContainer = dom.append(filterContainer, $('.quick-input-count'));
 		countContainer.setAttribute('aria-live', 'polite');
 		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge);
+
+		const inlineActionBar = this._register(new ActionBar(headerContainer, { hoverDelegate: this.options.hoverDelegate }));
+		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
 		const ok = this._register(new Button(okContainer, this.styles.button));
@@ -321,6 +323,7 @@ export class QuickInputController extends Disposable {
 			description2,
 			widget,
 			rightActionBar,
+			inlineActionBar,
 			checkAll,
 			inputContainer,
 			filterContainer,
@@ -359,7 +362,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> = {}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
 		type R = (O extends { canPickMany: true } ? T[] : T) | undefined;
 		return new Promise<R>((doResolve, reject) => {
 			let resolve = (result: R) => {
@@ -371,7 +374,7 @@ export class QuickInputController extends Disposable {
 				resolve(undefined);
 				return;
 			}
-			const input = this.createQuickPick<T>();
+			const input = this.createQuickPick<T>({ useSeparators: true });
 			let activeItem: T | undefined;
 			const disposables = [
 				input,
@@ -435,6 +438,9 @@ export class QuickInputController extends Disposable {
 				}),
 			];
 			input.title = options.title;
+			if (options.value) {
+				input.value = options.value;
+			}
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
@@ -542,9 +548,11 @@ export class QuickInputController extends Disposable {
 
 	backButton = backButton;
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: boolean } = { useSeparators: false }): IQuickPick<T, { useSeparators: boolean }> {
 		const ui = this.getUI(true);
-		return new QuickPick<T>(ui);
+		return new QuickPick<T, typeof options>(ui);
 	}
 
 	createInputBox(): IInputBox {
@@ -571,6 +579,7 @@ export class QuickInputController extends Disposable {
 		ui.description2.textContent = '';
 		dom.reset(ui.widget);
 		ui.rightActionBar.clear();
+		ui.inlineActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
 		ui.inputBox.placeholder = '';
@@ -580,6 +589,7 @@ export class QuickInputController extends Disposable {
 		ui.count.setCount(0);
 		dom.reset(ui.message);
 		ui.progressBar.stop();
+		ui.list.setElements([]);
 		ui.list.matchOnDescription = false;
 		ui.list.matchOnDetail = false;
 		ui.list.matchOnLabel = true;

@@ -176,6 +176,10 @@
 	display: inline-block;
 }
 
+.monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
+	margin-bottom: 2px;
+}
+
 .monaco-hover-content .action-container a {
 	-webkit-user-select: none;
 	user-select: none;

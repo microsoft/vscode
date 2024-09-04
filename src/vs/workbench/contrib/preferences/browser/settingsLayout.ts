@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+import { localize } from '../../../../nls.js';
+import { ExtensionToggleData } from '../common/preferences.js';
 
 export interface ITOCEntry<T> {
 	id: string;
@@ -235,6 +235,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
 					settings: ['chat.*', 'inlineChat.*']
+				},
+				{
+					id: 'features/issueReporter',
+					label: localize('issueReporter', 'Issue Reporter'),
+					settings: ['issueReporter.*']
 				}
 			]
 		},

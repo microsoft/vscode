@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { Platform } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize2 } from 'vs/nls';
-import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Event } from '../../../base/common/event.js';
+import { IPager } from '../../../base/common/paging.js';
+import { Platform } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize2 } from '../../../nls.js';
+import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -163,6 +163,7 @@ export interface IGalleryExtensionProperties {
 	localizedLanguages?: string[];
 	targetPlatform: TargetPlatform;
 	isPreReleaseVersion: boolean;
+	executesCode?: boolean;
 }
 
 export interface IGalleryExtensionAsset {
@@ -425,6 +426,7 @@ export const enum ExtensionGalleryErrorCode {
 	Cancelled = 'Cancelled',
 	Failed = 'Failed',
 	DownloadFailedWriting = 'DownloadFailedWriting',
+	Offline = 'Offline',
 }
 
 export class ExtensionGalleryError extends Error {
@@ -446,7 +448,6 @@ export const enum ExtensionManagementErrorCode {
 	Download = 'Download',
 	DownloadSignature = 'DownloadSignature',
 	DownloadFailedWriting = ExtensionGalleryErrorCode.DownloadFailedWriting,
-	UpdateExistingMetadata = 'UpdateExistingMetadata',
 	UpdateMetadata = 'UpdateMetadata',
 	Extract = 'Extract',
 	Scanning = 'Scanning',
@@ -491,6 +492,7 @@ export type InstallOptions = {
 	profileLocation?: URI;
 	installOnlyNewlyAddedFromExtensionPack?: boolean;
 	productVersion?: IProductVersion;
+	keepExisting?: boolean;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
@@ -511,6 +513,7 @@ export interface IExtensionManagementParticipant {
 }
 
 export type InstallExtensionInfo = { readonly extension: IGalleryExtension; readonly options: InstallOptions };
+export type UninstallExtensionInfo = { readonly extension: ILocalExtension; readonly options?: UninstallOptions };
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
@@ -523,7 +526,6 @@ export interface IExtensionManagementService {
 	onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	zip(extension: ILocalExtension): Promise<URI>;
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
@@ -532,6 +534,7 @@ export interface IExtensionManagementService {
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
+	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
 	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { DISABLED_EXTENSIONS_STORAGE_PATH, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isUndefinedOrNull } from '../../../base/common/types.js';
+import { DISABLED_EXTENSIONS_STORAGE_PATH, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from './extensionManagement.js';
+import { areSameExtensions } from './extensionManagementUtil.js';
+import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 
 export class GlobalExtensionEnablementService extends Disposable implements IGlobalExtensionEnablementService {
 
@@ -16,15 +16,15 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 
 	private _onDidChangeEnablement = new Emitter<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }>();
 	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }> = this._onDidChangeEnablement.event;
-	private readonly storageManger: StorageManager;
+	private readonly storageManager: StorageManager;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 	) {
 		super();
-		this.storageManger = this._register(new StorageManager(storageService));
-		this._register(this.storageManger.onDidChange(extensions => this._onDidChangeEnablement.fire({ extensions, source: 'storage' })));
+		this.storageManager = this._register(new StorageManager(storageService));
+		this._register(this.storageManager.onDidChange(extensions => this._onDidChangeEnablement.fire({ extensions, source: 'storage' })));
 		this._register(extensionManagementService.onDidInstallExtensions(e => e.forEach(({ local, operation }) => {
 			if (local && operation === InstallOperation.Migrate) {
 				this._removeFromDisabledExtensions(local.identifier); /* Reset migrated extensions */
@@ -84,11 +84,11 @@ export class GlobalExtensionEnablementService extends Disposable implements IGlo
 	}
 
 	private _getExtensions(storageId: string): IExtensionIdentifier[] {
-		return this.storageManger.get(storageId, StorageScope.PROFILE);
+		return this.storageManager.get(storageId, StorageScope.PROFILE);
 	}
 
 	private _setExtensions(storageId: string, extensions: IExtensionIdentifier[]): void {
-		this.storageManger.set(storageId, extensions, StorageScope.PROFILE);
+		this.storageManager.set(storageId, extensions, StorageScope.PROFILE);
 	}
 
 }

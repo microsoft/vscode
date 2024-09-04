@@ -325,7 +325,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 		*/
 		this.telemetryReporter.sendTelemetryEvent('git.repositoryInitialScan', { autoRepositoryDetection: String(autoRepositoryDetection) }, { repositoryCount: this.openRepositories.length });
-		this.logger.info(`[Model][doInitialScan] Initial repository scan completed - repositories(${this.repositories.length}), closed repositories (${this.closedRepositories.length}), parent repositories (${this.parentRepositories.length}), unsafe repositories (${this.unsafeRepositories.length})`);
+		this.logger.info(`[Model][doInitialScan] Initial repository scan completed - repositories (${this.repositories.length}), closed repositories (${this.closedRepositories.length}), parent repositories (${this.parentRepositories.length}), unsafe repositories (${this.unsafeRepositories.length})`);
 	}
 
 	/**

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IProductConfiguration } from 'vs/base/common/product';
+import { IProcessEnvironment } from '../../../common/platform.js';
+import { IProductConfiguration } from '../../../common/product.js';
 
 
 // #######################################################################
@@ -70,4 +70,9 @@ export interface ISandboxConfiguration {
 		 */
 		language: string | undefined;
 	};
+
+	/**
+	 * DEV time only: All CSS-modules that we have.
+	 */
+	cssModules?: string[];
 }

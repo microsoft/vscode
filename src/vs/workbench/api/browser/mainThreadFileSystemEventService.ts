@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions } from 'vs/platform/files/common/files';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol';
-import { localize } from 'vs/nls';
-import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
-import { GLOBSTAR } from 'vs/base/common/glob';
-import { rtrim } from 'vs/base/common/strings';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { normalizeWatcherPattern } from 'vs/platform/files/common/watcher';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions } from '../../../platform/files/common/files.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol.js';
+import { localize } from '../../../nls.js';
+import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IBulkEditService } from '../../../editor/browser/services/bulkEditService.js';
+import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { raceCancellation } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../base/common/severity.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
+import { GLOBSTAR } from '../../../base/common/glob.js';
+import { rtrim } from '../../../base/common/strings.js';
+import { UriComponents, URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { normalizeWatcherPattern } from '../../../platform/files/common/watcher.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystemEventService)
 export class MainThreadFileSystemEventService implements MainThreadFileSystemEventServiceShape {

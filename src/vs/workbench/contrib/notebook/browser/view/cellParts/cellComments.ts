@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import * as languages from 'vs/editor/common/languages';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { coalesce } from '../../../../../../base/common/arrays.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import * as languages from '../../../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { ICommentService } from '../../../../comments/browser/commentService.js';
+import { CommentThreadWidget } from '../../../../comments/browser/commentThreadWidget.js';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellContentPart } from '../cellPart.js';
+import { ICellRange } from '../../../common/notebookRange.js';
 
 export class CellComments extends CellContentPart {
 	private readonly _commentThreadWidget: MutableDisposable<CommentThreadWidget<ICellRange>>;
@@ -110,10 +110,6 @@ export class CellComments extends CellContentPart {
 				this.currentElement.commentHeight = 0;
 				return;
 			}
-			if (this._commentThreadWidget.value.commentThread === info.thread) {
-				this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
-				return;
-			}
 
 			await this._commentThreadWidget.value.updateCommentThread(info.thread);
 			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value.getDimensions().height);
@@ -136,8 +132,11 @@ export class CellComments extends CellContentPart {
 	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
-			if (commentInfos.length && commentInfos[0].threads.length) {
-				return { owner: commentInfos[0].uniqueOwner, thread: commentInfos[0].threads[0] };
+			for (const commentInfo of commentInfos) {
+				for (const thread of commentInfo.threads) {
+					// For now, only one thread per cell is supported.
+					return { owner: commentInfo.uniqueOwner, thread };
+				}
 			}
 		}
 

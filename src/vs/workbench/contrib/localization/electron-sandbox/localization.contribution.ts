@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, ILocalExtension, InstallExtensionResult, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { minimumTranslatedStrings } from 'vs/workbench/contrib/localization/electron-sandbox/minimalTranslations';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { BaseLocalizationWorkbenchContribution } from 'vs/workbench/contrib/localization/common/localization.contribution';
+import { localize } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import * as platform from '../../../../base/common/platform.js';
+import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, ILocalExtension, InstallExtensionResult, DidUninstallExtensionEvent } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { INotificationService, NeverShowAgainScope } from '../../../../platform/notification/common/notification.js';
+import Severity from '../../../../base/common/severity.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from '../../extensions/common/extensions.js';
+import { minimumTranslatedStrings } from './minimalTranslations.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { ILocaleService } from '../../../services/localization/common/locale.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { BaseLocalizationWorkbenchContribution } from '../common/localization.contribution.js';
 
 class NativeLocalizationWorkbenchContribution extends BaseLocalizationWorkbenchContribution {
 	private static LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/languagePackSuggestionIgnore';

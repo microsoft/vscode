@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, AuthenticationResponseDetails, AuthInfo as ElectronAuthInfo, Event as ElectronEvent, WebContents } from 'electron';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { hash } from '../../../base/common/hash.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEncryptionMainService } from '../../encryption/common/encryptionService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { AuthInfo, Credentials } from '../../request/common/request.js';
+import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 
 interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
 	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70
@@ -50,7 +53,9 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEncryptionMainService private readonly encryptionMainService: IEncryptionMainService,
-		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 	) {
 		super();
 
@@ -132,13 +137,64 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 	private async doResolveProxyCredentials(authInfo: AuthInfo, authInfoHash: string): Promise<Credentials | undefined> {
 		this.logService.trace('auth#doResolveProxyCredentials - enter', authInfo);
 
+		// For testing.
+		if (this.environmentMainService.extensionTestsLocationURI) {
+			const credentials = this.configurationService.getValue<string>('integration-test.http.proxyAuth');
+			if (credentials) {
+				const j = credentials.indexOf(':');
+				if (j !== -1) {
+					return {
+						username: credentials.substring(0, j),
+						password: credentials.substring(j + 1)
+					};
+				} else {
+					return {
+						username: credentials,
+						password: ''
+					};
+				}
+			}
+			return undefined;
+		}
+
+		// Reply with manually supplied credentials. Fail if they are wrong.
+		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim()
+			|| undefined;
+
+		if (newHttpProxy?.indexOf('@') !== -1) {
+			const uri = URI.parse(newHttpProxy!);
+			const i = uri.authority.indexOf('@');
+			if (i !== -1) {
+				if (authInfo.attempt > 1) {
+					this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - ignoring previously used config/envvar credentials');
+					return undefined; // We tried already, let the user handle it.
+				}
+				this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found config/envvar credentials to use');
+				const credentials = uri.authority.substring(0, i);
+				const j = credentials.indexOf(':');
+				if (j !== -1) {
+					return {
+						username: credentials.substring(0, j),
+						password: credentials.substring(j + 1)
+					};
+				} else {
+					return {
+						username: credentials,
+						password: ''
+					};
+				}
+			}
+		}
+
 		// Reply with session credentials unless we used them already.
 		// In that case we need to show a login dialog again because
 		// they seem invalid.
-		if (authInfo.attempt === 1 && this.sessionCredentials.has(authInfoHash)) {
+		const sessionCredentials = authInfo.attempt === 1 && this.sessionCredentials.get(authInfoHash);
+		if (sessionCredentials) {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found session credentials to use');
 
-			const { username, password } = this.sessionCredentials.get(authInfoHash)!;
+			const { username, password } = sessionCredentials;
 			return { username, password };
 		}
 

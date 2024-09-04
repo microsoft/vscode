@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Use this if you don't want the onDidChangeSessions event to fire in the extension host
@@ -128,6 +128,13 @@ export interface IAuthenticationService {
 	 * @throws if the provider is not registered
 	 */
 	getProvider(id: string): IAuthenticationProvider;
+
+	/**
+	 * Gets all accounts that are currently logged in across all sessions
+	 * @param id The id of the provider to ask for accounts
+	 * @returns A promise that resolves to an array of accounts
+	 */
+	getAccounts(id: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
 
 	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
