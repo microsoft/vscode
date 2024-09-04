@@ -691,6 +691,8 @@ class WordHighlighter {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
+					queryModelRef.dispose();
+					queryModel.dispose();
 				}
 			}, onUnexpectedError);
 		} else if (this.model.uri.scheme === Schemas.vscodeNotebookCell) {
@@ -714,9 +716,10 @@ class WordHighlighter {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
+					queryModelRef.dispose();
+					queryModel.dispose();
 				}
 			}, onUnexpectedError);
-
 		}
 	}
 
