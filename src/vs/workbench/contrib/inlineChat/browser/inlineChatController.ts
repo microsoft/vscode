@@ -748,7 +748,7 @@ export class InlineChatController implements IEditorContribution {
 		let newPosition: Position | undefined;
 
 		if (response.result?.errorDetails) {
-			//
+			// error -> no message, errors are shown with the request
 
 		} else if (response.response.value.length === 0) {
 			// empty -> show message
@@ -756,21 +756,21 @@ export class InlineChatController implements IEditorContribution {
 			this._ui.value.widget.updateStatus(status, { classes: ['warn'] });
 
 		} else {
-			// real response -> complex...
+			// real response -> no message
 			this._ui.value.widget.updateStatus('');
+		}
 
-			const position = await this._strategy.renderChanges();
-			if (position) {
-				// if the selection doesn't start far off we keep the widget at its current position
-				// because it makes reading this nicer
-				const selection = this._editor.getSelection();
-				if (selection?.containsPosition(position)) {
-					if (position.lineNumber - selection.startLineNumber > 8) {
-						newPosition = position;
-					}
-				} else {
+		const position = await this._strategy.renderChanges();
+		if (position) {
+			// if the selection doesn't start far off we keep the widget at its current position
+			// because it makes reading this nicer
+			const selection = this._editor.getSelection();
+			if (selection?.containsPosition(position)) {
+				if (position.lineNumber - selection.startLineNumber > 8) {
 					newPosition = position;
 				}
+			} else {
+				newPosition = position;
 			}
 		}
 		this._showWidget(this._session.headless, false, newPosition);
