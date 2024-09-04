@@ -109,7 +109,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
 		xterm.open(testContainer);
-		suggestAddon.setPanel(testContainer);
+		suggestAddon.setContainerWithOverflow(testContainer);
 		suggestAddon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		xterm.loadAddon(shellIntegrationAddon);

@@ -53,7 +53,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { isInputElement } from '../../../../../base/browser/ui/list/listWidget.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
@@ -602,7 +601,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
-		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+		if (DOM.isEditableElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 

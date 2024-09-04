@@ -161,7 +161,7 @@ export class ChatMarkdownDecorationsRenderer {
 						this.renderResourceWidget(a.textContent!, args, store),
 						a);
 				} else if (href.startsWith(contentRefUrl)) {
-					this.renderFileWidget(href, a);
+					this.renderFileWidget(href, a, store);
 				} else if (href.startsWith('command:')) {
 					this.injectKeybindingHint(a, href, this.keybindingService);
 				}
@@ -226,7 +226,7 @@ export class ChatMarkdownDecorationsRenderer {
 		return container;
 	}
 
-	private renderFileWidget(href: string, a: HTMLAnchorElement): void {
+	private renderFileWidget(href: string, a: HTMLAnchorElement, store: DisposableStore): void {
 		// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
 		const fullUri = URI.parse(href);
 		let location: Location | { uri: URI; range: undefined };
@@ -246,9 +246,12 @@ export class ChatMarkdownDecorationsRenderer {
 		a.setAttribute('data-href', location.uri.with({ fragment }).toString());
 
 		const label = this.labelService.getUriLabel(location.uri, { relative: true });
-		a.title = location.range ?
+		a.replaceChildren(dom.$('code', undefined, label));
+
+		const title = location.range ?
 			`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 			label;
+		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), a, title));
 	}
 
 

@@ -372,6 +372,35 @@ export abstract class MenubarControl extends Disposable {
 	}
 }
 
+// This is a bit complex due to the issue https://github.com/microsoft/vscode/issues/205836
+let focusMenuBarEmitter: Emitter<void> | undefined = undefined;
+function enableFocusMenuBarAction(): Emitter<void> {
+	if (!focusMenuBarEmitter) {
+		focusMenuBarEmitter = new Emitter<void>();
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.menubar.focus`,
+					title: localize2('focusMenu', 'Focus Application Menu'),
+					keybinding: {
+						primary: KeyMod.Alt | KeyCode.F10,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: IsWebContext
+					},
+					f1: true
+				});
+			}
+
+			async run(): Promise<void> {
+				focusMenuBarEmitter?.fire();
+			}
+		});
+	}
+
+	return focusMenuBarEmitter;
+}
+
 export class CustomMenubarControl extends MenubarControl {
 	private menubar: MenuBar | undefined;
 	private container: HTMLElement | undefined;
@@ -417,8 +446,6 @@ export class CustomMenubarControl extends MenubarControl {
 		});
 
 		this.registerListeners();
-
-		this.registerActions();
 	}
 
 	protected doUpdateMenubar(firstTime: boolean): void {
@@ -428,31 +455,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 		if (firstTime) {
 			this.pendingFirstTimeUpdate = true;
-		}
-	}
-
-	private registerActions(): void {
-		const that = this;
-
-		if (isWeb) {
-			this._register(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: `workbench.actions.menubar.focus`,
-						title: localize2('focusMenu', 'Focus Application Menu'),
-						keybinding: {
-							primary: KeyMod.Alt | KeyCode.F10,
-							weight: KeybindingWeight.WorkbenchContrib,
-							when: IsWebContext
-						},
-						f1: true
-					});
-				}
-
-				async run(): Promise<void> {
-					that.menubar?.toggleFocus();
-				}
-			}));
 		}
 	}
 
@@ -808,6 +810,7 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 			}));
 			this._register(this.webNavigationMenu.onDidChange(() => this.updateMenubar()));
+			this._register(enableFocusMenuBarAction().event(() => this.menubar?.toggleFocus()));
 		}
 	}
 

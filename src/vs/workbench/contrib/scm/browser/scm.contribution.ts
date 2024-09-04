@@ -342,7 +342,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
 			default: true
-		}
+		},
+		'scm.graph.pageOnScroll': {
+			type: 'boolean',
+			description: localize('scm.graph.pageOnScroll', "Controls whether the Source Control Graph view will load the next page of items when you scroll to the end of the list."),
+			default: true
+		},
+		'scm.graph.pageSize': {
+			type: 'number',
+			description: localize('scm.graph.pageSize', "The number of items to show in the Source Control Graph view by default and when loading more items."),
+			minimum: 1,
+			maximum: 1000,
+			default: 50
+		},
 	}
 });
 

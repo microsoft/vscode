@@ -688,6 +688,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _doStopExtensionHostsWithVeto(reason: string, auto: boolean = false): Promise<boolean> {
+		if (auto && this._environmentService.isExtensionDevelopment) {
+			return false;
+		}
+
 		const vetos: (boolean | Promise<boolean>)[] = [];
 		const vetoReasons = new Set<string>();
 

@@ -7460,9 +7460,10 @@ declare module 'vscode' {
 		 *   if (terminal === myTerm) {
 		 *     const execution = shellIntegration.executeCommand('echo "Hello world"');
 		 *     window.onDidEndTerminalShellExecution(event => {
-		 *     if (event.execution === execution) {
-		 *       console.log(`Command exited with code ${event.exitCode}`);
-		 *     }
+		 *       if (event.execution === execution) {
+		 *         console.log(`Command exited with code ${event.exitCode}`);
+		 *       }
+		 *     });
 		 *   }
 		 * }));
 		 * // Fallback to sendText if there is no shell integration within 3 seconds of launching
@@ -7480,9 +7481,10 @@ declare module 'vscode' {
 		 * if (term.shellIntegration) {
 		 *   const execution = shellIntegration.executeCommand({ commandLine });
 		 *   window.onDidEndTerminalShellExecution(event => {
-		 *   if (event.execution === execution) {
-		 *     console.log(`Command exited with code ${event.exitCode}`);
-		 *   }
+		 *     if (event.execution === execution) {
+		 *       console.log(`Command exited with code ${event.exitCode}`);
+		 *     }
+		 *   });
 		 * } else {
 		 *   term.sendText(commandLine);
 		 *   // Without shell integration, we can't know when the command has finished or what the

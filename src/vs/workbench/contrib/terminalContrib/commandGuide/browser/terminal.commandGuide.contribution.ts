@@ -5,7 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
-import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -70,6 +70,7 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 				addDisposableListener(viewportElement, 'mousemove', (e: MouseEvent) => this._tryShowHighlight(screenElement, xterm, e)),
 				addDisposableListener(xterm.raw.element!, 'mouseout', () => xterm.markTracker.showCommandGuide(undefined)),
 				xterm.raw.onData(() => xterm.markTracker.showCommandGuide(undefined)),
+				toDisposable(() => xterm.markTracker.showCommandGuide(undefined)),
 			);
 		}
 	}

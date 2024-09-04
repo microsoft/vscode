@@ -16,7 +16,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ShellIntegrationOscPs } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
@@ -161,12 +161,21 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (this._terminalSuggestWidgetVisibleContextKey) {
 			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, TerminalSuggestContribution._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(addon);
-			addon.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
+			if (this._instance.target === TerminalLocation.Editor) {
+				addon.setContainerWithOverflow(xterm.element!);
+			} else {
+				addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
+			}
 			addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 			this.add(this._instance.onDidBlur(() => addon.hideSuggestWidget()));
 			this.add(addon.onAcceptedCompletion(async text => {
 				this._instance.focus();
 				this._instance.sendText(text, false);
+			}));
+			this.add(this._instance.onWillPaste(() => addon.isPasting = true));
+			this.add(this._instance.onDidPaste(() => {
+				// Delay this slightly as synchronizing the prompt input is debounced
+				setTimeout(() => addon.isPasting = false, 100);
 			}));
 
 			// If completions are requested, pause and queue input events until completions are

@@ -53,7 +53,7 @@ import { ProtocolMainService } from '../../platform/protocol/electron-main/proto
 import { ITunnelService } from '../../platform/tunnel/common/tunnel.js';
 import { TunnelService } from '../../platform/tunnel/node/tunnelService.js';
 import { IRequestService } from '../../platform/request/common/request.js';
-import { RequestMainService } from '../../platform/request/electron-main/requestMainService.js';
+import { RequestService } from '../../platform/request/electron-node/requestService.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
 import { SignService } from '../../platform/sign/node/signService.js';
 import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
@@ -211,7 +211,7 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
+		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));

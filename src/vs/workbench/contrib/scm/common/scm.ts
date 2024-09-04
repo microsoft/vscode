@@ -230,6 +230,11 @@ export interface ISCMViewService {
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
+
+	/**
+	 * Focused repository or the repository for the active editor
+	 */
+	readonly activeRepository: IObservable<ISCMRepository | undefined>;
 }
 
 export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';
