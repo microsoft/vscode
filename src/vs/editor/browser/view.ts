@@ -57,6 +57,7 @@ import { IInstantiationService } from '../../platform/instantiation/common/insta
 import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
 import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
+import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 
 
 export interface IContentWidgetData {
@@ -127,7 +128,11 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._editContext = this._instantiationService.createInstance(TextAreaEditContext, this._context, viewController, this._createTextAreaHandlerHelper());
+		const editContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		this._editContext = editContextEnabled
+			? this._instantiationService.createInstance(NativeEditContext, this._context, viewController)
+			: this._instantiationService.createInstance(TextAreaEditContext, this._context, viewController, this._createTextAreaHandlerHelper());
+
 		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)

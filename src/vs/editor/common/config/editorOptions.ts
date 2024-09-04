@@ -744,6 +744,11 @@ export interface IEditorOptions {
 	dropIntoEditor?: IDropIntoEditorOptions;
 
 	/**
+	 * Sets whether the new experimental edit context should be used instead of the text area.
+	 */
+	experimentalEditContextEnabled?: boolean;
+
+	/**
 	 * Controls support for changing how content is pasted into the editor.
 	 */
 	pasteAs?: IPasteAsOptions;
@@ -5373,6 +5378,7 @@ export const enum EditorOption {
 	domReadOnly,
 	dragAndDrop,
 	dropIntoEditor,
+	experimentalEditContextEnabled,
 	emptySelectionClipboard,
 	experimentalWhitespaceRendering,
 	extraEditorClassName,
@@ -5743,6 +5749,12 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
+	experimentalEditContextEnabled: register(new EditorBooleanOption(
+		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', false,
+		{
+			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area.")
+		}
+	)),
 	stickyScroll: register(new EditorStickyScroll()),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
