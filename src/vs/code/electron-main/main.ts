@@ -211,7 +211,11 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
+		const networkLogger = loggerService.createLogger('network-main', {
+			name: localize('network-main', "Network (Main)"),
+			hidden: true
+		});
+		services.set(IRequestService, new SyncDescriptor(RequestService, [networkLogger], true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));

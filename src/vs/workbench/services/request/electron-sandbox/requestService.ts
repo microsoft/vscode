@@ -4,35 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ILoggerService } from '../../../../platform/log/common/log.js';
-import { RequestService } from '../../../../platform/request/browser/requestService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { request } from '../../../../base/parts/request/browser/request.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { localize } from '../../../../nls.js';
 
-export class NativeRequestService extends RequestService {
+export class NativeRequestService extends AbstractRequestService implements IRequestService {
+
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILoggerService loggerService: ILoggerService,
-		@INativeHostService private nativeHostService: INativeHostService
 	) {
-		super(configurationService, loggerService);
+		super(loggerService.createLogger('network-window', {
+			name: localize('network-window', "Network (Window)"),
+			hidden: true
+		}));
 	}
 
-	override async resolveProxy(url: string): Promise<string | undefined> {
+	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (!options.proxyAuthorization) {
+			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
+		}
+		return this.logAndRequest(options, () => request(options, token));
+	}
+
+	async resolveProxy(url: string): Promise<string | undefined> {
 		return this.nativeHostService.resolveProxy(url);
 	}
 
-	override async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return this.nativeHostService.lookupAuthorization(authInfo);
 	}
 
-	override async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
 		return this.nativeHostService.lookupKerberosAuthorization(url);
 	}
 
-	override async loadCertificates(): Promise<string[]> {
+	async loadCertificates(): Promise<string[]> {
 		return this.nativeHostService.loadCertificates();
 	}
 }
