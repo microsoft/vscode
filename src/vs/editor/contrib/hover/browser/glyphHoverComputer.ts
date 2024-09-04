@@ -15,33 +15,19 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
-export class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
+export interface GlyphHoverComputerOptions {
+	lineNumber: number;
+	laneOrLine: LaneOrLineNumber;
+}
 
-	private _lineNumber: number = -1;
-	private _laneOrLine: LaneOrLineNumber = GlyphMarginLane.Center;
-
-	public get lineNumber(): number {
-		return this._lineNumber;
-	}
-
-	public set lineNumber(value: number) {
-		this._lineNumber = value;
-	}
-
-	public get lane(): LaneOrLineNumber {
-		return this._laneOrLine;
-	}
-
-	public set lane(value: LaneOrLineNumber) {
-		this._laneOrLine = value;
-	}
+export class GlyphHoverComputer implements IHoverComputer<GlyphHoverComputerOptions, IHoverMessage> {
 
 	constructor(
 		private readonly _editor: ICodeEditor
 	) {
 	}
 
-	public computeSync(): IHoverMessage[] {
+	public computeSync(opts: GlyphHoverComputerOptions): IHoverMessage[] {
 
 		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
 			return {
@@ -49,17 +35,17 @@ export class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 			};
 		};
 
-		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
+		const lineDecorations = this._editor.getLineDecorations(opts.lineNumber);
 
 		const result: IHoverMessage[] = [];
-		const isLineHover = this._laneOrLine === 'lineNo';
+		const isLineHover = opts.laneOrLine === 'lineNo';
 		if (!lineDecorations) {
 			return result;
 		}
 
 		for (const d of lineDecorations) {
 			const lane = d.options.glyphMargin?.position ?? GlyphMarginLane.Center;
-			if (!isLineHover && lane !== this._laneOrLine) {
+			if (!isLineHover && lane !== opts.laneOrLine) {
 				continue;
 			}
 

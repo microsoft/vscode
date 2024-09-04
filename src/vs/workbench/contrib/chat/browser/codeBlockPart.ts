@@ -36,7 +36,7 @@ import { ColorDetector } from '../../../../editor/contrib/colorPicker/browser/co
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { GotoDefinitionAtPositionEditorContribution } from '../../../../editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
 import { ViewportSemanticTokensContribution } from '../../../../editor/contrib/semanticTokens/browser/viewportSemanticTokens.js';
@@ -294,7 +294,7 @@ export class CodeBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 				ColorDetector.ID,
@@ -406,7 +406,7 @@ export class CodeBlockPart extends Disposable {
 
 	private clearWidgets() {
 		ContentHoverController.get(this.editor)?.hideContentHover();
-		MarginHoverController.get(this.editor)?.hideContentHover();
+		GlyphHoverController.get(this.editor)?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
@@ -615,7 +615,7 @@ export class CodeCompareBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		};
@@ -729,8 +729,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private clearWidgets() {
 		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
 		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
-		MarginHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		MarginHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {

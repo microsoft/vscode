@@ -11,7 +11,7 @@ import { ColorIdentifier } from '../../../../platform/theme/common/colorUtils.js
 import { ISCMRepository } from './scm.js';
 
 export interface ISCMHistoryProviderMenus {
-	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
+	getHistoryItemMenu(historyItem: SCMHistoryItemViewModelTreeElement): IMenu;
 }
 
 export interface ISCMHistoryProvider {
@@ -52,6 +52,7 @@ export interface ISCMHistoryItemLabel {
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
+	readonly subject: string;
 	readonly message: string;
 	readonly displayId?: string;
 	readonly author?: string;
@@ -75,7 +76,7 @@ export interface ISCMHistoryItemViewModel {
 export interface SCMHistoryItemViewModelTreeElement {
 	readonly repository: ISCMRepository;
 	readonly historyItemViewModel: ISCMHistoryItemViewModel;
-	readonly type: 'historyItem2';
+	readonly type: 'historyItemViewModel';
 }
 
 export interface SCMHistoryItemLoadMoreTreeElement {

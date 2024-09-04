@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import * as platform from '../../../../base/common/platform.js';
-import { $, append, reset } from '../../../../base/browser/dom.js';
+import { $, append, h, reset } from '../../../../base/browser/dom.js';
 import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -235,16 +235,25 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const currentHistoryItemGroup = provider.historyProvider.get()?.currentHistoryItemGroup?.get();
 		const extraClasses = currentHistoryItemGroup?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
-		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches, extraClasses });
+		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
 		templateData.labelContainer.textContent = '';
 		for (const label of historyItem.labels ?? []) {
 			if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
-				const icon = append(templateData.labelContainer, $('div.label'));
-				icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+				const elements = h('div.label', [
+					h('div.icon@icon'),
+					h('div.description@description')
+				]);
 
-				icon.style.color = label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground);
-				icon.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+				elements.root.style.color = label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground);
+				elements.root.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+
+				elements.icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+
+				elements.description.textContent = label.title;
+				elements.description.style.display = label.color ? '' : 'none';
+
+				append(templateData.labelContainer, elements.root);
 			}
 		}
 	}
@@ -408,6 +417,7 @@ class HistoryItemActionRunner extends ActionRunner {
 				{
 					id: h.historyItemViewModel.historyItem.id,
 					parentIds: h.historyItemViewModel.historyItem.parentIds,
+					subject: h.historyItemViewModel.historyItem.subject,
 					message: h.historyItemViewModel.historyItem.message,
 					displayId: h.historyItemViewModel.historyItem.displayId,
 					author: h.historyItemViewModel.historyItem.author,
@@ -418,6 +428,7 @@ class HistoryItemActionRunner extends ActionRunner {
 			args.push({
 				id: context.historyItemViewModel.historyItem.id,
 				parentIds: context.historyItemViewModel.historyItem.parentIds,
+				subject: context.historyItemViewModel.historyItem.subject,
 				message: context.historyItemViewModel.historyItem.message,
 				displayId: context.historyItemViewModel.historyItem.displayId,
 				author: context.historyItemViewModel.historyItem.author,
@@ -665,7 +676,7 @@ class SCMHistoryViewModel extends Disposable {
 			.map(historyItemViewModel => ({
 				repository,
 				historyItemViewModel,
-				type: 'historyItem2'
+				type: 'historyItemViewModel'
 			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}
 
@@ -974,7 +985,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		const actionRunner: IActionRunner = new HistoryItemActionRunner(() => this._getSelectedHistoryItems());
 
 		const menus = this._scmViewService.menus.getRepositoryMenus(element.repository.provider);
-		const menu = menus.historyProviderMenu?.getHistoryItemMenu2(element);
+		const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
 		const actions = menu ? collectContextMenuActions(menu) : [];
 
 		actionRunner.onWillRun(() => this._tree.domFocus());

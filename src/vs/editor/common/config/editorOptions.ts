@@ -4115,6 +4115,8 @@ export interface IInlineSuggestOptions {
 
 	showToolbar?: 'always' | 'onHover' | 'never';
 
+	syntaxHighlightingEnabled?: boolean;
+
 	suppressSuggestions?: boolean;
 
 	/**
@@ -4144,7 +4146,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: 'onHover',
 			suppressSuggestions: false,
 			keepOnBlur: false,
-			fontFamily: 'default'
+			fontFamily: 'default',
+			syntaxHighlightingEnabled: false,
 		};
 
 		super(
@@ -4165,6 +4168,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						nls.localize('inlineSuggest.showToolbar.never', "Never show the inline suggestion toolbar."),
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
+				},
+				'editor.inlineSuggest.syntaxHighlightingEnabled': {
+					type: 'boolean',
+					default: defaults.syntaxHighlightingEnabled,
+					description: nls.localize('inlineSuggest.syntaxHighlightingEnabled', "Controls whether to show syntax highlighting for inline suggestions in the editor."),
 				},
 				'editor.inlineSuggest.suppressSuggestions': {
 					type: 'boolean',
@@ -4191,7 +4199,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 		};
 	}
 }

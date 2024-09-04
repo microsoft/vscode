@@ -37,7 +37,7 @@ import { MessageController } from '../../../../editor/contrib/message/browser/me
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;
@@ -80,7 +80,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 					LinkDetector.ID,
 					MessageController.ID,
 					ContentHoverController.ID,
-					MarginHoverController.ID,
+					GlyphHoverController.ID,
 					SelectionClipboardContributionID,
 					InlineCompletionsController.ID,
 					CodeActionController.ID,

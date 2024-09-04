@@ -255,7 +255,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
 
-	private readonly historyItemMenus2 = new Map<SCMHistoryItemViewModelTreeElement, IMenu>();
+	private readonly historyItemMenus = new Map<SCMHistoryItemViewModelTreeElement, IMenu>();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -263,16 +263,16 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		@IMenuService private readonly menuService: IMenuService) { }
 
 
-	getHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
-		return this.getOrCreateHistoryItemMenu2(historyItem);
+	getHistoryItemMenu(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
+		return this.getOrCreateHistoryItemMenu(historyItem);
 	}
 
-	private getOrCreateHistoryItemMenu2(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
-		let result = this.historyItemMenus2.get(historyItem);
+	private getOrCreateHistoryItemMenu(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
+		let result = this.historyItemMenus.get(historyItem);
 
 		if (!result) {
 			result = this.menuService.createMenu(MenuId.SCMChangesContext, this.contextKeyService);
-			this.historyItemMenus2.set(historyItem, result);
+			this.historyItemMenus.set(historyItem, result);
 		}
 
 		return result;
