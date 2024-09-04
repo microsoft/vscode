@@ -616,7 +616,6 @@
 				"src/**/*.ts"
 			],
 			"rules": {
-				"local/code-no-look-behind-regex": "warn",
 				"local/code-import-patterns": [
 					"warn",
 					{
