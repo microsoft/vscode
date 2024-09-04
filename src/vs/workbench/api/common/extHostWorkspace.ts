@@ -646,6 +646,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 				}
 			}));
+			await complete;
 		});
 
 		return {
