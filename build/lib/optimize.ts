@@ -343,7 +343,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 					'.sh': 'file',
 				},
 				assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
-				banner,
+				banner: entryPoint.name === 'vs/workbench/workbench.web.main' ? undefined : banner, // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 				entryPoints: [
 					{
 						in: path.join(REPO_ROOT_PATH, opts.src, `${entryPoint.name}.js`),

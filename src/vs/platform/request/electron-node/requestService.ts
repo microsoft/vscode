@@ -12,7 +12,7 @@ function getRawRequest(options: IRequestOptions): IRawRequestFunction {
 	return net.request as any as IRawRequestFunction;
 }
 
-export class RequestMainService extends NodeRequestService {
+export class RequestService extends NodeRequestService {
 
 	override request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		return super.request({ ...(options || {}), getRawRequest, isChromiumNetwork: true }, token);

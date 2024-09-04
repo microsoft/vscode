@@ -68,6 +68,10 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 				TreeSitterTokenizationRegistry.getOrCreate(languageId);
 			}
 		}
+		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !setting.includes(languageId));
+		for (const languageId of languagesToUnregister) {
+			this._tokenizersRegistrations.deleteAndDispose(languageId);
+		}
 	}
 
 	private async _fetchQueries(newLanguage: string): Promise<TreeSitterQueries> {

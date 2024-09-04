@@ -48,7 +48,7 @@ export function isSCMResourceNode(element: any): element is IResourceNode<ISCMRe
 }
 
 export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
-	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItem2';
+	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
 }
 
 export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {

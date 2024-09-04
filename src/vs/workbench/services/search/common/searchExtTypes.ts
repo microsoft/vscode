@@ -320,41 +320,6 @@ export class TextSearchContextNew {
  */
 export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
 
-
-/**
- * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
- *
- * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
- * all files that match the user's query.
- *
- * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
- * and in that case, every file in the folder should be returned.
- */
-export interface FileSearchProviderNew {
-	/**
-	 * Provide the set of files that match a certain file path pattern.
-	 * @param query The parameters for this query.
-	 * @param options A set of options to consider while searching files.
-	 * @param progress A progress callback that must be invoked for all results.
-	 * @param token A cancellation token.
-	 */
-	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]>;
-}
-
-/**
- * A TextSearchProvider provides search results for text results inside files in the workspace.
- */
-export interface TextSearchProviderNew {
-	/**
-	 * Provide results that match the given text pattern.
-	 * @param query The parameters for this query.
-	 * @param options A set of options to consider while searching.
-	 * @param progress A progress callback that must be invoked for all results.
-	 * @param token A cancellation token.
-	 */
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
-}
-
 /**
  * Information collected when text search is complete.
  */
@@ -417,7 +382,7 @@ export interface FileSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]>;
+	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<SearchResultFromFolder<URI>[]>;
 }
 
 /**
@@ -431,7 +396,7 @@ export interface TextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 }
 
 /**
@@ -537,5 +502,13 @@ export interface AITextSearchProviderNew {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 }
+
+/**
+ * A wrapper for a search result that indicates the original workspace folder that this result was found for.
+ */
+export type SearchResultFromFolder<T> = {
+	result: T;
+	folder: URI;
+};

@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
-import { CellMetadata, CellOutputMetadata, useCustomPropertyInMetadata } from './common';
+import { CellMetadata, CellOutputMetadata } from './common';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -154,51 +154,25 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 	[key: string]: any;
 } {
-	if (useCustomPropertyInMetadata()) {
-		const cellMetadata: { [key: string]: any } = {};
-		// We put this only for VSC to display in diff view.
-		// Else we don't use this.
-		const custom: CellMetadata = {};
-
-		if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
-			custom.execution_count = cell['execution_count'];
-		}
-
-		if (cell['metadata']) {
-			custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
-		}
-
-		if ('id' in cell && typeof cell.id === 'string') {
-			custom.id = cell.id;
-		}
-
-		cellMetadata.custom = custom;
-
-		if (cell['attachments']) {
-			cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
-		}
-		return cellMetadata;
-	} else {
-		// We put this only for VSC to display in diff view.
-		// Else we don't use this.
-		const cellMetadata: CellMetadata = {};
-		if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
-			cellMetadata.execution_count = cell['execution_count'];
-		}
-
-		if (cell['metadata']) {
-			cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
-		}
-
-		if ('id' in cell && typeof cell.id === 'string') {
-			cellMetadata.id = cell.id;
-		}
-
-		if (cell['attachments']) {
-			cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
-		}
-		return cellMetadata;
+	// We put this only for VSC to display in diff view.
+	// Else we don't use this.
+	const cellMetadata: CellMetadata = {};
+	if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
+		cellMetadata.execution_count = cell['execution_count'];
 	}
+
+	if (cell['metadata']) {
+		cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
+	}
+
+	if ('id' in cell && typeof cell.id === 'string') {
+		cellMetadata.id = cell.id;
+	}
+
+	if (cell['attachments']) {
+		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
+	}
+	return cellMetadata;
 }
 
 function getOutputMetadata(output: nbformat.IOutput): CellOutputMetadata {
@@ -391,6 +365,6 @@ export function jupyterNotebookModelToNotebookData(
 		.filter((item): item is NotebookCellData => !!item);
 
 	const notebookData = new NotebookData(cells);
-	notebookData.metadata = useCustomPropertyInMetadata() ? { custom: notebookContentWithoutCells } : notebookContentWithoutCells;
+	notebookData.metadata = notebookContentWithoutCells;
 	return notebookData;
 }

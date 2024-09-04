@@ -81,8 +81,9 @@ declare module 'vscode' {
 		 * @param pattern The search pattern to match against file paths.
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
+		 * @returns A list of matching URIs, where each URI is associated with a workspace folder.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<SearchResultFromFolder<Uri>[]>;
 	}
 
 	export namespace workspace {
