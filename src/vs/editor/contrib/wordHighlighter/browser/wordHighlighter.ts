@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns
 import * as nls from '../../../../nls.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CancelablePromise, createCancelablePromise, Delayer, first } from '../../../../base/common/async.js';
