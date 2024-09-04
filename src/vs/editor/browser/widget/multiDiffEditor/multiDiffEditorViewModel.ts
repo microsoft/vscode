@@ -29,7 +29,9 @@ export class MultiDiffEditorViewModel extends Disposable {
 		.recomputeInitiallyAndOnChange(this._store);
 
 	public readonly focusedDiffItem = derived(this, reader => this.items.read(reader).find(i => i.isFocused.read(reader)));
-	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this, (reader, lastValue) => this.focusedDiffItem.read(reader) ?? lastValue);
+	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this,
+		(reader, lastValue) => this.focusedDiffItem.read(reader) ?? (lastValue && this.items.read(reader).indexOf(lastValue) !== -1) ? lastValue : undefined
+	);
 
 	public async waitForDiffs(): Promise<void> {
 		for (const d of this.items.get()) {
