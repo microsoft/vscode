@@ -20,6 +20,8 @@ import { NotebookOutlineEntryFactory } from '../../../browser/viewModel/notebook
 import { OutlineEntry } from '../../../browser/viewModel/OutlineEntry.js';
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { MockDocumentSymbol } from '../testNotebookEditor.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 suite('Notebook Outline View Providers', function () {
 
@@ -55,12 +57,27 @@ suite('Notebook Outline View Providers', function () {
 			return 0;
 		}
 	};
+	const textModelService = new class extends mock<ITextModelService>() {
+		override createModelReference(uri: URI) {
+			return Promise.resolve({
+				object: {
+					textEditorModel: {
+						id: uri.toString(),
+						getVersionId() { return 1; }
+					}
+				},
+				dispose() { }
+			} as IReference<IResolvedTextEditorModel>);
+		}
+	};
 
 	// #endregion
 	// #region Helpers
 
 	function createCodeCellViewModel(version: number = 1, source = '# code', textmodelId = 'textId') {
 		return {
+			uri: { toString() { return textmodelId; } },
+			id: textmodelId,
 			textBuffer: {
 				getLineCount() { return 0; }
 			},
@@ -206,7 +223,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -249,7 +266,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -295,7 +312,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -338,7 +355,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -387,7 +404,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -446,7 +463,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -499,7 +516,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -552,7 +569,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -608,7 +625,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
@@ -659,7 +676,7 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
 			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}

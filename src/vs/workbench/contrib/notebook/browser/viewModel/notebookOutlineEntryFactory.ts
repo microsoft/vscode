@@ -15,6 +15,7 @@ import { INotebookExecutionStateService } from '../../common/notebookExecutionSt
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { SymbolKind } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 
 export const enum NotebookOutlineConstants {
 	NonHeaderOutlineLevel = 7,
@@ -59,7 +60,8 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number; text: string }[] }>();
 	constructor(
 		@INotebookExecutionStateService private readonly executionStateService: INotebookExecutionStateService,
-		@IOutlineModelService private readonly outlineModelService: IOutlineModelService
+		@IOutlineModelService private readonly outlineModelService: IOutlineModelService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) { }
 
 	public getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[] {
@@ -125,10 +127,18 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 	}
 
 	public async cacheSymbols(cell: ICellViewModel, cancelToken: CancellationToken) {
-		const textModel = await cell.resolveTextModel();
-		const outlineModel = await this.outlineModelService.getOrCreate(textModel, cancelToken);
-		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 8);
-		this.cellOutlineEntryCache[cell.id] = { entries, version: textModel.getVersionId() };
+		if (cell.cellKind === CellKind.Markup) {
+			return;
+		}
+		const ref = await this.textModelService.createModelReference(cell.uri);
+		try {
+			const textModel = ref.object.textEditorModel;
+			const outlineModel = await this.outlineModelService.getOrCreate(textModel, cancelToken);
+			const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 8);
+			this.cellOutlineEntryCache[cell.id] = { entries, version: textModel.getVersionId() };
+		} finally {
+			ref.dispose();
+		}
 	}
 }
 
