@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
-import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
-import type { IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
+import { ensureNonNullable } from '../gpuUtils.js';
+import type { IRasterizedGlyph } from '../raster/raster.js';
+import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from './atlas.js';
 
 /**
  * The shelf allocator is a simple allocator that places glyphs in rows, starting a new row when the

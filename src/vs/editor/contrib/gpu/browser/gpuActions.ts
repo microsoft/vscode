@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, type ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
-import { GlyphRasterizer } from 'vs/editor/browser/gpu/raster/glyphRasterizer';
-import { ViewLinesGpu } from 'vs/editor/browser/viewParts/linesGpu/viewLinesGpu';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import type { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, type ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ensureNonNullable } from '../../../browser/gpu/gpuUtils.js';
+import { GlyphRasterizer } from '../../../browser/gpu/raster/glyphRasterizer.js';
+import { ViewLinesGpu } from '../../../browser/viewParts/linesGpu/viewLinesGpu.js';
 
 class DebugEditorGpuRendererAction extends EditorAction {
 
