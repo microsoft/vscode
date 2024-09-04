@@ -13,7 +13,7 @@ import { IMenu } from '../../../../platform/actions/common/actions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
-import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from './history.js';
+import { ISCMHistoryProvider } from './history.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IObservable } from '../../../../base/common/observable.js';
 
@@ -186,7 +186,6 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
-	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
 	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
