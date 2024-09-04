@@ -238,20 +238,24 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
 		templateData.labelContainer.textContent = '';
+		const firstColoredLabel = historyItem.labels?.find(label => label.color);
+
 		for (const label of historyItem.labels ?? []) {
 			if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
-				const elements = h('div.label', [
+				const elements = h('div.label', {
+					style: {
+						color: label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
+						backgroundColor: label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground)
+					}
+				}, [
 					h('div.icon@icon'),
 					h('div.description@description')
 				]);
 
-				elements.root.style.color = label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground);
-				elements.root.style.backgroundColor = label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
-
 				elements.icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
 
 				elements.description.textContent = label.title;
-				elements.description.style.display = label.color ? '' : 'none';
+				elements.description.style.display = label === firstColoredLabel ? '' : 'none';
 
 				append(templateData.labelContainer, elements.root);
 			}
