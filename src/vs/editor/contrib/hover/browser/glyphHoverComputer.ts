@@ -15,7 +15,7 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
-export class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
+export class GlyphHoverComputer implements IHoverComputer<IHoverMessage> {
 
 	private _lineNumber: number = -1;
 	private _laneOrLine: LaneOrLineNumber = GlyphMarginLane.Center;

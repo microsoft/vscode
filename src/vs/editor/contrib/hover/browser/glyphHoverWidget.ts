@@ -13,12 +13,12 @@ import { HoverOperation, HoverStartMode } from './hoverOperation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { HoverWidget } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverWidget } from './hoverTypes.js';
-import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from './marginHoverComputer.js';
+import { IHoverMessage, LaneOrLineNumber, GlyphHoverComputer } from './glyphHoverComputer.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
 
 const $ = dom.$;
 
-export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHoverWidget {
+export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHoverWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
 
@@ -29,7 +29,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	private _messages: IHoverMessage[];
 
 	private readonly _markdownRenderer: MarkdownRenderer;
-	private readonly _computer: MarginHoverComputer;
+	private readonly _computer: GlyphHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverMessage>;
 	private readonly _renderDisposeables = this._register(new DisposableStore());
 
@@ -48,7 +48,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));
-		this._computer = new MarginHoverComputer(this._editor);
+		this._computer = new GlyphHoverComputer(this._editor);
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 		this._register(this._hoverOperation.onResult((result) => {
 			this._withResult(result.value);
@@ -72,7 +72,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	}
 
 	public getId(): string {
-		return MarginHoverWidget.ID;
+		return GlyphHoverWidget.ID;
 	}
 
 	public getDomNode(): HTMLElement {
