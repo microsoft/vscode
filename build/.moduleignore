@@ -104,12 +104,6 @@ node-pty/third_party/**
 !node-pty/build/Release/conpty/conpty.dll
 !node-pty/build/Release/conpty/OpenConsole.exe
 
-@bpasero/watcher/binding.gyp
-@bpasero/watcher/build/**
-@bpasero/watcher/prebuilds/**
-@bpasero/watcher/src/**
-!@bpasero/watcher/build/Release/*.node
-
 vsda/build/**
 vsda/ci/**
 vsda/src/**
