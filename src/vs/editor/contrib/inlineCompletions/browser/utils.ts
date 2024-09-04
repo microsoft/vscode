@@ -36,6 +36,10 @@ export class ColumnRange {
 	}
 }
 
+/**
+ * Use observableCodeEditor(editor).applyDecorations(decorations) instead.
+ * @deprecated
+*/
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
 	const decorationsCollection = editor.createDecorationsCollection();

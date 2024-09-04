@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from './baseDebugView.js';
 import { handleANSIOutput } from './debugANSIHandling.js';
 import { debugConsoleEvaluationInput } from './debugIcons.js';
-import { LinkDetector } from './linkDetector.js';
+import { ILinkDetector, LinkDetector } from './linkDetector.js';
 import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, INestingReplElement, IReplElement, IReplElementSource, IReplOptions } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';
 import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from '../common/replModel.js';
@@ -196,7 +196,9 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
 
-		templateData.value.appendChild(handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root));
+		const locationReference = element.expression?.valueLocationReference;
+		const detector: ILinkDetector = locationReference !== undefined ? this.linkDetector.makeReferencedLinkDetector(locationReference, element.session) : this.linkDetector;
+		templateData.value.appendChild(handleANSIOutput(element.value, detector, this.themeService, element.session.root));
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.setSource(element.sourceData);

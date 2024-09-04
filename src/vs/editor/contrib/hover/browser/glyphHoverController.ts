@@ -14,7 +14,7 @@ import { IHoverWidget } from './hoverTypes.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
 import './hover.css';
-import { MarginHoverWidget } from './marginHoverWidget.js';
+import { GlyphHoverWidget } from './glyphHoverWidget.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -31,7 +31,7 @@ interface IHoverState {
 	mouseDown: boolean;
 }
 
-export class MarginHoverController extends Disposable implements IEditorContribution {
+export class GlyphHoverController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.marginHover';
 
@@ -39,7 +39,7 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 
 	private readonly _listenersStore = new DisposableStore();
 
-	private _glyphWidget: MarginHoverWidget | undefined;
+	private _glyphWidget: GlyphHoverWidget | undefined;
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 
@@ -67,8 +67,8 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		}));
 	}
 
-	static get(editor: ICodeEditor): MarginHoverController | null {
-		return editor.getContribution<MarginHoverController>(MarginHoverController.ID);
+	static get(editor: ICodeEditor): GlyphHoverController | null {
+		return editor.getContribution<GlyphHoverController>(GlyphHoverController.ID);
 	}
 
 	private _hookListeners(): void {
@@ -116,17 +116,17 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		this._hoverState.mouseDown = true;
-		const shouldNotHideCurrentHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
+		const shouldNotHideCurrentHoverWidget = this._isMouseOnGlyphHoverWidget(mouseEvent);
 		if (shouldNotHideCurrentHoverWidget) {
 			return;
 		}
 		this._hideWidgets();
 	}
 
-	private _isMouseOnMarginHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		const marginHoverWidgetNode = this._glyphWidget?.getDomNode();
-		if (marginHoverWidgetNode) {
-			return isMousePositionWithinElement(marginHoverWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
+	private _isMouseOnGlyphHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
+		const glyphHoverWidgetNode = this._glyphWidget?.getDomNode();
+		if (glyphHoverWidgetNode) {
+			return isMousePositionWithinElement(glyphHoverWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
 		}
 		return false;
 	}
@@ -141,7 +141,7 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		}
 
 		this._cancelScheduler();
-		const shouldNotHideCurrentHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
+		const shouldNotHideCurrentHoverWidget = this._isMouseOnGlyphHoverWidget(mouseEvent);
 		if (shouldNotHideCurrentHoverWidget) {
 			return;
 		}
@@ -153,8 +153,8 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 
 	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
 		const isHoverSticky = this._hoverSettings.sticky;
-		const isMouseOnMarginHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
-		return isHoverSticky && isMouseOnMarginHoverWidget;
+		const isMouseOnGlyphHoverWidget = this._isMouseOnGlyphHoverWidget(mouseEvent);
+		return isHoverSticky && isMouseOnGlyphHoverWidget;
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
@@ -212,9 +212,9 @@ export class MarginHoverController extends Disposable implements IEditorContribu
 		this._glyphWidget?.hide();
 	}
 
-	private _getOrCreateGlyphWidget(): MarginHoverWidget {
+	private _getOrCreateGlyphWidget(): GlyphHoverWidget {
 		if (!this._glyphWidget) {
-			this._glyphWidget = this._instantiationService.createInstance(MarginHoverWidget, this._editor);
+			this._glyphWidget = this._instantiationService.createInstance(GlyphHoverWidget, this._editor);
 		}
 		return this._glyphWidget;
 	}

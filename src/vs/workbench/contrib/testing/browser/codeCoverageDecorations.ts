@@ -136,7 +136,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this._register(editor.onMouseMove(e => {
 			const model = editor.getModel();
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS && model) {
-				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
+				this.hoverLineNumber(editor.getModel()!);
 			} else if (coverage.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT && model) {
 				this.hoverInlineDecoration(model, e.target.position);
 			} else {
@@ -195,50 +195,22 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 	}
 
-	private hoverLineNumber(model: ITextModel, lineNumber: number) {
-		if (lineNumber === this.hoveredSubject || !this.details) {
+	private hoverLineNumber(model: ITextModel) {
+		if (this.hoveredSubject === 'lineNo' || !this.details || this.coverage.showInline.get()) {
 			return;
 		}
 
 		this.hoveredStore.clear();
-		this.hoveredSubject = lineNumber;
+		this.hoveredSubject = 'lineNo';
 
-		const todo = [{ line: lineNumber, dir: 0 }];
-		const toEnable = new Set<string>();
-		const ranges = this.editor.getVisibleRanges();
-		if (!this.coverage.showInline.get()) {
-			for (let i = 0; i < todo.length; i++) {
-				const { line, dir } = todo[i];
-				if (!ranges.some(r => r.startLineNumber <= line && r.endLineNumber >= line)) {
-					continue; // stop once outside the viewport
-				}
-
-				let found = false;
-				for (const decoration of model.getLineDecorations(line)) {
-					if (this.decorationIds.has(decoration.id)) {
-						toEnable.add(decoration.id);
-						found = true;
-					}
-				}
-				if (found) {
-					if (dir <= 0) {
-						todo.push({ line: line - 1, dir: -1 });
-					}
-					if (dir >= 0) {
-						todo.push({ line: line + 1, dir: 1 });
-					}
-				}
+		model.changeDecorations(e => {
+			for (const [id, decoration] of this.decorationIds) {
+				const { applyHoverOptions, options } = decoration;
+				const dup = { ...options };
+				applyHoverOptions(dup);
+				e.changeDecorationOptions(id, dup);
 			}
-
-			model.changeDecorations(e => {
-				for (const id of toEnable) {
-					const { applyHoverOptions, options } = this.decorationIds.get(id)!;
-					const dup = { ...options };
-					applyHoverOptions(dup);
-					e.changeDecorationOptions(id, dup);
-				}
-			});
-		}
+		});
 
 		this.hoveredStore.add(this.editor.onMouseLeave(() => {
 			this.hoveredStore.clear();
@@ -248,11 +220,8 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			this.hoveredSubject = undefined;
 
 			model.changeDecorations(e => {
-				for (const id of toEnable) {
-					const deco = this.decorationIds.get(id);
-					if (deco) {
-						e.changeDecorationOptions(id, deco.options);
-					}
+				for (const [id, decoration] of this.decorationIds) {
+					e.changeDecorationOptions(id, decoration.options);
 				}
 			});
 		}));

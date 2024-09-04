@@ -14,7 +14,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IDebugService } from '../../debug/common/debug.js';
+import { IConfig, IDebugService } from '../../debug/common/debug.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -99,7 +99,17 @@ export class DebugExtensionsContribution extends Disposable implements IWorkbenc
 					name: nls.localize('debugExtensionHost.launch.name', "Attach Extension Host"),
 					request: 'attach',
 					port,
-				});
+					trace: true,
+					// resolve source maps everywhere:
+					resolveSourceMapLocations: null,
+					// announces sources eagerly for the loaded scripts view:
+					eagerSources: true,
+					// source maps of published VS Code are on the CDN and can take a while to load
+					timeouts: {
+						sourceMapMinPause: 30_000,
+						sourceMapCumulativePause: 300_000,
+					},
+				} as IConfig);
 			});
 		}
 	}

@@ -26,7 +26,7 @@ import { IWorkspaceEditingService } from '../../services/workspaces/common/works
 import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol.js';
 import { IEditSessionIdentityService } from '../../../platform/workspace/common/editSessions.js';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../common/editor.js';
-import { coalesce, firstOrDefault } from '../../../base/common/arrays.js';
+import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
 
@@ -205,7 +205,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			force: !options.saveAs
 		});
 
-		return firstOrDefault(this._saveResultToUris(result));
+		return this._saveResultToUris(result).at(0);
 	}
 
 	private _saveResultToUris(result: ISaveEditorsResult): URI[] {

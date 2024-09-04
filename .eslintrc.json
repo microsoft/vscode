@@ -92,9 +92,14 @@
 					"common",
 					"browser"
 				],
-				"electron-main": [
+				"electron-node": [
 					"common",
 					"node"
+				],
+				"electron-main": [
+					"common",
+					"node",
+					"electron-node"
 				]
 			}
 		],
@@ -616,7 +621,6 @@
 				"src/**/*.ts"
 			],
 			"rules": {
-				"local/code-no-look-behind-regex": "warn",
 				"local/code-import-patterns": [
 					"warn",
 					{
@@ -631,6 +635,7 @@
 					{
 						// imports that are allowed in all files of layers:
 						// - node
+						// - electron-node
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
@@ -649,7 +654,6 @@
 							"cookie",
 							"crypto",
 							"dns",
-							"electron",
 							"events",
 							"fs",
 							"fs/promises",
@@ -686,6 +690,15 @@
 							"yauzl",
 							"yazl",
 							"zlib"
+						]
+					},
+					{
+						// imports that are allowed in all files of layers:
+						// - electron-node
+						// - electron-main
+						"when": "hasElectron",
+						"allow": [
+							"electron"
 						]
 					},
 					{
