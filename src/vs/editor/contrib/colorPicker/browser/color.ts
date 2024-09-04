@@ -60,7 +60,6 @@ class ExtColorDataCollector implements DataCollector<IExtColorData> {
 		}
 		return Array.isArray(documentColors);
 	}
-
 }
 
 class ColorPresentationsCollector implements DataCollector<IColorPresentation> {

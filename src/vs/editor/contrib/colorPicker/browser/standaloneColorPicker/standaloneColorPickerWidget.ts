@@ -3,81 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IEditorHoverRenderContext } from '../../hover/browser/hoverTypes.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
-import { PositionAffinity } from '../../../common/model.js';
-import { Position } from '../../../common/core/position.js';
-import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from './colorHoverParticipant.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { EditorHoverStatusBar } from '../../hover/browser/contentHoverStatusBar.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { InsertButton } from './colorPickerWidget.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
-import { IColorInformation } from '../../../common/languages.js';
-import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { IEditorContribution } from '../../../common/editorCommon.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
-import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IRange } from '../../../common/core/range.js';
-import { DefaultDocumentColorProvider } from './defaultDocumentColorProvider.js';
-import * as dom from '../../../../base/browser/dom.js';
-import './colorPicker.css';
-import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import '../colorPicker.css';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IEditorHoverRenderContext } from '../../../hover/browser/hoverTypes.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
+import { PositionAffinity } from '../../../../common/model.js';
+import { Position } from '../../../../common/core/position.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { EditorHoverStatusBar } from '../../../hover/browser/contentHoverStatusBar.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { IColorInformation } from '../../../../common/languages.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IRange } from '../../../../common/core/range.js';
+import { DefaultDocumentColorProvider } from '../defaultDocumentColorProvider.js';
+import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
+import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from './standaloneColorPickerParticipant.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { InsertButton } from '../colorPickerParts/colorPickerInsertButton.js';
 
-export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
-
-	public static ID = 'editor.contrib.standaloneColorPickerController';
-	private _standaloneColorPickerWidget: StandaloneColorPickerWidget | null = null;
-	private _standaloneColorPickerVisible: IContextKey<boolean>;
-	private _standaloneColorPickerFocused: IContextKey<boolean>;
-
+class StandaloneColorPickerResult {
+	// The color picker result consists of: an array of color results and a boolean indicating if the color was found in the editor
 	constructor(
-		private readonly _editor: ICodeEditor,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) {
-		super();
-		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(_contextKeyService);
-		this._standaloneColorPickerFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(_contextKeyService);
-	}
-
-	public showOrFocus() {
-		if (!this._editor.hasModel()) {
-			return;
-		}
-		if (!this._standaloneColorPickerVisible.get()) {
-			this._standaloneColorPickerWidget = this._instantiationService.createInstance(
-				StandaloneColorPickerWidget,
-				this._editor,
-				this._standaloneColorPickerVisible,
-				this._standaloneColorPickerFocused
-			);
-		} else if (!this._standaloneColorPickerFocused.get()) {
-			this._standaloneColorPickerWidget?.focus();
-		}
-	}
-
-	public hide() {
-		this._standaloneColorPickerFocused.set(false);
-		this._standaloneColorPickerVisible.set(false);
-		this._standaloneColorPickerWidget?.hide();
-		this._editor.focus();
-	}
-
-	public insertColor() {
-		this._standaloneColorPickerWidget?.updateEditor();
-		this.hide();
-	}
-
-	public static get(editor: ICodeEditor) {
-		return editor.getContribution<StandaloneColorPickerController>(StandaloneColorPickerController.ID);
-	}
+		public readonly value: StandaloneColorPickerHover,
+		public readonly foundInEditor: boolean
+	) { }
 }
-
-registerEditorContribution(StandaloneColorPickerController.ID, StandaloneColorPickerController, EditorContributionInstantiation.AfterFirstRender);
 
 const PADDING = 8;
 const CLOSE_BUTTON_WIDTH = 22;
@@ -263,12 +216,4 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		}
 		this._editor.layoutContentWidget(this);
 	}
-}
-
-class StandaloneColorPickerResult {
-	// The color picker result consists of: an array of color results and a boolean indicating if the color was found in the editor
-	constructor(
-		public readonly value: StandaloneColorPickerHover,
-		public readonly foundInEditor: boolean
-	) { }
 }
