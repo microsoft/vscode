@@ -92,6 +92,35 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  # V8 >= 12.8 requies C++20 or later
+  # current headers shipped from Electron are missing
+  # https://github.com/nodejs/node/commit/c7e42092f34f019fa0c4d9a2d0d49719af2f5daa
+  # Following is a workaround until the headers are fixed in upstream.
+  - pwsh: |
+      $includes = @'
+        {
+          'target_defaults': {
+            'conditions': [
+              ['OS=="win"', {
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'AdditionalOptions': [
+                      '-std:c++20'
+                    ],
+                  },
+                },
+              }]
+            ]
+          }
+        }
+      '@
+
+      if (!(Test-Path "~/.gyp")) {
+        mkdir "~/.gyp"
+      }
+      echo $includes > "~/.gyp/include.gypi"
+    displayName: Create include.gypi
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
