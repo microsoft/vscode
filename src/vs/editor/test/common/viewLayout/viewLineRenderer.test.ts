@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
+import { CharCode } from '../../../../base/common/charCode.js';
+import * as strings from '../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { CharacterMapping, DomPosition, LineRange, RenderLineInput, RenderLineOutput2, renderViewLine2 as renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { InlineDecorationType } from '../../../common/viewModel.js';
+import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {
 	return new TestLineTokens(viewLineTokens);

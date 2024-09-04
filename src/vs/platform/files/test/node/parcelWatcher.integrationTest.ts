@@ -6,22 +6,22 @@
 import assert from 'assert';
 import { realpathSync, promises } from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { dirname, join } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeFilter, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
-import { getDriveLetter } from 'vs/base/common/extpath';
-import { ltrim } from 'vs/base/common/strings';
-import { FileAccess } from 'vs/base/common/network';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { timeout } from '../../../../base/common/async.js';
+import { dirname, join } from '../../../../base/common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { Promises, RimRafMode } from '../../../../base/node/pfs.js';
+import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
+import { FileChangeFilter, FileChangeType, IFileChange } from '../../common/files.js';
+import { ParcelWatcher } from '../../node/watcher/parcel/parcelWatcher.js';
+import { IRecursiveWatchRequest } from '../../common/watcher.js';
+import { getDriveLetter } from '../../../../base/common/extpath.js';
+import { ltrim } from '../../../../base/common/strings.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export class TestParcelWatcher extends ParcelWatcher {
 

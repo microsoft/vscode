@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { mainWindow } from 'vs/base/browser/window';
-import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ResourceMap } from 'vs/base/common/map';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { extractSelection } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { DataTransfers } from '../../../base/browser/dnd.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { DragMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { coalesce } from '../../../base/common/arrays.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { parse } from '../../../base/common/marshalling.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IDialogService } from '../../dialogs/common/dialogs.js';
+import { IBaseTextResourceEditorInput } from '../../editor/common/editor.js';
+import { HTMLFileSystemProvider } from '../../files/browser/htmlFileSystemProvider.js';
+import { WebFileSystemAccess } from '../../files/browser/webFileSystemAccess.js';
+import { ByteSize, IFileService } from '../../files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
+import { extractSelection } from '../../opener/common/opener.js';
+import { Registry } from '../../registry/common/platform.js';
 
 export interface FileAdditionalNativeProperties {
 	/**

@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { FileAccess } from 'vs/base/common/network';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import * as processes from 'vs/base/node/processes';
+import { FileAccess } from '../../../common/network.js';
+import * as objects from '../../../common/objects.js';
+import * as platform from '../../../common/platform.js';
+import * as processes from '../../../node/processes.js';
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {

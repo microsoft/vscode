@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Separator } from 'vs/base/common/actions';
-import { IMenuService, SubmenuItemAction, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { isMacintosh } from 'vs/base/common/platform';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { IOpenRecentAction, MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
-import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
-import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction, Separator } from '../../../../base/common/actions.js';
+import { IMenuService, SubmenuItemAction, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IUpdateService } from '../../../../platform/update/common/update.js';
+import { IOpenRecentAction, MenubarControl } from '../../../browser/parts/titlebar/menubarControl.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from '../../../../platform/menubar/common/menubar.js';
+import { IMenubarService } from '../../../../platform/menubar/electron-sandbox/menubar.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { OpenRecentAction } from '../../../browser/actions/windowActions.js';
+import { isICommandActionToggleInfo } from '../../../../platform/action/common/action.js';
+import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 export class NativeMenubarControl extends MenubarControl {
 

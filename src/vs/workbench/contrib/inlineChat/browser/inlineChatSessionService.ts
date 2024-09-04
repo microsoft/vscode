@@ -2,24 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import { IValidEditOperation } from 'vs/editor/common/model';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { Session, StashedSession } from './inlineChatSession';
-
-
-export type Recording = {
-	when: Date;
-	session: string;
-	exchanges: { prompt: string; res: IChatResponseModel }[];
-};
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IValidEditOperation } from '../../../../editor/common/model.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditMode } from '../common/inlineChat.js';
+import { Session, StashedSession } from './inlineChatSession.js';
 
 export interface ISessionKeyComputer {
 	getComparisonKey(editor: ICodeEditor, uri: URI): string;
@@ -44,7 +36,7 @@ export interface IInlineChatSessionService {
 	onDidStashSession: Event<IInlineChatSessionEvent>;
 	onDidEndSession: Event<IInlineChatSessionEndEvent>;
 
-	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; session?: Session }, token: CancellationToken): Promise<Session | undefined>;
+	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange; session?: Session; headless?: boolean }, token: CancellationToken): Promise<Session | undefined>;
 
 	moveSession(session: Session, newEditor: ICodeEditor): void;
 
@@ -57,9 +49,6 @@ export interface IInlineChatSessionService {
 	stashSession(session: Session, editor: ICodeEditor, undoCancelEdits: IValidEditOperation[]): StashedSession;
 
 	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
-
-	//
-	recordings(): readonly Recording[];
 
 	dispose(): void;
 }

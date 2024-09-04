@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IRevertOptions, ISaveOptions } from '../../../common/editor.js';
+import { ICustomEditorModel } from './customEditor.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from '../../../services/textfile/common/textfiles.js';
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
 

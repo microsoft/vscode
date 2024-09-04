@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fromNow } from 'vs/base/common/date';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize, localize2 } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import { AllowedExtension, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { fromNow } from '../../../../../base/common/date.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IAuthenticationAccessService } from '../../../../services/authentication/browser/authenticationAccessService.js';
+import { IAuthenticationUsageService } from '../../../../services/authentication/browser/authenticationUsageService.js';
+import { AllowedExtension, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 export class ManageTrustedExtensionsForAccountAction extends Action2 {
 	constructor() {
