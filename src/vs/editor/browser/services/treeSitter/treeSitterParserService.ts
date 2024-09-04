@@ -23,6 +23,7 @@ import { canASAR } from '../../../../base/common/amd.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { PromiseResult } from '../../../../base/common/observable.js';
 import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -216,7 +217,16 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 
 	private _parseCallback(textModel: ITextModel, index: number): string | null {
-		return textModel.getTextBuffer().getNearestChunk(index);
+		const chunk = textModel.getTextBuffer().getNearestChunk(index);
+		const position = textModel.getPositionAt(index);
+		if (position.lineNumber < textModel.getLineCount()) {
+			const range = new Range(position.lineNumber, position.column, (position.lineNumber + 1), position.column);
+			const text = textModel.getValueInRange(range);
+			this._logService.debug(`TreeSitter: Requested chunk ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length}) for actual text "${text}"`);
+		} else {
+			this._logService.debug(`TreeSitter: Requested chunk ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length})`);
+		}
+		return chunk;
 	}
 
 	private sendParseTimeTelemetry(parseType: TelemetryParseType, languageId: string, time: number, passes: number): void {
