@@ -282,8 +282,6 @@ class WordHighlighter {
 		this.toUnhook.add(editor.onDidChangeModel((e) => {
 			if (!e.newModelUrl && e.oldModelUrl) {
 				this._stopSingular();
-			} else if (e.newModelUrl && e.oldModelUrl && isEqual(e.newModelUrl, e.oldModelUrl)) {
-				this._run();
 			} else if (WordHighlighter.query) {
 				this._run();
 			}
@@ -691,8 +689,6 @@ class WordHighlighter {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
-					queryModelRef.dispose();
-					queryModel.dispose();
 				}
 			}, onUnexpectedError);
 		} else if (this.model.uri.scheme === Schemas.vscodeNotebookCell) {
@@ -716,8 +712,6 @@ class WordHighlighter {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
-					queryModelRef.dispose();
-					queryModel.dispose();
 				}
 			}, onUnexpectedError);
 		}
