@@ -665,7 +665,7 @@ class SCMHistoryViewModel extends Disposable {
 			.map(historyItemViewModel => ({
 				repository,
 				historyItemViewModel,
-				type: 'historyItem2'
+				type: 'historyItemViewModel'
 			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}
 
@@ -974,7 +974,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		const actionRunner: IActionRunner = new HistoryItemActionRunner(() => this._getSelectedHistoryItems());
 
 		const menus = this._scmViewService.menus.getRepositoryMenus(element.repository.provider);
-		const menu = menus.historyProviderMenu?.getHistoryItemMenu2(element);
+		const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
 		const actions = menu ? collectContextMenuActions(menu) : [];
 
 		actionRunner.onWillRun(() => this._tree.domFocus());
