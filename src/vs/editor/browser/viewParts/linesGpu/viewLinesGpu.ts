@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { TextureAtlas } from 'vs/editor/browser/gpu/atlas/textureAtlas';
-import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/gpu/gpu';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { ViewLinesChangedEvent, ViewScrollChangedEvent } from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { ViewLineOptions } from '../lines/viewLineOptions';
-import { observeDevicePixelDimensions, quadVertices } from 'vs/editor/browser/gpu/gpuUtils';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { GPULifecycle } from 'vs/editor/browser/gpu/gpuDisposable';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FullFileRenderStrategy } from 'vs/editor/browser/gpu/fullFileRenderStrategy';
-import { TextureAtlasPage } from 'vs/editor/browser/gpu/atlas/textureAtlasPage';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import type { ViewGpuContext } from 'vs/editor/browser/gpu/viewGpuContext';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
+import type { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
+import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
+import { FullFileRenderStrategy } from '../../gpu/fullFileRenderStrategy.js';
+import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
+import { GPULifecycle } from '../../gpu/gpuDisposable.js';
+import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.js';
+import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import type { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { ViewLineOptions } from '../lines/viewLineOptions.js';
+
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -329,7 +330,7 @@ export class ViewLinesGpu extends ViewPart {
 		return d.content.indexOf('e') !== -1;
 	}
 
-	public override prepareRender(ctx: RenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		throw new BugIndicatingError('Should not be called');
 	}
 

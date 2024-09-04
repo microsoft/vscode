@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { Disposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TwoKeyMap } from 'vs/base/common/map';
-import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
-import { TextureAtlasPage, type AllocatorType } from 'vs/editor/browser/gpu/atlas/textureAtlasPage';
-import { GlyphRasterizer } from 'vs/editor/browser/gpu/raster/glyphRasterizer';
-import type { IGlyphRasterizer } from 'vs/editor/browser/gpu/raster/raster';
-import { IdleTaskQueue } from 'vs/editor/browser/gpu/taskQueue';
-import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { TwoKeyMap } from '../../../../base/common/map.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
+import type { IGlyphRasterizer } from '../raster/raster.js';
+import { IdleTaskQueue } from '../taskQueue.js';
+import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from './atlas.js';
+import { AllocatorType, TextureAtlasPage } from './textureAtlasPage.js';
 
 export interface ITextureAtlasOptions {
 	allocatorType?: AllocatorType;

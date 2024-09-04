@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, toDisposable, type IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, dispose, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
 
 export interface ObjectCollectionBufferPropertySpec {
 	name: string;

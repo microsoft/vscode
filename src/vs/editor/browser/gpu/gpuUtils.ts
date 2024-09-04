@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toDisposable, type IDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 
 export const quadVertices = new Float32Array([
 	1, 0,

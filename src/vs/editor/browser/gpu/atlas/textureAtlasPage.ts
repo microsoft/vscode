@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TwoKeyMap } from 'vs/base/common/map';
-import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
-import { TextureAtlasShelfAllocator } from 'vs/editor/browser/gpu/atlas/textureAtlasShelfAllocator';
-import { TextureAtlasSlabAllocator } from 'vs/editor/browser/gpu/atlas/textureAtlasSlabAllocator';
-import type { IBoundingBox, IGlyphRasterizer } from 'vs/editor/browser/gpu/raster/raster';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { TwoKeyMap } from '../../../../base/common/map.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import type { IBoundingBox, IGlyphRasterizer } from '../raster/raster.js';
+import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from './atlas.js';
+import { TextureAtlasShelfAllocator } from './textureAtlasShelfAllocator.js';
+import { TextureAtlasSlabAllocator } from './textureAtlasSlabAllocator.js';
 
 export type AllocatorType = 'shelf' | 'slab' | ((canvas: OffscreenCanvas, textureIndex: number) => ITextureAtlasAllocator);
 

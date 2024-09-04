@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 
 /**
  * Copyright (c) 2022 The xterm.js authors. All rights reserved.

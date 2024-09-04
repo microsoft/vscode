@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { createFastDomNode, type FastDomNode } from 'vs/base/browser/fastDomNode';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { GPULifecycle } from 'vs/editor/browser/gpu/gpuDisposable';
-import { ensureNonNullable, observeDevicePixelDimensions } from 'vs/editor/browser/gpu/gpuUtils';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { GPULifecycle } from './gpuDisposable.js';
+import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 
 export class ViewGpuContext extends Disposable {
 	readonly canvas: FastDomNode<HTMLCanvasElement>;

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual, throws } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TextureAtlas } from 'vs/editor/browser/gpu/atlas/textureAtlas';
-import { TextureAtlasSlabAllocator } from 'vs/editor/browser/gpu/atlas/textureAtlasSlabAllocator';
-import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
-import type { IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
-import { createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
-import { assertIsValidGlyph } from 'vs/editor/test/browser/view/gpu/atlas/testUtil';
-import type { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import type { IGlyphRasterizer, IRasterizedGlyph } from '../../../../../browser/gpu/raster/raster.js';
+import { ensureNonNullable } from '../../../../../browser/gpu/gpuUtils.js';
+import type { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { TextureAtlas } from '../../../../../browser/gpu/atlas/textureAtlas.js';
+import { createCodeEditorServices } from '../../../testCodeEditor.js';
+import { assertIsValidGlyph } from './testUtil.js';
+import { TextureAtlasSlabAllocator } from '../../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
 
 const blackInt = 0x000000FF;
 

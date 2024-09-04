@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
-import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { FontStyle, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { StringBuilder } from '../../../common/core/stringBuilder.js';
+import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import { ensureNonNullable } from '../gpuUtils.js';
+import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from './raster.js';
 
 let nextId = 0;
 

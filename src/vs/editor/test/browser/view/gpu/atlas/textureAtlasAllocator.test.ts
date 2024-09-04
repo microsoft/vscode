@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, throws } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import type { ITextureAtlasAllocator } from 'vs/editor/browser/gpu/atlas/atlas';
-import { TextureAtlasShelfAllocator } from 'vs/editor/browser/gpu/atlas/textureAtlasShelfAllocator';
-import { TextureAtlasSlabAllocator, TextureAtlasSlabAllocatorOptions } from 'vs/editor/browser/gpu/atlas/textureAtlasSlabAllocator';
-import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
-import type { IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
-import { assertIsValidGlyph } from 'vs/editor/test/browser/view/gpu/atlas/testUtil';
+import type { IRasterizedGlyph } from '../../../../../browser/gpu/raster/raster.js';
+import { ensureNonNullable } from '../../../../../browser/gpu/gpuUtils.js';
+import type { ITextureAtlasAllocator } from '../../../../../browser/gpu/atlas/atlas.js';
+import { TextureAtlasShelfAllocator } from '../../../../../browser/gpu/atlas/textureAtlasShelfAllocator.js';
+import { TextureAtlasSlabAllocator, type TextureAtlasSlabAllocatorOptions } from '../../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { assertIsValidGlyph } from './testUtil.js';
 
 const blackArr = [0x00, 0x00, 0x00, 0xFF];
 

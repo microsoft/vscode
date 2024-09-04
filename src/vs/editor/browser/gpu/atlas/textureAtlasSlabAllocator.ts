@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { TwoKeyMap } from 'vs/base/common/map';
-import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
-import { ensureNonNullable } from 'vs/editor/browser/gpu/gpuUtils';
-import type { IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { TwoKeyMap } from '../../../../base/common/map.js';
+import { ensureNonNullable } from '../gpuUtils.js';
+import type { IRasterizedGlyph } from '../raster/raster.js';
+import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from './atlas.js';
 
 export interface TextureAtlasSlabAllocatorOptions {
 	slabW?: number;

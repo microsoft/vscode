@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import type { ITextureAtlasPageGlyph } from 'vs/editor/browser/gpu/atlas/atlas';
-import { TextureAtlas } from 'vs/editor/browser/gpu/atlas/textureAtlas';
-import { BindingId, type IGpuRenderStrategy } from 'vs/editor/browser/gpu/gpu';
-import { GPULifecycle } from 'vs/editor/browser/gpu/gpuDisposable';
-import { quadVertices } from 'vs/editor/browser/gpu/gpuUtils';
-import { GlyphRasterizer } from 'vs/editor/browser/gpu/raster/glyphRasterizer';
-import type { ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLineOptions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import type { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import type { ViewLineRenderingData } from 'vs/editor/common/viewModel';
-import type { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
+import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
+import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import type { ViewLineRenderingData } from '../../common/viewModel.js';
+import type { ViewContext } from '../../common/viewModel/viewContext.js';
+import type { ViewLineOptions } from '../viewParts/lines/viewLineOptions.js';
+import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
+import type { TextureAtlas } from './atlas/textureAtlas.js';
+import { BindingId, type IGpuRenderStrategy } from './gpu.js';
+import { GPULifecycle } from './gpuDisposable.js';
+import { quadVertices } from './gpuUtils.js';
+import { GlyphRasterizer } from './raster/glyphRasterizer.js';
+
 
 const enum Constants {
 	IndicesPerCell = 6,
