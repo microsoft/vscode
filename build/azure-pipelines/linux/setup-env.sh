@@ -48,7 +48,7 @@ elif [ "$npm_config_arch" == "arm64" ]; then
     # Set compiler toolchain for client native modules
     export CC=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc
     export CXX=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-g++
-    export CXXFLAGS="-std=gnu++20 --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+    export CXXFLAGS="-std=gnu++2a --sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
     export LDFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot -L$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/lib/aarch64-linux-gnu -L$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/lib/aarch64-linux-gnu"
 
   if [ "$(echo "$@" | grep -c -- "--only-remote")" -eq 0 ]; then
@@ -62,7 +62,7 @@ elif [ "$npm_config_arch" == "arm" ]; then
   # Set compiler toolchain for client native modules
   export CC=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc
   export CXX=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-g++
-  export CXXFLAGS="-std=gnu++20 --sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+  export CXXFLAGS="-std=gnu++2a --sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
   export LDFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot -L$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/lib/arm-linux-gnueabihf -L$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/lib/arm-linux-gnueabihf"
 
   # Set compiler toolchain for remote server

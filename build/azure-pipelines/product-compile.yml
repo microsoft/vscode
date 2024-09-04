@@ -67,7 +67,11 @@ steps:
       # current headers shipped from Electron are missing
       # https://github.com/nodejs/node/commit/c7e42092f34f019fa0c4d9a2d0d49719af2f5daa
       # Following is a workaround until the headers are fixed in upstream.
-      export CXXFLAGS="-std=gnu++20"
+      if [ "$(g++ -dumpversion)" -lt 10 ]; then
+        export CXXFLAGS="-std=gnu++2a"
+      else
+        export CXXFLAGS="-std=gnu++20"
+      fi
 
       for i in {1..5}; do # try 5 times
         npm ci && break
