@@ -214,7 +214,6 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
 		if ((tree?.rootNode.childCount === 0) && model.getValueLength() > 0) {
 			// Something has gone horribly wrong
-			debugger;
 			this.tree = undefined;
 		}
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
