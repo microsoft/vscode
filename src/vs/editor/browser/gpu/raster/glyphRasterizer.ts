@@ -56,6 +56,13 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		metadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
+		if (chars === '') {
+			return {
+				source: this._canvas,
+				boundingBox: { top: 0, left: 0, bottom: -1, right: -1 },
+				originOffset: { x: 0, y: 0 }
+			};
+		}
 		// Check if the last glyph matches the config, reuse if so. This helps avoid unnecessary
 		// work when the rasterizer is called multiple times like when the glyph doesn't fit into a
 		// page.

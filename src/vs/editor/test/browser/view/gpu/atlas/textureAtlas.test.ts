@@ -90,12 +90,17 @@ suite('TextureAtlas', () => {
 	});
 
 	test('adding glyph to full page creates new page', () => {
+		let pageCount: number | undefined;
 		for (let i = 0; i < 4; i++) {
 			assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
+			if (pageCount === undefined) {
+				pageCount = atlas.pages.length;
+			} else {
+				strictEqual(atlas.pages.length, pageCount, 'the number of pages should not change when the page is being filled');
+			}
 		}
-		strictEqual(atlas.pages.length, 1);
 		assertIsValidGlyph(atlas.getGlyph(glyphRasterizer, ...getUniqueGlyphId()), atlas);
-		strictEqual(atlas.pages.length, 2, 'the 5th glyph should overflow to a new page');
+		strictEqual(atlas.pages.length, pageCount! + 1, 'the 5th glyph should overflow to a new page');
 	});
 
 	test('adding a glyph larger than the atlas', () => {

@@ -69,7 +69,9 @@ export class TextureAtlas extends Disposable {
 		// IMPORTANT: The first glyph on the first page must be an empty glyph such that zeroed out
 		// cells end up rendering nothing
 		// TODO: This currently means the first slab is for 0x0 glyphs and is wasted
-		firstPage.getGlyph(new GlyphRasterizer(1, ''), '', 0);
+		const nullRasterizer = new GlyphRasterizer(1, '');
+		firstPage.getGlyph(nullRasterizer, '', 0);
+		nullRasterizer.dispose();
 
 		this._register(toDisposable(() => dispose(this._pages)));
 	}
