@@ -57,7 +57,8 @@ steps:
                   'VCCLCompilerTool': {
                     'AdditionalOptions': [
                       '/Zi',
-                      '/FS'
+                      '/FS',
+                      '-std:c++20'
                     ],
                   },
                   'VCLinkerTool': {
