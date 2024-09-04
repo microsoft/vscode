@@ -10,10 +10,10 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { ColorDecorationInjectedTextMarker } from './colorDetector.js';
-import { ColorHoverParticipant } from './colorHoverParticipant.js';
-import { ContentHoverController } from '../../hover/browser/contentHoverController.js';
 import { HoverStartMode, HoverStartSource } from '../../hover/browser/hoverOperation.js';
+import { ContentHoverController } from '../../hover/browser/contentHoverController.js';
 import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes.js';
+import { ColorHoverParticipant } from './colorHoverParticipant.js';
 
 enum ColorDecoratorActivatedOn {
 	Hover = 'hover',
@@ -46,7 +46,7 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		if (!this._onColorDecorator(mouseEvent)) {
 			return;
 		}
-		const hoverController = this._editor.getContribution<HoverController>(HoverController.ID);
+		const hoverController = this._editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		if (!hoverController) {
 			return;
 		}
@@ -57,7 +57,12 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		if (!target.range) {
 			return;
 		}
-		const range = new Range(target.range.startLineNumber, target.range.startColumn + 1, target.range.endLineNumber, target.range.endColumn + 1);
+		const range = new Range(
+			target.range.startLineNumber,
+			target.range.startColumn + 1,
+			target.range.endLineNumber,
+			target.range.endColumn + 1
+		);
 		hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false);
 	}
 
@@ -86,3 +91,4 @@ export class ColorContribution extends Disposable implements IEditorContribution
 }
 
 registerEditorContribution(ColorContribution.ID, ColorContribution, EditorContributionInstantiation.BeforeFirstInteraction);
+HoverParticipantRegistry.register(ColorHoverParticipant);

@@ -293,6 +293,10 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
+	public shouldHideHoverOnMouseEvent(mouseEvent: IEditorMouseEvent): boolean {
+		return this._participants.some(p => p.shouldHideHoverOnMouseEvent?.(mouseEvent) ?? false);
+	}
+
 	public getWidgetContent(): string | undefined {
 		const node = this._contentHoverWidget.getDomNode();
 		if (!node.textContent) {
