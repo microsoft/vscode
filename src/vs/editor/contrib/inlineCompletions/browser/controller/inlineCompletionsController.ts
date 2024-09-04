@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../base/c
 import { IObservable, ITransaction, autorun, constObservable, derived, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { ISettableObservable } from '../../../../../base/common/observableInternal/base.js';
 import { derivedDisposable } from '../../../../../base/common/observableInternal/derived.js';
-import { derivedObservableWithCache, mapObservableArrayCached } from '../../../../../base/common/observableInternal/utils.js';
+import { derivedObservableWithCache, mapObservableArrayCached, runOnChange, runOnChangeWithStore } from '../../../../../base/common/observableInternal/utils.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { observableCodeEditor, reactToChange, reactToChangeWithStore } from '../../../../browser/observableCodeEditor.js';
+import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -135,7 +135,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(new InlineCompletionContextKeys(this._contextKeyService, this.model));
 
-		this._register(reactToChange(this._editorObs.onDidType, (_value, _changes) => {
+		this._register(runOnChange(this._editorObs.onDidType, (_value, _changes) => {
 			if (this._enabled.get()) {
 				this.model.get()?.trigger();
 			}
@@ -158,7 +158,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
-		this._register(reactToChange(this._editorObs.selections, (_value, changes) => {
+		this._register(runOnChange(this._editorObs.selections, (_value, changes) => {
 			if (changes.some(e => e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
 				this.model.get()?.stop();
 			}
@@ -202,7 +202,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 			return state?.inlineCompletion?.semanticId;
 		});
-		this._register(reactToChangeWithStore(derived(reader => {
+		this._register(runOnChangeWithStore(derived(reader => {
 			this._playAccessibilitySignal.read(reader);
 			currentInlineCompletionBySemanticId.read(reader);
 			return {};
