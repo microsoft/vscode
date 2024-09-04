@@ -594,10 +594,10 @@ class SCMHistoryViewModel extends Disposable {
 	});
 
 	/**
-	 * The first repository takes precedence over the active | selected repository when the observable
+	 * The active | selected repository takes precedence over the first repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	readonly repository = latestChangedValue(this, [this._graphRepository, this._firstRepository]);
+	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
 	private readonly _historyItemGroupIds = observableValue<'all' | 'auto' | string[]>(this, 'auto');
 
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
