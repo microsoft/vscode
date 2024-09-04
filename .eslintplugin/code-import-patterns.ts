@@ -18,7 +18,7 @@ interface ConditionalPattern {
 
 interface RawImportPatternsConfig {
 	target: string;
-	layer?: 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-node' | 'electron-utility' | 'electron-main';
+	layer?: 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-node' | 'electron-main';
 	test?: boolean;
 	restrictions: string | (string | ConditionalPattern)[];
 }
@@ -79,7 +79,7 @@ export = new class implements eslint.Rule.RuleModule {
 			return this._optionsCache.get(options)!;
 		}
 
-		type Layer = 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-node' | 'electron-utility' | 'electron-main';
+		type Layer = 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-node' | 'electron-main';
 
 		interface ILayerRule {
 			layer: Layer;
@@ -100,7 +100,6 @@ export = new class implements eslint.Rule.RuleModule {
 			{ layer: 'electron-sandbox', deps: orSegment(['common', 'browser', 'electron-sandbox']), isBrowser: true },
 			{ layer: 'node', deps: orSegment(['common', 'node']), isNode: true },
 			{ layer: 'electron-node', deps: orSegment(['common', 'node', 'electron-node']), isNode: true, isElectron: true },
-			{ layer: 'electron-utility', deps: orSegment(['common', 'node', 'electron-node', 'electron-utility']), isNode: true, isElectron: true },
 			{ layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-node', 'electron-main']), isNode: true, isElectron: true },
 		];
 
