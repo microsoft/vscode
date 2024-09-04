@@ -3,40 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './textAreaHandler.css';
-import * as nls from '../../../nls.js';
-import * as browser from '../../../base/browser/browser.js';
-import { FastDomNode, createFastDomNode } from '../../../base/browser/fastDomNode.js';
-import { IKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import * as platform from '../../../base/common/platform.js';
-import * as strings from '../../../base/common/strings.js';
-import { applyFontInfo } from '../config/domFontInfo.js';
-import { CopyOptions, ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, ClipboardDataToCopy, TextAreaWrapper } from './textAreaInput.js';
-import { ISimpleModel, ITypeData, PagedScreenReaderStrategy, TextAreaState, _debugComposition } from './textAreaState.js';
-import { ViewController } from '../view/viewController.js';
-import { PartFingerprint, PartFingerprints, ViewPart } from '../view/viewPart.js';
-import { LineNumbersOverlay } from '../viewParts/lineNumbers/lineNumbers.js';
-import { Margin } from '../viewParts/margin/margin.js';
-import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from '../../common/config/editorOptions.js';
-import { FontInfo } from '../../common/config/fontInfo.js';
-import { WordCharacterClass, getMapForWordSeparators } from '../../common/core/wordCharacterClassifier.js';
-import { Position } from '../../common/core/position.js';
-import { Range } from '../../common/core/range.js';
-import { Selection } from '../../common/core/selection.js';
-import { ScrollType } from '../../common/editorCommon.js';
-import { EndOfLinePreference } from '../../common/model.js';
-import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from '../view/renderingContext.js';
-import { ViewContext } from '../../common/viewModel/viewContext.js';
-import * as viewEvents from '../../common/viewEvents.js';
-import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
-import { IEditorAriaOptions } from '../editorBrowser.js';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../base/browser/ui/mouseCursor/mouseCursor.js';
-import { TokenizationRegistry } from '../../common/languages.js';
-import { ColorId, ITokenPresentation } from '../../common/encodedTokenAttributes.js';
-import { Color } from '../../../base/common/color.js';
-import { IME } from '../../../base/common/ime.js';
-import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import './textAreaEditContext.css';
+import * as nls from '../../../../../nls.js';
+import * as browser from '../../../../../base/browser/browser.js';
+import { FastDomNode, createFastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import * as platform from '../../../../../base/common/platform.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { ViewController } from '../../../view/viewController.js';
+import { PartFingerprint, PartFingerprints } from '../../../view/viewPart.js';
+import { LineNumbersOverlay } from '../../../viewParts/lineNumbers/lineNumbers.js';
+import { Margin } from '../../../viewParts/margin/margin.js';
+import { RenderLineNumbersType, EditorOption, IComputedEditorOptions, EditorOptions } from '../../../../common/config/editorOptions.js';
+import { FontInfo } from '../../../../common/config/fontInfo.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { ScrollType } from '../../../../common/editorCommon.js';
+import { EndOfLinePreference } from '../../../../common/model.js';
+import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
+import { ViewContext } from '../../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../../common/viewEvents.js';
+import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IEditorAriaOptions } from '../../../editorBrowser.js';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../../base/browser/ui/mouseCursor/mouseCursor.js';
+import { TokenizationRegistry } from '../../../../common/languages.js';
+import { ColorId, ITokenPresentation } from '../../../../common/encodedTokenAttributes.js';
+import { Color } from '../../../../../base/common/color.js';
+import { IME } from '../../../../../base/common/ime.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { AbstractEditContext } from '../editContextUtils.js';
+import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
+import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
+import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
+import { _debugComposition, ITypeData, TextAreaState } from './textAreaEditContextState.js';
+import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/core/wordCharacterClassifier.js';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -106,7 +109,7 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isFirefox);
 
-export class TextAreaHandler extends ViewPart {
+export class TextAreaEditContext extends AbstractEditContext {
 
 	private readonly _viewController: ViewController;
 	private readonly _visibleRangeProvider: IVisibleRangeProvider;
@@ -184,7 +187,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
@@ -217,29 +220,7 @@ export class TextAreaHandler extends ViewPart {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
-				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
-				const newLineCharacter = this._context.viewModel.model.getEOL();
-
-				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
-				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
-				const text = (Array.isArray(rawTextToCopy) ? rawTextToCopy.join(newLineCharacter) : rawTextToCopy);
-
-				let html: string | null | undefined = undefined;
-				let mode: string | null = null;
-				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-					const richText = this._context.viewModel.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
-					if (richText) {
-						html = richText.html;
-						mode = richText.mode;
-					}
-				}
-				return {
-					isFromEmptySelection,
-					multicursorText,
-					text,
-					html,
-					mode
-				};
+				return getDataToCopy(this._context.viewModel, this._selections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
 			},
 			getScreenReaderContent: (): TextAreaState => {
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
@@ -296,7 +277,8 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
@@ -479,12 +461,23 @@ export class TextAreaHandler extends ViewPart {
 		}));
 	}
 
+	public get domNode() {
+		return this.textArea;
+	}
+
+	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
+		overflowGuardContainer.appendChild(this.textArea);
+		overflowGuardContainer.appendChild(this.textAreaCover);
+	}
+
 	public writeScreenReaderContent(reason: string): void {
 		this._textAreaInput.writeNativeTextAreaContent(reason);
 	}
 
 	public override dispose(): void {
 		super.dispose();
+		this.textArea.domNode.remove();
+		this.textAreaCover.domNode.remove();
 	}
 
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
@@ -557,28 +550,6 @@ export class TextAreaHandler extends ViewPart {
 		return '';
 	}
 
-	private _getAriaLabel(options: IComputedEditorOptions): string {
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-
-			const toggleKeybindingLabel = this._keybindingService.lookupKeybinding('editor.action.toggleScreenReaderAccessibilityMode')?.getAriaLabel();
-			const runCommandKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.showCommands')?.getAriaLabel();
-			const keybindingEditorKeybindingLabel = this._keybindingService.lookupKeybinding('workbench.action.openGlobalKeybindings')?.getAriaLabel();
-			const editorNotAccessibleMessage = nls.localize('accessibilityModeOff', "The editor is not accessible at this time.");
-			if (toggleKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabel', "{0} To enable screen reader optimized mode, use {1}", editorNotAccessibleMessage, toggleKeybindingLabel);
-			} else if (runCommandKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKb', "{0} To enable screen reader optimized mode, open the quick pick with {1} and run the command Toggle Screen Reader Accessibility Mode, which is currently not triggerable via keyboard.", editorNotAccessibleMessage, runCommandKeybindingLabel);
-			} else if (keybindingEditorKeybindingLabel) {
-				return nls.localize('accessibilityOffAriaLabelNoKbs', "{0} Please assign a keybinding for the command Toggle Screen Reader Accessibility Mode by accessing the keybindings editor with {1} and run it.", editorNotAccessibleMessage, keybindingEditorKeybindingLabel);
-			} else {
-				// SOS
-				return editorNotAccessibleMessage;
-			}
-		}
-		return options.get(EditorOption.ariaLabel);
-	}
-
 	private _setAccessibilityOptions(options: IComputedEditorOptions): void {
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
@@ -622,7 +593,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('wrap', this._textAreaWrapping && !this._visibleTextArea ? 'on' : 'off');
 		const { tabSize } = this._context.viewModel.model.getOptions();
 		this.textArea.domNode.style.tabSize = `${tabSize * this._fontInfo.spaceWidth}px`;
-		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		this.textArea.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
@@ -677,7 +648,7 @@ export class TextAreaHandler extends ViewPart {
 		return this._textAreaInput.isFocused();
 	}
 
-	public focusTextArea(): void {
+	public focus(): void {
 		this._textAreaInput.focusTextArea();
 	}
 
@@ -742,7 +713,7 @@ export class TextAreaHandler extends ViewPart {
 			const endPosition = this._visibleTextArea.endPosition;
 			if (startPosition && endPosition && visibleStart && visibleEnd && visibleEnd.left >= this._scrollLeft && visibleStart.left <= this._scrollLeft + this._contentWidth) {
 				const top = (this._context.viewLayout.getVerticalOffsetForLineNumber(this._primaryCursorPosition.lineNumber) - this._scrollTop);
-				const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+				const lineCount = newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
 				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
@@ -834,7 +805,7 @@ export class TextAreaHandler extends ViewPart {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+			const lineCount = this._textAreaInput.textAreaState.newlineCountBeforeSelection ?? newlinecount(this.textArea.domNode.value.substring(0, this.textArea.domNode.selectionStart));
 			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}
@@ -847,19 +818,6 @@ export class TextAreaHandler extends ViewPart {
 			height: (canUseZeroSizeTextarea ? 0 : 1),
 			useCover: false
 		});
-	}
-
-	private _newlinecount(text: string): number {
-		let result = 0;
-		let startIndex = -1;
-		do {
-			startIndex = text.indexOf('\n', startIndex + 1);
-			if (startIndex === -1) {
-				break;
-			}
-			result++;
-		} while (true);
-		return result;
 	}
 
 	private _renderAtTopLeft(): void {
