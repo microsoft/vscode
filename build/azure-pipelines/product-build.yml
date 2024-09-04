@@ -201,6 +201,7 @@ extends:
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
       sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
     containers:
       snapcraft:
         image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
