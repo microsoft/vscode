@@ -68,6 +68,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	private async _computeAsync(_anchor: HoverAnchor, lineDecorations: IModelDecoration[], _token: CancellationToken): Promise<ColorHover[]> {
+		console.log('_computeAsync of ColorHoverParticipant');
 		if (!this._editor.hasModel()) {
 			return [];
 		}
@@ -83,6 +84,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 			if (colorData) {
 				const colorHover = await _createColorHover(this, this._editor.getModel(), colorData.colorInfo, colorData.provider);
+				console.log('colorHover : ', colorHover);
 				return [colorHover];
 			}
 
@@ -116,9 +118,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return !!this._colorPicker;
 	}
 
-	public shouldHideHoverOnMouseEvent(mouseEvent: IEditorMouseEvent): boolean {
+	public shouldHideHoverOnMouseMoveEvent(mouseEvent: IEditorMouseEvent): boolean {
 		const colorContribution = this._editor.getContribution<ColorContribution>(ColorContribution.ID);
-		return colorContribution?.shouldHideHoverOnMouseEvent(mouseEvent) ?? false;
+		return colorContribution?.shouldHideHoverOnMouseMoveEvent(mouseEvent) ?? false;
+	}
+
+	public onHide(): void {
+		this._colorPicker?.dispose();
+		this._colorPicker = undefined;
 	}
 }
 

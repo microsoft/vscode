@@ -161,7 +161,8 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IRenderedHoverParts<T>;
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
-	shouldHideHoverOnMouseEvent?(mouseEvent: IEditorMouseEvent): boolean;
+	shouldHideHoverOnMouseMoveEvent?(mouseEvent: IEditorMouseEvent): boolean;
+	onHide?(): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

@@ -82,6 +82,7 @@ export class HoverOperation<U, T> extends Disposable {
 	}
 
 	public override dispose(): void {
+		console.log('dispose');
 		if (this._asyncIterable) {
 			this._asyncIterable.cancel();
 			this._asyncIterable = null;
@@ -107,21 +108,25 @@ export class HoverOperation<U, T> extends Disposable {
 	}
 
 	private _setState(state: HoverOperationState, options: U): void {
+		console.log('HoverOperation#_setState -> state : ', state);
 		this._state = state;
 		this._fireResult(options);
 	}
 
 	private _triggerAsyncComputation(options: U): void {
+		console.log('HoverOperation#_triggerAsyncComputation -> options : ', options);
 		this._setState(HoverOperationState.SecondWait, options);
 		this._secondWaitScheduler.schedule(options, this._secondWaitTime);
 
 		if (this._computer.computeAsync) {
 			this._asyncIterableDone = false;
+			console.log('before createCancelableAsyncIterable');
 			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(options, token));
 
 			(async () => {
 				try {
 					for await (const item of this._asyncIterable!) {
+						console.log('item : ', item);
 						if (item) {
 							this._result.push(item);
 							this._fireResult(options);
@@ -144,6 +149,7 @@ export class HoverOperation<U, T> extends Disposable {
 	}
 
 	private _triggerSyncComputation(options: U): void {
+		console.log('HoverOperation#_triggerSyncComputation -> options : ', options);
 		if (this._computer.computeSync) {
 			this._result = this._result.concat(this._computer.computeSync(options));
 		}
@@ -162,6 +168,7 @@ export class HoverOperation<U, T> extends Disposable {
 			return;
 		}
 		const isComplete = (this._state === HoverOperationState.Idle);
+		console.log('HoverOperation#_fireResult -> isComplete : ', isComplete);
 		const hasLoadingMessage = (this._state === HoverOperationState.WaitingForAsyncShowingLoading);
 		this._onResult.fire(new HoverResult(this._result.slice(0), isComplete, hasLoadingMessage, options));
 	}
@@ -189,6 +196,7 @@ export class HoverOperation<U, T> extends Disposable {
 	}
 
 	public cancel(): void {
+		console.log('cancel');
 		this._firstWaitScheduler.cancel();
 		this._secondWaitScheduler.cancel();
 		this._loadingMessageScheduler.cancel();

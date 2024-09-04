@@ -44,17 +44,22 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		}
 
 		if (!this._onColorDecorator(mouseEvent)) {
+			console.log('not on color decorator');
 			return;
 		}
+		console.log('on color decorator');
 		const hoverController = this._editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		if (!hoverController) {
+			console.log('return 1');
 			return;
 		}
 		if (hoverController.isColorPickerVisible) {
+			console.log('return 2');
 			return;
 		}
 		const target = mouseEvent.target;
 		if (!target.range) {
+			console.log('return 3');
 			return;
 		}
 		const range = new Range(
@@ -63,6 +68,8 @@ export class ColorContribution extends Disposable implements IEditorContribution
 			target.range.endLineNumber,
 			target.range.endColumn + 1
 		);
+		console.log('before showContentHover');
+		console.log('range : ', range);
 		hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false);
 	}
 
@@ -80,13 +87,13 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		return true;
 	}
 
-	public shouldHideHoverOnMouseEvent(mouseEvent: IEditorMouseEvent) {
+	public shouldHideHoverOnMouseMoveEvent(mouseEvent: IEditorMouseEvent) {
+		console.log('shouldHideHoverOnMouseEvent');
 		const mouseOnDecorator = this._onColorDecorator(mouseEvent);
 		const decoratorActivatedOn = <ColorDecoratorActivatedOn>this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
-		if (mouseOnDecorator && decoratorActivatedOn === ColorDecoratorActivatedOn.Click) {
-			return true;
-		}
-		return false;
+		console.log('mouseOnDecorator', mouseOnDecorator);
+		console.log('decoratorActivatedOn', decoratorActivatedOn);
+		return mouseOnDecorator && decoratorActivatedOn === ColorDecoratorActivatedOn.Click;
 	}
 }
 

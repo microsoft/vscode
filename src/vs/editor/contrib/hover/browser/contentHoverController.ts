@@ -99,7 +99,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
 			this._cancelScheduler();
-			this._hideWidgets();
+			console.log('before hideWidgets 1');
+			this._hideWidget();
 		}));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 		this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
@@ -116,7 +117,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
-			this._hideWidgets();
+			console.log('before hideWidgets 2');
+			this._hideWidget();
 		}
 	}
 
@@ -129,7 +131,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 
-		this._hideWidgets();
+		console.log('before hideWidgets 3');
+		this._hideWidget();
 	}
 
 	private _shouldNotHideCurrentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
@@ -162,7 +165,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
+		console.log('before hideWidgets 4');
+		this._hideWidget();
 	}
 
 	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
@@ -231,22 +235,20 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!mouseEvent) {
 			return;
 		}
-		const contentHoverShowsOrWillShow = this._tryShowHoverWidget(mouseEvent);
-		if (contentHoverShowsOrWillShow) {
+		const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
+		if (contentWidget.shouldHideHoverOnMouseMoveEvent(mouseEvent)) {
+			console.log('before hideWidgets 5');
+			this._hideWidget();
+			return;
+		}
+		if (contentWidget.showsOrWillShow(mouseEvent)) {
 			return;
 		}
 		if (_sticky) {
 			return;
 		}
-		this._hideWidgets();
-	}
-
-	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
-		const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
-		if (contentWidget.shouldHideHoverOnMouseEvent(mouseEvent)) {
-			return false;
-		}
-		return contentWidget.showsOrWillShow(mouseEvent);
+		console.log('before hideWidgets 6');
+		this._hideWidget();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -280,10 +282,12 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 
-		this._hideWidgets();
+
+		console.log('before hideWidgets 7');
+		this._hideWidget();
 	}
 
-	private _hideWidgets(): void {
+	private _hideWidget(): void {
 		if (_sticky) {
 			return;
 		}
@@ -293,6 +297,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
+		console.log('hideWidgets');
 		this._contentWidget?.hide();
 	}
 
@@ -305,7 +310,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	public hideContentHover(): void {
-		this._hideWidgets();
+		this._hideWidget();
 	}
 
 	public showContentHover(
