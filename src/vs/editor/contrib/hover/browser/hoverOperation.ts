@@ -64,9 +64,9 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 	private readonly _onResult = this._register(new Emitter<HoverResult<TArgs, TResult>>());
 	public readonly onResult = this._onResult.event;
 
-	private readonly _asyncComputationScheduler = this._register(new Debouncer(0));
-	private readonly _syncComputationScheduler = this._register(new Debouncer(0));
-	private readonly _loadingMessageScheduler = this._register(new Debouncer(0));
+	private readonly _asyncComputationScheduler = this._register(new Debouncer((options: TArgs) => this._triggerAsyncComputation(options), 0));
+	private readonly _syncComputationScheduler = this._register(new Debouncer((options: TArgs) => this._triggerSyncComputation(options), 0));
+	private readonly _loadingMessageScheduler = this._register(new Debouncer((options: TArgs) => this._triggerLoadingMessage(options), 0));
 
 	private _state = HoverOperationState.Idle;
 	private _asyncIterable: CancelableAsyncIterableObject<TResult> | null = null;
@@ -113,7 +113,7 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 
 	private _triggerAsyncComputation(options: TArgs): void {
 		this._setState(HoverOperationState.SecondWait, options);
-		this._syncComputationScheduler.schedule(() => this._triggerSyncComputation(options), this._secondWaitTime);
+		this._syncComputationScheduler.schedule(options, this._secondWaitTime);
 
 		if (this._computer.computeAsync) {
 			this._asyncIterableDone = false;
@@ -170,8 +170,8 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === HoverOperationState.Idle) {
 				this._setState(HoverOperationState.FirstWait, options);
-				this._asyncComputationScheduler.schedule(() => this._triggerAsyncComputation(options), this._firstWaitTime);
-				this._loadingMessageScheduler.schedule(() => this._triggerLoadingMessage(options), this._loadingMessageTime);
+				this._asyncComputationScheduler.schedule(options, this._firstWaitTime);
+				this._loadingMessageScheduler.schedule(options, this._loadingMessageTime);
 			}
 		} else {
 			switch (this._state) {
@@ -206,19 +206,19 @@ export class HoverOperation<TArgs, TResult> extends Disposable {
 	}
 }
 
-class Debouncer extends Disposable {
+class Debouncer<TArgs> extends Disposable {
 
 	private readonly _scheduler: RunOnceScheduler;
 
-	private _runner: () => void = () => { };
+	private _options: TArgs | undefined;
 
-	constructor(debounceTimeMs: number) {
+	constructor(runner: (options: TArgs) => void, debounceTimeMs: number) {
 		super();
-		this._scheduler = this._register(new RunOnceScheduler(() => this._runner(), debounceTimeMs));
+		this._scheduler = this._register(new RunOnceScheduler(() => runner(this._options!), debounceTimeMs));
 	}
 
-	schedule(runner: () => void, debounceTimeMs: number): void {
-		this._runner = runner;
+	schedule(options: TArgs, debounceTimeMs: number): void {
+		this._options = options;
 		this._scheduler.schedule(debounceTimeMs);
 	}
 
