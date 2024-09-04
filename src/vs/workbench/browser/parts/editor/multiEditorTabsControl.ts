@@ -47,7 +47,7 @@ import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { isSafari } from '../../../../base/browser/browser.js';
 import { equals } from '../../../../base/common/objects.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { /*KEEP_EDITOR_COMMAND_ID, TOGGLE_KEEP_EDITORS_COMMAND_ID, */ UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
+import { UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
@@ -60,7 +60,6 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/dnd.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-//import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverDelegate, IHoverDelegateOptions } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
@@ -101,7 +100,6 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 		private readonly tabsModel: IReadonlyEditorGroupModel,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		// @ICommandService private readonly commandService: ICommandService,
 
 	) {
 		super(
@@ -120,26 +118,7 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 			return { actions: [] };
 		}
 		return {
-			/*
-			actions:
-				[
-					{
-						commandId: this.tabsModel.isActive(editor) ? KEEP_EDITOR_COMMAND_ID : '', // avoid showing keybinding if not active
-						label: localize('keepEditor', "Keep Editor"),
-						run: () => {
-							this.commandService.executeCommand(KEEP_EDITOR_COMMAND_ID, editor.resource);
-						}
-					},
-					{
-						commandId: TOGGLE_KEEP_EDITORS_COMMAND_ID,
-						label: localize('disablePreviewEditors', "Disable Preview Editors"),
-						run: () => {
-							this.commandService.executeCommand(TOGGLE_KEEP_EDITORS_COMMAND_ID);
-						}
-					},
-				],
-			*/
-			content: new MarkdownString('', { supportThemeIcons: true }).appendText(editor.getTitle(Verbosity.LONG)).appendMarkdown(' (_preview_ [$(question)](https://code.visualstudio.com/docs/getstarted/userinterface#_preview-mode))'),
+			content: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).appendText(editor.getTitle(Verbosity.LONG)).appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D))'),
 		};
 	}
 }
@@ -213,7 +192,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IHostService hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		//@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
