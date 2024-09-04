@@ -55,7 +55,7 @@ import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { clamp } from '../../../../base/common/numbers.js';
@@ -582,20 +582,30 @@ class SCMHistoryViewModel extends Disposable {
 			repository => repository
 		);
 
-	private readonly _selectedRepository = observableValue<ISCMRepository | undefined>(this, undefined);
+	private readonly _selectedRepository = observableValue<'auto' | ISCMRepository>(this, 'auto');
+
+	private readonly _graphRepository = derived(reader => {
+		const selectedRepository = this._selectedRepository.read(reader);
+		if (selectedRepository !== 'auto') {
+			return selectedRepository;
+		}
+
+		return this._scmViewService.activeRepository.read(reader);
+	});
 
 	/**
-	 * The first repository takes precedence over the selected repository when the observable
+	 * The first repository takes precedence over the active | selected repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	readonly repository = latestChangedValue(this, [this._selectedRepository, this._firstRepository]);
+	readonly repository = latestChangedValue(this, [this._graphRepository, this._firstRepository]);
 	private readonly _historyItemGroupIds = observableValue<'all' | 'auto' | string[]>(this, 'auto');
 
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ISCMService private readonly _scmService: ISCMService
+		@ISCMService private readonly _scmService: ISCMService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) {
 		super();
 
@@ -607,7 +617,7 @@ class SCMHistoryViewModel extends Disposable {
 			}
 
 			if (this.repository.get() === repository) {
-				this._selectedRepository.set(Iterable.first(this._scmService.repositories), undefined);
+				this._selectedRepository.set(Iterable.first(this._scmService.repositories) ?? 'auto', undefined);
 			}
 
 			this._state.delete(repository);
@@ -680,7 +690,7 @@ class SCMHistoryViewModel extends Disposable {
 			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}
 
-	setRepository(repository: ISCMRepository): void {
+	setRepository(repository: ISCMRepository | 'auto'): void {
 		this._selectedRepository.set(repository, undefined);
 	}
 
@@ -894,12 +904,23 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	async pickRepository(): Promise<void> {
-		const picks = this._scmViewService.repositories.map(r => ({
+		const picks: (IQuickPickItem & { repository: 'auto' | ISCMRepository } | IQuickPickSeparator)[] = [
+			{
+				label: localize('auto', "Auto"),
+				description: localize('activeRepository', "Show the source control graph for the active repository"),
+				repository: 'auto'
+			},
+			{
+				type: 'separator'
+			},
+		];
+
+		picks.push(...this._scmViewService.repositories.map(r => ({
 			label: r.provider.name,
 			description: r.provider.rootUri?.fsPath,
 			iconClass: ThemeIcon.asClassName(Codicon.repo),
 			repository: r
-		}));
+		})));
 
 		const result = await this._quickInputService.pick(picks, {
 			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories")
