@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLineOptions';
-import type { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import type { ViewLineOptions } from '../viewParts/lines/viewLineOptions.js';
 
 export const enum BindingId {
 	GlyphInfo0,

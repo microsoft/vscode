@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBoundingBox, IRasterizedGlyph } from 'vs/editor/browser/gpu/raster/raster';
+import type { IBoundingBox, IRasterizedGlyph } from '../raster/raster.js';
 
 /**
  * Information about a {@link IRasterizedGlyph rasterized glyph} that has been drawn to a texture
