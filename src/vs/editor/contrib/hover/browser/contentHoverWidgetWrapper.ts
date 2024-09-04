@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { HoverVerbosityAction } from '../../../common/standalone/standaloneEnums.js';
 import { ContentHoverWidget } from './contentHoverWidget.js';
-import { ContentHoverComputer } from './contentHoverComputer.js';
+import { ContentHoverComputer, ContentHoverComputerOptions } from './contentHoverComputer.js';
 import { HoverResult } from './contentHoverTypes.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
@@ -24,13 +24,13 @@ import { isMousePositionWithinElement } from './hoverUtils.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
-	private _currentResult: HoverResult | null = null;
+	private _currentResult: HoverResult<ContentHoverComputerOptions> | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;
 
 	private readonly _computer: ContentHoverComputer;
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+	private readonly _hoverOperation: HoverOperation<ContentHoverComputerOptions, IHoverPart>;
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
 	public readonly onContentsChanged = this._onContentsChanged.event;
@@ -63,12 +63,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _registerListeners(): void {
 		this._register(this._hoverOperation.onResult((result) => {
-			if (!this._computer.anchor) {
-				// invalid state, ignore result
-				return;
-			}
-			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
-			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
+			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.options.anchor, result.value) : result.value);
+			this._withResult(new HoverResult(result.options.anchor, messages, result.isComplete, result.options));
 		}));
 		const contentHoverWidgetNode = this._contentHoverWidget.getDomNode();
 		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'keydown', (e) => {
@@ -140,19 +136,21 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean): void {
-		const currentAnchorEqualToPreviousHover = this._computer.anchor && this._computer.anchor.equals(anchor);
+		const currentAnchorEqualToPreviousHover = this._hoverOperation.options && this._hoverOperation.options.anchor.equals(anchor);
 		if (currentAnchorEqualToPreviousHover) {
 			return;
 		}
 		this._hoverOperation.cancel();
-		this._computer.anchor = anchor;
-		this._computer.shouldFocus = focus;
-		this._computer.source = source;
-		this._computer.insistOnKeepingHoverVisible = insistOnKeepingHoverVisible;
-		this._hoverOperation.start(mode);
+		const contentHoverComputerOptions: ContentHoverComputerOptions = {
+			anchor,
+			source,
+			focus,
+			insistOnKeepingHoverVisible
+		};
+		this._hoverOperation.start(mode, contentHoverComputerOptions);
 	}
 
-	private _setCurrentResult(hoverResult: HoverResult | null): void {
+	private _setCurrentResult(hoverResult: HoverResult<ContentHoverComputerOptions> | null): void {
 		let currentHoverResult = hoverResult;
 		const currentResultEqualToPreviousResult = this._currentResult === currentHoverResult;
 		if (currentResultEqualToPreviousResult) {
@@ -170,15 +168,15 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
-	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
-		if (!this._computer.anchor) {
+	private _addLoadingMessage(anchor: HoverAnchor, result: IHoverPart[]): IHoverPart[] {
+		if (!anchor) {
 			return result;
 		}
 		for (const participant of this._participants) {
 			if (!participant.createLoadingMessage) {
 				continue;
 			}
-			const loadingMessage = participant.createLoadingMessage(this._computer.anchor);
+			const loadingMessage = participant.createLoadingMessage(anchor);
 			if (!loadingMessage) {
 				continue;
 			}
@@ -187,7 +185,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return result;
 	}
 
-	private _withResult(hoverResult: HoverResult): void {
+	private _withResult(hoverResult: HoverResult<ContentHoverComputerOptions>): void {
 		const previousHoverIsVisibleWithCompleteResult = this._contentHoverWidget.position && this._currentResult && this._currentResult.isComplete;
 		if (!previousHoverIsVisibleWithCompleteResult) {
 			this._setCurrentResult(hoverResult);
@@ -199,7 +197,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			return;
 		}
 		const currentHoverResultIsEmpty = hoverResult.hoverParts.length === 0;
-		const insistOnKeepingPreviousHoverVisible = this._computer.insistOnKeepingHoverVisible;
+		const insistOnKeepingPreviousHoverVisible = this._hoverOperation.options?.insistOnKeepingHoverVisible;
 		const shouldKeepPreviousHoverVisible = currentHoverResultIsEmpty && insistOnKeepingPreviousHoverVisible;
 		if (shouldKeepPreviousHoverVisible) {
 			// The hover would now hide normally, so we'll keep the previous messages
@@ -208,7 +206,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _showHover(hoverResult: HoverResult): void {
+	private _showHover(hoverResult: HoverResult<ContentHoverComputerOptions>): void {
 		const context = this._getHoverContext();
 		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
 		if (this._renderedContentHover.domNodeHasChildren) {
@@ -371,7 +369,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public hide(): void {
-		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
 	}

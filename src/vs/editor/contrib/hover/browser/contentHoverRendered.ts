@@ -5,7 +5,7 @@
 
 import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ContentHoverComputer } from './contentHoverComputer.js';
+import { ContentHoverComputer, ContentHoverComputerOptions } from './contentHoverComputer.js';
 import { EditorHoverStatusBar } from './contentHoverStatusBar.js';
 import { HoverStartSource } from './hoverOperation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,7 +39,7 @@ export class RenderedContentHover extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		hoverResult: HoverResult,
+		hoverResult: HoverResult<ContentHoverComputerOptions>,
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		computer: ContentHoverComputer,
 		context: IEditorHoverContext,
@@ -61,8 +61,8 @@ export class RenderedContentHover extends Disposable {
 		this.showAtSecondaryPosition = showAtSecondaryPosition;
 		this.initialMousePosX = anchor.initialMousePosX;
 		this.initialMousePosY = anchor.initialMousePosY;
-		this.shouldFocus = computer.shouldFocus;
-		this.source = computer.source;
+		this.shouldFocus = hoverResult.options.focus;
+		this.source = hoverResult.options.source;
 	}
 
 	public get domNode(): DocumentFragment {

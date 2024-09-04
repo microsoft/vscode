@@ -9,11 +9,11 @@ import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/brows
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { ILanguageService } from '../../../common/languages/language.js';
-import { HoverOperation, HoverStartMode } from './hoverOperation.js';
+import { HoverOperation, HoverResult, HoverStartMode } from './hoverOperation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { HoverWidget } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverWidget } from './hoverTypes.js';
-import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from './marginHoverComputer.js';
+import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer, MarginHoverComputerOptions } from './marginHoverComputer.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
 
 const $ = dom.$;
@@ -50,9 +50,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));
 		this._hoverOperation = this._register(new HoverOperation(this._editor, new MarginHoverComputer(this._editor)));
-		this._register(this._hoverOperation.onResult((result) => {
-			this._withResult(result);
-		}));
+		this._register(this._hoverOperation.onResult((result) => this._withResult(result)));
 
 		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
@@ -112,7 +110,9 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	}
 
 	private _startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
-		if (this._hoverOperation.options?.lineNumber === lineNumber && this._hoverOperation.options.laneOrLine === laneOrLine) {
+		if (this._hoverComputerOptions
+			&& this._hoverComputerOptions.lineNumber === lineNumber
+			&& this._hoverComputerOptions.laneOrLine === laneOrLine) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
 		}
@@ -123,12 +123,12 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	}
 
 	public hide(): void {
+		this._hoverComputerOptions = undefined;
 		this._hoverOperation.cancel();
 		if (!this._isVisible) {
 			return;
 		}
 		this._isVisible = false;
-		this._hoverComputerOptions = undefined;
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 	}
 
@@ -136,7 +136,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		this._messages = result.value;
 
 		if (this._messages.length > 0) {
-			this._renderMessages(result.options?.lineNumber ?? -1, result.options?.laneOrLine ?? 'lineNo', this._messages,);
+			this._renderMessages(result.options.lineNumber, result.options.laneOrLine, this._messages);
 		} else {
 			this.hide();
 		}

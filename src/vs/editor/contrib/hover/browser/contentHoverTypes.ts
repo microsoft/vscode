@@ -11,7 +11,7 @@ export class HoverResult<U> {
 		public readonly anchor: HoverAnchor,
 		public readonly hoverParts: IHoverPart[],
 		public readonly isComplete: boolean,
-		public readonly options: U | undefined
+		public readonly options: U
 	) { }
 
 	public filter(anchor: HoverAnchor): HoverResult<U> {
@@ -30,7 +30,7 @@ export class FilteredHoverResult<U> extends HoverResult<U> {
 		anchor: HoverAnchor,
 		messages: IHoverPart[],
 		isComplete: boolean,
-		options: U | undefined,
+		options: U
 	) {
 		super(anchor, messages, isComplete, options);
 	}

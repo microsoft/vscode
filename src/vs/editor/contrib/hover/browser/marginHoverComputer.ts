@@ -29,9 +29,6 @@ export class MarginHoverComputer implements IHoverComputer<MarginHoverComputerOp
 
 	public computeSync(opts: MarginHoverComputerOptions): IHoverMessage[] {
 
-		if (!opts) {
-			return [];
-		}
 		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
 			return {
 				value: contents

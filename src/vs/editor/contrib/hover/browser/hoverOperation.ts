@@ -217,7 +217,7 @@ class HoverRunOnceScheduler<U> extends Disposable {
 		this._scheduler = this._register(new RunOnceScheduler(() => runner(this._options!), delay));
 	}
 
-	schedule(options: U, delay?: number): void {
+	schedule(options: U, delay: number): void {
 		this._options = options;
 		this._scheduler.schedule(delay);
 	}
