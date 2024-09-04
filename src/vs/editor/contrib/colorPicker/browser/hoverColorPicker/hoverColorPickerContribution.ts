@@ -5,7 +5,6 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../browser/editorExtensions.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
 import { IEditorContribution } from '../../../../common/editorCommon.js';
@@ -64,5 +63,3 @@ export class HoverColorPickerContribution extends Disposable implements IEditorC
 		}
 	}
 }
-
-registerEditorContribution(HoverColorPickerContribution.ID, HoverColorPickerContribution, EditorContributionInstantiation.BeforeFirstInteraction);

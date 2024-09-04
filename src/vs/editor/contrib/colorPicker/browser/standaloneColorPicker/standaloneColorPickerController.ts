@@ -10,7 +10,6 @@ import { IEditorContribution } from '../../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { StandaloneColorPickerWidget } from './standaloneColorPickerWidget.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../../browser/editorExtensions.js';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -62,4 +61,3 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 	}
 }
 
-registerEditorContribution(StandaloneColorPickerController.ID, StandaloneColorPickerController, EditorContributionInstantiation.AfterFirstRender);

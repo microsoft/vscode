@@ -12,7 +12,7 @@ import { DocumentColorProvider } from '../../../../common/languages.js';
 import { ColorDetector } from '../colorDetector.js';
 import { ColorPickerModel } from '../colorPickerModel.js';
 import { ColorPickerWidget } from './hoverColorPickerWidget.js';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../hover/browser/hoverTypes.js';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../hover/browser/hoverTypes.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import * as nls from '../../../../../nls.js';
 import { createColorHover, renderHoverParts } from '../colorPickerParticipantUtils.js';
@@ -109,5 +109,3 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		return !!this._colorPicker;
 	}
 }
-
-HoverParticipantRegistry.register(HoverColorPickerParticipant);
