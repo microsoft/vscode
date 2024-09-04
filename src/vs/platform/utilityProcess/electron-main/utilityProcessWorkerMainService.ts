@@ -14,7 +14,6 @@ import { hash } from '../../../base/common/hash.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export const IUtilityProcessWorkerMainService = createDecorator<IUtilityProcessWorkerMainService>('utilityProcessWorker');
 
@@ -33,8 +32,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
 	}
@@ -52,7 +50,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		}
 
 		// Create new worker
-		const worker = new UtilityProcessWorker(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService, this.configurationService, configuration);
+		const worker = new UtilityProcessWorker(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService, configuration);
 		if (!worker.spawn()) {
 			return { reason: { code: 1, signal: 'EINVALID' } };
 		}
@@ -108,7 +106,6 @@ class UtilityProcessWorker extends Disposable {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		private readonly configuration: IUtilityProcessWorkerCreateConfiguration
 	) {
 		super();
@@ -133,10 +130,7 @@ class UtilityProcessWorker extends Disposable {
 			correlationId: `${this.configuration.reply.windowId}`,
 			responseWindowId: this.configuration.reply.windowId,
 			responseChannel: this.configuration.reply.channel,
-			responseNonce: this.configuration.reply.nonce,
-			env: this.configurationService.getValue<boolean>('files.experimentalWatcher2') ? {
-				VSCODE_USE_WATCHER2: 'true'
-			} : undefined
+			responseNonce: this.configuration.reply.nonce
 		});
 	}
 
