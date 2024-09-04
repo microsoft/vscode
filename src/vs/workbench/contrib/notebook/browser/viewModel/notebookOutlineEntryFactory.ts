@@ -14,6 +14,7 @@ import { CellKind } from '../../common/notebookCommon.js';
 import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { SymbolKind } from '../../../../../editor/common/languages.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export const enum NotebookOutlineConstants {
 	NonHeaderOutlineLevel = 7,
@@ -41,12 +42,24 @@ function getMarkdownHeadersInCellFallbackToHtmlTags(fullContent: string) {
 	return headers;
 }
 
-export class NotebookOutlineEntryFactory {
+export const INotebookOutlineEntryFactory = createDecorator<INotebookOutlineEntryFactory>('INotebookOutlineEntryFactory');
 
-	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
+export interface INotebookOutlineEntryFactory {
+	readonly _serviceBrand: undefined;
+
+	getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[];
+	cacheSymbols(cell: ICellViewModel, cancelToken: CancellationToken): Promise<void>;
+}
+
+export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory {
+
+	declare readonly _serviceBrand: undefined;
+
+	private cellOutlineEntryCache: Record<string, { version: number; entries: entryDesc[] }> = {};
 	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number; text: string }[] }>();
 	constructor(
-		private readonly executionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService private readonly executionStateService: INotebookExecutionStateService,
+		@IOutlineModelService private readonly outlineModelService: IOutlineModelService
 	) { }
 
 	public getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[] {
@@ -80,17 +93,22 @@ export class NotebookOutlineEntryFactory {
 			const exeState = !isMarkdown && this.executionStateService.getCellExecution(cell.uri);
 			let preview = content.trim();
 
-			if (!isMarkdown && cell.model.textModel) {
-				const cachedEntries = this.cellOutlineEntryCache[cell.model.textModel.id];
+			if (!isMarkdown) {
+				const cached = this.cellOutlineEntryCache[cell.id];
 
 				// Gathering symbols from the model is an async operation, but this provider is syncronous.
 				// So symbols need to be precached before this function is called to get the full list.
-				if (cachedEntries) {
+				if (cached) {
 					// push code cell entry that is a parent of cached symbols, always necessary. filtering for quickpick done in that provider.
 					entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-					cachedEntries.forEach((cached) => {
-						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.range, cached.kind));
+					cached.entries.forEach((entry) => {
+						entries.push(new OutlineEntry(index++, entry.level, cell, entry.name, false, false, entry.range, entry.kind));
 					});
+				}
+
+				if (cell.model.textModel && (!cached || cached.version < cell.model.textModel.getVersionId())) {
+					// if the cache is out of date, we need to refresh it
+					this.cacheSymbols(cell, CancellationToken.None);
 				}
 			}
 
@@ -106,11 +124,11 @@ export class NotebookOutlineEntryFactory {
 		return entries;
 	}
 
-	public async cacheSymbols(cell: ICellViewModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
+	public async cacheSymbols(cell: ICellViewModel, cancelToken: CancellationToken) {
 		const textModel = await cell.resolveTextModel();
-		const outlineModel = await outlineModelService.getOrCreate(textModel, cancelToken);
+		const outlineModel = await this.outlineModelService.getOrCreate(textModel, cancelToken);
 		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 8);
-		this.cellOutlineEntryCache[textModel.id] = entries;
+		this.cellOutlineEntryCache[cell.id] = { entries, version: textModel.getVersionId() };
 	}
 }
 
