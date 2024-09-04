@@ -72,7 +72,9 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 }
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
-	const labels = historyItem.labels?.map(l => ({ title: l.title, icon: getHistoryItemIconDto(l.icon) }));
+	const labels = historyItem.labels?.map(l => ({
+		title: l.title, icon: getHistoryItemIconDto(l.icon)
+	}));
 
 	return { ...historyItem, labels };
 }

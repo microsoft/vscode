@@ -36,7 +36,7 @@ import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js'
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);

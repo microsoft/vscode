@@ -185,9 +185,9 @@ class AMDModuleImporter {
 
 	private async _nodeJSLoadScript(scriptSrc: string): Promise<DefineCall | undefined> {
 		try {
-			const fs = (globalThis as any)._VSCODE_NODE_MODULES['fs'];
-			const vm = (globalThis as any)._VSCODE_NODE_MODULES['vm'];
-			const module = (globalThis as any)._VSCODE_NODE_MODULES['module'];
+			const fs = (await import(`${'fs'}`)).default;
+			const vm = (await import(`${'vm'}`)).default;
+			const module = (await import(`${'module'}`)).default;
 
 			const filePath = URI.parse(scriptSrc).fsPath;
 			const content = fs.readFileSync(filePath).toString();
@@ -196,7 +196,6 @@ class AMDModuleImporter {
 			const compileWrapper = script.runInThisContext();
 			compileWrapper.apply();
 			return this._defineCalls.pop();
-
 		} catch (error) {
 			throw error;
 		}

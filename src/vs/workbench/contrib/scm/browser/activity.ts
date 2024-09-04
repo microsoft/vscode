@@ -68,6 +68,14 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	 */
 	private readonly _activeRepository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
 
+	private readonly _activeRepositoryCurrentHistoryItemGroupName = derived(reader => {
+		const repository = this._activeRepository.read(reader);
+		const historyProvider = repository?.provider.historyProvider.read(reader);
+		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+
+		return currentHistoryItemGroup?.name;
+	});
+
 	private readonly _countBadgeRepositories = derived(this, reader => {
 		switch (this._countBadgeConfig.read(reader)) {
 			case 'all': {
@@ -134,10 +142,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const repository = this._activeRepository.read(reader);
-			const historyProvider = repository?.provider.historyProvider.read(reader);
-			const branchName = historyProvider?.currentHistoryItemGroupName.read(reader);
+			const currentHistoryItemGroupName = this._activeRepositoryCurrentHistoryItemGroupName.read(reader);
 
-			this._updateActiveRepositoryContextKeys(repository?.provider.name, branchName);
+			this._updateActiveRepositoryContextKeys(repository?.provider.name, currentHistoryItemGroupName);
 		}));
 	}
 

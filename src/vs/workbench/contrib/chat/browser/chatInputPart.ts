@@ -26,7 +26,7 @@ import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';

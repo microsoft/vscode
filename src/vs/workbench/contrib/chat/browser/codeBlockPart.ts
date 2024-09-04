@@ -35,7 +35,7 @@ import { BracketMatchingController } from '../../../../editor/contrib/bracketMat
 import { ColorDetector } from '../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { GotoDefinitionAtPositionEditorContribution } from '../../../../editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
 import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';

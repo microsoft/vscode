@@ -18,7 +18,7 @@ import { IToggleStyles, Toggle, unthemedToggleStyles } from '../toggle/toggle.js
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from './tree.js';
 import { Action } from '../../../common/actions.js';
-import { distinct, equals, firstOrDefault, range } from '../../../common/arrays.js';
+import { distinct, equals, range } from '../../../common/arrays.js';
 import { Delayer, disposableTimeout, timeout } from '../../../common/async.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
@@ -2907,7 +2907,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	getAnchor(): T | undefined {
-		return firstOrDefault(this.anchor.get(), undefined);
+		return this.anchor.get().at(0);
 	}
 
 	setSelection(elements: TRef[], browserEvent?: UIEvent): void {

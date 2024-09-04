@@ -31,11 +31,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private historyItemDecorations = new Map<string, FileDecoration>();
-	private historyItemLabels = new Map<string, string>([
-		['HEAD -> refs/heads/', 'target'],
-		['refs/heads/', 'git-branch'],
-		['refs/remotes/', 'cloud'],
-		['refs/tags/', 'tag']
+	private historyItemLabels = new Map<string, ThemeIcon>([
+		['HEAD -> refs/heads/', new ThemeIcon('target')],
+		['tag: refs/tags/', new ThemeIcon('tag')],
+		['refs/heads/', new ThemeIcon('git-branch')],
+		['refs/remotes/', new ThemeIcon('cloud')],
 	]);
 
 	private disposables: Disposable[] = [];
@@ -229,10 +229,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		for (const label of commit.refNames) {
 			for (const [key, value] of this.historyItemLabels) {
 				if (label.startsWith(key)) {
-					labels.push({
-						title: label.substring(key.length),
-						icon: new ThemeIcon(value)
-					});
+					labels.push({ title: label.substring(key.length), icon: value });
 					break;
 				}
 			}
