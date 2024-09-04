@@ -117,7 +117,7 @@ import { SharedProcessRawConnection, SharedProcessLifecycle } from '../../../pla
 import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { getDesktopEnvironment } from '../../../base/common/desktopEnvironmentInfo.js';
 import { getCodeDisplayProtocol, getDisplayProtocol } from '../../../base/node/osDisplayProtocolInfo.js';
-import { RequestService } from '../../../platform/request/electron-utility/requestService.js';
+import { RequestService } from '../../../platform/request/electron-node/requestService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
