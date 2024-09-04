@@ -90,12 +90,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 			for (let i = info.importedFiles.length - 1; i >= 0; i--) {
 				const importedFileName = info.importedFiles[i].fileName;
 
-				let importedFilePath: string;
-				if (/^vs\/css!/.test(importedFileName)) {
-					importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
-				} else {
-					importedFilePath = importedFileName;
-				}
+				let importedFilePath = importedFileName;
 				if (/(^\.\/)|(^\.\.\/)/.test(importedFilePath)) {
 					importedFilePath = path.join(path.dirname(fileName), importedFilePath);
 				}
@@ -103,8 +98,9 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 				if (/\.css$/.test(importedFilePath)) {
 					transportCSS(importedFilePath, copyFile, writeOutputFile);
 				} else {
-					if (fs.existsSync(path.join(options.sourcesRoot, importedFilePath + '.js'))) {
-						copyFile(importedFilePath + '.js');
+					const pathToCopy = path.join(options.sourcesRoot, importedFilePath);
+					if (fs.existsSync(pathToCopy) && !fs.statSync(pathToCopy).isDirectory()) {
+						copyFile(importedFilePath);
 					}
 				}
 			}
@@ -180,12 +176,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 				const pos = info.importedFiles[i].pos;
 				const end = info.importedFiles[i].end;
 
-				let importedFilepath: string;
-				if (/^vs\/css!/.test(importedFilename)) {
-					importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
-				} else {
-					importedFilepath = importedFilename;
-				}
+				let importedFilepath = importedFilename;
 				if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
 					importedFilepath = path.join(path.dirname(file), importedFilepath);
 				}

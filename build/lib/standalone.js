@@ -79,13 +79,7 @@ function extractEditor(options) {
             const info = ts.preProcessFile(fileContents);
             for (let i = info.importedFiles.length - 1; i >= 0; i--) {
                 const importedFileName = info.importedFiles[i].fileName;
-                let importedFilePath;
-                if (/^vs\/css!/.test(importedFileName)) {
-                    importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
-                }
-                else {
-                    importedFilePath = importedFileName;
-                }
+                let importedFilePath = importedFileName;
                 if (/(^\.\/)|(^\.\.\/)/.test(importedFilePath)) {
                     importedFilePath = path.join(path.dirname(fileName), importedFilePath);
                 }
@@ -93,8 +87,9 @@ function extractEditor(options) {
                     transportCSS(importedFilePath, copyFile, writeOutputFile);
                 }
                 else {
-                    if (fs.existsSync(path.join(options.sourcesRoot, importedFilePath + '.js'))) {
-                        copyFile(importedFilePath + '.js');
+                    const pathToCopy = path.join(options.sourcesRoot, importedFilePath);
+                    if (fs.existsSync(pathToCopy) && !fs.statSync(pathToCopy).isDirectory()) {
+                        copyFile(importedFilePath);
                     }
                 }
             }
@@ -149,13 +144,7 @@ function createESMSourcesAndResources2(options) {
                 const importedFilename = info.importedFiles[i].fileName;
                 const pos = info.importedFiles[i].pos;
                 const end = info.importedFiles[i].end;
-                let importedFilepath;
-                if (/^vs\/css!/.test(importedFilename)) {
-                    importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
-                }
-                else {
-                    importedFilepath = importedFilename;
-                }
+                let importedFilepath = importedFilename;
                 if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
                     importedFilepath = path.join(path.dirname(file), importedFilepath);
                 }
