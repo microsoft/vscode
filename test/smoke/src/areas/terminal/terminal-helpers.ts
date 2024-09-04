@@ -15,6 +15,8 @@ export async function setTerminalTestSettings(app: Application, additionalSettin
 		// Use the DOM renderer for smoke tests so they can be inspected in the playwright trace
 		// viewer
 		['terminal.integrated.gpuAcceleration', '"off"'],
+		// Needed to run smoke tests on the Windows 2022 build agent
+		['terminal.integrated.experimental.windowsUseConptyDll', '"true"'],
 		...additionalSettings
 	]);
 
