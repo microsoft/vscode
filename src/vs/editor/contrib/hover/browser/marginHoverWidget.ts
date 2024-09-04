@@ -9,11 +9,11 @@ import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/brows
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { ILanguageService } from '../../../common/languages/language.js';
-import { HoverOperation, HoverResult, HoverStartMode } from './hoverOperation.js';
+import { HoverOperation, HoverStartMode } from './hoverOperation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { HoverWidget } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverWidget } from './hoverTypes.js';
-import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer, MarginHoverComputerOptions } from './marginHoverComputer.js';
+import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from './marginHoverComputer.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
 
 const $ = dom.$;
