@@ -5,7 +5,6 @@
 
 import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ContentHoverComputer, ContentHoverComputerOptions } from './contentHoverComputer.js';
 import { EditorHoverStatusBar } from './contentHoverStatusBar.js';
 import { HoverStartSource } from './hoverOperation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -39,14 +38,13 @@ export class RenderedContentHover extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		hoverResult: HoverResult<ContentHoverComputerOptions>,
+		hoverResult: HoverResult,
 		participants: IEditorHoverParticipant<IHoverPart>[],
-		computer: ContentHoverComputer,
 		context: IEditorHoverContext,
 		keybindingService: IKeybindingService
 	) {
 		super();
-		const anchor = hoverResult.anchor;
+		const anchor = hoverResult.options.anchor;
 		const parts = hoverResult.hoverParts;
 		this._renderedHoverParts = this._register(new RenderedContentHoverParts(
 			editor,

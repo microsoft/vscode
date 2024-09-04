@@ -24,7 +24,7 @@ import { isMousePositionWithinElement } from './hoverUtils.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
-	private _currentResult: HoverResult<ContentHoverComputerOptions> | null = null;
+	private _currentResult: HoverResult | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;
 
 	private readonly _computer: ContentHoverComputer;
@@ -64,7 +64,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	private _registerListeners(): void {
 		this._register(this._hoverOperation.onResult((result) => {
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.options.anchor, result.value) : result.value);
-			this._withResult(new HoverResult(result.options.anchor, messages, result.isComplete, result.options));
+			this._withResult(new HoverResult(messages, result.isComplete, result.options));
 		}));
 		const contentHoverWidgetNode = this._contentHoverWidget.getDomNode();
 		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'keydown', (e) => {
@@ -117,12 +117,12 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			return false;
 		}
 		// If mouse if not getting closer and anchor is defined, and the new anchor is the same as the previous anchor
-		const currentAnchorEqualsPreviousAnchor = this._currentResult!.anchor.equals(anchor);
+		const currentAnchorEqualsPreviousAnchor = this._currentResult!.options.anchor.equals(anchor);
 		if (currentAnchorEqualsPreviousAnchor) {
 			return true;
 		}
 		// If mouse if not getting closer and anchor is defined, and the new anchor is not compatible with the previous anchor
-		const currentAnchorCompatibleWithPreviousAnchor = anchor.canAdoptVisibleHover(this._currentResult!.anchor, this._contentHoverWidget.position);
+		const currentAnchorCompatibleWithPreviousAnchor = anchor.canAdoptVisibleHover(this._currentResult!.options.anchor, this._contentHoverWidget.position);
 		if (!currentAnchorCompatibleWithPreviousAnchor) {
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
@@ -150,7 +150,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._hoverOperation.start(mode, contentHoverComputerOptions);
 	}
 
-	private _setCurrentResult(hoverResult: HoverResult<ContentHoverComputerOptions> | null): void {
+	private _setCurrentResult(hoverResult: HoverResult | null): void {
 		let currentHoverResult = hoverResult;
 		const currentResultEqualToPreviousResult = this._currentResult === currentHoverResult;
 		if (currentResultEqualToPreviousResult) {
@@ -185,7 +185,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		return result;
 	}
 
-	private _withResult(hoverResult: HoverResult<ContentHoverComputerOptions>): void {
+	private _withResult(hoverResult: HoverResult): void {
 		const previousHoverIsVisibleWithCompleteResult = this._contentHoverWidget.position && this._currentResult && this._currentResult.isComplete;
 		if (!previousHoverIsVisibleWithCompleteResult) {
 			this._setCurrentResult(hoverResult);
@@ -206,9 +206,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _showHover(hoverResult: HoverResult<ContentHoverComputerOptions>): void {
+	private _showHover(hoverResult: HoverResult): void {
 		const context = this._getHoverContext();
-		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
+		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService);
 		if (this._renderedContentHover.domNodeHasChildren) {
 			this._contentHoverWidget.show(this._renderedContentHover);
 		} else {

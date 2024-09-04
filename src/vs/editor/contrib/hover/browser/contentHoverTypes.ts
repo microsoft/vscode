@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ContentHoverComputerOptions } from './contentHoverComputer.js';
 import { HoverAnchor, IHoverPart } from './hoverTypes.js';
 
-export class HoverResult<U> {
+export class HoverResult {
 
 	constructor(
-		public readonly anchor: HoverAnchor,
 		public readonly hoverParts: IHoverPart[],
 		public readonly isComplete: boolean,
-		public readonly options: U
+		public readonly options: ContentHoverComputerOptions
 	) { }
 
-	public filter(anchor: HoverAnchor): HoverResult<U> {
+	public filter(anchor: HoverAnchor): HoverResult {
 		const filteredHoverParts = this.hoverParts.filter((m) => m.isValidForHoverAnchor(anchor));
 		if (filteredHoverParts.length === this.hoverParts.length) {
 			return this;
 		}
-		return new FilteredHoverResult(this, this.anchor, filteredHoverParts, this.isComplete, this.options);
+		return new FilteredHoverResult(this, filteredHoverParts, this.isComplete, this.options);
 	}
 }
 
-export class FilteredHoverResult<U> extends HoverResult<U> {
+export class FilteredHoverResult extends HoverResult {
 
 	constructor(
-		private readonly original: HoverResult<U>,
-		anchor: HoverAnchor,
+		private readonly original: HoverResult,
 		messages: IHoverPart[],
 		isComplete: boolean,
-		options: U
+		options: ContentHoverComputerOptions
 	) {
-		super(anchor, messages, isComplete, options);
+		super(messages, isComplete, options);
 	}
 
-	public override filter(anchor: HoverAnchor): HoverResult<U> {
+	public override filter(anchor: HoverAnchor): HoverResult {
 		return this.original.filter(anchor);
 	}
 }
