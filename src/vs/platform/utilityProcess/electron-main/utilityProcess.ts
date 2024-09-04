@@ -243,16 +243,14 @@ export class UtilityProcess extends Disposable {
 		this.log('creating new...', Severity.Info);
 
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
-			respondToAuthRequestsFromMainProcess?: boolean;
-		}>({
+		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
 			execArgv,
 			allowLoadingUnsignedLibraries,
 			respondToAuthRequestsFromMainProcess,
 			stdio
-		}));
+		});
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
