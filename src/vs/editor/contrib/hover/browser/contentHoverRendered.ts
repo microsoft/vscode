@@ -12,7 +12,7 @@ import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { HoverResult } from './contentHoverTypes.js';
+import { ContentHoverResult } from './contentHoverTypes.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
@@ -38,13 +38,12 @@ export class RenderedContentHover extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		hoverResult: HoverResult,
+		hoverResult: ContentHoverResult,
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		context: IEditorHoverContext,
 		keybindingService: IKeybindingService
 	) {
 		super();
-		const anchor = hoverResult.options.anchor;
 		const parts = hoverResult.hoverParts;
 		this._renderedHoverParts = this._register(new RenderedContentHoverParts(
 			editor,
@@ -53,14 +52,16 @@ export class RenderedContentHover extends Disposable {
 			keybindingService,
 			context
 		));
+		const contentHoverComputerOptions = hoverResult.options;
+		const anchor = contentHoverComputerOptions.anchor;
 		const { showAtPosition, showAtSecondaryPosition } = RenderedContentHover.computeHoverPositions(editor, anchor.range, parts);
 		this.shouldAppearBeforeContent = parts.some(m => m.isBeforeContent);
 		this.showAtPosition = showAtPosition;
 		this.showAtSecondaryPosition = showAtSecondaryPosition;
 		this.initialMousePosX = anchor.initialMousePosX;
 		this.initialMousePosY = anchor.initialMousePosY;
-		this.shouldFocus = hoverResult.options.focus;
-		this.source = hoverResult.options.source;
+		this.shouldFocus = contentHoverComputerOptions.shouldFocus;
+		this.source = contentHoverComputerOptions.source;
 	}
 
 	public get domNode(): DocumentFragment {

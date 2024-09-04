@@ -6,7 +6,7 @@
 import { ContentHoverComputerOptions } from './contentHoverComputer.js';
 import { HoverAnchor, IHoverPart } from './hoverTypes.js';
 
-export class HoverResult {
+export class ContentHoverResult {
 
 	constructor(
 		public readonly hoverParts: IHoverPart[],
@@ -14,19 +14,19 @@ export class HoverResult {
 		public readonly options: ContentHoverComputerOptions
 	) { }
 
-	public filter(anchor: HoverAnchor): HoverResult {
+	public filter(anchor: HoverAnchor): ContentHoverResult {
 		const filteredHoverParts = this.hoverParts.filter((m) => m.isValidForHoverAnchor(anchor));
 		if (filteredHoverParts.length === this.hoverParts.length) {
 			return this;
 		}
-		return new FilteredHoverResult(this, filteredHoverParts, this.isComplete, this.options);
+		return new FilteredContentHoverResult(this, filteredHoverParts, this.isComplete, this.options);
 	}
 }
 
-export class FilteredHoverResult extends HoverResult {
+export class FilteredContentHoverResult extends ContentHoverResult {
 
 	constructor(
-		private readonly original: HoverResult,
+		private readonly original: ContentHoverResult,
 		messages: IHoverPart[],
 		isComplete: boolean,
 		options: ContentHoverComputerOptions
@@ -34,7 +34,7 @@ export class FilteredHoverResult extends HoverResult {
 		super(messages, isComplete, options);
 	}
 
-	public override filter(anchor: HoverAnchor): HoverResult {
+	public override filter(anchor: HoverAnchor): ContentHoverResult {
 		return this.original.filter(anchor);
 	}
 }

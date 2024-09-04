@@ -12,8 +12,8 @@ import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IHoverPart } fro
 import { AsyncIterableObject } from '../../../../base/common/async.js';
 
 export interface ContentHoverComputerOptions {
+	shouldFocus: boolean;
 	anchor: HoverAnchor;
-	focus: boolean;
 	source: HoverStartSource;
 	insistOnKeepingHoverVisible: boolean;
 }
