@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunDelta, autorunWithStore, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunDelta, autorunWithStore, autorunWithStoreHandleChanges, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -760,16 +760,17 @@ export class SCMHistoryViewPane extends ViewPane {
 				this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
 				this._visibilityDisposables.add(this._treeViewModel);
 
-				const firstRepositoryInitialized = derivedConstOnceDefined(this, reader => {
+				const firstRepository = derivedConstOnceDefined(this, reader => {
 					const repository = this._treeViewModel.repository.read(reader);
 					const historyProvider = repository?.provider.historyProvider.read(reader);
 					const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
 
-					return currentHistoryItemGroup;
+					return currentHistoryItemGroup !== undefined ? repository : undefined;
 				});
 
-				this._visibilityDisposables.add(autorun(async reader => {
-					if (!firstRepositoryInitialized.read(reader)) {
+				this._visibilityDisposables.add(autorunWithStore(async (reader, store) => {
+					const repository = firstRepository.read(reader);
+					if (!repository) {
 						return;
 					}
 
@@ -778,40 +779,58 @@ export class SCMHistoryViewPane extends ViewPane {
 						this._tree.scrollTop = 0;
 					});
 
-					this._visibilityDisposables.add(autorunWithStore((reader, store) => {
-						const repository = this._treeViewModel.repository.read(reader);
-						const historyProvider = repository?.provider.historyProvider.read(reader);
-						if (!repository || !historyProvider) {
-							return;
-						}
-
-						// Update context
-						this._scmProviderCtx.set(repository.provider.contextValue);
-
-						// Update graph
-						store.add(autorunDelta(historyProvider?.currentHistoryItemGroup, args => {
-							if (args.lastValue?.id !== args.newValue?.id ||
-								args.lastValue?.revision !== args.newValue?.revision ||
-								args.lastValue?.remote?.id !== args.newValue?.remote?.id) {
-
-								this.refresh();
+					// Repository change
+					store.add(
+						autorunWithStoreHandleChanges<{ refresh: boolean }>({
+							owner: this,
+							createEmptyChangeSummary: () => ({ refresh: false }),
+							handleChange(_, changeSummary) {
+								changeSummary.refresh = true;
+								return true;
+							},
+						}, (reader, changeSummary, store) => {
+							const repository = this._treeViewModel.repository.read(reader);
+							const historyProvider = repository?.provider.historyProvider.read(reader);
+							if (!repository || !historyProvider) {
 								return;
 							}
 
-							if (args.lastValue?.remote?.revision !== args.newValue?.remote?.revision) {
-								// Remote revision changes can occur as a result of a user action (Fetch, Push) but
-								// it can also occur as a result of background action (Auto Fetch). If the tree is
-								// scrolled to the top, we can safely refresh the tree.
-								if (this._tree.scrollTop === 0) {
+							// Update context
+							this._scmProviderCtx.set(repository.provider.contextValue);
+
+							// HistoryItemGroup change
+							store.add(autorunDelta(historyProvider.currentHistoryItemGroup, args => {
+								// Skip the first execution
+								if (args.lastValue === undefined) {
+									return;
+								}
+
+								if (args.lastValue.id !== args.newValue?.id ||
+									args.lastValue.revision !== args.newValue?.revision ||
+									args.lastValue.remote?.id !== args.newValue?.remote?.id) {
+
 									this.refresh();
 									return;
 								}
 
-								// Set the "OUTDATED" description
-								this.updateTitleDescription(localize('outdated', "OUTDATED"));
+								if (args.lastValue?.remote?.revision !== args.newValue?.remote?.revision) {
+									// Remote revision changes can occur as a result of a user action (Fetch, Push) but
+									// it can also occur as a result of background action (Auto Fetch). If the tree is
+									// scrolled to the top, we can safely refresh the tree.
+									if (this._tree.scrollTop === 0) {
+										this.refresh();
+										return;
+									}
+
+									// Set the "OUTDATED" description
+									this.updateTitleDescription(localize('outdated', "OUTDATED"));
+								}
+							}));
+
+							if (changeSummary.refresh) {
+								this.refresh();
 							}
 						}));
-					}));
 				}));
 			} else {
 				this._visibilityDisposables.clear();
