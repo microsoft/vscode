@@ -13,7 +13,7 @@ import { IMenu } from '../../../../platform/actions/common/actions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
-import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from './history.js';
+import { ISCMHistoryProvider } from './history.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IObservable } from '../../../../base/common/observable.js';
 
@@ -186,7 +186,6 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
-	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
 	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
@@ -230,6 +229,11 @@ export interface ISCMViewService {
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
+
+	/**
+	 * Focused repository or the repository for the active editor
+	 */
+	readonly activeRepository: IObservable<ISCMRepository | undefined>;
 }
 
 export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';

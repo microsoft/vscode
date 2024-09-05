@@ -28,7 +28,7 @@ import { Categories } from '../../../../../../platform/action/common/actionCommo
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { showWindowLogActionId } from '../../../../../services/log/common/logConstants.js';
-import { getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { getActiveElement, getWindow, isAncestor, isEditableElement, isHTMLElement } from '../../../../../../base/browser/dom.js';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -360,7 +360,7 @@ export class NotebookClipboardContribution extends Disposable {
 		const loggerService = accessor.get(ILogService);
 
 		const activeElement = getActiveElement();
-		if (isHTMLElement(activeElement) && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+		if (isHTMLElement(activeElement) && isEditableElement(activeElement)) {
 			_log(loggerService, '[NotebookEditor] focus is on input or textarea element, bypass');
 			return false;
 		}
@@ -387,7 +387,7 @@ export class NotebookClipboardContribution extends Disposable {
 
 	runPasteAction(accessor: ServicesAccessor) {
 		const activeElement = <HTMLElement>getActiveElement();
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+		if (activeElement && isEditableElement(activeElement)) {
 			return false;
 		}
 
@@ -408,7 +408,7 @@ export class NotebookClipboardContribution extends Disposable {
 
 	runCutAction(accessor: ServicesAccessor) {
 		const activeElement = <HTMLElement>getActiveElement();
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+		if (activeElement && isEditableElement(activeElement)) {
 			return false;
 		}
 

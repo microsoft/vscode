@@ -169,6 +169,7 @@ export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly reference?: number;
 	readonly memoryReference?: string;
 	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
+	readonly valueLocationReference?: number;
 }
 
 export interface IExpression extends IExpressionContainer {

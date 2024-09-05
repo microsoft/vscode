@@ -7,7 +7,7 @@ import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.
 import { AsyncIterableObject, Barrier } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { Schemas } from '../../../base/common/network.js';
 import { Counter } from '../../../base/common/numbers.js';
@@ -571,7 +571,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return result.flat();
 	}
 
-	findTextInFilesNew(query: vscode.TextSearchQueryNew, extensionId: ExtensionIdentifier, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {
+	findTextInFilesNew(query: vscode.TextSearchQueryNew, options: vscode.FindTextInFilesOptionsNew | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
 		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
 
 
@@ -584,7 +584,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 			const parsedInclude = include ? parseSearchExcludeInclude(GlobPattern.from(include)) : undefined;
 
-			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
+			const excludePatterns = options.exclude ? globsToISearchPatternBuilder(options.exclude) : undefined;
 
 			return {
 				options: {
@@ -615,10 +615,18 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		const queryOptions = queryOptionsRaw.filter((queryOps): queryOps is QueryOptions<ITextQueryBuilderOptions> => !!queryOps);
 
-		const complete: Promise<undefined | vscode.TextSearchComplete> = Promise.resolve(undefined);
-
+		const disposables = new DisposableStore();
+		const progressEmitter = disposables.add(new Emitter<{ result: ITextSearchResult<URI>; uri: URI }>());
+		const complete = this.findTextInFilesBase(
+			query,
+			queryOptions,
+			(result, uri) => progressEmitter.fire({ result, uri }),
+			token
+		);
 		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
-			const progress = (result: ITextSearchResult<URI>, uri: URI) => {
+			disposables.add(progressEmitter.event(e => {
+				const result = e.result;
+				const uri = e.uri;
 				if (resultIsMatch(result)) {
 					emitter.emitOne(new TextSearchMatchNew(
 						uri,
@@ -637,22 +645,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					));
 
 				}
-				return result;
-			};
-
-			await complete.then(e => {
-				return this.findTextInFilesBase(
-					query,
-					queryOptions,
-					progress,
-					token
-				);
-			});
+			}));
+			await complete;
 		});
 
 		return {
 			results: asyncIterable,
 			complete: complete.then((e) => {
+				disposables.dispose();
 				return {
 					limitHit: e?.limitHit ?? false
 				};

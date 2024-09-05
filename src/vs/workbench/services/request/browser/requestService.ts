@@ -6,26 +6,37 @@
 import { IRequestOptions, IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ILoggerService } from '../../../../platform/log/common/log.js';
 import { RequestChannelClient } from '../../../../platform/request/common/requestIpc.js';
 import { IRemoteAgentService, IRemoteAgentConnection } from '../../remote/common/remoteAgentService.js';
-import { RequestService } from '../../../../platform/request/browser/requestService.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
+import { request } from '../../../../base/parts/request/browser/request.js';
+import { ILoggerService } from '../../../../platform/log/common/log.js';
+import { localize } from '../../../../nls.js';
 
-export class BrowserRequestService extends RequestService {
+export class BrowserRequestService extends AbstractRequestService implements IRequestService {
+
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILoggerService loggerService: ILoggerService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
-		super(configurationService, loggerService);
+		super(loggerService.createLogger('network-window', {
+			name: localize('network-window', "Network (Window)"),
+			hidden: true
+		}));
 	}
 
-	override async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		try {
-			const context = await super.request(options, token);
+			if (!options.proxyAuthorization) {
+				options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
+			}
+			const context = await this.logAndRequest(options, () => request(options, token));
+
 			const connection = this.remoteAgentService.getConnection();
 			if (connection && context.res.statusCode === 405) {
 				return this._makeRemoteRequest(connection, options, token);
@@ -38,6 +49,22 @@ export class BrowserRequestService extends RequestService {
 			}
 			throw error;
 		}
+	}
+
+	async resolveProxy(url: string): Promise<string | undefined> {
+		return undefined; // not implemented in the web
+	}
+
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return undefined; // not implemented in the web
+	}
+
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return undefined; // not implemented in the web
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		return []; // not implemented in the web
 	}
 
 	private _makeRemoteRequest(connection: IRemoteAgentConnection, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
