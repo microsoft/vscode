@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain, Notification } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -72,7 +72,7 @@ import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/comm
 import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
 import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
-import { IUpdateService } from '../../platform/update/common/update.js';
+import { IUpdateService, StateType } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
@@ -104,7 +104,7 @@ import { IExtensionsScannerService } from '../../platform/extensionManagement/co
 import { ExtensionsScannerService } from '../../platform/extensionManagement/node/extensionsScannerService.js';
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
-import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
+import { Promises, RunOnceScheduler, runWhenGlobalIdle, timeout } from '../../base/common/async.js';
 import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
@@ -585,6 +585,52 @@ export class CodeApplication extends Disposable {
 
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
+
+		// Update mode: block
+		if (this.configurationService.getValue('update.mode') === 'block') {
+			await appInstantiationService.invokeFunction(async accessor => {
+				const updateService = accessor.get(IUpdateService);
+
+				let notification = new Notification({
+					title: 'Checking for updates...',
+					timeoutType: 'never'
+				});
+				notification.show();
+
+				await timeout(10000);
+
+				await updateService.checkForUpdates(true);
+
+				notification.close();
+
+				if (updateService.state.type === StateType.AvailableForDownload) {
+					notification = new Notification({
+						title: 'Downloading update...',
+						timeoutType: 'never'
+					});
+					notification.show();
+					await updateService.downloadUpdate();
+
+					notification.close();
+					notification = new Notification({
+						title: 'Applying update...',
+						timeoutType: 'never'
+					});
+					notification.show();
+					await updateService.applyUpdate();
+
+					notification.close();
+					notification = new Notification({
+						title: 'Restarting...',
+						timeoutType: 'never'
+					});
+					notification.show();
+					await updateService.quitAndInstall();
+
+					return;
+				}
+			});
+		}
 
 		// Auth Handler
 		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
