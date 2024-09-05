@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, observableFromEvent, waitForState } from '../../../../base/common/observable.js';
+import { observableFromEvent, waitForState } from '../../../../base/common/observable.js';
 import { ValueWithChangeEventFromObservable } from '../../../../base/common/observableInternal/utils.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
