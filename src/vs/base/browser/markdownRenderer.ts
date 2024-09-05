@@ -180,13 +180,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	if (options.actionHandler) {
 		const _activateLink = function (event: StandardMouseEvent | StandardKeyboardEvent): void {
-			let target: HTMLElement | null = event.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
-					return;
-				}
+			const target = event.target.closest('a[data-href]');
+			if (!DOM.isHTMLElement(target)) {
+				return;
 			}
+
 			try {
 				let href = target.dataset['href'];
 				if (href) {
