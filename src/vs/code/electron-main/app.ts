@@ -104,7 +104,7 @@ import { IExtensionsScannerService } from '../../platform/extensionManagement/co
 import { ExtensionsScannerService } from '../../platform/extensionManagement/node/extensionsScannerService.js';
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
-import { Promises, RunOnceScheduler, runWhenGlobalIdle, timeout } from '../../base/common/async.js';
+import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
 import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
@@ -591,25 +591,55 @@ export class CodeApplication extends Disposable {
 			await appInstantiationService.invokeFunction(async accessor => {
 				const updateService = accessor.get(IUpdateService);
 
+				setInterval(() => {
+					switch (updateService.state.type) {
+						case StateType.Idle:
+							this.logService.info('Update mode blocker: Idle');
+							break;
+						case StateType.Disabled:
+							this.logService.info('Update mode blocker: Disabled');
+							break;
+						case StateType.CheckingForUpdates:
+							this.logService.info('Update mode blocker: CheckingForUpdates');
+							break;
+						case StateType.AvailableForDownload:
+							this.logService.info('Update mode blocker: AvailableForDownload');
+							break;
+						case StateType.Downloading:
+							this.logService.info('Update mode blocker: Downloading');
+							break;
+						case StateType.Downloaded:
+							this.logService.info('Update mode blocker: Downloaded');
+							break;
+						case StateType.Updating:
+							this.logService.info('Update mode blocker: Updating');
+							break;
+						case StateType.Ready:
+							this.logService.info('Update mode blocker: Ready');
+							break;
+					}
+				}, 1000);
+
 				let notification = new Notification({
 					title: 'Checking for updates...',
 					timeoutType: 'never'
 				});
 				notification.show();
 
-				await timeout(10000);
-
+				this.logService.info('Before checkForUpdates()');
 				await updateService.checkForUpdates(true);
-
+				this.logService.info('After checkForUpdates()');
 				notification.close();
 
 				if (updateService.state.type === StateType.AvailableForDownload) {
+					this.logService.info('Before downloadUpdate()');
 					notification = new Notification({
 						title: 'Downloading update...',
 						timeoutType: 'never'
 					});
 					notification.show();
 					await updateService.downloadUpdate();
+					this.logService.info('After downloadUpdate()');
 
 					notification.close();
 					notification = new Notification({
@@ -617,7 +647,9 @@ export class CodeApplication extends Disposable {
 						timeoutType: 'never'
 					});
 					notification.show();
+					this.logService.info('Before applyUpdate()');
 					await updateService.applyUpdate();
+					this.logService.info('After applyUpdate()');
 
 					notification.close();
 					notification = new Notification({
@@ -625,7 +657,9 @@ export class CodeApplication extends Disposable {
 						timeoutType: 'never'
 					});
 					notification.show();
+					this.logService.info('Before quitAndInstall()');
 					await updateService.quitAndInstall();
+					this.logService.info('After quitAndInstall()');
 
 					return;
 				}
