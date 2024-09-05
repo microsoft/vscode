@@ -158,7 +158,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
-		this._register(runOnChange(this._editorObs.selections, (_value, changes) => {
+		this._register(runOnChange(this._editorObs.selections, (_value, _, changes) => {
 			if (changes.some(e => e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
 				this.model.get()?.stop();
 			}
@@ -206,7 +206,7 @@ export class InlineCompletionsController extends Disposable {
 			this._playAccessibilitySignal.read(reader);
 			currentInlineCompletionBySemanticId.read(reader);
 			return {};
-		}), async (_value, _deltas, store) => {
+		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
 			const model = this.model.get();
 			const state = model?.state.get();

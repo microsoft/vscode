@@ -619,7 +619,8 @@ export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IRead
 
 type RemoveUndefined<T> = T extends undefined ? never : T;
 
-export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+	let _previousValue: T | undefined;
 	return autorunWithStoreHandleChanges({
 		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
 		handleChange: (context, changeSummary) => {
@@ -634,17 +635,19 @@ export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb:
 		},
 	}, (reader, changeSummary) => {
 		const value = observable.read(reader);
+		const previousValue = _previousValue;
 		if (changeSummary.didChange) {
-			cb(value, changeSummary.deltas);
+			_previousValue = value;
+			cb(value, previousValue, changeSummary.deltas);
 		}
 	});
 }
 
-export function runOnChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
+export function runOnChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
 	const store = new DisposableStore();
-	const disposable = runOnChange(observable, (value, deltas) => {
+	const disposable = runOnChange(observable, (value, previousValue: undefined | T, deltas) => {
 		store.clear();
-		cb(value, deltas, store);
+		cb(value, previousValue, deltas, store);
 	});
 	return {
 		dispose() {
