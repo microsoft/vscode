@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn } from '../assert.js';
+import { onBugIndicatingError } from '../errors.js';
 import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from '../lifecycle.js';
-import { IReader, IObservable, IObserver, IChangeContext } from './base.js';
+import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
 import { getLogger } from './logging.js';
 
@@ -192,8 +193,12 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			if (!isDisposed) {
 				getLogger()?.handleAutorunTriggered(this);
 				const changeSummary = this.changeSummary!;
-				this.changeSummary = this.createChangeSummary?.();
-				this._runFn(this, changeSummary);
+				try {
+					this.changeSummary = this.createChangeSummary?.();
+					this._runFn(this, changeSummary);
+				} catch (e) {
+					onBugIndicatingError(e);
+				}
 			}
 		} finally {
 			if (!isDisposed) {
@@ -221,23 +226,26 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	public endUpdate(): void {
-		if (this.updateCount === 1) {
-			do {
-				if (this.state === AutorunState.dependenciesMightHaveChanged) {
-					this.state = AutorunState.upToDate;
-					for (const d of this.dependencies) {
-						d.reportChanges();
-						if (this.state as AutorunState === AutorunState.stale) {
-							// The other dependencies will refresh on demand
-							break;
+		try {
+			if (this.updateCount === 1) {
+				do {
+					if (this.state === AutorunState.dependenciesMightHaveChanged) {
+						this.state = AutorunState.upToDate;
+						for (const d of this.dependencies) {
+							d.reportChanges();
+							if (this.state as AutorunState === AutorunState.stale) {
+								// The other dependencies will refresh on demand
+								break;
+							}
 						}
 					}
-				}
 
-				this._runIfNeeded();
-			} while (this.state !== AutorunState.upToDate);
+					this._runIfNeeded();
+				} while (this.state !== AutorunState.upToDate);
+			}
+		} finally {
+			this.updateCount--;
 		}
-		this.updateCount--;
 
 		assertFn(() => this.updateCount >= 0);
 	}
@@ -250,13 +258,17 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
-			const shouldReact = this._handleChange ? this._handleChange({
-				changedObservable: observable,
-				change,
-				didChange: (o): this is any => o === observable as any,
-			}, this.changeSummary!) : true;
-			if (shouldReact) {
-				this.state = AutorunState.stale;
+			try {
+				const shouldReact = this._handleChange ? this._handleChange({
+					changedObservable: observable,
+					change,
+					didChange: (o): this is any => o === observable as any,
+				}, this.changeSummary!) : true;
+				if (shouldReact) {
+					this.state = AutorunState.stale;
+				}
+			} catch (e) {
+				onBugIndicatingError(e);
 			}
 		}
 	}

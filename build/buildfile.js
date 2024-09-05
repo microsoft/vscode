@@ -109,7 +109,7 @@ exports.code = [
 	createModuleDescription('vs/code/electron-main/main'),
 	createModuleDescription('vs/code/node/cli'),
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-	createModuleDescription('vs/code/electron-node/sharedProcess/sharedProcessMain'),
+	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 

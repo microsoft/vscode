@@ -235,9 +235,9 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Electron (node)
+    // Electron (utility)
     {
-        target: '**/vs/**/electron-node/**',
+        target: '**/vs/**/electron-utility/**',
         allowedTypes: [
             ...CORE_TYPES,
             // --> types from electron.d.ts that duplicate from lib.dom.d.ts

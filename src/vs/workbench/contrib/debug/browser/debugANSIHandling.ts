@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LinkDetector } from './linkDetector.js';
-import { RGBA, Color } from '../../../../base/common/color.js';
+import { Color, RGBA } from '../../../../base/common/color.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
+import { ILinkDetector } from './linkDetector.js';
 
 /**
  * @param text The content to stylize.
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
-export function handleANSIOutput(text: string, linkDetector: LinkDetector, themeService: IThemeService, workspaceFolder: IWorkspaceFolder | undefined): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkDetector: ILinkDetector, themeService: IThemeService, workspaceFolder: IWorkspaceFolder | undefined): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -396,7 +396,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
  * @param root The {@link HTMLElement} to append the content to.
  * @param stringContent The text content to be appended.
  * @param cssClasses The list of CSS styles to apply to the text content.
- * @param linkDetector The {@link LinkDetector} responsible for generating links from {@param stringContent}.
+ * @param linkDetector The {@link ILinkDetector} responsible for generating links from {@param stringContent}.
  * @param customTextColor If provided, will apply custom color with inline style.
  * @param customBackgroundColor If provided, will apply custom backgroundColor with inline style.
  * @param customUnderlineColor If provided, will apply custom textDecorationColor with inline style.
@@ -405,7 +405,7 @@ export function appendStylizedStringToContainer(
 	root: HTMLElement,
 	stringContent: string,
 	cssClasses: string[],
-	linkDetector: LinkDetector,
+	linkDetector: ILinkDetector,
 	workspaceFolder: IWorkspaceFolder | undefined,
 	customTextColor?: RGBA,
 	customBackgroundColor?: RGBA,

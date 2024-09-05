@@ -671,6 +671,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			runtime: layoutRuntimeState,
 		};
 
+		const isNewWindow = lifecycleService.startupKind === StartupKind.NewWindow;
+		const activityBarNotDefault = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT;
+
 		// Sidebar View Container To Restore
 		if (this.isVisible(Parts.SIDEBAR_PART)) {
 
@@ -692,6 +695,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
 			}
 		}
+		// Side bar is hidden and a new window is opened with activity bar not visible (not default)
+		else if (isNewWindow && activityBarNotDefault) {
+			// Open side bar if there is a view container to restore
+			const viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
+			if (viewContainerToRestore) {
+				this.state.initialization.views.containerToRestore.sideBar = viewContainerToRestore;
+				this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, false);
+			}
+		}
 
 		// Panel View Container To Restore
 		if (this.isVisible(Parts.PANEL_PART)) {
@@ -705,13 +717,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Auxiliary Panel to restore
-		if (this.isVisible(Parts.AUXILIARYBAR_PART)) {
+		const auxiliaryBarVisible = this.isVisible(Parts.AUXILIARYBAR_PART);
+		if (auxiliaryBarVisible || (isNewWindow && activityBarNotDefault)) {
 			const viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
 
 			if (viewContainerToRestore) {
 				this.state.initialization.views.containerToRestore.auxiliaryBar = viewContainerToRestore;
-			} else {
-				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
+			}
+
+			if (auxiliaryBarVisible !== !!viewContainerToRestore) {
+				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, !auxiliaryBarVisible);
 			}
 		}
 

@@ -223,16 +223,19 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }>());
 		quickPick.ignoreFocusOut = true;
-		const items: { label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }[] = availableSessions.map(session => {
-			return {
-				label: session.account.label,
-				session: session
-			};
-		});
+		const accountsWithSessions = new Set<string>();
+		const items: { label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }[] = availableSessions
+			// Only grab the first account
+			.filter(session => !accountsWithSessions.has(session.account.label) && accountsWithSessions.add(session.account.label))
+			.map(session => {
+				return {
+					label: session.account.label,
+					session: session
+				};
+			});
 
 		// Add the additional accounts that have been logged into the provider but are
 		// don't have a session yet.
-		const accountsWithSessions = new Set(availableSessions.map(session => session.account.label));
 		allAccounts.forEach(account => {
 			if (!accountsWithSessions.has(account.label)) {
 				items.push({ label: account.label, account });

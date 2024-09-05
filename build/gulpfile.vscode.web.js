@@ -87,7 +87,7 @@ const vscodeWebResources = [
 	...vscodeWebResourceIncludes,
 
 	// Excludes
-	'!out-build/vs/**/{node,electron-sandbox,electron-main,electron-node}/**',
+	'!out-build/vs/**/{node,electron-sandbox,electron-main,electron-utility}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!out-build/vs/code/**/*-dev.html',

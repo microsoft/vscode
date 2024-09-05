@@ -190,7 +190,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
 		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
 
-		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[]>('documents', []);
+		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>('documents', 'loading');
 
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */

@@ -14,7 +14,6 @@ import { IMenu, IMenuService, MenuId, MenuRegistry } from '../../../../platform/
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { ISCMHistoryProviderMenus, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from '../common/scm.js';
 
 function actionEquals(a: IAction, b: IAction): boolean {
@@ -174,16 +173,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		return this._repositoryContextMenu;
 	}
 
-	private _historyProviderMenu: SCMHistoryProviderMenus | undefined;
-	get historyProviderMenu(): SCMHistoryProviderMenus | undefined {
-		if (this.provider.historyProvider.get() && !this._historyProviderMenu) {
-			this._historyProviderMenu = new SCMHistoryProviderMenus(this.contextKeyService, this.menuService);
-			this.disposables.add(this._historyProviderMenu);
-		}
-
-		return this._historyProviderMenu;
-	}
-
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -250,36 +239,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	dispose(): void {
 		this.disposables.dispose();
 		this.resourceGroupMenusItems.forEach(item => item.dispose());
-	}
-}
-
-export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
-
-	private readonly historyItemMenus = new Map<SCMHistoryItemViewModelTreeElement, IMenu>();
-	private readonly disposables = new DisposableStore();
-
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService) { }
-
-
-	getHistoryItemMenu(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
-		return this.getOrCreateHistoryItemMenu(historyItem);
-	}
-
-	private getOrCreateHistoryItemMenu(historyItem: SCMHistoryItemViewModelTreeElement): IMenu {
-		let result = this.historyItemMenus.get(historyItem);
-
-		if (!result) {
-			result = this.menuService.createMenu(MenuId.SCMChangesContext, this.contextKeyService);
-			this.historyItemMenus.set(historyItem, result);
-		}
-
-		return result;
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
 	}
 }
 

@@ -497,7 +497,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				id: renderer.id,
 				entrypoint,
 				mimeTypes: renderer.mimeTypes,
-				messaging: renderer.messaging !== RendererMessagingSpec.Never,
+				messaging: renderer.messaging !== RendererMessagingSpec.Never && !!this.rendererMessaging,
 				isBuiltin: renderer.isBuiltin
 			};
 		});

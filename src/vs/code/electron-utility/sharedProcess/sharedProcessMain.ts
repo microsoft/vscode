@@ -117,7 +117,7 @@ import { SharedProcessRawConnection, SharedProcessLifecycle } from '../../../pla
 import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { getDesktopEnvironment } from '../../../base/common/desktopEnvironmentInfo.js';
 import { getCodeDisplayProtocol, getDisplayProtocol } from '../../../base/node/osDisplayProtocolInfo.js';
-import { RequestService } from '../../../platform/request/electron-node/requestService.js';
+import { RequestService } from '../../../platform/request/electron-utility/requestService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -270,7 +270,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		]);
 
 		// Request
-		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		const networkLogger = loggerService.createLogger('network-shared', {
+			name: localize('network-shared', "Network (Shared)"),
+			hidden: true,
+		});
+		const requestService = new RequestService(networkLogger, configurationService, environmentService, logService);
 		services.set(IRequestService, requestService);
 
 		// Checksum
