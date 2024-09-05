@@ -48,7 +48,7 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/ac
 import { tail } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { constObservable, derivedConstOnceDefined, latestChangedValue, observableFromEvent, runOnChange, runOnChangeWithStore } from '../../../../base/common/observableInternal/utils.js';
+import { constObservable, derivedConstOnceDefined, latestChangedValue, observableFromEvent } from '../../../../base/common/observableInternal/utils.js';
 import { ContextKeys } from './scmViewPane.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
@@ -778,12 +778,11 @@ export class SCMHistoryViewPane extends ViewPane {
 						this._tree.scrollTop = 0;
 					});
 
-					// Repository change
 					this._visibilityDisposables.add(autorunWithStore((reader, store) => {
 						const repository = this._treeViewModel.repository.read(reader);
 						const historyProvider = repository?.provider.historyProvider.read(reader);
 						if (!repository || !historyProvider) {
-							return undefined;
+							return;
 						}
 
 						// Update context
@@ -791,19 +790,15 @@ export class SCMHistoryViewPane extends ViewPane {
 
 						// Update graph
 						store.add(autorunDelta(historyProvider?.currentHistoryItemGroup, args => {
-							if (args.lastValue === undefined || args.newValue === undefined) {
-								return;
-							}
-
-							if (args.lastValue.id !== args.newValue.id ||
-								args.lastValue.revision !== args.newValue.revision ||
-								args.lastValue.remote?.id !== args.newValue.remote?.id) {
+							if (args.lastValue?.id !== args.newValue?.id ||
+								args.lastValue?.revision !== args.newValue?.revision ||
+								args.lastValue?.remote?.id !== args.newValue?.remote?.id) {
 
 								this.refresh();
 								return;
 							}
 
-							if (args.lastValue.remote?.revision !== args.newValue.remote?.revision) {
+							if (args.lastValue?.remote?.revision !== args.newValue?.remote?.revision) {
 								// Remote revision changes can occur as a result of a user action (Fetch, Push) but
 								// it can also occur as a result of background action (Auto Fetch). If the tree is
 								// scrolled to the top, we can safely refresh the tree.
