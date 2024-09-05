@@ -33,7 +33,11 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 		resolve: {
 			conditionNames: ['import', 'require', 'node-addons', 'node'],
 			mainFields: ['module', 'main'],
-			extensions: ['.ts', '.js'] // support ts-files and js-files
+			extensions: ['.ts', '.js'], // support ts-files and js-files
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			}
 		},
 		module: {
 			rules: [{
@@ -118,7 +122,11 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 			fallback: {
 				'path': require.resolve('path-browserify'),
 				'util': require.resolve('util')
-			}
+			},
+			extensionAlias: {
+				// this is needed to resolve dynamic imports that now require the .js extension
+				'.js': ['.js', '.ts'],
+			},
 		},
 		module: {
 			rules: [{
@@ -131,7 +139,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 						loader: 'ts-loader',
 						options: {
 							...tsLoaderOptions,
-							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
+							//							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
 						}
 					},
 					{
