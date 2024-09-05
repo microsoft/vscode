@@ -92,14 +92,14 @@
 					"common",
 					"browser"
 				],
-				"electron-node": [
+				"electron-utility": [
 					"common",
 					"node"
 				],
 				"electron-main": [
 					"common",
 					"node",
-					"electron-node"
+					"electron-utility"
 				]
 			}
 		],
@@ -635,7 +635,7 @@
 					{
 						// imports that are allowed in all files of layers:
 						// - node
-						// - electron-node
+						// - electron-utility
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
@@ -694,7 +694,7 @@
 					},
 					{
 						// imports that are allowed in all files of layers:
-						// - electron-node
+						// - electron-utility
 						// - electron-main
 						"when": "hasElectron",
 						"allow": [
