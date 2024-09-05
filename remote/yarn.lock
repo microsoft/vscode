@@ -2,9 +2,9 @@
 # yarn lockfile v1
 
 
-"@bpasero/watcher@github:bpasero/watcher#ben/fork-1":
+"@bpasero/watcher@github:bpasero/watcher#ben/fork-2":
   version "2.4.2-alpha.0"
-  resolved "https://codeload.github.com/bpasero/watcher/tar.gz/0a174e924c9a9f607d7c0b1dd5d7c3e1497a1cf6"
+  resolved "https://codeload.github.com/bpasero/watcher/tar.gz/0b80645ef9fd19952ef05a3601302ebefadb992f"
   dependencies:
     detect-libc "^1.0.3"
     is-glob "^4.0.3"
