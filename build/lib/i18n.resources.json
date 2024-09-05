@@ -569,10 +569,6 @@
 		{
 			"name": "vs/workbench/contrib/list",
 			"project": "vscode-workbench"
-		},
-		{
-			"name": "vs/workbench/contrib/gpu",
-			"project": "vscode-workbench"
 		}
 	]
 }

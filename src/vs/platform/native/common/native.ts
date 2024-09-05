@@ -180,6 +180,7 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
+	openGPUInfoWindow(options: { zoomLevel: number }): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;

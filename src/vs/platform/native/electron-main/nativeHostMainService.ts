@@ -33,7 +33,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, useWindowControlsOverlay } from '../../window/common/window.js';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -55,6 +55,10 @@ export const INativeHostMainService = createDecorator<INativeHostMainService>('n
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private gpuInfoParentWindow: BrowserWindow | null = null;
+
+	private gpuInfoWindow: BrowserWindow | null = null;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -876,6 +880,46 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			webContents.openDevTools({ mode: 'bottom' }); // TODO@bpasero WCO and devtools collide with default option 'right'
 		} else {
 			webContents.toggleDevTools();
+		}
+	}
+
+	async openGPUInfoWindow(windowId: number | undefined, options: { zoomLevel: number }): Promise<void> {
+		if (!this.gpuInfoWindow) {
+			this.gpuInfoParentWindow = BrowserWindow.getFocusedWindow();
+			if (this.gpuInfoParentWindow) {
+				this.gpuInfoWindow = new BrowserWindow({
+					fullscreen: false,
+					skipTaskbar: false,
+					resizable: true,
+					center: true,
+					minWidth: 800,
+					minHeight: 600,
+					webPreferences: {
+						v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
+						enableWebSQL: false,
+						spellcheck: false,
+						zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
+						sandbox: true
+					},
+					alwaysOnTop: false,
+				});
+				this.gpuInfoWindow.setMenuBarVisibility(false);
+				this.gpuInfoWindow.loadURL('chrome://gpu');
+
+				this.gpuInfoWindow.on('close', () => {
+					this.gpuInfoWindow = null;
+				});
+				this.gpuInfoParentWindow.on('close', () => {
+					if (this.gpuInfoWindow) {
+						this.gpuInfoWindow.close();
+						this.gpuInfoWindow = null;
+					}
+				});
+			}
+
+		}
+		if (this.gpuInfoWindow) {
+			this.focusWindow(this.gpuInfoWindow.id);
 		}
 	}
 
