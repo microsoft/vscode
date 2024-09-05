@@ -56,12 +56,14 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder(this.processFindingEnabled())));
 		}
 		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {
+			if (this.remoteExplorerService.portsFeaturesEnabled && (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING))) {
 				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 			}
 		}));
-		this._register(this.tunnelService.onAddedTunnelProvider(() => {
-			return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
+		this._register(this.tunnelService.onAddedTunnelProvider(async () => {
+			if (this.remoteExplorerService.portsFeaturesEnabled) {
+				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
+			}
 		}));
 	}
 

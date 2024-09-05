@@ -11,13 +11,13 @@ import { HoverParticipantRegistry } from './hoverTypes.js';
 import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
 import { MarkerHoverParticipant } from './markerHoverParticipant.js';
 import { ContentHoverController } from './contentHoverController.js';
-import { MarginHoverController } from './marginHoverController.js';
+import { GlyphHoverController } from './glyphHoverController.js';
 import './hover.css';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ExtHoverAccessibleView, HoverAccessibilityHelp, HoverAccessibleView } from './hoverAccessibleViews.js';
 
 registerEditorContribution(ContentHoverController.ID, ContentHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
-registerEditorContribution(MarginHoverController.ID, MarginHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorContribution(GlyphHoverController.ID, GlyphHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(ScrollUpHoverAction);

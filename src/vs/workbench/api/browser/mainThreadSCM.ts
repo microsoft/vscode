@@ -27,6 +27,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ITextModel } from '../../../editor/common/model.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -46,7 +47,11 @@ function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
 		title: l.title, icon: getIconFromIconDto(l.icon)
 	}));
 
-	return { ...historyItemDto, labels };
+	const newLineIndex = historyItemDto.message.indexOf('\n');
+	const subject = newLineIndex === -1 ?
+		historyItemDto.message : `${historyItemDto.message.substring(0, newLineIndex)}\u2026`;
+
+	return { ...historyItemDto, subject, labels };
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -161,7 +166,9 @@ class MainThreadSCMResource implements ISCMResource {
 }
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
-	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: () => false }, undefined);
+	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({
+		owner: this, equalsFn: structuralEquals
+	}, undefined);
 	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }

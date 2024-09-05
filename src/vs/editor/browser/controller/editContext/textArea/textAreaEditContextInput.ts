@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from '../../../base/browser/browser.js';
-import * as dom from '../../../base/browser/dom.js';
-import { DomEmitter } from '../../../base/browser/event.js';
-import { IKeyboardEvent, StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { inputLatency } from '../../../base/browser/performance.js';
-import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Mimes } from '../../../base/common/mime.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
-import * as strings from '../../../base/common/strings.js';
-import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from './textAreaState.js';
-import { Position } from '../../common/core/position.js';
-import { Selection } from '../../common/core/selection.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { ILogService } from '../../../platform/log/common/log.js';
+import * as browser from '../../../../../base/browser/browser.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { DomEmitter } from '../../../../../base/browser/event.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { inputLatency } from '../../../../../base/browser/performance.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ClipboardDataToCopy, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -29,67 +30,16 @@ export interface ICompositionData {
 	data: string;
 }
 
-export const CopyOptions = {
-	forceCopyWithSyntaxHighlighting: false
-};
 
 export interface IPasteData {
 	text: string;
 	metadata: ClipboardStoredMetadata | null;
 }
 
-export interface ClipboardDataToCopy {
-	isFromEmptySelection: boolean;
-	multicursorText: string[] | null | undefined;
-	text: string;
-	html: string | null | undefined;
-	mode: string | null;
-}
-
-export interface ClipboardStoredMetadata {
-	version: 1;
-	isFromEmptySelection: boolean | undefined;
-	multicursorText: string[] | null | undefined;
-	mode: string | null;
-}
-
 export interface ITextAreaInputHost {
 	getDataToCopy(): ClipboardDataToCopy;
 	getScreenReaderContent(): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
-}
-
-interface InMemoryClipboardMetadata {
-	lastCopiedValue: string;
-	data: ClipboardStoredMetadata;
-}
-
-/**
- * Every time we write to the clipboard, we record a bit of extra metadata here.
- * Every time we read from the cipboard, if the text matches our last written text,
- * we can fetch the previous metadata.
- */
-export class InMemoryClipboardMetadataManager {
-	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
-
-	private _lastState: InMemoryClipboardMetadata | null;
-
-	constructor() {
-		this._lastState = null;
-	}
-
-	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
-		this._lastState = { lastCopiedValue, data };
-	}
-
-	public get(pastedText: string): ClipboardStoredMetadata | null {
-		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
-			// match!
-			return this._lastState.data;
-		}
-		this._lastState = null;
-		return null;
-	}
 }
 
 export interface ICompositionStartEvent {

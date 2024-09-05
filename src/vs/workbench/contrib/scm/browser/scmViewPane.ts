@@ -99,7 +99,7 @@ import { clamp, rot } from '../../../../base/common/numbers.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { OpenScmGroupAction } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
@@ -1767,7 +1767,7 @@ class SCMInputWidget {
 				EditorDictation.ID,
 				FormatOnType.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				InlineCompletionsController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,

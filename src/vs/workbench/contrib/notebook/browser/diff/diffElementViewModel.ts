@@ -20,6 +20,7 @@ import { getFormattedMetadataJSON, NotebookCellTextModel } from '../../common/mo
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -181,6 +182,10 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		return this.layoutInfo.totalHeight;
 	}
 
+	private get ignoreOutputs() {
+		return this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(this.mainDocumentTextModel?.transientOptions.transientOutputs);
+	}
+
 	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _outputEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
@@ -198,7 +203,8 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		},
-		notebookService: INotebookService
+		notebookService: INotebookService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super(mainDocumentTextModel, editorEventDispatcher, initData);
 		this.original = original ? this._register(new DiffNestedCellViewModel(original, notebookService)) : undefined;
@@ -264,7 +270,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		const outputStatusHeight = delta.outputStatusHeight !== undefined ? delta.outputStatusHeight : this._layoutInfo.outputStatusHeight;
 		const bodyMargin = delta.bodyMargin !== undefined ? delta.bodyMargin : this._layoutInfo.bodyMargin;
 		const outputMetadataHeight = delta.outputMetadataHeight !== undefined ? delta.outputMetadataHeight : this._layoutInfo.outputMetadataHeight;
-		const outputHeight = (delta.recomputeOutput || delta.rawOutputHeight !== undefined || delta.outputMetadataHeight !== undefined) ? this._getOutputTotalHeight(rawOutputHeight, outputMetadataHeight) : this._layoutInfo.outputTotalHeight;
+		const outputHeight = this.ignoreOutputs ? 0 : (delta.recomputeOutput || delta.rawOutputHeight !== undefined || delta.outputMetadataHeight !== undefined) ? this._getOutputTotalHeight(rawOutputHeight, outputMetadataHeight) : this._layoutInfo.outputTotalHeight;
 
 		const totalHeight = editorHeight
 			+ editorMargin
@@ -480,7 +486,8 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		},
-		notebookService: INotebookService
+		notebookService: INotebookService,
+		configurationService: IConfigurationService
 	) {
 		super(
 			mainDocumentTextModel,
@@ -489,7 +496,8 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			type,
 			editorEventDispatcher,
 			initData,
-			notebookService);
+			notebookService,
+			configurationService);
 
 		this.type = type;
 
@@ -549,7 +557,7 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		}
 
 		return {
-			reason: ret === OutputComparison.Metadata ? 'Output metadata is changed' : undefined,
+			reason: ret === OutputComparison.Metadata ? 'Output metadata has changed' : undefined,
 			kind: ret
 		};
 	}
@@ -658,9 +666,10 @@ export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		},
-		notebookService: INotebookService
+		notebookService: INotebookService,
+		configurationService: IConfigurationService
 	) {
-		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService);
+		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService, configurationService);
 		this.type = type;
 
 		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {

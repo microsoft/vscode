@@ -17,6 +17,7 @@ import { nullTokenizeEncoded } from '../languages/nullTokenize.js';
 import { ITextModel } from '../model.js';
 import { FixedArray } from './fixedArray.js';
 import { IModelContentChange } from '../textModelEvents.js';
+import { ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
 import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 
@@ -101,18 +102,14 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 	}
 
 	/** assumes state is up to date */
-	public tokenizeLineWithEdit(position: Position, length: number, newText: string): LineTokens | null {
-		const lineNumber = position.lineNumber;
-		const column = position.column;
-
+	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
 		const lineStartState = this.getStartState(lineNumber);
 		if (!lineStartState) {
-			return null;
+			return { mainLineTokens: null, additionalLines: null };
 		}
 
 		const curLineContent = this._textModel.getLineContent(lineNumber);
-		const newLineContent = curLineContent.substring(0, column - 1)
-			+ newText + curLineContent.substring(column - 1 + length);
+		const newLineContent = edit.lineEdit.apply(curLineContent);
 
 		const languageId = this._textModel.getLanguageIdAtPosition(lineNumber, 0);
 		const result = safeTokenize(
@@ -124,8 +121,19 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 			lineStartState
 		);
 
-		const lineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
-		return lineTokens;
+		let additionalLines: LineTokens[] | null = null;
+		if (edit.additionalLines) {
+			additionalLines = [];
+			let state = result.endState;
+			for (const line of edit.additionalLines) {
+				const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, line, true, state);
+				additionalLines.push(new LineTokens(r.tokens, line, this._languageIdCodec));
+				state = r.endState;
+			}
+		}
+
+		const mainLineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
+		return { mainLineTokens, additionalLines };
 	}
 
 	public hasAccurateTokensForLine(lineNumber: number): boolean {
