@@ -58,6 +58,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { clamp } from '../../../../base/common/numbers.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
@@ -200,10 +201,13 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
+	private readonly _labelConfig = observableConfigValue<'all' | 'filter'>('scm.graph.labels', 'filter', this._configurationService);
+
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IThemeService private readonly themeService: IThemeService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
@@ -224,7 +228,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const historyItemHover = this.hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(node.element));
+		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(node.element));
 		templateData.elementDisposables.add(historyItemHover);
 
 		templateData.graphContainer.textContent = '';
@@ -236,33 +240,45 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
-		templateData.labelContainer.textContent = '';
-		const firstColoredLabel = historyItem.labels?.find(label => label.color);
+		this._renderLabels(historyItem, templateData);
+	}
 
-		for (const label of historyItem.labels ?? []) {
-			if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
-				const elements = h('div.label', {
-					style: {
-						color: label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
-						backgroundColor: label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground)
-					}
-				}, [
-					h('div.icon@icon'),
-					h('div.description@description')
-				]);
+	private _renderLabels(historyItem: ISCMHistoryItem, templateData: HistoryItemTemplate): void {
+		templateData.elementDisposables.add(autorun(reader => {
+			const labelConfig = this._labelConfig.read(reader);
 
-				elements.icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+			templateData.labelContainer.textContent = '';
+			const firstColoredLabel = historyItem.labels?.find(label => label.color);
 
-				elements.description.textContent = label.title;
-				elements.description.style.display = label === firstColoredLabel ? '' : 'none';
+			for (const label of historyItem.labels ?? []) {
+				if (!label.color && labelConfig === 'filter') {
+					continue;
+				}
 
-				append(templateData.labelContainer, elements.root);
+				if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
+					const elements = h('div.label', {
+						style: {
+							color: label.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
+							backgroundColor: label.color ? asCssVariable(label.color) : asCssVariable(historyItemHoverDefaultLabelBackground)
+						}
+					}, [
+						h('div.icon@icon'),
+						h('div.description@description')
+					]);
+
+					elements.icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+
+					elements.description.textContent = label.title;
+					elements.description.style.display = label === firstColoredLabel ? '' : 'none';
+
+					append(templateData.labelContainer, elements.root);
+				}
 			}
-		}
+		}));
 	}
 
 	private getTooltip(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
-		const colorTheme = this.themeService.getColorTheme();
+		const colorTheme = this._themeService.getColorTheme();
 		const historyItem = element.historyItemViewModel.historyItem;
 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
