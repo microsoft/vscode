@@ -106,7 +106,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
 			const sorted = sortObjectPropertiesRecursively(notebookContent);
 
-			return Promise.resolve(JSON.stringify(sorted, undefined, indentAmount));
+			return Promise.resolve(JSON.stringify(sorted, undefined, indentAmount) + '\n');
 		}
 	}
 
