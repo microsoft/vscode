@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -26,7 +26,6 @@ import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hove
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenEvent, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -49,7 +48,7 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/ac
 import { tail } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { constObservable, latestChangedValue, observableFromEvent } from '../../../../base/common/observableInternal/utils.js';
+import { constObservable, derivedConstOnceDefined, latestChangedValue, observableFromEvent, runOnChange, runOnChangeWithStore } from '../../../../base/common/observableInternal/utils.js';
 import { ContextKeys } from './scmViewPane.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
@@ -696,8 +695,6 @@ export class SCMHistoryViewPane extends ViewPane {
 
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
 
-	private readonly _providerCountBadgeConfig = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
-
 	constructor(
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -740,13 +737,6 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._treeContainer = append(container, $('.scm-view.scm-history-view'));
 		this._treeContainer.classList.add('file-icon-themable-tree');
 
-		this._register(autorun(reader => {
-			const providerCountBadgeConfig = this._providerCountBadgeConfig.read(reader);
-
-			this._treeContainer.classList.toggle('hide-provider-counts', providerCountBadgeConfig === 'hidden');
-			this._treeContainer.classList.toggle('auto-provider-counts', providerCountBadgeConfig === 'auto');
-		}));
-
 		this._createTree(this._treeContainer);
 
 		this.onDidChangeBodyVisibility(visible => {
@@ -754,82 +744,82 @@ export class SCMHistoryViewPane extends ViewPane {
 				this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
 				this._visibilityDisposables.add(this._treeViewModel);
 
-				this._treeOperationSequencer.queue(async () => {
-					await this._tree.setInput(this._treeViewModel);
-					this._tree.scrollTop = 0;
+				const firstRepositoryInitialized = derivedConstOnceDefined(this, reader => {
+					const repository = this._treeViewModel.repository.read(reader);
+					const historyProvider = repository?.provider.historyProvider.read(reader);
+					const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+
+					return currentHistoryItemGroup;
 				});
 
-				this._visibilityDisposables.add(autorunWithStore((reader, store) => {
-					const repository = this._treeViewModel.repository.read(reader);
-					if (!repository) {
+				this._visibilityDisposables.add(autorun(async reader => {
+					if (!firstRepositoryInitialized.read(reader)) {
 						return;
 					}
 
-					const currentHistoryItemGroupId = derived(reader => {
-						const historyProvider = repository.provider.historyProvider.read(reader);
-						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
-
-						return currentHistoryItemGroup?.id;
+					this._treeOperationSequencer.queue(async () => {
+						await this._tree.setInput(this._treeViewModel);
+						this._tree.scrollTop = 0;
 					});
 
-					const currentHistoryItemGroupRevision = derived(reader => {
-						const historyProvider = repository.provider.historyProvider.read(reader);
-						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
-
-						return currentHistoryItemGroup?.revision;
-					});
-
-					const currentHistoryItemGroupRemoteId = derived(reader => {
-						const historyProvider = repository.provider.historyProvider.read(reader);
-						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
-
-						return currentHistoryItemGroup?.remote?.id;
-					});
-
-					const currentHistoryItemGroupRemoteRevision = derived(reader => {
-						const historyProvider = repository.provider.historyProvider.read(reader);
-						const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
-
-						return currentHistoryItemGroup?.remote?.revision;
-					});
-
-					store.add(autorun(reader => {
-						const historyItemGroupId = currentHistoryItemGroupId.read(reader);
-						const historyItemGroupRevision = currentHistoryItemGroupRevision.read(reader);
-						const historyItemGroupRemoteId = currentHistoryItemGroupRemoteId.read(reader);
-
-						if (!historyItemGroupId && !historyItemGroupRevision && !historyItemGroupRemoteId) {
-							return;
+					// Repository change
+					this._visibilityDisposables.add(runOnChangeWithStore(this._treeViewModel.repository, (repository, _, store) => {
+						const historyProvider = repository?.provider.historyProvider.read(reader);
+						if (!repository || !historyProvider) {
+							return undefined;
 						}
 
-						this.refresh();
-					}));
+						// Update context
+						this._scmProviderCtx.set(repository.provider.contextValue);
 
-					store.add(autorun(reader => {
-						const historyItemGroupRemoteRevision = currentHistoryItemGroupRemoteRevision.read(reader);
+						// Derived observables
+						const currentHistoryItemGroupId = derived(reader => {
+							return historyProvider?.currentHistoryItemGroup.read(reader)?.id;
+						});
 
-						if (!historyItemGroupRemoteRevision) {
-							return;
-						}
+						const currentHistoryItemGroupRevision = derived(reader => {
+							return historyProvider?.currentHistoryItemGroup.read(reader)?.revision;
+						});
 
-						// Remote revision changes can occur as a result of a user action (Fetch, Push) but
-						// it can also occur as a result of background action (Auto Fetch). If the tree is
-						// scrolled to the top, we can safely refresh the tree.
-						if (this._tree.scrollTop === 0) {
+						const currentHistoryItemGroupRemoteId = derived(reader => {
+							return historyProvider?.currentHistoryItemGroup.read(reader)?.remote?.id;
+						});
+
+						const currentHistoryItemGroupRemoteRevision = derived(reader => {
+							return historyProvider?.currentHistoryItemGroup.read(reader)?.remote?.revision;
+						});
+
+						store.add(autorun(reader => {
+							const historyItemGroupId = currentHistoryItemGroupId.read(reader);
+							const historyItemGroupRevision = currentHistoryItemGroupRevision.read(reader);
+							const historyItemGroupRemoteId = currentHistoryItemGroupRemoteId.read(reader);
+
+							if (!historyItemGroupId && !historyItemGroupRevision && !historyItemGroupRemoteId) {
+								return;
+							}
+
 							this.refresh();
-							return;
-						}
+						}));
 
-						// Set the "OUTDATED" description
-						this.updateTitleDescription(localize('outdated', "OUTDATED"));
+						store.add(runOnChange(currentHistoryItemGroupRemoteRevision, () => {
+							const historyItemGroupRemoteRevision = currentHistoryItemGroupRemoteRevision.read(reader);
+
+							if (!historyItemGroupRemoteRevision) {
+								return;
+							}
+
+							// Remote revision changes can occur as a result of a user action (Fetch, Push) but
+							// it can also occur as a result of background action (Auto Fetch). If the tree is
+							// scrolled to the top, we can safely refresh the tree.
+							if (this._tree.scrollTop === 0) {
+								this.refresh();
+								return;
+							}
+
+							// Set the "OUTDATED" description
+							this.updateTitleDescription(localize('outdated', "OUTDATED"));
+						}));
 					}));
-
-
-					this.updateActions();
-					this.updateTitleDescription(undefined);
-					this._scmProviderCtx.set(repository.provider.contextValue);
-
-					this._updateChildren();
 				}));
 			} else {
 				this._visibilityDisposables.clear();
@@ -859,6 +849,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	async refresh(): Promise<void> {
 		await this._updateChildren(true);
 
+		this.updateActions();
 		this.updateTitleDescription(undefined);
 		this._tree.scrollTop = 0;
 	}
