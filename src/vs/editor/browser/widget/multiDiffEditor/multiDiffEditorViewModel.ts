@@ -19,14 +19,21 @@ import { ContextKeyValue } from '../../../../platform/contextkey/common/contextk
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class MultiDiffEditorViewModel extends Disposable {
-	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[]> = observableFromValueWithChangeEvent(this.model, this.model.documents);
+	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[] | 'loading'> = observableFromValueWithChangeEvent(this.model, this.model.documents);
+
+	private readonly _documentsArr = derived(this, reader => {
+		const result = this._documents.read(reader);
+		if (result === 'loading') { return []; }
+		return result;
+	});
+
+	public readonly isLoading = derived(this, reader => this._documents.read(reader) === 'loading');
 
 	public readonly items: IObservable<readonly DocumentDiffItemViewModel[]> = mapObservableArrayCached(
 		this,
-		this._documents,
+		this._documentsArr,
 		(d, store) => store.add(this._instantiationService.createInstance(DocumentDiffItemViewModel, d, this))
-	)
-		.recomputeInitiallyAndOnChange(this._store);
+	).recomputeInitiallyAndOnChange(this._store);
 
 	public readonly focusedDiffItem = derived(this, reader => this.items.read(reader).find(i => i.isFocused.read(reader)));
 	public readonly activeDiffItem = derivedObservableWithWritableCache<DocumentDiffItemViewModel | undefined>(this,
