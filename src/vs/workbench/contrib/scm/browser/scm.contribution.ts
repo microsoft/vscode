@@ -355,6 +355,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			maximum: 1000,
 			default: 50
 		},
+		'scm.graph.labels': {
+			type: 'string',
+			enum: ['all', 'filter'],
+			enumDescriptions: [
+				localize('scm.graph.labels.all', "Show all labels in the Source Control Graph view."),
+				localize('scm.graph.labels.filter', "Show only the labels of the history item groups used as a filter in the Source Control Graph view.")
+			],
+			description: localize('scm.graph.labels', "Controls the labels of the history item groups shown in the Source Control Graph view."),
+			default: 'filter'
+		}
 	}
 });
 
