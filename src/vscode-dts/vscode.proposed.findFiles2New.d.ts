@@ -7,8 +7,19 @@ declare module 'vscode' {
 
 	export interface FindFiles2OptionsNew {
 		/**
-		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace.
+		 * An array of {@link GlobPattern GlobPattern} that defines files to exclude.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
+		 *
+		 * If more than one value is used, the values are combined with a logical AND.
+		 * For example, consider the following code:
+		 *
+		 * ```ts
+		 * const ab = findFiles(['**​/*.js'], {exclude: ['*.ts', '*.js']});
+		 * const a = findFiles(['**​/*.js'], {exclude: ['*.ts']});
+		 * const b = findFiles(['**​/*.js'], {exclude: ['*.js']});
+		 * ```
+		 *
+		 * In this, `ab` will be the intersection of results from `a` and `b`.
 		 */
 		exclude?: GlobPattern[];
 
@@ -18,19 +29,21 @@ declare module 'vscode' {
 		useExcludeSettings?: ExcludeSettingOptions;
 
 		/**
-		 * The maximum number of results to search for
+		 * The maximum number of results to search for. Defaults to 20000 results.
 		 */
 		maxResults?: number;
 
 		/**
-		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 * Which file locations have ignore (`.gitignore` or `.ignore`) files to follow.
 		 *
-		 * When any of these fields are `undefined`, we will:
-		 * - assume the value if possible (e.g. if only one is valid)
-		 * or
-		 * - follow settings using the value for the corresponding `search.use*IgnoreFiles` settting.
+		 * When any of these fields are `undefined`, the value will either be assumed (e.g. if only one is valid),
+		 * or it will follow settings based on the corresponding `search.use*IgnoreFiles` setting.
 		 *
 		 * Will log an error if an invalid combination is set.
+		 *
+		 * Although `.ignore` files are uncommon, they can be leveraged if there are patterns
+		 * that should not be known to git, but should be known to the search providers.
+		 * They should be in the same locations where `.gitignore` files are found, and they follow the same format.
 		 */
 		useIgnoreFiles?: {
 			/**
@@ -67,9 +80,21 @@ declare module 'vscode' {
 		 * @example
 		 * findFiles(['**​/*.js'], {exclude: ['**​/out/**'], useIgnoreFiles: true, maxResults: 10})
 		 *
-		 * @param filePattern A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}
-		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 * @param filePattern An array of {@link GlobPattern GlobPattern} that defines the files to search for.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link baseUri GlobPattern.baseUri} if applicable.
+		 * Use a {@link RelativePattern RelativePatten} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 *
+		 * If more than one value is used, the values are combined with a logical OR.
+		 *
+		 * For example, consider the following code:
+		 *
+		 * ```ts
+		 * const ab = findFiles(['*.ts', '*.js']);
+		 * const a = findFiles(['**​/*.ts']);
+		 * const b = findFiles(['**​/*.js']);
+		 * ```
+		 *
+		 * In this, `ab` will be the union of results from `a` and `b`.
 		 * @param options A set of {@link FindFiles2Options FindFiles2Options} that defines where and how to search (e.g. exclude settings).
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no

@@ -3,30 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Promises, disposableTimeout, raceCancellation, timeout } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { handleVetos } from '../../../../platform/lifecycle/common/lifecycle.js';
+import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerOrder } from '../common/lifecycle.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { AbstractLifecycleService } from '../common/lifecycleService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { Promises, disposableTimeout, raceCancellation } from '../../../../base/common/async.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
 	private static readonly BEFORE_SHUTDOWN_WARNING_DELAY = 5000;
 	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 800;
-	private static readonly MAX_GRACEFUL_REMOTE_DISCONNECT_TIME = 3000;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@ILogService logService: ILogService
 	) {
 		super(logService, storageService);
 
@@ -69,29 +66,12 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			// trigger onWillShutdown events and joining
 			await this.handleWillShutdown(reply.reason);
 
-			// now that all services have stored their data, it's safe to terminate
-			// the remote connection gracefully before synchronously saying we're shut down
-			await this.handleRemoteAgentDisconnect();
-
 			// trigger onDidShutdown event now that we know we will quit
 			this._onDidShutdown.fire();
 
 			// acknowledge to main side
 			ipcRenderer.send(reply.replyChannel, windowId);
 		});
-	}
-
-	private async handleRemoteAgentDisconnect(): Promise<void> {
-		const longRunningWarning = disposableTimeout(() => {
-			this.logService.warn(`[lifecycle] the remote agent is taking a long time to disconnect, waiting...`);
-		}, NativeLifecycleService.BEFORE_SHUTDOWN_WARNING_DELAY);
-
-		await Promise.race([
-			this.remoteAgentService.endConnection(),
-			timeout(NativeLifecycleService.MAX_GRACEFUL_REMOTE_DISCONNECT_TIME),
-		]);
-
-		longRunningWarning.dispose();
 	}
 
 	protected async handleBeforeShutdown(reason: ShutdownReason): Promise<boolean> {

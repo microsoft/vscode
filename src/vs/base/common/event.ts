@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { diffSets } from 'vs/base/common/collections';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { IObservable, IObserver } from 'vs/base/common/observable';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-
+import { CancellationToken } from './cancellation.js';
+import { diffSets } from './collections.js';
+import { onUnexpectedError } from './errors.js';
+import { createSingleCallFunction } from './functional.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
+import { LinkedList } from './linkedList.js';
+import { IObservable, IObserver } from './observable.js';
+import { StopWatch } from './stopwatch.js';
+import { MicrotaskDelay } from './symbols.js';
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever a listener is GC'ed without having been disposed. This is a LEAK.
@@ -110,6 +109,15 @@ export namespace Event {
 
 			return result;
 		};
+	}
+
+	/**
+	 * Given an event, returns another event which only fires once, and only when the condition is met.
+	 *
+	 * @param event The event source for the new event.
+	 */
+	export function onceIf<T>(event: Event<T>, condition: (e: T) => boolean): Event<T> {
+		return Event.once(Event.filter(event, condition));
 	}
 
 	/**
@@ -662,6 +670,9 @@ export namespace Event {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
+
+					// Communicate to the observable that we received its current value and would like to be notified about future changes.
+					this._observable.reportChanges();
 				},
 				onDidRemoveLastListener: () => {
 					_observable.removeObserver(this);

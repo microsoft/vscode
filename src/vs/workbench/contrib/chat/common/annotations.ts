@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from 'vs/workbench/contrib/chat/common/chatService';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from './chatModel.js';
+import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from './chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 

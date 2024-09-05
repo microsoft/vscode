@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WindowIdleValue } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { TRUSTED_DOMAINS_STORAGE_KEY, readStaticTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
+import { WindowIdleValue } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { TRUSTED_DOMAINS_STORAGE_KEY, readStaticTrustedDomains } from './trustedDomains.js';
+import { testUrlMatchesGlob } from '../common/urlGlob.js';
 
 export const ITrustedDomainService = createDecorator<ITrustedDomainService>('ITrustedDomainService');
 

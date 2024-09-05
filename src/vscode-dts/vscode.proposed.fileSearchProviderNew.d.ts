@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchProviderOptionsNew {
+	export interface FileSearchProviderOptions {
 		folderOptions: {
 			/**
 			 * The root folder to search within.
@@ -42,11 +42,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
 				 */
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link FileSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
 				 */
 				global: boolean;
 			};
@@ -54,9 +54,10 @@ declare module 'vscode' {
 
 		/**
 		 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 * and searches with the same session object can search the same cache. When the object is garbage-collected, the session is complete and the cache can be cleared.
+		 * Please do not store any references to the session object, except via a weak reference (e.g. `WeakRef` or `WeakMap`).
 		 */
-		session: unknown;
+		session: object;
 
 		/**
 		 * The maximum number of results to be returned.
@@ -81,7 +82,7 @@ declare module 'vscode' {
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchProviderOptionsNew, token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	export namespace workspace {

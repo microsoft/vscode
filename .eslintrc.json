@@ -92,9 +92,14 @@
 					"common",
 					"browser"
 				],
-				"electron-main": [
+				"electron-utility": [
 					"common",
 					"node"
+				],
+				"electron-main": [
+					"common",
+					"node",
+					"electron-utility"
 				]
 			}
 		],
@@ -613,10 +618,62 @@
 		},
 		{
 			"files": [
+				"src/**/electron-utility/**/*.ts"
+			],
+			"rules": {
+				"no-restricted-imports": [
+					"warn",
+					{
+						"paths": [
+							{
+								"name": "electron",
+								"importNames": [
+									"app",
+									"autoUpdater",
+									"BaseWindow",
+									"BrowserWindow",
+									"contentTracing",
+									"desktopCapturer",
+									"dialog",
+									"globalShortcut",
+									"inAppPurchase",
+									"ipcMain",
+									"Menu",
+									"MenuItem",
+									"MessageChannelMain",
+									"MessagePortMain",
+									"nativeTheme",
+									"netLog",
+									"Notification",
+									"powerMonitor",
+									"powerSaveBlocker",
+									"protocol",
+									"pushNotifications",
+									"safeStorage",
+									"screen",
+									"session",
+									"ShareMenu",
+									"TouchBar",
+									"Tray",
+									"utilityProcess",
+									"View",
+									"webContents",
+									"webFrameMain",
+									"webContentsView",
+									"default"
+								],
+								"message": "Only net and system-preferences are allowed to be imported from electron"
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
 				"src/**/*.ts"
 			],
 			"rules": {
-				"local/code-no-look-behind-regex": "warn",
 				"local/code-import-patterns": [
 					"warn",
 					{
@@ -631,6 +688,7 @@
 					{
 						// imports that are allowed in all files of layers:
 						// - node
+						// - electron-utility
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
@@ -649,13 +707,13 @@
 							"cookie",
 							"crypto",
 							"dns",
-							"electron",
 							"events",
 							"fs",
 							"fs/promises",
 							"http",
 							"https",
 							"minimist",
+							"node:module",
 							"native-keymap",
 							"native-watchdog",
 							"net",
@@ -688,10 +746,20 @@
 						]
 					},
 					{
+						// imports that are allowed in all files of layers:
+						// - electron-utility
+						// - electron-main
+						"when": "hasElectron",
+						"allow": [
+							"electron"
+						]
+					},
+					{
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
 							"vs/css.build",
+							"vs/css.build.js",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -755,7 +823,8 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"vs/editor/~"
+							"vs/editor/~",
+							"@vscode/tree-sitter-wasm" // node module allowed even in /common/
 						]
 					},
 					{
@@ -938,6 +1007,18 @@
 							},
 							{
 								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.js"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.internal"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/workbench.web.main.internal.js"
+							},
+							{
+								"when": "hasBrowser",
 								"pattern": "vs/workbench/~"
 							},
 							{
@@ -976,11 +1057,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/terminal.all"
+							"vs/workbench/contrib/terminal/terminal.all",
+							"vs/workbench/contrib/terminal/terminal.all.js"
 						]
 					},
 					{
@@ -993,11 +1076,32 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
+						]
+					},
+					{
+						"target": "src/vs/workbench/workbench.web.main.internal.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1010,11 +1114,13 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/editor/editor.all",
+							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main"
+							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
 						]
 					},
 					{
@@ -1024,7 +1130,7 @@
 						]
 					},
 					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{
@@ -1032,7 +1138,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
+						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js,bootstrap-cli.js,bootstrap-server.js}",
 						"restrictions": []
 					}
 				]

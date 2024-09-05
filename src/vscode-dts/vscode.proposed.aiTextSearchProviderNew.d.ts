@@ -5,90 +5,6 @@
 
 declare module 'vscode' {
 	/**
-	 * Options that apply to AI text search.
-	 */
-	export interface AITextSearchOptionsNew {
-
-		folderOptions: {
-			/**
-			 * The root folder to search within.
-			 */
-			folder: Uri;
-
-			/**
-			 * Files that match an `includes` glob pattern should be included in the search.
-			 */
-			includes: string[];
-
-			/**
-			 * Files that match an `excludes` glob pattern should be excluded from the search.
-			 */
-			excludes: GlobPattern[];
-
-			/**
-			 * Whether symlinks should be followed while searching.
-			 * For more info, see the setting description for `search.followSymlinks`.
-			 */
-			followSymlinks: boolean;
-
-			/**
-			 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-			 */
-			useIgnoreFiles: {
-				/**
-				 * Use ignore files at the current workspace root.
-				 */
-				local: boolean;
-				/**
-				 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
-				 */
-				parent: boolean;
-				/**
-				 * Use global ignore files. If set, {@link TextSearchProviderOptionsNew.useIgnoreFiles.local} should also be `true`.
-				 */
-				global: boolean;
-			};
-		}[];
-
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults: number;
-
-		/**
-		 * Options to specify the size of the result text preview.
-		 */
-		previewOptions: {
-			/**
-			 * The maximum number of lines in the preview.
-			 * Only search providers that support multiline search will ever return more than one line in the match.
-			 */
-			matchLines: number;
-
-			/**
-			 * The maximum number of characters included per line.
-			 */
-			charsPerLine: number;
-		};
-
-		/**
-		 * Exclude files larger than `maxFileSize` in bytes.
-		 */
-		maxFileSize: number;
-
-		/**
-		 * Interpret files using this encoding.
-		 * See the vscode setting `"files.encoding"`
-		 */
-		encoding: string;
-
-		/**
-		 * Number of lines of context to include before and after each match.
-		 */
-		surroundingContext: number;
-	}
-
-	/**
 	 * An AITextSearchProvider provides additional AI text search results in the workspace.
 	 */
 	export interface AITextSearchProviderNew {
@@ -101,7 +17,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideAITextSearchResults(query: string, options: AITextSearchOptionsNew, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+		provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 	}
 
 	export namespace workspace {

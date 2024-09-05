@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { sequence } from 'vs/base/common/async';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/common/native';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { sequence } from '../../../../base/common/async.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 
 // Commands
 

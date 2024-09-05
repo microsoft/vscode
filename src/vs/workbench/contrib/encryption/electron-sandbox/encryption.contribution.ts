@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinux } from 'vs/base/common/platform';
-import { parse } from 'vs/base/common/jsonc';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { isLinux } from '../../../../base/common/platform.js';
+import { parse } from '../../../../base/common/jsonc.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 class EncryptionContribution implements IWorkbenchContribution {
 	constructor(

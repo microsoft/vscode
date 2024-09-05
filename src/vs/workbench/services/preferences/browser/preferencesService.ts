@@ -3,49 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as network from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { isObject } from 'vs/base/common/types';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ResourceSet } from 'vs/base/common/map';
-import { isEqual } from 'vs/base/common/resources';
-import { IURLService } from 'vs/platform/url/common/url';
-import { compareIgnoreCase } from 'vs/base/common/strings';
+import { getErrorMessage } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { parse } from '../../../../base/common/json.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import * as network from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { CoreEditingCommands } from '../../../../editor/browser/coreCommands.js';
+import { getCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
+import { GroupDirection, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
+import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../editor/common/editorService.js';
+import { KeybindingsEditorInput } from './keybindingsEditorInput.js';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from '../common/preferences.js';
+import { SettingsEditor2Input } from '../common/preferencesEditorInput.js';
+import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../common/preferencesModels.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { ITextEditorService } from '../../textfile/common/textEditorService.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { isObject } from '../../../../base/common/types.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IURLService } from '../../../../platform/url/common/url.js';
+import { compareIgnoreCase } from '../../../../base/common/strings.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -85,7 +87,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -627,10 +631,24 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return false;
 		}
 
-		const openSettingsOptions: IOpenSettingsOptions = {};
 		const settingInfo = uri.path.split('/').filter(part => !!part);
-		if ((settingInfo.length > 0) && this.getSetting(settingInfo[0])) {
-			openSettingsOptions.query = settingInfo[0];
+		const settingId = ((settingInfo.length > 0) ? settingInfo[0] : undefined);
+		if (!settingId) {
+			this.openSettings();
+			return true;
+		}
+
+		let setting = this.getSetting(settingId);
+
+		if (!setting && this.extensionService.extensions.length === 0) {
+			// wait for extension points to be processed
+			await this.progressService.withProgress({ location: ProgressLocation.Window }, () => Event.toPromise(this.extensionService.onDidRegisterExtensions));
+			setting = this.getSetting(settingId);
+		}
+
+		const openSettingsOptions: IOpenSettingsOptions = {};
+		if (setting) {
+			openSettingsOptions.query = settingId;
 		}
 
 		this.openSettings(openSettingsOptions);

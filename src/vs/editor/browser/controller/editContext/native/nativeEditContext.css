@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .native-edit-context {
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	overflow: hidden;
+	z-index: -10;
+	white-space: pre-wrap;
+	text-wrap: nowrap;
+}
+
+.monaco-editor .edit-context-format-decoration {
+	text-decoration-line: underline;
+	/* TODO @aiday chose a theme color */
+	text-decoration-color: blue;
+	color: var(--vscode-editor-foreground, inherit);
+	opacity: 0.8;
+
+	&.underline-style-none {
+		text-decoration-line: none;
+		text-decoration-style: none;
+	}
+
+	&.underline-style-solid {
+		text-decoration-style: solid;
+	}
+
+	&.underline-style-dotted {
+		text-decoration-style: dotted;
+	}
+
+	&.underline-style-dashed {
+		text-decoration-style: dashed;
+	}
+
+	&.underline-style-wavy {
+		text-decoration-style: wavy;
+	}
+
+	&.underline-thickness-none {
+		text-decoration-line: none;
+		text-decoration-thickness: none;
+	}
+
+	&.underline-thickness-thin {
+		text-decoration-thickness: 1px;
+	}
+
+	&.underline-thickness-thick {
+		text-decoration-thickness: 2px;
+	}
+}

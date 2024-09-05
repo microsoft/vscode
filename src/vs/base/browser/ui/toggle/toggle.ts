@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./toggle';
-import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../actionbar/actionViewItems.js';
+import { Widget } from '../widget.js';
+import { IAction } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import './toggle.css';
+import { isActiveElement, $, addDisposableListener, EventType } from '../../dom.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
