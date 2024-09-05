@@ -301,7 +301,7 @@ class InlineFileLinkWidget extends Disposable {
 		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
 		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
 
-		const label = labelService.getUriLabel(location.uri, { relative: true });
+		const label = labelService.getUriBasenameLabel(location.uri);
 		const title = location.range ?
 			`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 			label;
@@ -314,7 +314,8 @@ class InlineFileLinkWidget extends Disposable {
 		});
 
 		// Hover
-		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
+		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
 
 		// Drag and drop
 		element.draggable = true;
