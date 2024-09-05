@@ -107,11 +107,6 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 						entries.push(new OutlineEntry(index++, entry.level, cell, entry.name, false, false, entry.range, entry.kind));
 					});
 				}
-
-				if (cell.model.textModel && (!cached || cached.version < cell.model.textModel.getVersionId())) {
-					// if the cache is out of date, we need to refresh it
-					this.cacheSymbols(cell, CancellationToken.None);
-				}
 			}
 
 			if (entries.length === 0) { // if there are no cached entries, use the first line of the cell as a code cell
@@ -130,6 +125,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 		if (cell.cellKind === CellKind.Markup) {
 			return;
 		}
+
 		const ref = await this.textModelService.createModelReference(cell.uri);
 		try {
 			const textModel = ref.object.textEditorModel;
