@@ -193,6 +193,7 @@ export class ReplGroup implements INestingReplElement {
 	static COUNTER = 0;
 
 	constructor(
+		public readonly session: IDebugSession,
 		public name: string,
 		public autoExpand: boolean,
 		public sourceData?: IReplElementSource
@@ -315,8 +316,8 @@ export class ReplModel {
 		this.addReplElement(element);
 	}
 
-	startGroup(name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
-		const group = new ReplGroup(name, autoExpand, sourceData);
+	startGroup(session: IDebugSession, name: string, autoExpand: boolean, sourceData?: IReplElementSource): void {
+		const group = new ReplGroup(session, name, autoExpand, sourceData);
 		this.addReplElement(group);
 	}
 

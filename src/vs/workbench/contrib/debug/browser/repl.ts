@@ -12,6 +12,7 @@ import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from '../../../../
 import { IAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -21,7 +22,6 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI as uri } from '../../../../base/common/uri.js';
-import './media/repl.css';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction, registerEditorAction } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -38,6 +38,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -45,6 +46,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -56,25 +58,23 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorForeground, resolveColorValue } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
-import { FocusSessionActionViewItem } from './debugActionViewItems.js';
-import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from './debugIcons.js';
-import { LinkDetector } from './linkDetector.js';
-import { ReplFilter } from './replFilter.js';
-import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplOutputElementRenderer, ReplRawObjectsRenderer, ReplVariablesRenderer } from './replViewer.js';
 import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State, getStateLabel } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';
 import { ReplEvaluationResult, ReplGroup } from '../common/replModel.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+import { FocusSessionActionViewItem } from './debugActionViewItems.js';
+import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
+import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from './debugIcons.js';
+import './media/repl.css';
+import { ReplFilter } from './replFilter.js';
+import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplOutputElementRenderer, ReplRawObjectsRenderer, ReplVariablesRenderer } from './replViewer.js';
 
 const $ = dom.$;
 
@@ -648,7 +648,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this.replDelegate = new ReplDelegate(this.configurationService, this.replOptions);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+		const expressionRenderer = this.instantiationService.createInstance(DebugExpressionRenderer);
 		this.replDataSource = new ReplDataSource();
 
 		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
@@ -657,12 +657,12 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.treeContainer,
 			this.replDelegate,
 			[
-				this.instantiationService.createInstance(ReplVariablesRenderer, linkDetector),
-				this.instantiationService.createInstance(ReplOutputElementRenderer, linkDetector),
+				this.instantiationService.createInstance(ReplVariablesRenderer, expressionRenderer),
+				this.instantiationService.createInstance(ReplOutputElementRenderer, expressionRenderer),
 				new ReplEvaluationInputsRenderer(),
-				this.instantiationService.createInstance(ReplGroupRenderer, linkDetector),
-				new ReplEvaluationResultsRenderer(linkDetector, this.hoverService),
-				new ReplRawObjectsRenderer(linkDetector, this.hoverService),
+				this.instantiationService.createInstance(ReplGroupRenderer, expressionRenderer),
+				new ReplEvaluationResultsRenderer(expressionRenderer),
+				new ReplRawObjectsRenderer(expressionRenderer),
 			],
 			this.replDataSource,
 			{
