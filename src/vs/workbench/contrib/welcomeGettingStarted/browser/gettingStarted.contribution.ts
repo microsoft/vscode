@@ -31,6 +31,8 @@ import { StartupPageEditorResolverContribution, StartupPageRunnerContribution } 
 import { ExtensionsInput } from '../../extensions/common/extensionsInput.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { GettingStartedAccessibleView } from './gettingStartedAccessibleView.js';
 
 export * as icons from './gettingStartedIcons.js';
 
@@ -347,3 +349,6 @@ configurationRegistry.registerConfiguration({
 registerWorkbenchContribution2(WorkspacePlatformContribution.ID, WorkspacePlatformContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(StartupPageEditorResolverContribution.ID, StartupPageEditorResolverContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(StartupPageRunnerContribution.ID, StartupPageRunnerContribution, WorkbenchPhase.AfterRestored);
+
+AccessibleViewRegistry.register(new GettingStartedAccessibleView());
+
