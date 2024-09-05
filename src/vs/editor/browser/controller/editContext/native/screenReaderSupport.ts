@@ -113,9 +113,12 @@ export class ScreenReaderSupport {
 
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
 		// Make the screen reader content always be visible because of the bug and also set the selection
-		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-			return;
-		}
+
+		// TODO @aiday-mar Ultimately uncomment this code when Electron will be upgraded
+		// if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+		// 	return;
+		// }
+		const accessibilityPageSize = this._accessibilitySupport === AccessibilitySupport.Disabled ? 1 : this._accessibilityPageSize;
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -133,7 +136,7 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
