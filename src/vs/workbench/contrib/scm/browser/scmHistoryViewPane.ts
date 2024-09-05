@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunDelta, autorunWithStore, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -779,7 +779,8 @@ export class SCMHistoryViewPane extends ViewPane {
 					});
 
 					// Repository change
-					this._visibilityDisposables.add(runOnChangeWithStore(this._treeViewModel.repository, (repository, _, store) => {
+					this._visibilityDisposables.add(autorunWithStore((reader, store) => {
+						const repository = this._treeViewModel.repository.read(reader);
 						const historyProvider = repository?.provider.historyProvider.read(reader);
 						if (!repository || !historyProvider) {
 							return undefined;
@@ -788,52 +789,32 @@ export class SCMHistoryViewPane extends ViewPane {
 						// Update context
 						this._scmProviderCtx.set(repository.provider.contextValue);
 
-						// Derived observables
-						const currentHistoryItemGroupId = derived(reader => {
-							return historyProvider?.currentHistoryItemGroup.read(reader)?.id;
-						});
-
-						const currentHistoryItemGroupRevision = derived(reader => {
-							return historyProvider?.currentHistoryItemGroup.read(reader)?.revision;
-						});
-
-						const currentHistoryItemGroupRemoteId = derived(reader => {
-							return historyProvider?.currentHistoryItemGroup.read(reader)?.remote?.id;
-						});
-
-						const currentHistoryItemGroupRemoteRevision = derived(reader => {
-							return historyProvider?.currentHistoryItemGroup.read(reader)?.remote?.revision;
-						});
-
-						store.add(autorun(reader => {
-							const historyItemGroupId = currentHistoryItemGroupId.read(reader);
-							const historyItemGroupRevision = currentHistoryItemGroupRevision.read(reader);
-							const historyItemGroupRemoteId = currentHistoryItemGroupRemoteId.read(reader);
-
-							if (!historyItemGroupId && !historyItemGroupRevision && !historyItemGroupRemoteId) {
+						// Update graph
+						store.add(autorunDelta(historyProvider?.currentHistoryItemGroup, args => {
+							if (args.lastValue === undefined || args.newValue === undefined) {
 								return;
 							}
 
-							this.refresh();
-						}));
+							if (args.lastValue.id !== args.newValue.id ||
+								args.lastValue.revision !== args.newValue.revision ||
+								args.lastValue.remote?.id !== args.newValue.remote?.id) {
 
-						store.add(runOnChange(currentHistoryItemGroupRemoteRevision, () => {
-							const historyItemGroupRemoteRevision = currentHistoryItemGroupRemoteRevision.read(reader);
-
-							if (!historyItemGroupRemoteRevision) {
-								return;
-							}
-
-							// Remote revision changes can occur as a result of a user action (Fetch, Push) but
-							// it can also occur as a result of background action (Auto Fetch). If the tree is
-							// scrolled to the top, we can safely refresh the tree.
-							if (this._tree.scrollTop === 0) {
 								this.refresh();
 								return;
 							}
 
-							// Set the "OUTDATED" description
-							this.updateTitleDescription(localize('outdated', "OUTDATED"));
+							if (args.lastValue.remote?.revision !== args.newValue.remote?.revision) {
+								// Remote revision changes can occur as a result of a user action (Fetch, Push) but
+								// it can also occur as a result of background action (Auto Fetch). If the tree is
+								// scrolled to the top, we can safely refresh the tree.
+								if (this._tree.scrollTop === 0) {
+									this.refresh();
+									return;
+								}
+
+								// Set the "OUTDATED" description
+								this.updateTitleDescription(localize('outdated', "OUTDATED"));
+							}
 						}));
 					}));
 				}));
