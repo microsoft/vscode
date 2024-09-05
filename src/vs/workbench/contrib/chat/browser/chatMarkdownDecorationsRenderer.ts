@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { applyDragImage } from '../../../../base/browser/dnd.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -23,7 +22,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colors/listColors.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -298,7 +296,7 @@ class InlineFileLinkWidget extends Disposable {
 	) {
 		super();
 
-		element.classList.add('chat-inline-file-link-widget');
+		element.classList.add('chat-inline-file-link-widget', 'show-file-icons');
 
 		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
 		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
@@ -323,8 +321,7 @@ class InlineFileLinkWidget extends Disposable {
 		this._register(dom.addDisposableListener(element, 'dragstart', e => {
 			instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [location.uri], e));
 
-			const theme = themeService.getColorTheme();
-			applyDragImage(e, label, 'monaco-drag-image', theme.getColor(listActiveSelectionBackground)?.toString(), theme.getColor(listActiveSelectionForeground)?.toString());
+			e.dataTransfer?.setDragImage(resourceLabel.element, 0, 0);
 		}));
 	}
 }

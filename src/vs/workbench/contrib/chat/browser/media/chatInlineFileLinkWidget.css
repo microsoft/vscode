@@ -3,8 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.chat-inline-file-link-widget,
+.chat-inline-file-link-widget a {
+	color: inherit !important;
+}
+
+.chat-inline-file-link-widget {
+	outline: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	outline-offset: -1px;
+	border-radius: 4px;
+}
+
 .chat-inline-file-link-widget .monaco-icon-label {
 	display: inline-flex;
+	margin: 0 1px;
+	padding-left: 2px;
+	padding-right: 4px;
+	vertical-align: bottom;
+	align-items: center;
+	line-height: normal;
+}
+
+.chat-inline-file-link-widget:hover .monaco-icon-label {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-inline-file-link-widget .monaco-icon-label::before {
+	height: auto;
+	padding-right: 3px;
 }
 
 .chat-inline-file-link-widget .monaco-icon-label .monaco-highlighted-label {
