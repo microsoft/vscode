@@ -70,7 +70,22 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 				return;
 			}
 
-			e.veto(true, localize('vetoExtHostRestart', "Custom editor '{0}' is dirty/unsaved.", this.name));
+			const reason = e.auto
+				? localize('vetoAutoExtHostRestart', "One of the opened editors is a custom text editor.")
+				: localize('vetoExtHostRestart', "Custom text editor '{0}' could not be saved.", this.resource.path);
+
+			e.veto((async () => {
+				if (e.auto) {
+					return true;
+				}
+
+				const didSave = await this.saveCustomEditor();
+				if (!didSave) {
+					// Veto
+					return true;
+				}
+				return false; // Don't veto
+			})(), reason);
 		}));
 	}
 
