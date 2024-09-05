@@ -1231,13 +1231,13 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 }
 
 
-class FoldImportAction extends FoldingAction<void> {
+class ToggleImportFoldAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
-			id: 'editor.foldImport',
-			label: nls.localize('foldImport.label', "Fold Import"),
-			alias: 'Fold Import',
+			id: 'editor.toggleImportFold',
+			label: nls.localize('toggleImportFold.label', "Toggle Import Fold"),
+			alias: 'Toggle Import Fold',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1279,7 +1279,7 @@ registerEditorAction(GotoPreviousFoldAction);
 registerEditorAction(GotoNextFoldAction);
 registerEditorAction(FoldRangeFromSelectionAction);
 registerEditorAction(RemoveFoldRangeFromSelectionAction);
-registerEditorAction(FoldImportAction);
+registerEditorAction(ToggleImportFoldAction);
 
 for (let i = 1; i <= 7; i++) {
 	registerInstantiatedEditorAction(
