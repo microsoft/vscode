@@ -21,7 +21,7 @@ import { RestrictedRenderingContext, RenderingContext } from '../../../view/rend
 import { ViewController } from '../../../view/viewController.js';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContextUtils.js';
-import { EditContextWrapper, FocusTracker } from './nativeEditContextUtils.js';
+import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -30,7 +30,7 @@ import { Position } from '../../../../common/core/position.js';
 export class NativeEditContext extends AbstractEditContext {
 
 	public readonly domNode: FastDomNode<HTMLDivElement>;
-	private readonly _editContext: EditContextWrapper;
+	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 
 	// Overflow guard container
@@ -38,6 +38,9 @@ export class NativeEditContext extends AbstractEditContext {
 	private _decorations: string[] = [];
 	private _renderingContext: RenderingContext | undefined;
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
+
+	private _textStartPositionWithinEditor: Position = new Position(1, 1);
+	private _compositionRangeWithinEditor: Range | undefined;
 
 	private readonly _focusTracker: FocusTracker;
 
@@ -55,9 +58,8 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
-		const editContext = new EditContext();
-		this.domNode.domNode.editContext = editContext;
-		this._editContext = new EditContextWrapper(editContext);
+		this._editContext = new EditContext();
+		this.domNode.domNode.editContext = this._editContext;
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
@@ -87,30 +89,30 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 
 		// Edit context events
-		this._register(this._editContext.onTextFormatUpdate(e => this._handleTextFormatUpdate(e)));
-		this._register(this._editContext.onCharacterBoundsUpdate(e => this._updateCharacterBounds()));
-		this._register(this._editContext.onTextUpdate(e => {
-			const compositionRangeWithinEditor = this._editContext.compositionRangeWithinEditor;
+		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
+		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds()));
+		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			const compositionRangeWithinEditor = this._compositionRangeWithinEditor;
 			if (compositionRangeWithinEditor) {
 				const position = this._context.viewModel.getPrimaryCursorState().viewState.position;
 				const newCompositionRangeWithinEditor = Range.fromPositions(compositionRangeWithinEditor.getStartPosition(), position);
-				this._editContext.updateCompositionRangeWithinEditor(newCompositionRangeWithinEditor);
+				this._compositionRangeWithinEditor = newCompositionRangeWithinEditor;
 			}
 			this._emitTypeEvent(viewController, e);
 			// this._screenReaderSupport.writeScreenReaderContent();
 		}));
-		this._register(this._editContext.onCompositionStart(e => {
+		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			const position = this._context.viewModel.getPrimaryCursorState().viewState.position;
 			const newCompositionRange = Range.fromPositions(position, position);
-			this._editContext.updateCompositionRangeWithinEditor(newCompositionRange);
+			this._compositionRangeWithinEditor = newCompositionRange;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionStart();
 			// Emits ViewCompositionStartEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionStart();
 		}));
-		this._register(this._editContext.onCompositionEnd(e => {
-			this._editContext.updateCompositionRangeWithinEditor(undefined);
+		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			this._compositionRangeWithinEditor = undefined;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionEnd();
@@ -186,7 +188,7 @@ export class NativeEditContext extends AbstractEditContext {
 		const editContextState = this._getNewEditContextState();
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
-		this._editContext.updateTextStartPositionWithinEditor(editContextState.textStartPositionWithinEditor);
+		this._textStartPositionWithinEditor = editContextState.textStartPositionWithinEditor;
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
@@ -194,7 +196,7 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		const model = this._context.viewModel.model;
-		const offsetOfStartOfText = model.getOffsetAt(this._editContext.textStartPositionWithinEditor);
+		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
 		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
 		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
 		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
@@ -277,7 +279,7 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		const formats = e.getTextFormats();
-		const textStartPositionWithinEditor = this._editContext.textStartPositionWithinEditor;
+		const textStartPositionWithinEditor = this._textStartPositionWithinEditor;
 		const decorations: IModelDeltaDecoration[] = [];
 		formats.forEach(f => {
 			const textModel = this._context.viewModel.model;
@@ -336,14 +338,14 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _updateCharacterBounds() {
-		if (!this._parent || !this._editContext.compositionRangeWithinEditor) {
+		if (!this._parent || !this._compositionRangeWithinEditor) {
 			return;
 		}
 		const options = this._context.configuration.options;
 		const lineHeight = options.get(EditorOption.lineHeight);
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 		const parentBounds = this._parent.getBoundingClientRect();
-		const compositionRangeWithinEditor = this._editContext.compositionRangeWithinEditor;
+		const compositionRangeWithinEditor = this._compositionRangeWithinEditor;
 		const verticalOffsetStartOfComposition = this._context.viewLayout.getVerticalOffsetForLineNumber(compositionRangeWithinEditor.startLineNumber);
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		const top = parentBounds.top + verticalOffsetStartOfComposition - editorScrollTop;
@@ -358,7 +360,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}
 		const textModel = this._context.viewModel.model;
-		const offsetOfEditContextStart = textModel.getOffsetAt(this._editContext.textStartPositionWithinEditor);
+		const offsetOfEditContextStart = textModel.getOffsetAt(this._textStartPositionWithinEditor);
 		const offsetOfCompositionStart = textModel.getOffsetAt(compositionRangeWithinEditor.getStartPosition());
 		const offsetOfCompositionStartInEditContext = offsetOfCompositionStart - offsetOfEditContextStart;
 		this._editContext.updateCharacterBounds(offsetOfCompositionStartInEditContext, characterBounds);
@@ -384,11 +386,4 @@ export class NativeEditContext extends AbstractEditContext {
 		);
 		clipboardService.writeText(dataToCopy.text);
 	}
-}
-
-interface ITypeData {
-	text: string;
-	replacePrevCharCnt: number;
-	replaceNextCharCnt: number;
-	positionDelta: number;
 }
