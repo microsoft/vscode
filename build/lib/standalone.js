@@ -105,7 +105,6 @@ function extractEditor(options) {
     ].forEach(copyFile);
 }
 function createESMSourcesAndResources2(options) {
-    const ts = require('typescript');
     const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
     const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
     const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
@@ -131,48 +130,9 @@ function createESMSourcesAndResources2(options) {
             write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
             continue;
         }
-        if (/\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
+        if (/\.ts$/.test(file) || /\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
             // Transport the files directly
             write(getDestAbsoluteFilePath(file), fs.readFileSync(path.join(SRC_FOLDER, file)));
-            continue;
-        }
-        if (/\.ts$/.test(file)) {
-            // Transform the .ts file
-            let fileContents = fs.readFileSync(path.join(SRC_FOLDER, file)).toString();
-            const info = ts.preProcessFile(fileContents);
-            for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-                const importedFilename = info.importedFiles[i].fileName;
-                const pos = info.importedFiles[i].pos;
-                const end = info.importedFiles[i].end;
-                let importedFilepath = importedFilename;
-                if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
-                    importedFilepath = path.join(path.dirname(file), importedFilepath);
-                    if (importedFilepath.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
-                        importedFilepath = importedFilepath.substr(0, importedFilepath.length - 3);
-                    }
-                }
-                let relativePath;
-                if (importedFilepath === path.dirname(file).replace(/\\/g, '/')) {
-                    relativePath = '../' + path.basename(path.dirname(file));
-                }
-                else if (importedFilepath === path.dirname(path.dirname(file)).replace(/\\/g, '/')) {
-                    relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
-                }
-                else {
-                    relativePath = path.relative(path.dirname(file), importedFilepath);
-                }
-                relativePath = relativePath.replace(/\\/g, '/');
-                if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
-                    relativePath = './' + relativePath;
-                }
-                fileContents = (fileContents.substring(0, pos + 1)
-                    + relativePath
-                    + fileContents.substring(end + 1));
-            }
-            fileContents = fileContents.replace(/import ([a-zA-Z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
-                return `import * as ${m1} from ${m2};`;
-            });
-            write(getDestAbsoluteFilePath(file), fileContents);
             continue;
         }
         console.log(`UNKNOWN FILE: ${file}`);
