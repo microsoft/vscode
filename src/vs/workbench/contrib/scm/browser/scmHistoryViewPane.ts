@@ -201,7 +201,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
 
-	private readonly _labelConfig = observableConfigValue<'all' | 'filter'>('scm.graph.labels', 'filter', this._configurationService);
+	private readonly _badgesConfig = observableConfigValue<'all' | 'filter'>('scm.graph.badges', 'filter', this._configurationService);
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
@@ -245,7 +245,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 
 	private _renderLabels(historyItem: ISCMHistoryItem, templateData: HistoryItemTemplate): void {
 		templateData.elementDisposables.add(autorun(reader => {
-			const labelConfig = this._labelConfig.read(reader);
+			const labelConfig = this._badgesConfig.read(reader);
 
 			templateData.labelContainer.textContent = '';
 			const firstColoredLabel = historyItem.labels?.find(label => label.color);

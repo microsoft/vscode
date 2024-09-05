@@ -355,14 +355,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			maximum: 1000,
 			default: 50
 		},
-		'scm.graph.labels': {
+		'scm.graph.badges': {
 			type: 'string',
 			enum: ['all', 'filter'],
 			enumDescriptions: [
-				localize('scm.graph.labels.all', "Show all labels in the Source Control Graph view."),
-				localize('scm.graph.labels.filter', "Show only the labels of the history item groups used as a filter in the Source Control Graph view.")
+				localize('scm.graph.badges.all', "Show badges of all history item groups in the Source Control Graph view."),
+				localize('scm.graph.badges.filter', "Show only the badges of history item groups used as a filter in the Source Control Graph view.")
 			],
-			description: localize('scm.graph.labels', "Controls the labels of the history item groups shown in the Source Control Graph view."),
+			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
 			default: 'filter'
 		}
 	}
