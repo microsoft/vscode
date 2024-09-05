@@ -549,7 +549,7 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		}
 
 		return {
-			reason: ret === OutputComparison.Metadata ? 'Output metadata is changed' : undefined,
+			reason: ret === OutputComparison.Metadata ? 'Output metadata has changed' : undefined,
 			kind: ret
 		};
 	}
