@@ -34,14 +34,14 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground } from './scmHistory.js';
-import { collectContextMenuActions, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
+import { isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemGroup, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -398,50 +398,6 @@ class HistoryItemLoadMoreRenderer implements ITreeRenderer<SCMHistoryItemLoadMor
 
 	disposeTemplate(templateData: LoadMoreTemplate): void {
 		templateData.disposables.dispose();
-	}
-}
-
-class HistoryItemActionRunner extends ActionRunner {
-	constructor(private readonly getSelectedHistoryItems: () => SCMHistoryItemViewModelTreeElement[]) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context: SCMHistoryItemViewModelTreeElement): Promise<any> {
-		if (!(action instanceof MenuItemAction)) {
-			return super.runAction(action, context);
-		}
-
-		const args: (ISCMProvider | ISCMHistoryItem)[] = [];
-		args.push(context.repository.provider);
-
-		const selection = this.getSelectedHistoryItems();
-		const contextIsSelected = selection.some(s => s === context);
-		if (contextIsSelected && selection.length > 1) {
-			args.push(...selection.map(h => (
-				{
-					id: h.historyItemViewModel.historyItem.id,
-					parentIds: h.historyItemViewModel.historyItem.parentIds,
-					subject: h.historyItemViewModel.historyItem.subject,
-					message: h.historyItemViewModel.historyItem.message,
-					displayId: h.historyItemViewModel.historyItem.displayId,
-					author: h.historyItemViewModel.historyItem.author,
-					timestamp: h.historyItemViewModel.historyItem.timestamp,
-					statistics: h.historyItemViewModel.historyItem.statistics,
-				} satisfies ISCMHistoryItem)));
-		} else {
-			args.push({
-				id: context.historyItemViewModel.historyItem.id,
-				parentIds: context.historyItemViewModel.historyItem.parentIds,
-				subject: context.historyItemViewModel.historyItem.subject,
-				message: context.historyItemViewModel.historyItem.message,
-				displayId: context.historyItemViewModel.historyItem.displayId,
-				author: context.historyItemViewModel.historyItem.author,
-				timestamp: context.historyItemViewModel.historyItem.timestamp,
-				statistics: context.historyItemViewModel.historyItem.statistics,
-			} satisfies ISCMHistoryItem);
-		}
-
-		await action.run(...args);
 	}
 }
 
@@ -1006,26 +962,15 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
-		const context: TreeElement = element;
-		const actionRunner: IActionRunner = new HistoryItemActionRunner(() => this._getSelectedHistoryItems());
-
-		const menus = this._scmViewService.menus.getRepositoryMenus(element.repository.provider);
-		const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
-		const actions = menu ? collectContextMenuActions(menu) : [];
-
-		actionRunner.onWillRun(() => this._tree.domFocus());
-
 		this.contextMenuService.showContextMenu({
+			menuId: MenuId.SCMChangesContext,
+			menuActionOptions: {
+				arg: element.repository.provider,
+				shouldForwardArgs: true
+			},
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
-			getActionsContext: () => context,
-			actionRunner
+			getActionsContext: () => element.historyItemViewModel.historyItem
 		});
-	}
-
-	private _getSelectedHistoryItems(): SCMHistoryItemViewModelTreeElement[] {
-		return this._tree.getSelection()
-			.filter(r => !!r && isSCMHistoryItemViewModelTreeElement(r))!;
 	}
 
 	private async _loadMoreCallback(repository: ISCMRepository): Promise<void> {
