@@ -1294,7 +1294,7 @@ export interface ExtHostChatAgentsShape2 {
 export interface IChatParticipantMetadata {
 	participant: string;
 	command?: string;
-	disambiguation: { categoryName: string; description: string; examples: string[] }[];
+	disambiguation: { category: string; description: string; examples: string[] }[];
 }
 
 export interface IChatParticipantDetectionResult {

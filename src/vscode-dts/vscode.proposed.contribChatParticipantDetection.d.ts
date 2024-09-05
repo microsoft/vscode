@@ -4,3 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 // empty placeholder declaration for the `chatParticipantDetection`-contribution point
+// https://github.com/microsoft/vscode/issues/227699
