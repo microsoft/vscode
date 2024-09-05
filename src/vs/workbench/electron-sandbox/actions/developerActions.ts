@@ -130,8 +130,6 @@ export class ShowGPUInfoAction extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const nativeHostService = accessor.get(INativeHostService);
-		nativeHostService.openGPUInfoWindow({
-			zoomLevel: getZoomLevel(mainWindow)
-		});
+		nativeHostService.openGPUInfoWindow();
 	}
 }
