@@ -56,7 +56,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 
 	declare readonly _serviceBrand: undefined;
 
-	private cellOutlineEntryCache: Record<string, { version: number; entries: entryDesc[] }> = {};
+	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
 	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number; text: string }[] }>();
 	constructor(
 		@INotebookExecutionStateService private readonly executionStateService: INotebookExecutionStateService,
@@ -103,7 +103,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 				if (cached) {
 					// push code cell entry that is a parent of cached symbols, always necessary. filtering for quickpick done in that provider.
 					entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-					cached.entries.forEach((entry) => {
+					cached.forEach((entry) => {
 						entries.push(new OutlineEntry(index++, entry.level, cell, entry.name, false, false, entry.range, entry.kind));
 					});
 				}
@@ -131,7 +131,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 			const textModel = ref.object.textEditorModel;
 			const outlineModel = await this.outlineModelService.getOrCreate(textModel, cancelToken);
 			const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 8);
-			this.cellOutlineEntryCache[cell.id] = { entries, version: textModel.getVersionId() };
+			this.cellOutlineEntryCache[cell.id] = entries;
 		} finally {
 			ref.dispose();
 		}

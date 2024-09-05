@@ -696,11 +696,14 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}));
 	}
 
-	public async computeSymbols(cancelToken: CancellationToken = CancellationToken.None) {
+	private async computeSymbols(cancelToken: CancellationToken = CancellationToken.None) {
 		if (this._target === OutlineTarget.OutlinePane && this.outlineShowCodeCellSymbols) {
 			// No need to wait for this, we want the outline to show up quickly.
-			void this._outlineDataSourceReference?.object?.computeFullSymbols(cancelToken);
+			void this.doComputeSymbols(cancelToken);
 		}
+	}
+	public async doComputeSymbols(cancelToken: CancellationToken): Promise<void> {
+		await this._outlineDataSourceReference?.object?.computeFullSymbols(cancelToken);
 	}
 	private async delayedComputeSymbols() {
 		this.delayerRecomputeState.cancel();
@@ -819,12 +822,12 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 		return candidate.getId() === NotebookEditor.ID;
 	}
 
-	async createOutline(editor: NotebookEditor, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
+	async createOutline(editor: INotebookEditorPane, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 		if (target === OutlineTarget.QuickPick) {
 			// The quickpick creates the outline on demand
 			// so we need to ensure the symbols are pre-cached before the entries are syncronously requested
-			await outline.computeSymbols(cancelToken);
+			await outline.doComputeSymbols(cancelToken);
 		}
 		return outline;
 	}
