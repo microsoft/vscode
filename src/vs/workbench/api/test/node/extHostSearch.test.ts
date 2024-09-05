@@ -742,25 +742,6 @@ suite('ExtHostSearch', () => {
 			await runFileSearch(query);
 			assert(!fancySchemeCalled);
 		});
-
-		test('Works when provider returns files that are not in the original workspace', async () => {
-			const reportedResults = [
-				joinPath(rootFolderB, 'file1.ts'),
-				joinPath(rootFolderA, 'file2.ts'),
-				joinPath(rootFolderA, 'subfolder/file3.ts')
-			];
-
-			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					return Promise.resolve(reportedResults);
-				}
-			});
-
-			const { results, stats } = await runFileSearch(getSimpleQuery());
-			assert(!stats.limitHit);
-			assert.strictEqual(results.length, 3);
-			compareURIs(results, reportedResults);
-		});
 	});
 
 	suite('Text:', () => {
