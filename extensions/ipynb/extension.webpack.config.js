@@ -7,6 +7,7 @@
 
 'use strict';
 
+const CopyPlugin = require('copy-webpack-plugin');
 const withDefaults = require('../shared.webpack.config');
 
 module.exports = withDefaults({
@@ -16,5 +17,16 @@ module.exports = withDefaults({
 	},
 	output: {
 		filename: 'ipynbMain.js'
-	}
+	},
+	plugins: [
+		...withDefaults.nodePlugins(__dirname), // add plugins, don't replace inherited
+		new CopyPlugin({
+			patterns: [
+				{
+					from: './out/notebookSerializerWorker.js',
+					to: './dist',
+				}
+			],
+		}),
+	]
 });
