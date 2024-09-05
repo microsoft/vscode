@@ -987,9 +987,9 @@ interface IExtensionListener<E> {
 	(e: E): any;
 }
 
-function globsToISearchPatternBuilder(excludes: vscode.GlobPattern[] | undefined): ISearchPatternBuilder[] {
+function globsToISearchPatternBuilder(excludes: vscode.GlobPattern[] | undefined): ISearchPatternBuilder<URI>[] {
 	return (
-		excludes?.map((exclude): ISearchPatternBuilder | undefined => {
+		excludes?.map((exclude): ISearchPatternBuilder<URI> | undefined => {
 			if (typeof exclude === 'string') {
 				if (exclude === '') {
 					return undefined;
@@ -997,7 +997,7 @@ function globsToISearchPatternBuilder(excludes: vscode.GlobPattern[] | undefined
 				return {
 					pattern: exclude,
 					uri: undefined
-				} satisfies ISearchPatternBuilder;
+				} satisfies ISearchPatternBuilder<URI>;
 			} else {
 				const parsedExclude = parseSearchExcludeInclude(exclude);
 				if (!parsedExclude) {
@@ -1006,8 +1006,8 @@ function globsToISearchPatternBuilder(excludes: vscode.GlobPattern[] | undefined
 				return {
 					pattern: parsedExclude.pattern,
 					uri: parsedExclude.folder
-				} satisfies ISearchPatternBuilder;
+				} satisfies ISearchPatternBuilder<URI>;
 			}
 		}) ?? []
-	).filter((e): e is ISearchPatternBuilder => !!e);
+	).filter((e): e is ISearchPatternBuilder<URI> => !!e);
 }

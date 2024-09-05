@@ -21,7 +21,7 @@ import { OutputChannel } from '../../services/search/node/ripgrepSearchUtils.js'
 import { NativeTextSearchManager } from '../../services/search/node/textSearchManager.js';
 import type * as vscode from 'vscode';
 
-export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
+export class NativeExtHostSearch extends ExtHostSearch {
 
 	protected _pfs: typeof pfs = pfs; // allow extending for tests
 
@@ -81,9 +81,10 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		return this._numThreadsPromise;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.isDisposed = true;
 		this._disposables.dispose();
+		super.dispose();
 	}
 
 	override $enableExtensionHostSearch(): void {

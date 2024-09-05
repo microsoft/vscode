@@ -323,7 +323,7 @@ class SessionLifecycle extends Disposable {
 	}
 }
 
-export class FileSearchManager {
+export class FileSearchManager extends Disposable {
 
 	private static readonly BATCH_SIZE = 512;
 
@@ -352,6 +352,14 @@ export class FileSearchManager {
 					messages: []
 				};
 			});
+	}
+
+	public override dispose(): void {
+		for (const session of this.sessions.values()) {
+			session.dispose();
+		}
+		this.sessions.clear();
+		super.dispose();
 	}
 
 	clearCache(cacheKey: string): void {
