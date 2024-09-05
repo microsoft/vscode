@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -23,6 +24,7 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ColorScheme } from '../../../../browser/web.api.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
@@ -189,6 +191,20 @@ export class CollapsibleListPool extends Disposable {
 		const container = $('.chat-used-context-list');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
+		const getDragURI = (element: IChatCollapsibleListItem): URI | null => {
+			if (element.kind === 'warning') {
+				return null;
+			}
+			const { reference } = element;
+			if (typeof reference === 'string' || 'variableName' in reference) {
+				return null;
+			} else if (URI.isUri(reference)) {
+				return reference;
+			} else {
+				return reference.uri;
+			}
+		};
+
 		const list = this.instantiationService.createInstance(
 			WorkbenchList<IChatCollapsibleListItem>,
 			'ChatListRenderer',
@@ -217,22 +233,19 @@ export class CollapsibleListPool extends Disposable {
 					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat List")
 				},
 				dnd: {
-					getDragURI: (element: IChatCollapsibleListItem) => {
-						if (element.kind === 'warning') {
-							return null;
-						}
-						const { reference } = element;
-						if (typeof reference === 'string' || 'variableName' in reference) {
-							return null;
-						} else if (URI.isUri(reference)) {
-							return reference.toString();
-						} else {
-							return reference.uri.toString();
-						}
-					},
+					getDragURI: (element: IChatCollapsibleListItem) => getDragURI(element)?.toString() ?? null,
 					dispose: () => { },
 					onDragOver: () => false,
 					drop: () => { },
+					onDragStart: (data, originalEvent) => {
+						try {
+							const elements = data.getData() as IChatCollapsibleListItem[];
+							const uris: URI[] = coalesce(elements.map(getDragURI));
+							this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
+						} catch {
+							// noop
+						}
+					},
 				},
 			});
 
