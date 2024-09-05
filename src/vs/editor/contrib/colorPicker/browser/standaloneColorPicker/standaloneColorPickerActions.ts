@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from '../../../browser/editorExtensions.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { StandaloneColorPickerController } from './standaloneColorPickerWidget.js';
-import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import './colorPicker.css';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorAction, EditorAction2, ServicesAccessor } from '../../../../browser/editorExtensions.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { StandaloneColorPickerController } from './standaloneColorPickerController.js';
 
 export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 	constructor() {
@@ -35,7 +34,7 @@ export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 	}
 }
 
-class HideStandaloneColorPicker extends EditorAction {
+export class HideStandaloneColorPicker extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.hideColorPicker',
@@ -61,7 +60,7 @@ class HideStandaloneColorPicker extends EditorAction {
 	}
 }
 
-class InsertColorWithStandaloneColorPicker extends EditorAction {
+export class InsertColorWithStandaloneColorPicker extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertColorWithStandaloneColorPicker',
@@ -86,7 +85,3 @@ class InsertColorWithStandaloneColorPicker extends EditorAction {
 		StandaloneColorPickerController.get(editor)?.insertColor();
 	}
 }
-
-registerEditorAction(HideStandaloneColorPicker);
-registerEditorAction(InsertColorWithStandaloneColorPicker);
-registerAction2(ShowOrFocusStandaloneColorPicker);

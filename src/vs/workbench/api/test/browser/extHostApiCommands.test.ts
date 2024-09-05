@@ -5,7 +5,7 @@
 
 import '../../../../editor/contrib/codeAction/browser/codeAction.js';
 import '../../../../editor/contrib/codelens/browser/codelens.js';
-import '../../../../editor/contrib/colorPicker/browser/color.js';
+import '../../../../editor/contrib/colorPicker/browser/colorPickerContribution.js';
 import '../../../../editor/contrib/format/browser/format.js';
 import '../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import '../../../../editor/contrib/documentSymbols/browser/documentSymbols.js';

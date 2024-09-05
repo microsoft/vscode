@@ -3,19 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
-import { Range } from '../../../common/core/range.js';
-import { IEditorContribution } from '../../../common/editorCommon.js';
-import { ColorDecorationInjectedTextMarker } from './colorDetector.js';
-import { ColorHoverParticipant } from './colorHoverParticipant.js';
-import { ContentHoverController } from '../../hover/browser/contentHoverController.js';
-import { HoverStartMode, HoverStartSource } from '../../hover/browser/hoverOperation.js';
-import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { Range } from '../../../../common/core/range.js';
+import { IEditorContribution } from '../../../../common/editorCommon.js';
+import { ColorDecorationInjectedTextMarker } from '../colorDetector.js';
+import { ContentHoverController } from '../../../hover/browser/contentHoverController.js';
+import { HoverStartMode, HoverStartSource } from '../../../hover/browser/hoverOperation.js';
 
-export class ColorContribution extends Disposable implements IEditorContribution {
+export class HoverColorPickerContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.contrib.colorContribution';
 
@@ -66,6 +63,3 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		}
 	}
 }
-
-registerEditorContribution(ColorContribution.ID, ColorContribution, EditorContributionInstantiation.BeforeFirstInteraction);
-HoverParticipantRegistry.register(ColorHoverParticipant);
