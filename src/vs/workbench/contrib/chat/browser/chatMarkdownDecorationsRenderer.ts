@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { applyDragImage } from '../../../../base/browser/dnd.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -18,7 +19,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { contentRefUrl } from '../common/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
@@ -88,6 +91,7 @@ export class ChatMarkdownDecorationsRenderer {
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IThemeService private readonly themeService: IThemeService,
 	) { }
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
@@ -258,6 +262,9 @@ export class ChatMarkdownDecorationsRenderer {
 		a.draggable = true;
 		store.add(dom.addDisposableListener(a, 'dragstart', e => {
 			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [location.uri], e));
+
+			const theme = this.themeService.getColorTheme();
+			applyDragImage(e, label, 'monaco-drag-image', theme.getColor(listActiveSelectionBackground)?.toString(), theme.getColor(listActiveSelectionForeground)?.toString());
 		}));
 	}
 

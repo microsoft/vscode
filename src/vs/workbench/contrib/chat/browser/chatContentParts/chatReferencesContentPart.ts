@@ -20,6 +20,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -180,6 +181,7 @@ export class CollapsibleListPool extends Disposable {
 		private _onDidChangeVisibility: Event<boolean>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 		this._pool = this._register(new ResourcePool(() => this.listFactory()));
@@ -234,6 +236,16 @@ export class CollapsibleListPool extends Disposable {
 				},
 				dnd: {
 					getDragURI: (element: IChatCollapsibleListItem) => getDragURI(element)?.toString() ?? null,
+					getDragLabel: (elements, originalEvent) => {
+						const uris: URI[] = coalesce(elements.map(getDragURI));
+						if (!uris.length) {
+							return undefined;
+						} else if (uris.length === 1) {
+							return this.labelService.getUriLabel(uris[0], { relative: true });
+						} else {
+							return `${uris.length}`;
+						}
+					},
 					dispose: () => { },
 					onDragOver: () => false,
 					drop: () => { },
