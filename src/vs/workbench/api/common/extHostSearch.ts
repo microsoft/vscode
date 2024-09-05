@@ -30,7 +30,7 @@ export interface IExtHostSearch extends ExtHostSearchShape {
 
 export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
 
-export class ExtHostSearch implements IExtHostSearch, IDisposable {
+export class ExtHostSearch implements IExtHostSearch {
 
 	protected readonly _proxy: MainThreadSearchShape = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
 	protected _handlePool: number = 0;
@@ -51,10 +51,6 @@ export class ExtHostSearch implements IExtHostSearch, IDisposable {
 		@IURITransformerService protected _uriTransformer: IURITransformerService,
 		@ILogService protected _logService: ILogService,
 	) { }
-
-	dispose(): void {
-		this._fileSearchManager.dispose();
-	}
 
 	protected _transformScheme(scheme: string): string {
 		return this._uriTransformer.transformOutgoingScheme(scheme);

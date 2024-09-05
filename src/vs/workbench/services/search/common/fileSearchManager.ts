@@ -13,7 +13,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
 import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes.js';
 import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
 
 interface IInternalFileMatch {
@@ -307,23 +306,30 @@ interface IInternalSearchComplete {
 /**
  * For backwards compatibility, store both a cancellation token and a session object. The session object is the new implementation, where
  */
-class SessionLifecycle extends Disposable {
-	public readonly obj: object;
+class SessionLifecycle {
+	private _obj: object | undefined;
 	public readonly tokenSource: CancellationTokenSource;
 
 	constructor() {
-		super();
-		this.obj = new Object();
+		this._obj = new Object();
 		this.tokenSource = new CancellationTokenSource();
 	}
 
-	public override dispose(): void {
+	public get obj() {
+		if (this._obj) {
+			return this._obj;
+		}
+
+		throw new Error('Session object has been dereferenced.');
+	}
+
+	cancel() {
 		this.tokenSource.cancel();
-		super.dispose();
+		this._obj = undefined; // dereference
 	}
 }
 
-export class FileSearchManager extends Disposable {
+export class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
@@ -354,17 +360,9 @@ export class FileSearchManager extends Disposable {
 			});
 	}
 
-	public override dispose(): void {
-		for (const session of this.sessions.values()) {
-			session.dispose();
-		}
-		this.sessions.clear();
-		super.dispose();
-	}
-
 	clearCache(cacheKey: string): void {
 		// cancel the token
-		this.sessions.get(cacheKey)?.dispose();
+		this.sessions.get(cacheKey)?.cancel();
 		// with no reference to this, it will be removed from WeakMaps
 		this.sessions.delete(cacheKey);
 	}
