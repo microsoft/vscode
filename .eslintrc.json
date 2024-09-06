@@ -846,7 +846,8 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/standalone/~"
+							"vs/editor/standalone/~",
+							"@vscode/tree-sitter-wasm" // type import
 						]
 					},
 					{
@@ -932,6 +933,7 @@
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
 							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							"@vscode/tree-sitter-wasm", // type import
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/xterm"
