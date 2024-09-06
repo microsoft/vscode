@@ -678,7 +678,6 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const id = AuxiliaryStatusbarPart.COUNTER++;
-		container.ariaLabel = 'Status bar';
 		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService);
 	}
 }
@@ -713,7 +712,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		statusbarPartContainer.style.position = 'relative';
 		statusbarPartContainer.setAttribute('aria-live', 'off');
 		statusbarPartContainer.setAttribute('tabindex', '0');
-		statusbarPartContainer.setAttribute('aria-label', 'Status bar');
+		statusbarPartContainer.setAttribute('aria-label', localize('statusBar', 'Status Bar'));
 		container.appendChild(statusbarPartContainer);
 
 		// Statusbar Part
