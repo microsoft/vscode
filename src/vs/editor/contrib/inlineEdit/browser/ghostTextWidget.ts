@@ -17,6 +17,7 @@ import { AdditionalLinesWidget, LineData } from '../../inlineCompletions/browser
 import { GhostText } from '../../inlineCompletions/browser/model/ghostText.js';
 import { ColumnRange, applyObservableDecorations } from '../../inlineCompletions/browser/utils.js';
 import { diffDeleteDecoration, diffLineDeleteDecorationBackgroundWithIndicator } from '../../../browser/widget/diffEditor/registrations.contribution.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
 
 export const INLINE_EDIT_DESCRIPTION = 'inline-edit';
 export interface IGhostTextWidgetModel {
@@ -54,7 +55,6 @@ export class GhostTextWidget extends Disposable {
 			return undefined;
 		}
 
-
 		let range = this.model.range?.read(reader);
 		//if range is empty, we want to remove it
 		if (range && range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
@@ -68,13 +68,20 @@ export class GhostTextWidget extends Disposable {
 		const isPureRemove = ghostText.parts.length === 1 && ghostText.parts[0].lines.every(l => l.length === 0);
 
 		const inlineTexts: { column: number; text: string; preview: boolean }[] = [];
-		const additionalLines: LineData[] = [];
+		const additionalLines: { content: string; decorations: LineDecoration[] }[] = [];
 
 		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
 			if (additionalLines.length > 0) {
 				const lastLine = additionalLines[additionalLines.length - 1];
 				if (className) {
-					lastLine.decorations.push(new LineDecoration(lastLine.content.length + 1, lastLine.content.length + 1 + lines[0].length, className, InlineDecorationType.Regular));
+					lastLine.decorations.push(
+						new LineDecoration(
+							lastLine.content.length + 1,
+							lastLine.content.length + 1 + lines[0].length,
+							className,
+							InlineDecorationType.Regular
+						)
+					);
 				}
 				lastLine.content += lines[0];
 
@@ -208,13 +215,15 @@ export class GhostTextWidget extends Disposable {
 	private readonly additionalLinesWidget = this._register(
 		new AdditionalLinesWidget(
 			this.editor,
-			this.languageService.languageIdCodec,
 			derived(reader => {
 				/** @description lines */
 				const uiState = this.uiState.read(reader);
 				return uiState && !uiState.isPureRemove && (uiState.isSingleLine || !uiState.range) ? {
 					lineNumber: uiState.lineNumber,
-					additionalLines: uiState.additionalLines,
+					additionalLines: uiState.additionalLines.map(l => ({
+						content: LineTokens.createEmpty(l.content, this.languageService.languageIdCodec),
+						decorations: l.decorations
+					} satisfies LineData)),
 					minReservedLineCount: uiState.additionalReservedLineCount,
 					targetTextModel: uiState.targetTextModel,
 				} : undefined;

@@ -13,7 +13,6 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Mimes } from '../../../../base/common/mime.js';
 import * as platform from '../../../../base/common/platform.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ClipboardEventUtils } from '../../../browser/controller/textAreaInput.js';
 import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dnd.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
@@ -37,6 +36,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { PostEditWidgetManager } from './postEditWidget.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { ClipboardEventUtils } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 

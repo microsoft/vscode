@@ -18,7 +18,6 @@ import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/select
 import { Toggle, unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
-import { IList } from '../../../../base/browser/ui/tree/indexTreeModel.js';
 import { IObjectTreeOptions } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ObjectTreeModel } from '../../../../base/browser/ui/tree/objectTreeModel.js';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from '../../../../base/browser/ui/tree/tree.js';
@@ -2559,8 +2558,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		}));
 	}
 
-	protected override createModel(user: string, view: IList<ITreeNode<SettingsTreeGroupChild>>, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
-		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, view, options);
+	protected override createModel(user: string, options: IObjectTreeOptions<SettingsTreeGroupChild>): ITreeModel<SettingsTreeGroupChild | null, void, SettingsTreeGroupChild | null> {
+		return new NonCollapsibleObjectTreeModel<SettingsTreeGroupChild>(user, options);
 	}
 }
 

@@ -237,8 +237,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		if (commentUniqueId !== undefined) {
 			this._goToComment(commentUniqueId, focus);
+		} else {
+			this._goToThread(focus);
 		}
-		this._goToThread(focus);
 	}
 
 	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {

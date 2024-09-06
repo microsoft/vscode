@@ -783,14 +783,11 @@ export class CommentController implements IEditorContribution {
 			return false;
 		});
 
-		let nextWidget: ReviewZoneWidget;
-		if (idx === this._commentWidgets.length) {
-			nextWidget = this._commentWidgets[0];
-		} else {
-			nextWidget = sortedWidgets[idx];
+		const nextWidget: ReviewZoneWidget | undefined = sortedWidgets[idx];
+		if (nextWidget !== undefined) {
+			this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
+			nextWidget.reveal(undefined, CommentWidgetFocus.Widget);
 		}
-		this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
-		nextWidget.reveal(undefined, CommentWidgetFocus.Widget);
 	}
 
 	public previousCommentThread(): void {

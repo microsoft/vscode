@@ -2516,6 +2516,10 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
 	return disposables;
 }
 
+export function isEditableElement(element: Element): boolean {
+	return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea' || isHTMLElement(element) && !!element.editContext;
+}
+
 /**
  * Helper for calculating the "safe triangle" occluded by hovers to avoid early dismissal.
  * @see https://www.smashingmagazine.com/2023/08/better-context-menus-safe-triangles/ for example

@@ -20,6 +20,8 @@ import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextMode
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { getReadonlyEmptyArray } from '../utils.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
+import { LineEditWithAdditionalLines } from '../../../../common/tokenizationTextModelPart.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 
 export async function provideInlineCompletions(
 	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
@@ -333,8 +335,9 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 	const lineStart = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
 	const newLine = lineStart + text;
 
-	const newTokens = model.tokenization.tokenizeLineWithEdit(position, newLine.length - (position.column - 1), text);
-	const slicedTokens = newTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
+	const edit = LineEditWithAdditionalLines.replace(OffsetRange.ofStartAndLength(position.column - 1, newLine.length - (position.column - 1)), text);
+	const newTokens = model.tokenization.tokenizeLineWithEdit(position.lineNumber, edit);
+	const slicedTokens = newTokens?.mainLineTokens?.sliceAndInflate(position.column - 1, newLine.length, 0);
 	if (!slicedTokens) {
 		return text;
 	}

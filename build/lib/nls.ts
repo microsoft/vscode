@@ -236,7 +236,7 @@ module _nls {
 				if (!isAMD()) {
 					return (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`);
 				}
-				return (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'';
+				return (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls'`);
 			});
 
 		// import ... from 'vs/nls';
@@ -248,7 +248,7 @@ module _nls {
 				if (!isAMD()) {
 					return d.moduleSpecifier.getText().endsWith(`/nls.js'`);
 				}
-				return d.moduleSpecifier.getText() === '\'vs/nls\'';
+				return d.moduleSpecifier.getText().endsWith(`/nls'`);
 			})
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
 

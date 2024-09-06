@@ -1031,7 +1031,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		if (extension.manifest.main) {
 			if (!(await this.fileService.exists(this.uriIdentityService.extUri.joinPath(extension.location, extension.manifest.main)))) {
 				isValid = false;
-				validations.push([Severity.Error, localize('main.notFound', "Cannot activate, becase {0} not found", extension.manifest.main)]);
+				validations.push([Severity.Error, localize('main.notFound', "Cannot activate because {0} not found", extension.manifest.main)]);
 			}
 		}
 		return {

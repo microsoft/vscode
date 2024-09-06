@@ -36,7 +36,12 @@
 .monaco-editor .ghost-text-decoration,
 .monaco-editor .ghost-text-decoration-preview,
 .monaco-editor .suggest-preview-text .ghost-text {
-	color: var(--vscode-editorGhostText-foreground) !important;
+	&.syntax-highlighted {
+		opacity: 0.7;
+	}
+	&:not(.syntax-highlighted) {
+		color: var(--vscode-editorGhostText-foreground);
+	}
 	background-color: var(--vscode-editorGhostText-background);
 	border: 1px solid var(--vscode-editorGhostText-border);
 }

@@ -37,7 +37,7 @@ import type { Parser } from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;
 
-class InspectEditorTokensController extends Disposable implements IEditorContribution {
+export class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 

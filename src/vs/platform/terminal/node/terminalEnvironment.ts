@@ -204,7 +204,7 @@ export function getShellIntegrationInjection(
 			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
 			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
 			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/fish_xdg_data');
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data');
 			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
 			addEnvMixinPathPrefix(options, envMixin);
 			return { newArgs: undefined, envMixin };
@@ -254,19 +254,19 @@ export function getShellIntegrationInjection(
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh'),
 				dest: path.join(zdotdir, '.zprofile')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh'),
 				dest: path.join(zdotdir, '.zshenv')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
 			return { newArgs, envMixin, filesToCopy };
@@ -321,13 +321,13 @@ enum ShellIntegrationExecutable {
 
 const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
 // The try catch swallows execution policy errors in the case of the archive distributable
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh']);
 const pwshLoginArgs = ['-login', '-l'];
 const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];

@@ -13,20 +13,20 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Severity } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { CHAT_VIEW_ID } from './chat.js';
-import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
+import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
+import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
-import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
+import { CHAT_VIEW_ID } from './chat.js';
+import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
@@ -74,10 +74,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					items: {
 						additionalProperties: false,
 						type: 'object',
-						defaultSnippets: [{ body: { categoryName: '', description: '', examples: [] } }],
-						required: ['categoryName', 'description', 'examples'],
+						defaultSnippets: [{ body: { category: '', description: '', examples: [] } }],
+						required: ['category', 'description', 'examples'],
 						properties: {
-							categoryName: {
+							category: {
 								markdownDescription: localize('chatParticipantDisambiguationCategory', "A detailed name for this category, e.g. `workspace_questions` or `web_questions`."),
 								type: 'string'
 							},
@@ -127,10 +127,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 								items: {
 									additionalProperties: false,
 									type: 'object',
-									defaultSnippets: [{ body: { categoryName: '', description: '', examples: [] } }],
-									required: ['categoryName', 'description', 'examples'],
+									defaultSnippets: [{ body: { category: '', description: '', examples: [] } }],
+									required: ['category', 'description', 'examples'],
 									properties: {
-										categoryName: {
+										category: {
 											markdownDescription: localize('chatCommandDisambiguationCategory', "A detailed name for this category, e.g. `workspace_questions` or `web_questions`."),
 											type: 'string'
 										},
@@ -214,17 +214,24 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					}
 
 					const participantsAndCommandsDisambiguation: {
-						categoryName: string;
+						category: string;
 						description: string;
 						examples: string[];
 					}[] = [];
-					if (providerDescriptor.disambiguation?.length) {
-						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation);
-					}
-					if (providerDescriptor.commands) {
-						for (const command of providerDescriptor.commands) {
-							if (command.disambiguation?.length) {
-								participantsAndCommandsDisambiguation.push(...command.disambiguation);
+
+					if (isProposedApiEnabled(extension.description, 'contribChatParticipantDetection')) {
+						if (providerDescriptor.disambiguation?.length) {
+							participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
+								...d, category: d.category ?? d.categoryName
+							})));
+						}
+						if (providerDescriptor.commands) {
+							for (const command of providerDescriptor.commands) {
+								if (command.disambiguation?.length) {
+									participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
+										...d, category: d.category ?? d.categoryName
+									})));
+								}
 							}
 						}
 					}

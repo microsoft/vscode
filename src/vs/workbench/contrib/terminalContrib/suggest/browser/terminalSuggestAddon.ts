@@ -92,6 +92,7 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 };
 
 export interface ISuggestController {
+	isPasting: boolean;
 	selectPreviousSuggestion(): void;
 	selectPreviousPageSuggestion(): void;
 	selectNextSuggestion(): void;
@@ -128,6 +129,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _lastUserDataTimestamp: number = 0;
 	private _lastAcceptedCompletionTimestamp: number = 0;
 	private _lastUserData?: string;
+
+	isPasting: boolean = false;
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
 	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
@@ -193,6 +196,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _requestCompletions(): void {
 		if (!this._promptInputModel) {
+			return;
+		}
+
+		if (this.isPasting) {
 			return;
 		}
 

@@ -10,6 +10,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
 import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 // #region TerminalConfigurationService
 
@@ -125,6 +126,13 @@ export class TerminalFontMetrics extends Disposable {
 
 		// Always fallback to monospace, otherwise a proportional font may become the default
 		fontFamily += ', monospace';
+
+		// Always fallback to AppleBraille on macOS, otherwise braille will render with filled and
+		// empty circles in all 8 positions, instead of just filled circles
+		// See https://github.com/microsoft/vscode/issues/174521
+		if (isMacintosh) {
+			fontFamily += ', AppleBraille';
+		}
 
 		const letterSpacing = this._terminalConfigurationService.config.letterSpacing ? Math.max(Math.floor(this._terminalConfigurationService.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this._terminalConfigurationService.config.lineHeight ? Math.max(this._terminalConfigurationService.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;

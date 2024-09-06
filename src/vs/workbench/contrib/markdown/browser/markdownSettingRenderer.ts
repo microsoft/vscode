@@ -41,8 +41,8 @@ export class SimpleSettingRenderer {
 		return result;
 	}
 
-	getHtmlRenderer(): (token: Tokens.HTML) => string {
-		return ({ raw }: Tokens.HTML): string => {
+	getHtmlRenderer(): (token: Tokens.HTML | Tokens.Tag) => string {
+		return ({ raw }: Tokens.HTML | Tokens.Tag): string => {
 			const match = this.codeSettingRegex.exec(raw);
 			if (match && match.length === 4) {
 				const settingId = match[2];

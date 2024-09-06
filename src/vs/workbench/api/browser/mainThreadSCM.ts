@@ -6,7 +6,7 @@
 import { Barrier } from '../../../base/common/async.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
-import { derived, observableValue, observableValueOpts } from '../../../base/common/observable.js';
+import { observableValue, observableValueOpts } from '../../../base/common/observable.js';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from '../../contrib/scm/common/scm.js';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol.js';
@@ -27,6 +27,7 @@ import { IModelService } from '../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../editor/common/services/resolverService.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ITextModel } from '../../../editor/common/model.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -42,10 +43,15 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 }
 
 function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
-	const icon = getIconFromIconDto(historyItemDto.icon);
-	const labels = historyItemDto.labels?.map(l => ({ title: l.title, icon: getIconFromIconDto(l.icon) }));
+	const labels = historyItemDto.labels?.map(l => ({
+		title: l.title, icon: getIconFromIconDto(l.icon)
+	}));
 
-	return { ...historyItemDto, icon, labels };
+	const newLineIndex = historyItemDto.message.indexOf('\n');
+	const subject = newLineIndex === -1 ?
+		historyItemDto.message : `${historyItemDto.message.substring(0, newLineIndex)}\u2026`;
+
+	return { ...historyItemDto, subject, labels };
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -160,38 +166,20 @@ class MainThreadSCMResource implements ISCMResource {
 }
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
-	readonly currentHistoryItemGroupId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.id);
-	readonly currentHistoryItemGroupName = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.name);
-	readonly currentHistoryItemGroupRevision = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.revision);
-	readonly currentHistoryItemGroupRemoteId = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.remote?.id);
-	readonly currentHistoryItemGroupRemoteRevision = derived<string | undefined>(this, reader => this.currentHistoryItemGroup.read(reader)?.remote?.revision);
-
-	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: () => false }, undefined);
+	private readonly _currentHistoryItemGroup = observableValueOpts<ISCMHistoryItemGroup | undefined>({
+		owner: this, equalsFn: structuralEquals
+	}, undefined);
 	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
-		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupId1, historyItemGroupId2, CancellationToken.None);
+	async resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined> {
+		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupIds, CancellationToken.None);
 	}
 
-	async resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined> {
-		return this.proxy.$resolveHistoryItemGroupCommonAncestor2(this.handle, historyItemGroupIds, CancellationToken.None);
-	}
-
-	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
-		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
+	async provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
+		const historyItems = await this.proxy.$provideHistoryItems(this.handle, options, CancellationToken.None);
 		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
-	}
-
-	async provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
-		const historyItems = await this.proxy.$provideHistoryItems2(this.handle, options, CancellationToken.None);
-		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
-	}
-
-	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined> {
-		const historyItem = await this.proxy.$provideHistoryItemSummary(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
-		return historyItem ? toISCMHistoryItem(historyItem) : undefined;
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined> {

@@ -7,7 +7,7 @@ import './media/titlebarpart.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
-import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
+import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -505,18 +505,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 				if (isWCOEnabled()) {
 					this.windowControlsContainer.classList.add('wco-enabled');
-
-					const updateWCOWidthVariable = () => {
-						const targetWindow = getWindow(this.element);
-						const wcoTitlebarAreaRect = getWCOTitlebarAreaRect(targetWindow);
-						if (wcoTitlebarAreaRect) {
-							const wcoWidth = targetWindow.innerWidth - wcoTitlebarAreaRect.width - wcoTitlebarAreaRect.x;
-							this.windowControlsContainer?.style.setProperty('--title-wco-width', `${wcoWidth}px`);
-						}
-					};
-					updateWCOWidthVariable();
-
-					this._register(onDidChangeZoomLevel(() => setTimeout(() => updateWCOWidthVariable(), 5))); // Somehow it does not get the right size without this timeout :-/
 				}
 			}
 		}

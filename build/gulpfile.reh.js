@@ -65,19 +65,20 @@ const serverResourceIncludes = [
 	'out-build/vs/base/node/ps.sh',
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/CodeTabExpansion.psm1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/GitTabExpansion.psm1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/GitTabExpansion.psm1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish',
+
 ];
 
 const serverResourceExcludes = [
-	'!out-build/vs/**/{electron-sandbox,electron-main}/**',
+	'!out-build/vs/**/{electron-sandbox,electron-main,electron-utility}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!**/test/**'
@@ -142,7 +143,7 @@ const webEntryPoints = !isAMD() ? [
 	buildfile.keyboardMaps,
 	buildfile.codeWeb
 ].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.web.main'),
+	buildfile.entrypoint('vs/workbench/workbench.web.main.internal'),
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
