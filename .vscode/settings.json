@@ -30,9 +30,11 @@
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
 		"src/vs/base/test/common/filters.perf.data.js": true,
-		"src/vs/base/test/node/uri.test.data.txt": true,
+		"src/vs/base/test/node/uri.perf.data.txt": true,
 		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
+		"src/vs/base/test/node/uri.test.data.txt": true,
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
+		"build/loader.min": true
 	},
 	"files.readonlyInclude": {
 		"**/node_modules/**/*.*": true,
@@ -40,8 +42,6 @@
 		"**/Cargo.lock": true,
 		"src/vs/workbench/workbench.web.main.css": true,
 		"src/vs/workbench/workbench.desktop.main.css": true,
-		"src/vs/workbench/workbench.desktop.main.nls.js": true,
-		"src/vs/workbench/workbench.web.main.nls.js": true,
 		"build/**/*.js": true,
 		"out/**": true,
 		"out-build/**": true,
@@ -52,6 +52,7 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
+		"src2/**": true,
 	},
 	"files.readonlyExclude": {
 		"build/builtin/*.js": true,
@@ -76,7 +77,7 @@
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
-	"typescript.preferences.importModuleSpecifier": "non-relative",
+	"typescript.preferences.importModuleSpecifier": "relative",
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
@@ -162,14 +163,12 @@
 		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
-		"src/vs/workbench/workbench.web.main.ts",
-		"src/vs/workbench/api/common/extHostTypes.ts"
+		"src/vs/workbench/workbench.web.main.internal.ts"
 	],
 	"[github-issues]": {
 		"editor.wordWrap": "on"
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
-	"inlineChat.mode": "live",
-	"testing.defaultGutterClickAction": "contextMenu",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"inlineChat.experimental.onlyZoneWidget": true
 }

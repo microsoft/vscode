@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, equals as arrayEquals } from 'vs/base/common/arrays';
-import { Queue, RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { JSONPath, ParseError, parse } from 'vs/base/common/json';
-import { applyEdits, setProperty } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, isConfigurationOverrides, isConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { keyFromOverrideIdentifiers } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
+import { distinct, equals as arrayEquals } from '../../../base/common/arrays.js';
+import { Queue, RunOnceScheduler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { JSONPath, ParseError, parse } from '../../../base/common/json.js';
+import { applyEdits, setProperty } from '../../../base/common/jsonEdit.js';
+import { Edit, FormattingOptions } from '../../../base/common/jsonFormatter.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { equals } from '../../../base/common/objects.js';
+import { OS, OperatingSystem } from '../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, isConfigurationOverrides, isConfigurationUpdateOverrides } from './configuration.js';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from './configurationModels.js';
+import { keyFromOverrideIdentifiers } from './configurationRegistry.js';
+import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from './configurations.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IPolicyService, NullPolicyService } from '../../policy/common/policy.js';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
@@ -42,13 +43,24 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		private readonly settingsResource: URI,
 		fileService: IFileService,
 		policyService: IPolicyService,
-		logService: ILogService,
+		private readonly logService: ILogService,
 	) {
 		super();
-		this.defaultConfiguration = this._register(new DefaultConfiguration());
+		this.defaultConfiguration = this._register(new DefaultConfiguration(logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
-		this.userConfiguration = this._register(new UserSettings(this.settingsResource, {}, extUriBiasedIgnorePathCase, fileService));
-		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel(), new ConfigurationModel());
+		this.userConfiguration = this._register(new UserSettings(this.settingsResource, {}, extUriBiasedIgnorePathCase, fileService, logService));
+		this.configuration = new Configuration(
+			this.defaultConfiguration.configurationModel,
+			this.policyConfiguration.configurationModel,
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			logService
+		);
 		this.configurationEditing = new ConfigurationEditing(settingsResource, fileService, this);
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
@@ -59,7 +71,18 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	async initialize(): Promise<void> {
 		const [defaultModel, policyModel, userModel] = await Promise.all([this.defaultConfiguration.initialize(), this.policyConfiguration.initialize(), this.userConfiguration.loadConfiguration()]);
-		this.configuration = new Configuration(defaultModel, policyModel, new ConfigurationModel(), userModel);
+		this.configuration = new Configuration(
+			defaultModel,
+			policyModel,
+			ConfigurationModel.createEmptyModel(this.logService),
+			userModel,
+			ConfigurationModel.createEmptyModel(this.logService),
+			ConfigurationModel.createEmptyModel(this.logService),
+			new ResourceMap<ConfigurationModel>(),
+			ConfigurationModel.createEmptyModel(this.logService),
+			new ResourceMap<ConfigurationModel>(),
+			this.logService
+		);
 	}
 
 	getConfigurationData(): IConfigurationData {
@@ -157,7 +180,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 	}
 
 	private trigger(configurationChange: IConfigurationChange, previous: IConfigurationData, source: ConfigurationTarget): void {
-		const event = new ConfigurationChangeEvent(configurationChange, { data: previous }, this.configuration);
+		const event = new ConfigurationChangeEvent(configurationChange, { data: previous }, this.configuration, undefined, this.logService);
 		event.source = source;
 		this._onDidChangeConfiguration.fire(event);
 	}

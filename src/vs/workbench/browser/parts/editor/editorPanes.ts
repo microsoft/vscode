@@ -3,32 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById } from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { isCancellationError } from 'vs/base/common/errors';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { mainWindow } from 'vs/base/browser/window';
+import { localize } from '../../../../nls.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { Emitter } from '../../../../base/common/event.js';
+import Severity from '../../../../base/common/severity.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById, isEditableElement } from '../../../../base/browser/dom.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IEditorPaneRegistry, IEditorPaneDescriptor } from '../../editor.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { EditorPane } from './editorPane.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorProgressService, LongRunningOperation } from '../../../../platform/progress/common/progress.js';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from './editor.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from './editorPlaceholder.js';
+import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDialogService, IPromptButton, IPromptCancelButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 export interface IOpenEditorResult {
 
@@ -129,22 +128,7 @@ export class EditorPanes extends Disposable {
 
 	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 		try {
-
-			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			if (getWindowById(this.groupView.windowId, true).window !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
-				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in other windows yet."), [
-					toAction({
-						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {
-							return this.groupView.closeEditor(editor);
-						}
-					})
-				], { forceMessage: true, forceSeverity: Severity.Warning }), editor, options, internalOptions, context);
-			}
-
-			// Open editor normally
-			else {
-				return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, internalOptions, context);
-			}
+			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, internalOptions, context);
 		} catch (error) {
 
 			// First check if caller instructed us to ignore error handling
@@ -303,7 +287,7 @@ export class EditorPanes extends Disposable {
 			return true; // restore focus if same element is still active
 		}
 
-		if (activeElement.tagName !== 'INPUT' && activeElement.tagName !== 'TEXTAREA') {
+		if (!isEditableElement(activeElement)) {
 
 			// This is to avoid regressions from not restoring focus as we used to:
 			// Only allow a different input element (or textarea) to remain focused
@@ -377,6 +361,11 @@ export class EditorPanes extends Disposable {
 		if (!editorPane.getContainer()) {
 			const editorPaneContainer = document.createElement('div');
 			editorPaneContainer.classList.add('editor-instance');
+
+			// It is cruicial to append the container to its parent before
+			// passing on to the create() method of the pane so that the
+			// right `window` can be determined in floating window cases.
+			this.editorPanesParent.appendChild(editorPaneContainer);
 
 			editorPane.create(editorPaneContainer);
 		}
@@ -477,7 +466,7 @@ export class EditorPanes extends Disposable {
 		// Remove editor pane from parent
 		const editorPaneContainer = this._activeEditorPane.getContainer();
 		if (editorPaneContainer) {
-			this.editorPanesParent.removeChild(editorPaneContainer);
+			editorPaneContainer.remove();
 			hide(editorPaneContainer);
 		}
 

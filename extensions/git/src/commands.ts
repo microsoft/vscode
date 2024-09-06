@@ -5,14 +5,14 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
-import { Repository, Resource, ResourceGroupType } from './repository';
-import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
+import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
+import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
@@ -525,9 +525,15 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 				// Button(s)
 				if (item.refRemote) {
 					const matchingRemote = this.repository.remotes.find((remote) => remote.name === item.refRemote);
-					const remoteUrl = matchingRemote?.pushUrl ?? matchingRemote?.fetchUrl;
-					if (remoteUrl) {
-						item.buttons = this.buttons.get(item.refRemote);
+					const buttons = [];
+					if (matchingRemote?.pushUrl) {
+						buttons.push(...this.buttons.get(matchingRemote.pushUrl) ?? []);
+					}
+					if (matchingRemote?.fetchUrl && matchingRemote.fetchUrl !== matchingRemote.pushUrl) {
+						buttons.push(...this.buttons.get(matchingRemote.fetchUrl) ?? []);
+					}
+					if (buttons.length) {
+						item.buttons = buttons;
 					}
 				} else {
 					item.buttons = this.defaultButtons;
@@ -711,10 +717,13 @@ export class CommandCenter {
 		}
 
 		try {
-			const [head, rebaseOrMergeHead] = await Promise.all([
+			const [head, rebaseOrMergeHead, diffBetween] = await Promise.all([
 				repo.getCommit('HEAD'),
-				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD')
+				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD'),
+				await repo.diffBetween(isRebasing ? 'REBASE_HEAD' : 'MERGE_HEAD', 'HEAD')
 			]);
+			const diffFile = diffBetween?.find(diff => diff.uri.fsPath === uri.fsPath);
+
 			// ours (current branch and commit)
 			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
@@ -723,7 +732,11 @@ export class CommandCenter {
 			// theirs
 			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
 			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
-			incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
+			if (diffFile) {
+				incoming.uri = toGitUri(diffFile.originalUri, rebaseOrMergeHead.hash);
+			} else {
+				incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
+			}
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -1332,14 +1345,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.logger.debug(`git.stage ${resourceStates.length} `);
+		this.logger.debug(`[CommandCenter][stage] git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.logger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
+			this.logger.debug(`[CommandCenter][stage] git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
 				return;
@@ -1382,7 +1395,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
+		this.logger.debug(`[CommandCenter][stage] git.stage.scmResources ${scmResources.length} `);
 		if (!scmResources.length) {
 			return;
 		}
@@ -1509,6 +1522,33 @@ export class CommandCenter {
 
 		const firstStagedLine = changes[index].modifiedStartLineNumber;
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
+	}
+
+	@command('git.diff.stageHunk')
+	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		this.diffStageHunkOrSelection(changes);
+	}
+
+	@command('git.diff.stageSelection')
+	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		this.diffStageHunkOrSelection(changes);
+	}
+
+	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		let modifiedUri = changes.modifiedUri;
+		if (!modifiedUri) {
+			const textEditor = window.activeTextEditor;
+			if (!textEditor) {
+				return;
+			}
+			const modifiedDocument = textEditor.document;
+			modifiedUri = modifiedDocument.uri;
+		}
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+		const result = changes.originalWithModifiedChanges;
+		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
 	@command('git.stageSelectedRanges', { diff: true })
@@ -2029,74 +2069,79 @@ export class CommandCenter {
 			promptToSaveFilesBeforeCommit = 'never';
 		}
 
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
-		if (promptToSaveFilesBeforeCommit !== 'never') {
-			let documents = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		if (!opts.empty) {
+			if (promptToSaveFilesBeforeCommit !== 'never') {
+				let documents = workspace.textDocuments
+					.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
-				documents = documents
-					.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
-			}
-
-			if (documents.length > 0) {
-				const message = documents.length === 1
-					? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
-					: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
-				const saveAndCommit = l10n.t('Save All & Commit Changes');
-				const commit = l10n.t('Commit Changes');
-				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
-
-				if (pick === saveAndCommit) {
-					await Promise.all(documents.map(d => d.save()));
-
-					// After saving the dirty documents, if there are any documents that are part of the
-					// index group we have to add them back in order for the saved changes to be committed
+				if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
 					documents = documents
 						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
-					await repository.add(documents.map(d => d.uri));
+				}
 
-					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
-				} else if (pick !== commit) {
-					return; // do not commit on cancel
+				if (documents.length > 0) {
+					const message = documents.length === 1
+						? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
+						: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
+					const saveAndCommit = l10n.t('Save All & Commit Changes');
+					const commit = l10n.t('Commit Changes');
+					const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+					if (pick === saveAndCommit) {
+						await Promise.all(documents.map(d => d.save()));
+
+						// After saving the dirty documents, if there are any documents that are part of the
+						// index group we have to add them back in order for the saved changes to be committed
+						documents = documents
+							.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+						await repository.add(documents.map(d => d.uri));
+
+						noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+						noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+					} else if (pick !== commit) {
+						return; // do not commit on cancel
+					}
 				}
 			}
-		}
 
-		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty && !opts.all) {
-			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+			// no changes, and the user has not configured to commit all in this case
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
+				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
-			if (!suggestSmartCommit) {
-				return;
+				if (!suggestSmartCommit) {
+					return;
+				}
+
+				// prompt the user if we want to commit all or not
+				const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
+				const yes = l10n.t('Yes');
+				const always = l10n.t('Always');
+				const never = l10n.t('Never');
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
+
+				if (pick === always) {
+					enableSmartCommit = true;
+					config.update('enableSmartCommit', true, true);
+				} else if (pick === never) {
+					config.update('suggestSmartCommit', false, true);
+					return;
+				} else if (pick === yes) {
+					enableSmartCommit = true;
+				} else {
+					// Cancel
+					return;
+				}
 			}
 
-			// prompt the user if we want to commit all or not
-			const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
-			const yes = l10n.t('Yes');
-			const always = l10n.t('Always');
-			const never = l10n.t('Never');
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
-
-			if (pick === always) {
-				config.update('enableSmartCommit', true, true);
-			} else if (pick === never) {
-				config.update('suggestSmartCommit', false, true);
-				return;
-			} else if (pick !== yes) {
-				return; // do not commit on cancel
+			// smart commit
+			if (enableSmartCommit && !opts.all) {
+				opts = { ...opts, all: noStagedChanges };
 			}
-		}
-
-		if (opts.all === undefined) {
-			opts = { ...opts, all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges && !opts.empty) {
-			opts = { ...opts, all: true };
 		}
 
 		// enable signing of commits if configured
@@ -2481,9 +2526,26 @@ export class CommandCenter {
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickPick.show();
-
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = [...commands, ...picks];
+
+		const setQuickPickItems = () => {
+			switch (true) {
+				case quickPick.value === '':
+					quickPick.items = [...commands, ...picks];
+					break;
+				case commands.length === 0:
+					quickPick.items = picks;
+					break;
+				case picks.length === 0:
+					quickPick.items = commands;
+					break;
+				default:
+					quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+					break;
+			}
+		};
+
+		setQuickPickItems();
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
@@ -2498,22 +2560,7 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
-			disposables.push(quickPick.onDidChangeValue(value => {
-				switch (true) {
-					case value === '':
-						quickPick.items = [...commands, ...picks];
-						break;
-					case commands.length === 0:
-						quickPick.items = picks;
-						break;
-					case picks.length === 0:
-						quickPick.items = commands;
-						break;
-					default:
-						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
-						break;
-				}
-			}));
+			disposables.push(quickPick.onDidChangeValue(() => setQuickPickItems()));
 		});
 
 		dispose(disposables);
@@ -2662,6 +2709,7 @@ export class CommandCenter {
 			{
 				iconPath: new ThemeIcon('refresh'),
 				tooltip: l10n.t('Regenerate Branch Name'),
+				location: QuickInputButtonLocation.Inline
 			}
 		] : [];
 
@@ -3010,7 +3058,8 @@ export class CommandCenter {
 	}
 
 	@command('git.fetchRef', { repository: true })
-	async fetchRef(repository: Repository, ref: string): Promise<void> {
+	async fetchRef(repository: Repository, ref?: string): Promise<void> {
+		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3082,7 +3131,8 @@ export class CommandCenter {
 	}
 
 	@command('git.pullRef', { repository: true })
-	async pullRef(repository: Repository, ref: string): Promise<void> {
+	async pullRef(repository: Repository, ref?: string): Promise<void> {
+		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3229,8 +3279,8 @@ export class CommandCenter {
 	}
 
 	@command('git.pushRef', { repository: true })
-	async pushRef(repository: Repository, ref: string): Promise<void> {
-		if (!repository || !ref) {
+	async pushRef(repository: Repository): Promise<void> {
+		if (!repository) {
 			return;
 		}
 
@@ -4109,18 +4159,75 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.viewCommit', { repository: true })
-	async viewCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
-		if (!repository || !historyItem) {
+	@command('git.viewChanges', { repository: true })
+	async viewChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.workingTreeGroup);
+	}
+
+	@command('git.viewStagedChanges', { repository: true })
+	async viewStagedChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.indexGroup);
+	}
+
+	@command('git.viewUntrackedChanges', { repository: true })
+	async viewUnstagedChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.untrackedGroup);
+	}
+
+	private async _viewResourceGroupChanges(repository: Repository, resourceGroup: GitResourceGroup): Promise<void> {
+		if (resourceGroup.resourceStates.length === 0) {
+			switch (resourceGroup.id) {
+				case 'index':
+					window.showInformationMessage(l10n.t('The repository does not have any staged changes.'));
+					break;
+				case 'workingTree':
+					window.showInformationMessage(l10n.t('The repository does not have any changes.'));
+					break;
+				case 'untracked':
+					window.showInformationMessage(l10n.t('The repository does not have any untracked changes.'));
+					break;
+			}
 			return;
 		}
 
-		const commit = await repository.getCommit(historyItem.id);
-		const title = `${historyItem.id.substring(0, 8)} - ${commit.message}`;
+		await commands.executeCommand('_workbench.openScmMultiDiffEditor', {
+			title: `${repository.sourceControl.label}: ${resourceGroup.label}`,
+			repositoryUri: Uri.file(repository.root),
+			resourceGroupId: resourceGroup.id
+		});
+	}
 
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-commit' });
+	@command('git.viewCommit', { repository: true })
+	async viewCommit(repository: Repository, historyItem1: SourceControlHistoryItem, historyItem2?: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem1) {
+			return;
+		}
 
-		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+		if (historyItem2) {
+			const mergeBase = await repository.getMergeBase(historyItem1.id, historyItem2.id);
+			if (!mergeBase || (mergeBase !== historyItem1.id && mergeBase !== historyItem2.id)) {
+				return;
+			}
+		}
+
+		let title: string | undefined;
+		let historyItemParentId: string | undefined;
+
+		// If historyItem2 is not provided, we are viewing a single commit. If historyItem2 is
+		// provided, we are viewing a range and we have to include both start and end commits.
+		// TODO@lszomoru - handle the case when historyItem2 is the first commit in the repository
+		if (!historyItem2) {
+			const commit = await repository.getCommit(historyItem1.id);
+			title = `${historyItem1.id.substring(0, 8)} - ${commit.message}`;
+			historyItemParentId = historyItem1.parentIds.length > 0 ? historyItem1.parentIds[0] : `${historyItem1.id}^`;
+		} else {
+			title = l10n.t('All Changes ({0} ↔ {1})', historyItem2.id.substring(0, 8), historyItem1.id.substring(0, 8));
+			historyItemParentId = historyItem2.parentIds.length > 0 ? historyItem2.parentIds[0] : `${historyItem2.id}^`;
+		}
+
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItem1.id}`, { scheme: 'git-commit', });
+
+		await this._viewChanges(repository, historyItem1.id, historyItemParentId, multiDiffSourceUri, title);
 	}
 
 	@command('git.viewAllChanges', { repository: true })
@@ -4135,20 +4242,32 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-changes' });
 
-		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+		await this._viewChanges(repository, modifiedShortRef, originalShortRef, multiDiffSourceUri, title);
 	}
 
-	async _viewChanges(repository: Repository, historyItem: SourceControlHistoryItem, multiDiffSourceUri: Uri, title: string): Promise<void> {
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : `${historyItem.id}^`;
-		const changes = await repository.diffBetween(historyItemParentId, historyItem.id);
+	async _viewChanges(repository: Repository, historyItemId: string, historyItemParentId: string, multiDiffSourceUri: Uri, title: string): Promise<void> {
+		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 
-		if (changes.length === 0) {
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
+	@command('git.copyCommitId', { repository: true })
+	async copyCommitId(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
 			return;
 		}
 
-		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItem.id));
+		env.clipboard.writeText(historyItem.id);
+	}
 
-		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	@command('git.copyCommitMessage', { repository: true })
+	async copyCommitMessage(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
+		}
+
+		env.clipboard.writeText(historyItem.message);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -4328,10 +4447,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.logger.debug(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.logger.debug(`[CommandCenter][getSCMResource] git.getSCMResource.uri: ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.logger.debug(`repo root ${r}`);
+			this.logger.debug(`[CommandCenter][getSCMResource] repo root: ${r}`);
 		}
 
 		if (!uri) {

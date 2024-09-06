@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Event } from '../../../base/common/event.js';
+import * as types from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -229,6 +229,10 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 				obj = curr[s] = Object.create(null);
 				break;
 			case 'object':
+				if (obj === null) {
+					conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is null`);
+					return;
+				}
 				break;
 			default:
 				conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is ${JSON.stringify(obj)}`);

@@ -5,7 +5,8 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-zUToXLPvfhhGwJ9G2aKXxI1DL+LnafBpNyx1mQ/S5qU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-DXeP32g8BdMsVuVabYTmznoTH59F7M7UtV0vXemEFqc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -47,7 +48,8 @@
 			const interval = 250;
 			let isFocused = document.hasFocus();
 			setInterval(() => {
-				const isCurrentlyFocused = document.hasFocus();
+				const target = getActiveFrame();
+				const isCurrentlyFocused = document.hasFocus() || !!(target && target.contentDocument && target.contentDocument.body.classList.contains('vscode-context-menu-visible'));
 				if (isCurrentlyFocused === isFocused) {
 					return;
 				}
@@ -107,6 +109,10 @@
 
 			a, a code {
 				color: var(--vscode-textLink-foreground);
+			}
+
+			p > a {
+				text-decoration: var(--text-link-decoration);
 			}
 
 			a:hover {
@@ -790,6 +796,32 @@
 			}
 		}
 
+
+		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
+			/**
+			 * To ensure that the drop event always fires as expected, you should always include a preventDefault() call in the part of your code which handles the dragover event.
+			 * source: https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event
+			 **/
+			e.preventDefault();
+
+			if (!e.dataTransfer) {
+				return;
+			}
+
+
+			// Only handle drags from outside editor for now
+			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+				hostMessaging.postMessage('drag', {
+					shiftKey: e.shiftKey
+				});
+			}
+
+		}
+
+		function handleInnerDropEvent(/**@type {DragEvent} */e) {
+			e.preventDefault();
+		}
+
 		/**
 		 * @param {() => void} callback
 		 */
@@ -880,7 +912,10 @@
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
-		window.addEventListener('dragover', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragEvent);
+		window.addEventListener('drag', handleInnerDragEvent);
+		window.addEventListener('drop', handleInnerDropEvent);
+
 
 		onDomReady(() => {
 			if (!document.body) {
@@ -973,7 +1008,7 @@
 				const previousPendingFrame = getPendingFrame();
 				if (previousPendingFrame) {
 					previousPendingFrame.setAttribute('id', '');
-					document.body.removeChild(previousPendingFrame);
+					previousPendingFrame.remove();
 				}
 				if (!wasFirstLoad) {
 					pendingMessages = [];
@@ -1070,9 +1105,7 @@
 					if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
 						const wasFocused = document.hasFocus();
 						const oldActiveFrame = getActiveFrame();
-						if (oldActiveFrame) {
-							document.body.removeChild(oldActiveFrame);
-						}
+						oldActiveFrame?.remove();
 						// Styles may have changed since we created the element. Make sure we re-style
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
@@ -1164,7 +1197,9 @@
 					});
 
 					contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
-					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
+					contentWindow.addEventListener('dragover', handleInnerDragEvent);
+					contentWindow.addEventListener('drag', handleInnerDragEvent);
+					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
 				}

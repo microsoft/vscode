@@ -4,6 +4,7 @@ npm-debug.log
 Thumbs.db
 node_modules/
 .build/
+.vscode/extensions/**/out/
 extensions/**/dist/
 /out*/
 /extensions/**/out/
@@ -11,6 +12,7 @@ build/node_modules
 coverage/
 test_data/
 test-results/
+test-results.xml
 yarn-error.log
 vscode.lsif
 vscode.db

@@ -4,7 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.shake = exports.toStringShakeLevel = exports.ShakeLevel = void 0;
+exports.ShakeLevel = void 0;
+exports.toStringShakeLevel = toStringShakeLevel;
+exports.shake = shake;
 const fs = require("fs");
 const path = require("path");
 const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
@@ -24,7 +26,6 @@ function toStringShakeLevel(shakeLevel) {
             return 'ClassMembers (2)';
     }
 }
-exports.toStringShakeLevel = toStringShakeLevel;
 function printDiagnostics(options, diagnostics) {
     for (const diag of diagnostics) {
         let result = '';
@@ -61,7 +62,6 @@ function shake(options) {
     markNodes(ts, languageService, options);
     return generateResult(ts, languageService, options.shakeLevel);
 }
-exports.shake = shake;
 //#region Discovery, LanguageService & Setup
 function createTypeScriptLanguageService(ts, options) {
     // Discover referenced files
@@ -100,24 +100,22 @@ function discoverAndReadFiles(ts, options) {
     options.entryPoints.forEach((entryPoint) => enqueue(entryPoint));
     while (queue.length > 0) {
         const moduleId = queue.shift();
-        const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
+        let redirectedModuleId = moduleId;
+        if (options.redirects[moduleId]) {
+            redirectedModuleId = options.redirects[moduleId];
+        }
+        const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
         if (fs.existsSync(dts_filename)) {
             const dts_filecontents = fs.readFileSync(dts_filename).toString();
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
             continue;
         }
-        const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+        const js_filename = path.join(options.sourcesRoot, redirectedModuleId + '.js');
         if (fs.existsSync(js_filename)) {
             // This is an import for a .js file, so ignore it...
             continue;
         }
-        let ts_filename;
-        if (options.redirects[moduleId]) {
-            ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');
-        }
-        else {
-            ts_filename = path.join(options.sourcesRoot, moduleId + '.ts');
-        }
+        const ts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.ts');
         const ts_filecontents = fs.readFileSync(ts_filename).toString();
         const info = ts.preProcessFile(ts_filecontents);
         for (let i = info.importedFiles.length - 1; i >= 0; i--) {

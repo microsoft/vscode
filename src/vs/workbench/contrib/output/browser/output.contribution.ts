@@ -3,33 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { OutputService } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import * as nls from '../../../../nls.js';
+import { KeyMod, KeyChord, KeyCode } from '../../../../base/common/keyCodes.js';
+import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { OutputService } from './outputServices.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from '../../../services/output/common/output.js';
+import { OutputViewPane } from './outputView.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from '../../../services/editor/common/editorService.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
+import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -99,6 +101,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerOpenActiveOutputFileInAuxWindowAction();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
+		this.registerConfigureActiveOutputLogLevelAction();
 	}
 
 	private registerSwitchOutputAction(): void {
@@ -332,6 +335,78 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 		}
 		return null;
+	}
+
+	private registerConfigureActiveOutputLogLevelAction(): void {
+		const that = this;
+		const logLevelMenu = new MenuId('workbench.output.menu.logLevel');
+		this._register(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			submenu: logLevelMenu,
+			title: nls.localize('logLevel.label', "Set Log Level..."),
+			group: 'navigation',
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID), CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE),
+			icon: Codicon.gear,
+			order: 6
+		}));
+
+		let order = 0;
+		const registerLogLevel = (logLevel: LogLevel) => {
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.output.activeOutputLogLevel.${logLevel}`,
+						title: LogLevelToLocalizedString(logLevel).value,
+						toggled: CONTEXT_ACTIVE_OUTPUT_LEVEL.isEqualTo(LogLevelToString(logLevel)),
+						menu: {
+							id: logLevelMenu,
+							order: order++,
+							group: '0_level'
+						}
+					});
+				}
+				async run(accessor: ServicesAccessor): Promise<void> {
+					const channel = that.outputService.getActiveChannel();
+					if (channel) {
+						const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
+						if (channelDescriptor?.log && channelDescriptor.file) {
+							return accessor.get(ILoggerService).setLogLevel(channelDescriptor.file, logLevel);
+						}
+					}
+				}
+			}));
+		};
+
+		registerLogLevel(LogLevel.Trace);
+		registerLogLevel(LogLevel.Debug);
+		registerLogLevel(LogLevel.Info);
+		registerLogLevel(LogLevel.Warning);
+		registerLogLevel(LogLevel.Error);
+		registerLogLevel(LogLevel.Off);
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.output.activeOutputLogLevelDefault`,
+					title: nls.localize('logLevelDefault.label', "Set As Default"),
+					menu: {
+						id: logLevelMenu,
+						order,
+						group: '1_default'
+					},
+					precondition: CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.negate()
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const channel = that.outputService.getActiveChannel();
+				if (channel) {
+					const channelDescriptor = that.outputService.getChannelDescriptor(channel.id);
+					if (channelDescriptor?.log && channelDescriptor.file) {
+						const logLevel = accessor.get(ILoggerService).getLogLevel(channelDescriptor.file);
+						return await accessor.get(IDefaultLogLevelsService).setDefaultLogLevel(logLevel, channelDescriptor.extensionId);
+					}
+				}
+			}
+		}));
 	}
 
 	private registerShowLogsAction(): void {

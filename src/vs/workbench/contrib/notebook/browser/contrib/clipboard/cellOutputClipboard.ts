@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ICellOutputViewModel, ICellViewModel } from '../../notebookBrowser.js';
+import { isTextStreamMime } from '../../../common/notebookCommon.js';
 
 export async function copyCellOutput(mimeType: string | undefined, outputViewModel: ICellOutputViewModel, clipboardService: IClipboardService, logService: ILogService) {
 	const cellOutput = outputViewModel.model;

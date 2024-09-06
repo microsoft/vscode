@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBuiltInExtensions = exports.getExtensionStream = void 0;
+exports.getExtensionStream = getExtensionStream;
+exports.getBuiltInExtensions = getBuiltInExtensions;
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
@@ -58,7 +59,6 @@ function getExtensionStream(extension) {
     }
     return getExtensionDownloadStream(extension);
 }
-exports.getExtensionStream = getExtensionStream;
 function syncMarketplaceExtension(extension) {
     const galleryServiceUrl = productjson.extensionsGallery?.serviceUrl;
     const source = ansiColors.blue(galleryServiceUrl ? '[marketplace]' : '[github]');
@@ -127,7 +127,6 @@ function getBuiltInExtensions() {
             .on('end', resolve);
     });
 }
-exports.getBuiltInExtensions = getBuiltInExtensions;
 if (require.main === module) {
     getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
         console.error(err);

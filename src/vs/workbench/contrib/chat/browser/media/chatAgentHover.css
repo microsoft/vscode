@@ -1,0 +1,85 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-agent-hover {
+	line-height: unset;
+	padding: 6px 0px;
+}
+
+.chat-agent-hover-header {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.chat-agent-hover-icon img,
+.chat-agent-hover-icon .codicon {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	outline: 1px solid var(--vscode-chat-requestBorder);
+}
+
+.chat-agent-hover .chat-agent-hover-icon .codicon {
+	font-size: 23px !important; /* Override workbench hover styles */
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.chat-agent-hover-publisher {
+	display: flex;
+	gap: 4px;
+}
+
+.chat-agent-hover .chat-agent-hover-publisher .codicon.codicon-extensions-verified-publisher {
+	color: var(--vscode-extensionIcon-verifiedForeground);
+}
+
+.chat-agent-hover .extension-verified-publisher {
+	display: none;
+}
+
+.chat-agent-hover.verifiedPublisher .extension-verified-publisher {
+	display: flex;
+}
+
+.chat-agent-hover .chat-agent-hover-warning .codicon {
+	color: var(--vscode-notificationsWarningIcon-foreground) !important;
+	margin-right: 3px;
+}
+
+.chat-agent-hover.allowedName .chat-agent-hover-warning {
+	display: none;
+}
+
+.chat-agent-hover-header .chat-agent-hover-name {
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.chat-agent-hover-header .chat-agent-hover-details {
+	font-size: 12px;
+}
+
+.chat-agent-hover-extension {
+	display: flex;
+	gap: 6px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-agent-hover.noExtensionName .chat-agent-hover-separator,
+.chat-agent-hover.noExtensionName .chat-agent-hover-extension-name {
+	display: none;
+}
+
+.chat-agent-hover-separator {
+	opacity: 0.7;
+}
+
+.chat-agent-hover-description,
+.chat-agent-hover-warning {
+	font-size: 13px;
+}

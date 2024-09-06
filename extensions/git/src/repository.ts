@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
-import TelemetryReporter from '@vscode/extension-telemetry';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { ActionButton } from './actionButton';
+import { ApiRepository } from './api/api1';
+import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefQuery, RefType, Remote, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
+import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, throttle } from './decorators';
-import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions, LsTreeElement } from './git';
+import { Repository as BaseRepository, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
+import { GitHistoryProvider } from './historyProvider';
+import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
+import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { IPushErrorHandlerRegistry } from './pushError';
+import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
-import { IPushErrorHandlerRegistry } from './pushError';
-import { ApiRepository } from './api/api1';
-import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { ActionButton } from './actionButton';
-import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
-import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
-import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
-import { GitHistoryProvider } from './historyProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -426,8 +426,8 @@ class FileEventLogger {
 		}
 
 		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.logger.debug(`[wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.logger.debug(`[.git] Change: ${uri.fsPath}`))
+			this.onWorkspaceWorkingTreeFileChange(uri => this.logger.debug(`[FileEventLogger][onWorkspaceWorkingTreeFileChange] ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.logger.debug(`[FileEventLogger][onDotGitFileChange] ${uri.fsPath}`))
 		]);
 	}
 
@@ -478,7 +478,7 @@ class DotGitWatcher implements IFileWatcher {
 			this.transientDisposables.push(upstreamWatcher);
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
-			this.logger.warn(`Failed to watch ref '${upstreamPath}', is most likely packed.`);
+			this.logger.warn(`[DotGitWatcher][updateTransientWatchers] Failed to watch ref '${upstreamPath}', is most likely packed.`);
 		}
 	}
 
@@ -717,6 +717,8 @@ export class Repository implements Disposable {
 
 	private _untrackedGroup: SourceControlResourceGroup;
 	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
+
+	private _EMPTY_TREE: string | undefined;
 
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
@@ -1046,8 +1048,9 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(false), () => this.repository.config('local', key, value));
 	}
 
-	log(options?: LogOptions): Promise<Commit[]> {
-		return this.run(Operation.Log, () => this.repository.log(options));
+	log(options?: LogOptions & { silent?: boolean }): Promise<Commit[]> {
+		const showProgress = !options || options.silent !== true;
+		return this.run(Operation.Log(showProgress), () => this.repository.log(options));
 	}
 
 	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
@@ -1112,8 +1115,12 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
-		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
+	diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
+		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2));
+	}
+
+	getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
+		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2, ...refs));
 	}
 
 	async hashObject(data: string): Promise<string> {
@@ -1166,9 +1173,10 @@ export class Repository implements Disposable {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, async () => {
 			await this.repository.stage(path, contents);
+
+			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
 		});
-		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
@@ -1357,21 +1365,28 @@ export class Repository implements Disposable {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
-		const diffEditorTabsToClose: Tab[] = [];
-
-		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
-			const { input } = tab;
-			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Index
-					diffEditorTabsToClose.push(tab);
-				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Working Tree
-					diffEditorTabsToClose.push(tab);
-				}
+		function checkTabShouldClose(input: TabInputTextDiff | TabInputNotebookDiff) {
+			if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Index
+				return true;
 			}
+			if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Working Tree
+				return true;
+			}
+			return false;
 		}
+
+		const diffEditorTabsToClose = window.tabGroups.all
+			.flatMap(g => g.tabs)
+			.filter(({ input }) => {
+				if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
+					return checkTabShouldClose(input);
+				} else if (input instanceof TabInputTextMultiDiff) {
+					return input.textDiffs.every(checkTabShouldClose);
+				}
+				return false;
+			});
 
 		// Close editors
 		window.tabGroups.close(diffEditorTabsToClose, true);
@@ -1493,16 +1508,13 @@ export class Repository implements Disposable {
 
 	private async getDefaultBranch(): Promise<Branch | undefined> {
 		try {
-			const defaultBranchResult = await this.repository.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-			if (defaultBranchResult.stdout.trim() === '' || defaultBranchResult.stderr) {
-				return undefined;
-			}
-
-			return this.getBranch(defaultBranchResult.stdout.trim());
+			const defaultBranch = await this.repository.getDefaultBranch();
+			return defaultBranch;
 		}
-		catch (err) { }
-
-		return undefined;
+		catch (err) {
+			this.logger.warn(`[Repository][getDefaultBranch] Failed to get default branch details: ${err.message}.`);
+			return undefined;
+		}
 	}
 
 	private async getUpstreamBranch(branch: Branch): Promise<Branch | undefined> {
@@ -1515,7 +1527,7 @@ export class Repository implements Disposable {
 			return upstreamBranch;
 		}
 		catch (err) {
-			this.logger.warn(`Failed to get branch details for 'refs/remotes/${branch.upstream.remote}/${branch.upstream.name}': ${err.message}.`);
+			this.logger.warn(`[Repository][getUpstreamBranch] Failed to get branch details for 'refs/remotes/${branch.upstream.remote}/${branch.upstream.name}': ${err.message}.`);
 			return undefined;
 		}
 	}
@@ -1594,27 +1606,13 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
-	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
-	}
-
-	async getDiff(): Promise<string[]> {
-		const diff: string[] = [];
-		if (this.indexGroup.resourceStates.length !== 0) {
-			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffIndexWithHEAD(file));
-			}
-		} else {
-			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-				diff.push(await this.diffWithHEAD(file));
-			}
+	async getEmptyTree(): Promise<string> {
+		if (!this._EMPTY_TREE) {
+			const result = await this.repository.exec(['hash-object', '-t', 'tree', '/dev/null']);
+			this._EMPTY_TREE = result.stdout.trim();
 		}
 
-		return diff;
-	}
-
-	async revParse(ref: string): Promise<string | undefined> {
-		return await this.run(Operation.RevParse, () => this.repository.revParse(ref));
+		return this._EMPTY_TREE;
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
@@ -1826,7 +1824,7 @@ export class Repository implements Disposable {
 			return true;
 		}
 
-		const maybeRebased = await this.run(Operation.Log, async () => {
+		const maybeRebased = await this.run(Operation.Log(true), async () => {
 			try {
 				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {
@@ -1872,13 +1870,14 @@ export class Repository implements Disposable {
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const defaultEncoding = configFiles.get<string>('encoding');
 			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
+			const candidateGuessEncodings = configFiles.get<string[]>('candidateGuessEncodings');
 
 			try {
-				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding);
+				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
 					const gitRelativePath = await this.repository.getGitRelativePath(ref, path);
-					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
+					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding, candidateGuessEncodings);
 				}
 
 				throw err;
@@ -1949,7 +1948,8 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.map(uri => relativePath(this.repository.root, uri.fsPath)
+					.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))
@@ -2415,17 +2415,17 @@ export class Repository implements Disposable {
 		const autorefresh = config.get<boolean>('autorefresh');
 
 		if (!autorefresh) {
-			this.logger.trace('Skip running git status because autorefresh setting is disabled.');
+			this.logger.trace('[Repository][onFileChange] Skip running git status because autorefresh setting is disabled.');
 			return;
 		}
 
 		if (this.isRepositoryHuge) {
-			this.logger.trace('Skip running git status because repository is huge.');
+			this.logger.trace('[Repository][onFileChange] Skip running git status because repository is huge.');
 			return;
 		}
 
 		if (!this.operations.isIdle()) {
-			this.logger.trace('Skip running git status because an operation is running.');
+			this.logger.trace('[Repository][onFileChange] Skip running git status because an operation is running.');
 			return;
 		}
 

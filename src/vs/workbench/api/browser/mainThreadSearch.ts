@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
-import { revive } from 'vs/base/common/marshalling';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from '../../services/search/common/search.js';
+import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol.js';
+import { revive } from '../../../base/common/marshalling.js';
+import * as Constants from '../../contrib/search/common/constants.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -24,6 +26,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService _configurationService: IConfigurationService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
 		this._proxy.$enableExtensionHostSearch();
@@ -39,6 +42,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	}
 
 	$registerAITextSearchProvider(handle: number, scheme: string): void {
+		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(true);
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.aiText, scheme, handle, this._proxy));
 	}
 

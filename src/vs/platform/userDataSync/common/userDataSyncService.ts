@@ -3,46 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { isBoolean, isUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ExtensionsSynchroniser } from 'vs/platform/userDataSync/common/extensionsSync';
-import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalStateSync';
-import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { TasksSynchroniser } from 'vs/platform/userDataSync/common/tasksSync';
-import { UserDataProfilesManifestSynchroniser } from 'vs/platform/userDataSync/common/userDataProfilesManifestSync';
+import { equals } from '../../../base/common/arrays.js';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { isBoolean, isUndefined } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IExtensionGalleryService } from '../../extensionManagement/common/extensionManagement.js';
+import { IFileService } from '../../files/common/files.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { ExtensionsSynchroniser } from './extensionsSync.js';
+import { GlobalStateSynchroniser } from './globalStateSync.js';
+import { KeybindingsSynchroniser } from './keybindingsSync.js';
+import { SettingsSynchroniser } from './settingsSync.js';
+import { SnippetsSynchroniser } from './snippetsSync.js';
+import { TasksSynchroniser } from './tasksSync.js';
+import { UserDataProfilesManifestSynchroniser } from './userDataProfilesManifestSync.js';
 import {
 	ALL_SYNC_RESOURCES, Change, createSyncHeaders, IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError,
 	IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, ISyncUserDataProfile, IUserDataManifest, IUserDataResourceManifest, IUserDataSyncConfiguration,
 	IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService,
 	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE, IUserDataSyncResourceProviderService, IUserDataActivityData, IUserDataSyncLocalStoreService
-} from 'vs/platform/userDataSync/common/userDataSync';
+} from './userDataSync.js';
 
 type SyncErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the error that occurred while syncing';
-	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service for which this error has occurred' };
-	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service error code' };
-	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource URL for which this error has occurred' };
-	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource for which this error has occurred' };
-	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync execution id for which this error has occurred' };
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync service for which this error has occurred' };
+	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync service error code' };
+	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync resource URL for which this error has occurred' };
+	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync resource for which this error has occurred' };
+	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync execution id for which this error has occurred' };
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
@@ -98,6 +98,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
 		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.APPLICATION, undefined);
 		this._register(toDisposable(() => this.clearActiveProfileSynchronizers()));
+
+		this._register(new RunOnceScheduler(() => this.cleanUpStaleStorageData(), 5 * 1000 /* after 5s */)).schedule();
 	}
 
 	async createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<IUserDataSyncTask> {
@@ -245,6 +247,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			if (this.userDataProfilesService.profiles.some(p => p.id === profileSynchronizerItem[0].profile.id)) {
 				continue;
 			}
+			await profileSynchronizerItem[0].resetLocal();
 			profileSynchronizerItem[1].dispose();
 			this.activeProfileSynchronizers.delete(key);
 		}
@@ -395,6 +398,46 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.clearActiveProfileSynchronizers();
 		this._onDidResetLocal.fire();
 		this.logService.info('Did reset the local sync state.');
+	}
+
+	private async cleanUpStaleStorageData(): Promise<void> {
+		const allKeys = this.storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const lastSyncProfileKeys: [string, string][] = [];
+		for (const key of allKeys) {
+			if (!key.endsWith('.lastSyncUserData')) {
+				continue;
+			}
+			const segments = key.split('.');
+			if (segments.length === 3) {
+				lastSyncProfileKeys.push([key, segments[0]]);
+			}
+		}
+		if (!lastSyncProfileKeys.length) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+
+		try {
+			let defaultProfileSynchronizer = this.activeProfileSynchronizers.get(this.userDataProfilesService.defaultProfile.id)?.[0];
+			if (!defaultProfileSynchronizer) {
+				defaultProfileSynchronizer = disposables.add(this.instantiationService.createInstance(ProfileSynchronizer, this.userDataProfilesService.defaultProfile, undefined));
+			}
+			const userDataProfileManifestSynchronizer = defaultProfileSynchronizer.enabled.find(s => s.resource === SyncResource.Profiles) as UserDataProfilesManifestSynchroniser;
+			if (!userDataProfileManifestSynchronizer) {
+				return;
+			}
+			const lastSyncedProfiles = await userDataProfileManifestSynchronizer.getLastSyncedProfiles();
+			const lastSyncedCollections = lastSyncedProfiles?.map(p => p.collection) ?? [];
+			for (const [key, collection] of lastSyncProfileKeys) {
+				if (!lastSyncedCollections.includes(collection)) {
+					this.logService.info(`Removing last sync state for stale profile: ${collection}`);
+					this.storageService.remove(key, StorageScope.APPLICATION);
+				}
+			}
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	async cleanUpRemoteData(): Promise<void> {
@@ -659,8 +702,7 @@ class ProfileSynchronizer extends Disposable {
 			const [[synchronizer, , disposable]] = this._enabled.splice(index, 1);
 			disposable.dispose();
 			this.updateStatus();
-			Promise.allSettled([synchronizer.stop(), synchronizer.resetLocal()])
-				.then(null, error => this.logService.error(error));
+			synchronizer.stop().then(null, error => this.logService.error(error));
 		}
 	}
 

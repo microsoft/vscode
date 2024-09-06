@@ -23,6 +23,7 @@
 	-webkit-text-size-adjust: 100%;
 	color: var(--vscode-editor-foreground);
 	background-color: var(--vscode-editor-background);
+	overflow-wrap: initial;
 }
 .monaco-editor-background {
 	background-color: var(--vscode-editor-background);
@@ -54,6 +55,11 @@
 .monaco-editor .view-overlays {
 	position: absolute;
 	top: 0;
+}
+
+.monaco-editor .view-overlays > div, .monaco-editor .margin-view-overlays > div {
+	position: absolute;
+	width: 100%;
 }
 
 /*

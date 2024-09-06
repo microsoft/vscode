@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
+exports.extractEditor = extractEditor;
+exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 const fs = require("fs");
 const path = require("path");
 const tss = require("./treeshaking");
@@ -105,13 +106,9 @@ function extractEditor(options) {
         'vs/css.build.ts',
         'vs/css.ts',
         'vs/loader.js',
-        'vs/loader.d.ts',
-        'vs/nls.build.ts',
-        'vs/nls.ts',
-        'vs/nls.mock.ts',
+        'vs/loader.d.ts'
     ].forEach(copyFile);
 }
-exports.extractEditor = extractEditor;
 function createESMSourcesAndResources2(options) {
     const ts = require('typescript');
     const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
@@ -134,7 +131,7 @@ function createESMSourcesAndResources2(options) {
         }
         if (file === 'tsconfig.json') {
             const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-            tsConfig.compilerOptions.module = 'es6';
+            tsConfig.compilerOptions.module = 'es2022';
             tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
             write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
             continue;
@@ -251,7 +248,6 @@ function createESMSourcesAndResources2(options) {
         }
     }
 }
-exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {
         return false;

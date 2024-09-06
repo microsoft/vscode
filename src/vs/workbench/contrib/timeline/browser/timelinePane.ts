@@ -3,59 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/timelinePane';
-import { localize, localize2 } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { fromNow } from 'vs/base/common/date';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { isString } from 'vs/base/common/types';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import './media/timelinePane.css';
+import { localize, localize2 } from '../../../../nls.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { IAction, ActionRunner } from '../../../../base/common/actions.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { DisposableStore, IDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
+import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from '../common/timeline.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { SideBySideEditor, EditorResourceAccessor } from '../../../common/editor.js';
+import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { createAndFillInContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { isString } from '../../../../base/common/types.js';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const ItemHeight = 22;
 
@@ -66,7 +67,7 @@ function isLoadMoreCommand(item: TreeElement | undefined): item is LoadMoreComma
 }
 
 function isTimelineItem(item: TreeElement | undefined): item is TimelineItem {
-	return !item?.handle.startsWith('vscode-command:') ?? false;
+	return !!item && !item.handle.startsWith('vscode-command:');
 }
 
 function updateRelativeTime(item: TimelineItem, lastRelativeTime: string | undefined): string | undefined {
@@ -268,11 +269,12 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.commands = this._register(this.instantiationService.createInstance(TimelinePaneCommands, this));
 
@@ -416,7 +418,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(e.uri, this.uri)) {
+		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(URI.revive(e.uri), this.uri)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
@@ -572,6 +574,15 @@ export class TimelinePane extends ViewPane {
 		}
 
 		if (options === undefined) {
+			if (
+				!reset &&
+				timeline !== undefined &&
+				timeline.items.length > 0 &&
+				!timeline.more
+			) {
+				// If we are not resetting, have item(s), and already know there are no more to fetch, we're done here
+				return false;
+			}
 			options = { cursor: reset ? undefined : timeline?.cursor, limit: this.pageSize };
 		}
 
@@ -721,7 +732,7 @@ export class TimelinePane extends ViewPane {
 			timeline.lastRenderedIndex = count - 1;
 		}
 		else {
-			const sources: { timeline: TimelineAggregate; iterator: IterableIterator<TimelineItem>; nextItem: IteratorResult<TimelineItem, TimelineItem> }[] = [];
+			const sources: { timeline: TimelineAggregate; iterator: IterableIterator<TimelineItem>; nextItem: IteratorResult<TimelineItem, undefined> }[] = [];
 
 			let hasAnyItems = false;
 			let mostRecentEnd = 0;
@@ -755,7 +766,7 @@ export class TimelinePane extends ViewPane {
 			function getNextMostRecentSource() {
 				return sources
 					.filter(source => !source.nextItem.done)
-					.reduce((previous, current) => (previous === undefined || current.nextItem.value.timestamp >= previous.nextItem.value.timestamp) ? current : previous, undefined!);
+					.reduce((previous, current) => (previous === undefined || current.nextItem.value!.timestamp >= previous.nextItem.value!.timestamp) ? current : previous, undefined!);
 			}
 
 			let lastRelativeTime: string | undefined;
@@ -763,7 +774,7 @@ export class TimelinePane extends ViewPane {
 			while (nextSource = getNextMostRecentSource()) {
 				nextSource.timeline.lastRenderedIndex++;
 
-				const item = nextSource.nextItem.value;
+				const item = nextSource.nextItem.value!;
 				item.relativeTime = undefined;
 				item.hideRelativeTime = undefined;
 
@@ -935,9 +946,7 @@ export class TimelinePane extends ViewPane {
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			multipleSelectionSupport: false,
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 		});
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
@@ -1207,7 +1216,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		template.timestamp.ariaLabel = item.relativeTimeFullWord ?? '';
 		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
-		template.actionBar.context = { uri: this.uri, item } as TimelineActionContext;
+		template.actionBar.context = { uri: this.uri, item } satisfies TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();
 		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
 
@@ -1228,7 +1237,7 @@ const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timeline
 const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
 
 class TimelinePaneCommands extends Disposable {
-	private sourceDisposables: DisposableStore;
+	private readonly sourceDisposables: DisposableStore;
 
 	constructor(
 		private readonly pane: TimelinePane,
@@ -1306,13 +1315,11 @@ class TimelinePaneCommands extends Disposable {
 			[context.key, context.value],
 		]);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
+		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-
-		menu.dispose();
+		createAndFillInContextMenuActions(menu, result, 'inline');
 
 		return result;
 	}

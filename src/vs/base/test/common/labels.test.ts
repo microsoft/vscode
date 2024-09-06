@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as labels from 'vs/base/common/labels';
-import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import * as labels from '../../common/labels.js';
+import { isMacintosh, isWindows, OperatingSystem } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Labels', () => {
 	(!isWindows ? test.skip : test)('shorten - windows', () => {

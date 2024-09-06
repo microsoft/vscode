@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
+import { ISerializableCommandAction } from '../../action/common/action.js';
+import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IV8Profile } from '../../profiling/common/profiling.js';
+import { AuthInfo, Credentials } from '../../request/common/request.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
 export interface ICPUProperties {
 	model: string;
@@ -73,10 +74,12 @@ export interface ICommonNativeHostService {
 	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
+	getActiveWindowPosition(): Promise<IRectangle | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
+	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
 	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
@@ -125,7 +128,7 @@ export interface ICommonNativeHostService {
 	showItemInFolder(path: string): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
-	openExternal(url: string): Promise<boolean>;
+	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
@@ -141,6 +144,7 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Process
+	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard
@@ -174,7 +178,7 @@ export interface ICommonNativeHostService {
 	exit(code: number): Promise<void>;
 
 	// Development
-	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
+	openDevTools(options?: INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 
 	// Perf Introspection
@@ -182,6 +186,8 @@ export interface ICommonNativeHostService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 

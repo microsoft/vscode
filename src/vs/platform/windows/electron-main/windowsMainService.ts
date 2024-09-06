@@ -3,59 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { app, BrowserWindow, WebContents, shell } from 'electron';
-import { Promises } from 'vs/base/node/pfs';
-import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { addUNCHostToAllowlist } from '../../../base/node/unc.js';
 import { hostname, release, arch } from 'os';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CharCode } from 'vs/base/common/charCode';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from 'vs/base/common/extpath';
-import { getPathLabel } from 'vs/base/common/labels';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, join, normalize, posix } from 'vs/base/common/path';
-import { getMarks, mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { FileType, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IStateService } from 'vs/platform/state/node/state';
-import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/window/common/window';
-import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
-import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from 'vs/platform/windows/electron-main/windows';
-import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { IRecent } from 'vs/platform/workspaces/common/workspaces';
-import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { ICodeWindow, UnloadReason } from 'vs/platform/window/electron-main/window';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
-import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { coalesce, distinct } from '../../../base/common/arrays.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CharCode } from '../../../base/common/charCode.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from '../../../base/common/extpath.js';
+import { getPathLabel } from '../../../base/common/labels.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { basename, join, normalize, posix } from '../../../base/common/path.js';
+import { getMarks, mark } from '../../../base/common/performance.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
+import { cwd } from '../../../base/common/process.js';
+import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
+import { IBackupMainService } from '../../backup/electron-main/backup.js';
+import { IEmptyWindowBackupInfo } from '../../backup/node/backup.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { FileType, IFileService } from '../../files/common/files.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import product from '../../product/common/product.js';
+import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
+import { IStateService } from '../../state/node/state.js';
+import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
+import { CodeWindow } from './windowImpl.js';
+import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
+import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
+import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
+import { IRecent } from '../../workspaces/common/workspaces.js';
+import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { createEmptyWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from '../../workspaces/node/workspaces.js';
+import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
+import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
+import { ICodeWindow, UnloadReason } from '../../window/electron-main/window.js';
+import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { IEditorOptions, ITextEditorOptions } from '../../editor/common/editor.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IPolicyService } from '../../policy/common/policy.js';
+import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
+import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
+import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 
 //#region Helper Interfaces
 
@@ -211,6 +212,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
+		private readonly devDeviceId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
@@ -228,7 +230,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IFileService private readonly fileService: IFileService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		super();
 
@@ -268,7 +271,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
+		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority, forceTempProfile: options?.forceTempProfile, forceProfile: options?.forceProfile });
 	}
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void {
@@ -296,7 +299,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const emptyWindowsWithBackupsToRestore: IEmptyWindowBackupInfo[] = [];
 
 		let filesToOpen: IFilesToOpen | undefined;
-		let emptyToOpen = 0;
+		let openOneEmptyWindow = false;
 
 		// Identify things to open from open config
 		const pathsToOpen = await this.getPathsToOpen(openConfig);
@@ -320,7 +323,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			} else if (path.backupPath) {
 				emptyWindowsWithBackupsToRestore.push({ backupFolder: basename(path.backupPath), remoteAuthority: path.remoteAuthority });
 			} else {
-				emptyToOpen++;
+				openOneEmptyWindow = true;
 			}
 		}
 
@@ -356,9 +359,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Open based on config
-		const { windows: usedWindows, filesOpenedInWindow } = await this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, emptyToOpen, filesToOpen, foldersToAdd);
+		const { windows: usedWindows, filesOpenedInWindow } = await this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, openOneEmptyWindow, filesToOpen, foldersToAdd);
 
-		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, emptyToOpen: ${emptyToOpen})`);
+		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, openOneEmptyWindow: ${openOneEmptyWindow})`);
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
@@ -457,7 +460,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		workspacesToOpen: IWorkspacePathToOpen[],
 		foldersToOpen: ISingleFolderWorkspacePathToOpen[],
 		emptyToRestore: IEmptyWindowBackupInfo[],
-		emptyToOpen: number,
+		openOneEmptyWindow: boolean,
 		filesToOpen: IFilesToOpen | undefined,
 		foldersToAdd: ISingleFolderWorkspacePathToOpen[]
 	): Promise<{ windows: ICodeWindow[]; filesOpenedInWindow: ICodeWindow | undefined }> {
@@ -505,7 +508,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// this step.
 			let windowToUseForFiles: ICodeWindow | undefined = undefined;
 			if (fileToCheck?.fileUri && !openFilesInNewWindow) {
-				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CLI || openConfig.context === OpenContext.DOCK) {
+				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CLI || openConfig.context === OpenContext.DOCK || openConfig.context === OpenContext.LINK) {
 					windowToUseForFiles = await findWindowOnFile(windows, fileToCheck.fileUri, async workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesManagementMainService.resolveLocalWorkspace(workspace.configPath) : undefined);
 				}
 
@@ -626,20 +629,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		// Handle empty to open (only if no other window opened)
-		if (usedWindows.length === 0 || filesToOpen) {
-			if (filesToOpen && !emptyToOpen) {
-				emptyToOpen++;
-			}
-
+		// Open empty window either if enforced or when files still have to open
+		if (filesToOpen || openOneEmptyWindow) {
 			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
 
-			for (let i = 0; i < emptyToOpen; i++) {
-				addUsedWindow(await this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
-
-				// any other window to open must open in new window then
-				openFolderInNewWindow = true;
-			}
+			addUsedWindow(await this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
 		}
 
 		return { windows: distinct(usedWindows), filesOpenedInWindow };
@@ -667,7 +661,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		const focusedWindow = BrowserWindow.getFocusedWindow();
 		if (focusedWindow && focusedWindow.id !== mainWindow.id) {
-			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowByWebContents(focusedWindow.webContents);
 			if (auxiliaryWindowCandidate && auxiliaryWindowCandidate.parentId === mainWindow.id) {
 				windowToFocus = auxiliaryWindowCandidate;
 			}
@@ -1056,7 +1050,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		path = sanitizeFilePath(normalize(path), cwd());
 
 		try {
-			const pathStat = await Promises.stat(path);
+			const pathStat = await fs.promises.stat(path);
 
 			// File
 			if (pathStat.isFile()) {
@@ -1389,7 +1383,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 		const lastActiveWindow = this.getLastActiveWindow();
-		const defaultProfile = lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+		const newWindowProfile = windowConfig?.newWindowProfile
+			? this.userDataProfilesMainService.profiles.find(profile => profile.name === windowConfig.newWindowProfile) : undefined;
+		const defaultProfile = newWindowProfile ?? lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -1409,6 +1405,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			machineId: this.machineId,
 			sqmId: this.sqmId,
+			devDeviceId: this.devDeviceId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 
@@ -1440,6 +1437,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			workspace: options.workspace,
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
+			nls: {
+				messages: getNLSMessages(),
+				language: getNLSLanguage()
+			},
+
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
 			filesToDiff: options.filesToOpen?.filesToDiff,
 			filesToMerge: options.filesToOpen?.filesToMerge,
@@ -1462,7 +1464,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
-			continueOn: this.environmentMainService.continueOn
+			continueOn: this.environmentMainService.continueOn,
+
+			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 		};
 
 		// New window
@@ -1506,7 +1510,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+			disposables.add(Event.fromNodeEventEmitter(webContents, 'devtools-reload-page')(() => this.lifecycleMainService.reload(createdWindow)));
 
 			// Lifecycle
 			this.lifecycleMainService.registerWindow(createdWindow);
@@ -1701,6 +1705,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return undefined;
 		}
 
-		return this.getWindowById(browserWindow.id);
+		const window = this.getWindowById(browserWindow.id);
+
+		return window?.matches(webContents) ? window : undefined;
 	}
 }

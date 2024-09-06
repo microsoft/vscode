@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
-import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { URI } from '../../../base/common/uri.js';
+import { IRange } from '../core/range.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { IChange } from '../diff/legacyLinesDiffComputer.js';
+import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from '../languages.js';
+import { UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import type { BaseEditorSimpleWorker } from './editorSimpleWorker.js';
+import { SectionHeader, FindSectionHeaderOptions } from './findSectionHeaders.js';
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
@@ -22,7 +23,7 @@ export interface IEditorWorkerService {
 	canComputeUnicodeHighlights(uri: URI): boolean;
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
-	/** Implementation in {@link EditorSimpleWorker.computeDiff} */
+	/** Implementation in {@link BaseEditorSimpleWorker.computeDiff} */
 	computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
@@ -36,6 +37,11 @@ export interface IEditorWorkerService {
 
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
+
+	findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]>;
+
+	computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null>;
+
 }
 
 export interface IDiffComputationResult {

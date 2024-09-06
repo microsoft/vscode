@@ -374,7 +374,7 @@
 		},
 		{
 			"name": "CSS Property Name",
-			"scope": "support.type.property-name",
+			"scope": "source.css support.type.property-name",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#676867"

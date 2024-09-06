@@ -1,7 +1,7 @@
 parameters:
   - name: channel
     type: string
-    default: 1.73.0
+    default: 1.77
   - name: targets
     default: []
     type: object

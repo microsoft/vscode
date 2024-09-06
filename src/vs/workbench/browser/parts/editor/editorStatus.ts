@@ -3,61 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorstatus';
-import { localize, localize2 } from 'vs/nls';
-import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { format, compare, splitLines } from 'vs/base/common/strings';
-import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Action } from 'vs/base/common/actions';
-import { Language } from 'vs/base/common/platform';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorAction } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
-import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { deepClone } from 'vs/base/common/objects';
-import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Schemas } from 'vs/base/common/network';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
-import { Promises, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { mainWindow } from 'vs/base/browser/window';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import './media/editorstatus.css';
+import { localize, localize2 } from '../../../../nls.js';
+import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { format, compare, splitLines } from '../../../../base/common/strings.js';
+import { extname, basename, isEqual } from '../../../../base/common/resources.js';
+import { areFunctions, assertIsDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Language } from '../../../../base/common/platform.js';
+import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
+import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { Disposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IEditorAction } from '../../../../editor/common/editorCommon.js';
+import { EndOfLineSequence } from '../../../../editor/common/model.js';
+import { TrimTrailingWhitespaceAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
+import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
+import { BaseBinaryResourceEditor } from './binaryEditor.js';
+import { BinaryResourceDiffEditor } from './binaryDiffEditor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IFileService, FILES_ASSOCIATIONS_CONFIG } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILanguageService, ILanguageSelection } from '../../../../editor/common/languages/language.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { SUPPORTED_ENCODINGS } from '../../../services/textfile/common/encoding.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { getIconClassesForLanguageId } from '../../../../editor/common/services/getIconClasses.js';
+import { Promises, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
+import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from '../../../../platform/markers/common/markers.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from '../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
+import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -328,7 +326,7 @@ class EditorStatus extends Disposable {
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
 	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
-	private readonly tabFocusMode = this.instantiationService.createInstance(TabFocusMode);
+	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
 
 	private readonly state = new State();
 	private toRender: StateChange | undefined = undefined;
@@ -366,7 +364,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() });
+		this._register(CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() }));
 	}
 
 	private async showIndentationPicker(): Promise<unknown> {
@@ -886,22 +884,23 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 	static readonly ID = 'workbench.contrib.editorStatus';
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
 
-		// Main Editor Status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
-			[IEditorService, editorService.createScoped('main', this._store)]
-		));
-		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
+		for (const part of editorGroupService.parts) {
+			this.createEditorStatus(part);
+		}
 
-		// Auxiliary Editor Status
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(EditorStatus, part.windowId));
-		}));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createEditorStatus(part)));
+	}
+
+	private createEditorStatus(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		disposables.add(scopedInstantiationService.createInstance(EditorStatus, part.windowId));
 	}
 }
 
@@ -1079,11 +1078,20 @@ export class ChangeLanguageAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM)
 			},
-			precondition: ContextKeyExpr.not('notebookEditorFocused')
+			precondition: ContextKeyExpr.not('notebookEditorFocused'),
+			metadata: {
+				description: localize('changeLanguageMode.description', "Change the language mode of the active text editor."),
+				args: [
+					{
+						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
+						constraint: (value: any) => typeof value === 'string',
+					}
+				]
+			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, languageMode?: string): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
 		const languageService = accessor.get(ILanguageService);
@@ -1162,7 +1170,7 @@ export class ChangeLanguageAction extends Action2 {
 		};
 		picks.unshift(autoDetectLanguage);
 
-		const pick = await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
 		}
@@ -1444,13 +1452,16 @@ export class ChangeEncodingAction extends Action2 {
 
 		let guessedEncoding: string | undefined = undefined;
 		if (fileService.hasProvider(resource)) {
-			const content = await textFileService.readStream(resource, { autoGuessEncoding: true });
+			const content = await textFileService.readStream(resource, {
+				autoGuessEncoding: true,
+				candidateGuessEncodings: textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings')
+			});
 			guessedEncoding = content.encoding;
 		}
 
 		const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-		const configuredEncoding = textResourceConfigurationService.getValue(resource ?? undefined, 'files.encoding');
+		const configuredEncoding = textResourceConfigurationService.getValue(resource, 'files.encoding');
 
 		let directMatchIndex: number | undefined;
 		let aliasMatchIndex: number | undefined;

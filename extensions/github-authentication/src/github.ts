@@ -11,7 +11,7 @@ import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
 import { crypto } from './node/crypto';
-import { CANCELLATION_ERROR, TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 
 interface SessionData {
 	id: string;
@@ -97,6 +97,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private readonly _keychain: Keychain;
 	private readonly _accountsSeen = new Set<string>();
 	private readonly _disposable: vscode.Disposable | undefined;
+	private _supportsMultipleAccounts = false;
 
 	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
 
@@ -133,10 +134,24 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
+		this._supportsMultipleAccounts = vscode.workspace.getConfiguration('github.experimental').get<boolean>('multipleAccounts', false);
+
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: false }),
-			this.context.secrets.onDidChange(() => this.checkForUpdates())
+			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: this._supportsMultipleAccounts }),
+			this.context.secrets.onDidChange(() => this.checkForUpdates()),
+			vscode.workspace.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration('github.experimental.multipleAccounts')) {
+					const newValue = vscode.workspace.getConfiguration('github.experimental').get<boolean>('multipleAccounts', false);
+					if (newValue === this._supportsMultipleAccounts) {
+						return;
+					}
+					const result = await vscode.window.showInformationMessage(vscode.l10n.t('Please reload the window to apply the new setting.'), { modal: true }, vscode.l10n.t('Reload Window'));
+					if (result) {
+						vscode.commands.executeCommand('workbench.action.reloadWindow');
+					}
+				}
+			})
 		);
 	}
 
@@ -148,14 +163,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return this._sessionChangeEmitter.event;
 	}
 
-	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 		const sortedScopes = scopes?.sort() || [];
 		this._logger.info(`Getting sessions for ${sortedScopes.length ? sortedScopes.join(',') : 'all scopes'}...`);
 		const sessions = await this._sessionsPromise;
-		const finalSessions = sortedScopes.length
-			? sessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
+		const accountFilteredSessions = options?.account
+			? sessions.filter(session => session.account.label === options.account?.label)
 			: sessions;
+		const finalSessions = sortedScopes.length
+			? accountFilteredSessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
+			: accountFilteredSessions;
 
 		this._logger.info(`Got ${finalSessions.length} sessions for ${sortedScopes?.join(',') ?? 'all scopes'}...`);
 		return finalSessions;
@@ -226,7 +244,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		const sessionPromises = sessionData.map(async (session: SessionData) => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			if (scopesSeen.has(scopesStr)) {
+			if (!this._supportsMultipleAccounts && scopesSeen.has(scopesStr)) {
 				return undefined;
 			}
 			let userInfo: { id: string; accountName: string } | undefined;
@@ -279,7 +297,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._logger.info(`Stored ${sessions.length} sessions!`);
 	}
 
-	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+	public async createSession(scopes: string[], options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		try {
 			// For GitHub scope list, order doesn't matter so we use a sorted scope to determine
 			// if we've got a session already.
@@ -298,51 +316,29 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			const sessions = await this._sessionsPromise;
 
+			// First we use the account specified in the options, otherwise we use the first account we have to seed auth.
+			const loginWith = options?.account?.label ?? sessions[0]?.account.label;
+			this._logger.info(`Logging in with '${loginWith ? loginWith : 'any'}' account...`);
+
 			const scopeString = sortedScopes.join(' ');
-			const existingLogin = sessions[0]?.account.label;
-			const token = await this._githubServer.login(scopeString, existingLogin);
+			const token = await this._githubServer.login(scopeString, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			if (sessions.some(s => s.id !== session.id)) {
-				const otherAccountsIndexes = new Array<number>();
-				const otherAccountsLabels = new Set<string>();
-				for (let i = 0; i < sessions.length; i++) {
-					if (sessions[i].id !== session.id) {
-						otherAccountsIndexes.push(i);
-						otherAccountsLabels.add(sessions[i].account.label);
-					}
-				}
-				const proceed = vscode.l10n.t("Continue");
-				const labelstr = [...otherAccountsLabels].join(', ');
-				const result = await vscode.window.showInformationMessage(
-					vscode.l10n.t({
-						message: "You are logged into another account already ({0}).\n\nDo you want to log out of that account and log in to '{1}' instead?",
-						comment: ['{0} is a comma-separated list of account names. {1} is the account name to log into.'],
-						args: [labelstr, session.account.label]
-					}),
-					{ modal: true },
-					proceed
-				);
-				if (result !== proceed) {
-					throw new Error(CANCELLATION_ERROR);
-				}
-
-				// Remove other accounts
-				for (const i of otherAccountsIndexes) {
-					sessions.splice(i, 1);
-				}
-			}
-
-			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
+			const sessionIndex = sessions.findIndex(
+				this._supportsMultipleAccounts
+					? s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes)
+					: s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes)
+			);
+			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
-				sessions.splice(sessionIndex, 1, session);
+				removed.push(...sessions.splice(sessionIndex, 1, session));
 			} else {
 				sessions.push(session);
 			}
 			await this.storeSessions(sessions);
 
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
 
 			this._logger.info('Login success!');
 

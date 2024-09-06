@@ -4,7 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.define = exports.parallel = exports.series = void 0;
+exports.series = series;
+exports.parallel = parallel;
+exports.define = define;
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 function _isPromise(p) {
@@ -67,7 +69,6 @@ function series(...tasks) {
     result._tasks = tasks;
     return result;
 }
-exports.series = series;
 function parallel(...tasks) {
     const result = async () => {
         await Promise.all(tasks.map(t => _execute(t)));
@@ -75,7 +76,6 @@ function parallel(...tasks) {
     result._tasks = tasks;
     return result;
 }
-exports.parallel = parallel;
 function define(name, task) {
     if (task._tasks) {
         // This is a composite task
@@ -94,5 +94,4 @@ function define(name, task) {
     task.displayName = name;
     return task;
 }
-exports.define = define;
 //# sourceMappingURL=task.js.map

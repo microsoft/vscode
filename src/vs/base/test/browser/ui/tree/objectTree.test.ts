@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
+import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ObjectTree', function () {
 

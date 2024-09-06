@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { localize } from '../../../../nls.js';
+import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
@@ -21,7 +21,7 @@ export const chatRequestBackground = registerColor(
 
 export const chatSlashCommandBackground = registerColor(
 	'chat.slashCommandBackground',
-	{ dark: '#34414B', light: '#D2ECFF', hcDark: Color.white, hcLight: badgeBackground },
+	{ dark: '#34414b8f', light: '#d2ecff99', hcDark: Color.white, hcLight: badgeBackground },
 	localize('chat.slashCommandBackground', 'The background color of a chat slash command.')
 );
 
@@ -39,6 +39,6 @@ export const chatAvatarBackground = registerColor(
 
 export const chatAvatarForeground = registerColor(
 	'chat.avatarForeground',
-	{ dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground, },
+	foreground,
 	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
 );

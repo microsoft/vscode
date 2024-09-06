@@ -5,7 +5,7 @@
 
 // This is a facade for the observable implementation. Only import from here!
 
-export {
+export type {
 	IObservable,
 	IObserver,
 	IReader,
@@ -14,17 +14,20 @@ export {
 	ITransaction,
 	IChangeContext,
 	IChangeTracker,
+} from './observableInternal/base.js';
+
+export {
 	observableValue,
 	disposableObservableValue,
 	transaction,
 	subtransaction,
-} from 'vs/base/common/observableInternal/base';
+} from './observableInternal/base.js';
 export {
 	derived,
 	derivedOpts,
 	derivedHandleChanges,
 	derivedWithStore,
-} from 'vs/base/common/observableInternal/derived';
+} from './observableInternal/derived.js';
 export {
 	autorun,
 	autorunDelta,
@@ -32,9 +35,11 @@ export {
 	autorunWithStore,
 	autorunOpts,
 	autorunWithStoreHandleChanges,
-} from 'vs/base/common/observableInternal/autorun';
-export {
+} from './observableInternal/autorun.js';
+export type {
 	IObservableSignal,
+} from './observableInternal/utils.js';
+export {
 	constObservable,
 	debouncedObservable,
 	derivedObservableWithCache,
@@ -46,7 +51,7 @@ export {
 	observableSignal,
 	observableSignalFromEvent,
 	wasEventTriggeredRecently,
-} from 'vs/base/common/observableInternal/utils';
+} from './observableInternal/utils.js';
 export {
 	ObservableLazy,
 	ObservableLazyPromise,
@@ -54,9 +59,12 @@ export {
 	PromiseResult,
 	waitForState,
 	derivedWithCancellationToken,
-} from 'vs/base/common/observableInternal/promise';
+} from './observableInternal/promise.js';
+export {
+	observableValueOpts
+} from './observableInternal/api.js';
 
-import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableInternal/logging';
+import { ConsoleObservableLogger, setLogger } from './observableInternal/logging.js';
 
 // Remove "//" in the next line to enable logging
 const enableLogging = false

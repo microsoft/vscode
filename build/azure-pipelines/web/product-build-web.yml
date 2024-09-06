@@ -5,9 +5,9 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - template: ../distro/download-distro.yml
+  - template: ../distro/download-distro.yml@self
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
@@ -66,7 +66,7 @@ steps:
       set -e
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
+        if [ $i -eq 5 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
         fi
@@ -94,7 +94,7 @@ steps:
   - script: node build/azure-pipelines/distro/mixin-quality
     displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml@self
 
   - script: |
       set -e
@@ -104,6 +104,7 @@ steps:
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
       echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
     env:
+      DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build
 
@@ -128,6 +129,15 @@ steps:
         node build/azure-pipelines/upload-cdn
     displayName: Upload to CDN
 
+  - script: |
+      set -e
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
+      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
+    displayName: Upload sourcemaps (Web)
+
     # upload only the workbench.web.main.js source maps because
     # we just compiled these bits in the previous step and the
     # general task to upload source maps has already been run
@@ -138,11 +148,11 @@ steps:
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
         node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
-    displayName: Upload sourcemaps (Web)
+    displayName: Upload sourcemaps (Deprecated)
 
   - script: |
       set -e
-      AZURE_STORAGE_ACCOUNT="ticino" \
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
@@ -153,17 +163,12 @@ steps:
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
 
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: Generate SBOM
+  - task: 1ES.PublishPipelineArtifact@1
     inputs:
-      BuildDropPath: $(agent.builddirectory)/vscode-web
-      PackageName: Visual Studio Code Web
-
-  - publish: $(agent.builddirectory)/vscode-web/_manifest
-    displayName: Publish SBOM (client)
-    artifact: $(ARTIFACT_PREFIX)sbom_vscode_web
-
-  - publish: $(WEB_PATH)
-    artifact: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+      targetPath: $(WEB_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
+      sbomPackageName: "VS Code Web"
+      sbomPackageVersion: $(Build.SourceVersion)
     condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     displayName: Publish web archive

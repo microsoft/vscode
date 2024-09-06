@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const enum SearchCommandIds {
 	FindInFilesActionId = 'workbench.action.findInFiles',
@@ -30,7 +30,7 @@ export const enum SearchCommandIds {
 	RevealInSideBarForSearchResults = 'search.action.revealInSideBar',
 	ReplaceInFilesActionId = 'workbench.action.replaceInFiles',
 	ShowAllSymbolsActionId = 'workbench.action.showAllSymbols',
-	QuickTextSearchActionId = 'workbench.action.experimental.quickTextSearch',
+	QuickTextSearchActionId = 'workbench.action.quickTextSearch',
 	CancelSearchActionId = 'search.action.cancel',
 	RefreshSearchResultsActionId = 'search.action.refreshSearchResults',
 	FocusNextSearchResultActionId = 'search.action.focusNextSearchResult',
@@ -38,6 +38,7 @@ export const enum SearchCommandIds {
 	ToggleSearchOnTypeActionId = 'workbench.action.toggleSearchOnType',
 	CollapseSearchResultsActionId = 'search.action.collapseSearchResults',
 	ExpandSearchResultsActionId = 'search.action.expandSearchResults',
+	ExpandRecursivelyCommandId = 'search.action.expandRecursively',
 	ClearSearchResultsActionId = 'search.action.clearSearchResults',
 	ViewAsTreeActionId = 'search.action.viewAsTree',
 	ViewAsListActionId = 'search.action.viewAsList',
@@ -77,4 +78,5 @@ export const SearchContext = {
 	ViewHasSomeCollapsibleKey: new RawContextKey<boolean>('viewHasSomeCollapsibleResult', false),
 	InTreeViewKey: new RawContextKey<boolean>('inTreeView', false),
 	AIResultsVisibleKey: new RawContextKey<boolean>('AIResultsVisibleKey', false),
+	hasAIResultProvider: new RawContextKey<boolean>('hasAIResultProviderKey', false),
 };

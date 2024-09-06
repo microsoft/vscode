@@ -50,7 +50,11 @@ use crate::{
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
 	},
 	util::{
-		app_lock::AppMutex, command::new_std_command, errors::{wrap, AnyError, CodeError}, machine::canonical_exe, prereqs::PreReqChecker
+		app_lock::AppMutex,
+		command::new_std_command,
+		errors::{wrap, AnyError, CodeError},
+		machine::canonical_exe,
+		prereqs::PreReqChecker,
 	},
 };
 use crate::{
@@ -151,36 +155,52 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		code_server_args: (&ctx.args).into(),
 	};
 
-	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, args.on_socket) {
-		(_, true) => {
-			let socket = get_socket_name();
-			let listener = listen_socket_rw_stream(&socket)
-				.await
-				.map_err(|e| wrap(e, "error listening on socket"))?;
+	let mut listener: Box<dyn AsyncRWAccepter> =
+		match (args.on_port.first(), &args.on_host, args.on_socket) {
+			(_, _, true) => {
+				let socket = get_socket_name();
+				let listener = listen_socket_rw_stream(&socket)
+					.await
+					.map_err(|e| wrap(e, "error listening on socket"))?;
 
-			params
-				.log
-				.result(format!("Listening on {}", socket.display()));
+				params
+					.log
+					.result(format!("Listening on {}", socket.display()));
 
-			Box::new(listener)
-		}
-		(Some(p), _) => {
-			let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), p);
-			let listener = tokio::net::TcpListener::bind(addr)
-				.await
-				.map_err(|e| wrap(e, "error listening on port"))?;
+				Box::new(listener)
+			}
+			(Some(_), _, _) | (_, Some(_), _) => {
+				let host = args
+					.on_host
+					.as_ref()
+					.map(|h| h.parse().map_err(CodeError::InvalidHostAddress))
+					.unwrap_or(Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)))?;
 
-			params
-				.log
-				.result(format!("Listening on {}", listener.local_addr().unwrap()));
+				let lower_port = args.on_port.first().copied().unwrap_or_default();
+				let port_no = if let Some(upper) = args.on_port.get(1) {
+					find_unused_port(&host, lower_port, *upper)
+						.await
+						.unwrap_or_default()
+				} else {
+					lower_port
+				};
 
-			Box::new(listener)
-		}
-		_ => {
-			serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
-			return Ok(0);
-		}
-	};
+				let addr = SocketAddr::new(host, port_no);
+				let listener = tokio::net::TcpListener::bind(addr)
+					.await
+					.map_err(|e| wrap(e, "error listening on port"))?;
+
+				params
+					.log
+					.result(format!("Listening on {}", listener.local_addr().unwrap()));
+
+				Box::new(listener)
+			}
+			_ => {
+				serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
+				return Ok(0);
+			}
+		};
 
 	let mut servers = FuturesUnordered::new();
 
@@ -205,6 +225,21 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 	}
 }
 
+async fn find_unused_port(host: &IpAddr, start_port: u16, end_port: u16) -> Option<u16> {
+	for port in start_port..=end_port {
+		if is_port_available(*host, port).await {
+			return Some(port);
+		}
+	}
+	None
+}
+
+async fn is_port_available(host: IpAddr, port: u16) -> bool {
+	tokio::net::TcpListener::bind(SocketAddr::new(host, port))
+		.await
+		.is_ok()
+}
+
 pub async fn service(
 	ctx: CommandContext,
 	service_args: TunnelServiceSubCommands,
@@ -227,8 +262,7 @@ pub async fn service(
 			// likewise for license consent
 			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
-			let current_exe =
-				canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
+			let current_exe = canonical_exe().map_err(|e| wrap(e, "could not get current exe"))?;
 
 			manager
 				.register(
@@ -264,10 +298,11 @@ pub async fn service(
 pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	match user_args {
-		TunnelUserSubCommands::Login(login_args) => {
+		TunnelUserSubCommands::Login(mut login_args) => {
 			auth.login(
 				login_args.provider.map(|p| p.into()),
-				login_args.access_token.to_owned(),
+				login_args.access_token.take(),
+				login_args.refresh_token.take(),
 			)
 			.await?;
 		}
@@ -404,7 +439,8 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
-	let csa = (&args).into();
+	let mut csa = (&args).into();
+	gateway_args.apply_to_server_args(&mut csa);
 	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
@@ -477,7 +513,12 @@ pub async fn forward(
 		forward_args.login.provider.take(),
 		forward_args.login.access_token.take(),
 	) {
-		auth.login(Some(p.into()), Some(at)).await?;
+		auth.login(
+			Some(p.into()),
+			Some(at),
+			forward_args.login.refresh_token.take(),
+		)
+		.await?;
 	}
 
 	let mut tunnels = DevTunnels::new_port_forwarding(&ctx.log, auth, &ctx.paths);
@@ -494,7 +535,12 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
 	let result = hash.finalize();
-	b64::URL_SAFE_NO_PAD.encode(result)
+	let mut result = b64::URL_SAFE_NO_PAD.encode(result);
+	if result.starts_with('-') {
+		result.insert(0, 'a'); // avoid arg parsing issue
+	}
+
+	result
 }
 
 async fn serve_with_csa(
@@ -540,6 +586,16 @@ async fn serve_with_csa(
 		match acquire_singleton(&paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
+				if gateway_args.name.is_some()
+					|| !gateway_args.install_extension.is_empty()
+					|| gateway_args.tunnel.tunnel_id.is_some()
+				{
+					warning!(
+						log,
+						"Command-line options will not be applied until the existing tunnel exits."
+					);
+				}
+
 				let should_exit = start_singleton_client(SingletonClientArgs {
 					log: log.clone(),
 					shutdown: shutdown.clone(),

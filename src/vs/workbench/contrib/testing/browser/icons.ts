@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon, spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { testingColorRunAction, testStatesToIconColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon, spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { testingColorRunAction, testStatesToIconColors, testStatesToRetiredIconColors } from './theme.js';
+import { TestResultState } from '../common/testTypes.js';
 
 export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
 export const testingResultsIcon = registerIcon('test-results-icon', Codicon.checklist, localize('testingResultsIcon', 'Icons for test results.'));
@@ -52,17 +52,29 @@ export const testingStatesToIcons = new Map<TestResultState, ThemeIcon>([
 registerThemingParticipant((theme, collector) => {
 	for (const [state, icon] of testingStatesToIcons.entries()) {
 		const color = testStatesToIconColors[state];
+		const retiredColor = testStatesToRetiredIconColors[state];
 		if (!color) {
 			continue;
 		}
 		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icon)} {
 			color: ${theme.getColor(color)} !important;
 		}`);
+		if (!retiredColor) {
+			continue;
+		}
+		collector.addRule(`
+			.test-explorer .computed-state.retired${ThemeIcon.asCSSSelector(icon)},
+			.testing-run-glyph.retired${ThemeIcon.asCSSSelector(icon)}{
+				color: ${theme.getColor(retiredColor)} !important;
+			}
+		`);
 	}
 
 	collector.addRule(`
-		.monaco-editor ${ThemeIcon.asCSSSelector(testingRunIcon)},
-		.monaco-editor ${ThemeIcon.asCSSSelector(testingRunAllIcon)} {
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingRunIcon)},
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingRunAllIcon)},
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingDebugIcon)},
+		.monaco-editor .glyph-margin-widgets ${ThemeIcon.asCSSSelector(testingDebugAllIcon)} {
 			color: ${theme.getColor(testingColorRunAction)};
 		}
 	`);

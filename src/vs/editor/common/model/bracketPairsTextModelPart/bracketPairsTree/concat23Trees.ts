@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode, AstNodeKind, ListAstNode } from './ast';
+import { AstNode, AstNodeKind, ListAstNode } from './ast.js';
 
 /**
  * Concatenates a list of (2,3) AstNode's into a single (2,3) AstNode.
