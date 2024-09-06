@@ -382,6 +382,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			] : [
 				'**/*.mk',
 				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
+			], isAMD() ? [] : [
+				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
 		let all = es.merge(
