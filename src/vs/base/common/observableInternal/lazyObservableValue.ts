@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EqualityComparer } from './deps.js';
+import { EqualityComparer } from './commonFacade/deps.js';
 import { BaseObservable, IObserver, ISettableObservable, ITransaction, TransactionImpl } from './base.js';
 import { DebugNameData } from './debugName.js';
 

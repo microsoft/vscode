@@ -5,7 +5,7 @@
 
 import { ISettableObservable, ObservableValue } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
-import { EqualityComparer, strictEquals } from './deps.js';
+import { EqualityComparer, strictEquals } from './commonFacade/deps.js';
 import { LazyObservableValue } from './lazyObservableValue.js';
 
 export function observableValueOpts<T, TChange = void>(

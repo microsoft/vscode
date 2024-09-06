@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DebugNameData, DebugOwner, getFunctionName } from './debugName.js';
-import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './deps.js';
+import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './commonFacade/deps.js';
 import type { derivedOpts } from './derived.js';
 import { getLogger } from './logging.js';
 import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';

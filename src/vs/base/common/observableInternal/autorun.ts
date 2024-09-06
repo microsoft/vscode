@@ -5,7 +5,7 @@
 
 import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
-import { assertFn, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './deps.js';
+import { assertFn, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
 
 /**
