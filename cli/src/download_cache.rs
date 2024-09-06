@@ -36,17 +36,6 @@ impl DownloadCache {
 		}
 	}
 
-	/// Gets an DownloadCache with previously persisted value if it exists
-	/// on the persistant storage, else returns a new DownloadCache.
-	pub fn load(path: PathBuf) -> DownloadCache {
-		let state = PersistedState::<Vec::<String>>::new(path.join(PERSISTED_STATE_FILE_NAME));
-		state.load();
-		DownloadCache {
-			state,
-			path,
-		}
-	}
-
 	/// Gets the value stored on the state
 	pub fn get(&self) -> Vec<String> {
 		self.state.load()

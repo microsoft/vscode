@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::{pin,time};
+use tokio::{pin, time};
 
 use crate::async_pipe::{
 	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
@@ -50,7 +50,7 @@ const SERVER_IDLE_TIMEOUT_SECS: u64 = 60 * 60;
 /// (should be large enough to basically never happen)
 const SERVER_ACTIVE_TIMEOUT_SECS: u64 = SERVER_IDLE_TIMEOUT_SECS * 24 * 30 * 12;
 /// How long to cache the "latest" version we get from the update service.
-const RELEASE_CACHE_SECS: u64 = 60 * 60;
+const RELEASE_CHECK_INTERVAL: u64 = 60 * 60;
 
 /// Number of bytes for the secret keys. See workbench.ts for their usage.
 const SECRET_KEY_BYTES: usize = 32;
@@ -87,13 +87,9 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	}
 
 	let cm: Arc<ConnectionManager> = ConnectionManager::new(&ctx, platform, args.clone());
-
-	let update_check_interval =  args.update_check_interval.unwrap_or(3600);
-
-	if update_check_interval > 0 {
-		// Start the update checker
-		cm.clone().start_update_checker(Duration::from_secs(update_check_interval));
-	}
+	let update_check_interval = 3600;
+	cm.clone()
+		.start_update_checker(Duration::from_secs(update_check_interval));
 
 	let key = get_server_key_half(&ctx.paths);
 	let make_svc = move || {
@@ -546,34 +542,26 @@ impl ConnectionManager {
 	pub fn new(ctx: &CommandContext, platform: Platform, args: ServeWebArgs) -> Arc<Self> {
 		let base_path = normalize_base_path(args.server_base_path.as_deref().unwrap_or_default());
 
-		let cache = DownloadCache::load(ctx.paths.web_server_storage());
-		let latest_version: tokio::sync::Mutex<Option<(Instant, Release)>>;
+		let cache = DownloadCache::new(ctx.paths.web_server_storage());
 		let target_kind = TargetKind::Web;
 
-		//Set the instant to now minus the RELEASE_CACHE_SECS
-		//This allows the service to skip use of the cache for the first run
-		let instant = Instant::now() - Duration::from_secs(RELEASE_CACHE_SECS);
+		let quality = VSCODE_CLI_QUALITY.map_or(Quality::Stable, |q| match Quality::try_from(q) {
+			Ok(q) => q,
+			Err(_) => Quality::Stable,
+		});
 
-		let quality = VSCODE_CLI_QUALITY
-			.map_or(Quality::Stable, |q| {
-				match Quality::try_from(q) {
-					Ok(q) => q,
-					Err(_) => Quality::Stable
-				}
-			});
-
-		if let Some(latest_commit) = cache.get().first() {
-			let release = Release {
-				name: String::from("0.0.0"), // Version information not stored on cache
-				commit: latest_commit.clone(),
-				platform,
-				target: target_kind,
-				quality
-			};
-			latest_version = tokio::sync::Mutex::new(Some((instant, release)));
-		} else {
-			latest_version = tokio::sync::Mutex::default();
-		}
+		let latest_version = tokio::sync::Mutex::new(cache.get().first().map(|latest_commit| {
+			(
+				Instant::now() - Duration::from_secs(RELEASE_CHECK_INTERVAL),
+				Release {
+					name: String::from("0.0.0"), // Version information not stored on cache
+					commit: latest_commit.clone(),
+					platform,
+					target: target_kind,
+					quality,
+				},
+			)
+		}));
 
 		Arc::new(Self {
 			platform,
@@ -592,29 +580,27 @@ impl ConnectionManager {
 
 	// spawns a task that checks for updates every n seconds duration
 	pub fn start_update_checker(self: Arc<Self>, duration: Duration) {
-		debug!(self.log, "starting update checker");
 		tokio::spawn(async move {
 			let mut interval = time::interval(duration);
 			loop {
 				interval.tick().await;
-				debug!(self.log, "checking for updates");
-				match self.get_latest_release().await {
-					Ok(_) => {},
-					Err(e) => {
-						error!(self.log, "error getting latest version: {}", e);
-					}
-				};
+
+				if let Err(e) = self.get_latest_release().await {
+					warning!(self.log, "error getting latest version: {}", e);
+				}
 			}
 		});
 	}
 
-	// Returns the latest release, available on the cache
+	// Returns the latest release from the cache, if one exists.
 	pub async fn get_release_from_cache(&self) -> Result<Release, CodeError> {
 		let latest = self.latest_version.lock().await;
 		if let Some((_, release)) = &*latest {
 			return Ok(release.clone());
 		}
-		Err(CodeError::ServerNotYetDownloaded)
+
+		drop(latest);
+		self.get_latest_release().await
 	}
 
 	/// Gets a connection to a server version
@@ -654,32 +640,6 @@ impl ConnectionManager {
 			warning!(self.log, "error getting latest release, using stale: {}", e);
 			*latest = Some((now, previous.clone()));
 			return Ok(previous.clone());
-		}
-
-		// If the new release and previous release are different, download the new version
-		if let Ok(new_release) = &release {
-			let (_, previous_release) = latest.clone().unwrap_or((Instant::now(), Release {
-				name: String::from("0.0.0"),
-				commit: String::from("0.0.0"),
-				platform:self.platform,
-				target: target_kind,
-				quality
-			}));
-			if new_release.commit != previous_release.commit {
-				match self.get_version_data_inner(new_release.clone()) {
-					Ok(mut r) => {
-						match r.wait().await {
-							Ok(_) => {},
-							Err(e) => {
-								info!(self.log, "{}", e);
-							}
-						};
-					},
-					Err(e) => {
-						info!(self.log, "{}", e);
-					}
-				}
-			}
 		}
 
 		let release = release?;
