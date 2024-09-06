@@ -191,7 +191,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	private async _parseAndYield(model: ITextModel, parseType: TelemetryParseType): Promise<Parser.Tree | undefined> {
 		const language = model.getLanguageId();
 		let tree: Parser.Tree | undefined;
-		const oldTree = this.tree?.copy();
+		let oldTree = this.tree?.copy();
 		let time: number = 0;
 		let passes: number = 0;
 		this._newEdits = false;
@@ -218,6 +218,11 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 
 			if (model.isDisposed() || this.isDisposed) {
 				break;
+			}
+			if (isTreeEmpty()) {
+				// If the tree is empty then start over
+				oldTree = undefined;
+				tree = undefined;
 			}
 		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
 		if (isTreeEmpty()) {
