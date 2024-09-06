@@ -814,7 +814,8 @@
 							"vs/platform/*/~",
 							"tas-client-umd", // node module allowed even in /common/
 							"@microsoft/1ds-core-js", // node module allowed even in /common/
-							"@microsoft/1ds-post-js" // node module allowed even in /common/
+							"@microsoft/1ds-post-js", // node module allowed even in /common/
+							"@xterm/headless" // node module allowed even in /common/
 						]
 					},
 					{
@@ -948,6 +949,7 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -977,6 +979,7 @@
 							// Only allow terminalContrib to import from itself, this works because
 							// terminalContrib is one extra folder deep
 							"vs/workbench/contrib/terminalContrib/*/~",
+							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -989,7 +992,8 @@
 							{
 								"when": "hasBrowser",
 								"pattern": "vscode-textmate"
-							} // node module allowed even in /browser/
+							}, // node module allowed even in /browser/
+							"@xterm/headless" // node module allowed even in /common/ and /browser/
 						]
 					},
 					{
@@ -1045,6 +1049,13 @@
 						"layer": "browser",
 						"restrictions": [
 							"vs/workbench/contrib/**"
+						]
+					},
+					{
+						"target": "src/vs/workbench/contrib/terminal/terminalContribExports.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
 					{

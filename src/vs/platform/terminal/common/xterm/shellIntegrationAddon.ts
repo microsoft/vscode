@@ -11,13 +11,9 @@ import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.j
 import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
 import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
 import { ILogService } from '../../../log/common/log.js';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { BufferMarkCapability } from '../capabilities/bufferMarkCapability.js';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from '../../../../base/common/uri.js';
 import { sanitizeCwd } from '../terminalEnvironment.js';
