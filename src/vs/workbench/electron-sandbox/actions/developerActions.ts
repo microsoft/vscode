@@ -17,8 +17,6 @@ import { IFileService } from '../../../platform/files/common/files.js';
 import { INativeWorkbenchEnvironmentService } from '../../services/environment/electron-sandbox/environmentService.js';
 import { URI } from '../../../base/common/uri.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
-import { mainWindow } from '../../../base/browser/window.js';
-import { getZoomLevel } from '../../../base/browser/browser.js';
 
 export class ToggleDevToolsAction extends Action2 {
 
