@@ -331,6 +331,7 @@ class LanguageStatus {
 
 		// -- pin
 		const actionBar = new ActionBar(right, { hoverDelegate: nativeHoverDelegate });
+		actionBar.setAriaLabel(!isPinned ? 'Add to status bar' : 'Remove from status bar');
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
