@@ -381,8 +381,15 @@ export interface IDocumentContextItemDto {
 	readonly ranges: IRange[];
 }
 
+export interface IConversationItemDto {
+	readonly type: 'request' | 'response';
+	readonly message: string;
+	readonly references?: IDocumentContextItemDto[];
+}
+
 export interface IMappedEditsContextDto {
 	documents: IDocumentContextItemDto[][];
+	conversation?: IConversationItemDto[];
 }
 
 export interface ISignatureHelpProviderMetadataDto {
@@ -1294,7 +1301,7 @@ export interface ExtHostChatAgentsShape2 {
 export interface IChatParticipantMetadata {
 	participant: string;
 	command?: string;
-	disambiguation: { categoryName: string; description: string; examples: string[] }[];
+	disambiguation: { category: string; description: string; examples: string[] }[];
 }
 
 export interface IChatParticipantDetectionResult {
@@ -1668,7 +1675,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string; port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
-	$setTunnelProvider(features?: TunnelProviderFeatures): Promise<void>;
+	$setTunnelProvider(features: TunnelProviderFeatures | undefined, enablePortsView: boolean): Promise<void>;
 	$setRemoteTunnelService(processId: number): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: CandidatePort[]): Promise<void>;

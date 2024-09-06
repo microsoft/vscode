@@ -58,7 +58,7 @@ import { REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
 import './interactiveEditor.css';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { ReplEditorInput } from './replEditorInput.js';
 import { ReplInputHintContentWidget } from '../../interactive/browser/replInputHintContentWidget.js';
@@ -381,7 +381,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
@@ -400,7 +400,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 					SnippetController2.ID,
 					TabCompletionController.ID,
 					ContentHoverController.ID,
-					MarginHoverController.ID,
+					GlyphHoverController.ID,
 					MarkerController.ID
 				])
 			}

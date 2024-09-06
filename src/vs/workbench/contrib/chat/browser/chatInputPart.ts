@@ -27,7 +27,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -417,7 +417,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(inputContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, MarginHoverController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {

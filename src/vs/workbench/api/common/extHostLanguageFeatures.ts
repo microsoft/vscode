@@ -2150,19 +2150,32 @@ class MappedEditsAdapter {
 		const uri = URI.revive(resource);
 		const doc = this._documents.getDocument(uri);
 
-		const usedContext = context.documents.map((docSubArray) =>
-			docSubArray.map((r) => {
-				return {
-					uri: URI.revive(r.uri),
-					version: r.version,
-					ranges: r.ranges.map((range) => typeConvert.Range.to(range)),
-				};
-			})
-		);
+		const reviveContextItem = (item: extHostProtocol.IDocumentContextItemDto) => ({
+			uri: URI.revive(item.uri),
+			version: item.version,
+			ranges: item.ranges.map(r => typeConvert.Range.to(r)),
+		} satisfies vscode.DocumentContextItem);
+
+
+		const usedContext = context.documents.map(docSubArray => docSubArray.map(reviveContextItem));
 
 		const ctx = {
 			documents: usedContext,
-			selections: usedContext[0]?.[0]?.ranges ?? [] // @ulugbekna: this is a hack for backward compatibility
+			selections: usedContext[0]?.[0]?.ranges ?? [], // @ulugbekna: this is a hack for backward compatibility
+			conversation: context.conversation?.map(c => {
+				if (c.type === 'response') {
+					return {
+						type: 'response',
+						message: c.message,
+						references: c.references?.map(reviveContextItem)
+					} satisfies vscode.ConversationResponse;
+				} else {
+					return {
+						type: 'request',
+						message: c.message,
+					} satisfies vscode.ConversationRequest;
+				}
+			})
 		};
 
 		const mappedEdits = await this._provider.provideMappedEdits(doc, codeBlocks, ctx, token);

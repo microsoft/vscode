@@ -58,7 +58,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', {}, [
 		h('div', {}, [this._scrollableElement.getDomNode()]),
-		h('div.placeholder@placeholder', {}, [h('div', [localize('noChangedFiles', 'No Changed Files') as any])]),
+		h('div.placeholder@placeholder', {}, [h('div')]),
 	]);
 
 	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
@@ -155,10 +155,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._sizeObserver.observe(dimension);
 		}));
 
-		this._register(autorun((reader) => {
-			/** @description Update widget dimension */
+		const placeholderMessage = derived(reader => {
 			const items = this._viewItems.read(reader);
-			this._elements.placeholder.classList.toggle('visible', items.length === 0);
+			if (items.length > 0) { return undefined; }
+
+			const vm = this._viewModel.read(reader);
+			return (!vm || vm.isLoading.read(reader))
+				? localize('loading', 'Loading...')
+				: localize('noChangedFiles', 'No Changed Files');
+		});
+
+		this._register(autorun((reader) => {
+			const message = placeholderMessage.read(reader);
+			this._elements.placeholder.innerText = message ?? '';
+			this._elements.placeholder.classList.toggle('visible', !!message);
 		}));
 
 		this._scrollableElements.content.style.position = 'relative';

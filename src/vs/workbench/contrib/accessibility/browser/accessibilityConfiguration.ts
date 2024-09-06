@@ -62,6 +62,7 @@ export const enum AccessibilityVerbositySettingId {
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
+	Walkthrough = 'accessibility.verbosity.walkthrough',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {

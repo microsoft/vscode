@@ -5,7 +5,7 @@
 
 import { Event, IValueWithChangeEvent } from '../event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../lifecycle.js';
-import { autorun, autorunOpts } from './autorun.js';
+import { autorun, autorunOpts, autorunWithStoreHandleChanges } from './autorun.js';
 import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base.js';
 import { DebugNameData, IDebugNameData, DebugOwner, getDebugName, } from './debugName.js';
 import { derived, derivedOpts } from './derived.js';
@@ -615,4 +615,41 @@ export function latestChangedValue<T extends IObservable<any>[]>(owner: DebugOwn
 */
 export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IReader) => T): IObservable<T | undefined> {
 	return derivedObservableWithCache<T | undefined>(owner, (reader, lastValue) => lastValue ?? fn(reader));
+}
+
+type RemoveUndefined<T> = T extends undefined ? never : T;
+
+export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+	return autorunWithStoreHandleChanges({
+		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
+		handleChange: (context, changeSummary) => {
+			if (context.didChange(observable)) {
+				const e = context.change;
+				if (e !== undefined) {
+					changeSummary.deltas.push(e as RemoveUndefined<TChange>);
+				}
+				changeSummary.didChange = true;
+			}
+			return true;
+		},
+	}, (reader, changeSummary) => {
+		const value = observable.read(reader);
+		if (changeSummary.didChange) {
+			cb(value, changeSummary.deltas);
+		}
+	});
+}
+
+export function runOnChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
+	const store = new DisposableStore();
+	const disposable = runOnChange(observable, (value, deltas) => {
+		store.clear();
+		cb(value, deltas, store);
+	});
+	return {
+		dispose() {
+			disposable.dispose();
+			store.dispose();
+		}
+	};
 }

@@ -211,7 +211,7 @@ export class SuggestWidget implements IDisposable {
 		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
 		const details = this._disposables.add(instantiationService.createInstance(SuggestDetailsWidget, this.editor));
-		details.onDidClose(this.toggleDetails, this, this._disposables);
+		details.onDidClose(() => this.toggleDetails(), this, this._disposables);
 		this._details = new SuggestDetailsOverlay(details, this.editor);
 
 		const applyIconStyle = () => this.element.domNode.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
@@ -367,6 +367,12 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
+		if (this._state === State.Details) {
+			// This can happen when focus is in the details-panel and when
+			// arrow keys are pressed to select next/prev items
+			this._setState(State.Open);
+		}
+
 		if (!e.elements.length) {
 			if (this._currentSuggestionDetails) {
 				this._currentSuggestionDetails.cancel();
@@ -399,7 +405,7 @@ export class SuggestWidget implements IDisposable {
 			this._currentSuggestionDetails = createCancelablePromise(async token => {
 				const loading = disposableTimeout(() => {
 					if (this._isDetailsVisible()) {
-						this.showDetails(true);
+						this._showDetails(true, false);
 					}
 				}, 250);
 				const sub = token.onCancellationRequested(() => loading.dispose());
@@ -423,7 +429,7 @@ export class SuggestWidget implements IDisposable {
 				this._ignoreFocusEvents = false;
 
 				if (this._isDetailsVisible()) {
-					this.showDetails(false);
+					this._showDetails(false, false);
 				} else {
 					this.element.domNode.classList.remove('docs-side');
 				}
@@ -497,6 +503,7 @@ export class SuggestWidget implements IDisposable {
 				dom.show(this._listElement, this._status.element);
 				this._details.show();
 				this._show();
+				this._details.widget.focus();
 				break;
 		}
 	}
@@ -687,16 +694,20 @@ export class SuggestWidget implements IDisposable {
 
 	toggleDetailsFocus(): void {
 		if (this._state === State.Details) {
+			// Should return the focus to the list item.
+			this._list.setFocus(this._list.getFocus());
 			this._setState(State.Open);
-			this._details.widget.domNode.classList.remove('focused');
-
-		} else if (this._state === State.Open && this._isDetailsVisible()) {
+		} else if (this._state === State.Open) {
 			this._setState(State.Details);
-			this._details.widget.domNode.classList.add('focused');
+			if (!this._isDetailsVisible()) {
+				this.toggleDetails(true);
+			} else {
+				this._details.widget.focus();
+			}
 		}
 	}
 
-	toggleDetails(): void {
+	toggleDetails(focused: boolean = false): void {
 		if (this._isDetailsVisible()) {
 			// hide details widget
 			this._pendingShowDetails.clear();
@@ -709,14 +720,15 @@ export class SuggestWidget implements IDisposable {
 			// show details widget (iff possible)
 			this._ctxSuggestWidgetDetailsVisible.set(true);
 			this._setDetailsVisible(true);
-			this.showDetails(false);
+			this._showDetails(false, focused);
 		}
 	}
 
-	showDetails(loading: boolean): void {
+	private _showDetails(loading: boolean, focused: boolean): void {
 		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingShowDetails.clear();
 			this._details.show();
+			let didFocusDetails = false;
 			if (loading) {
 				this._details.widget.renderLoading();
 			} else {
@@ -725,10 +737,16 @@ export class SuggestWidget implements IDisposable {
 			if (!this._details.widget.isEmpty) {
 				this._positionDetails();
 				this.element.domNode.classList.add('shows-details');
+				if (focused) {
+					this._details.widget.focus();
+					didFocusDetails = true;
+				}
 			} else {
 				this._details.hide();
 			}
-			this.editor.focus();
+			if (!didFocusDetails) {
+				this.editor.focus();
+			}
 		});
 	}
 
@@ -738,7 +756,7 @@ export class SuggestWidget implements IDisposable {
 			if (!this._isDetailsVisible()) {
 				this.toggleDetails();
 			} else {
-				this.showDetails(false);
+				this._showDetails(false, false);
 			}
 		}
 	}

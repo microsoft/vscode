@@ -86,7 +86,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		});
 
 		this._register(extensionService.onWillStop(e => {
-			if (!this.isDirty()) {
+			if (!e.auto && !this.isDirty()) {
 				return;
 			}
 

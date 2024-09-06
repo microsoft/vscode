@@ -20,9 +20,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
-	private _HEAD: Branch | undefined;
-	private _HEADMergeBase: Branch | undefined;
-
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
 	set currentHistoryItemGroup(value: SourceControlHistoryItemGroup | undefined) {
@@ -46,39 +43,30 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
-		this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] HEAD:', JSON.stringify(this._HEAD));
-		this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] repository.HEAD:', JSON.stringify(this.repository.HEAD));
-
-		// Get the merge base of the current history item group
-		const mergeBase = await this.resolveHEADMergeBase();
-
-		// Check if HEAD has changed
-		if (this._HEAD?.name === this.repository.HEAD?.name &&
-			this._HEAD?.commit === this.repository.HEAD?.commit &&
-			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
-			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
-			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit &&
-			this._HEADMergeBase?.name === mergeBase?.name &&
-			this._HEADMergeBase?.remote === mergeBase?.remote &&
-			this._HEADMergeBase?.commit === mergeBase?.commit) {
-			this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] HEAD has not changed');
-			return;
-		}
-
-		this._HEAD = this.repository.HEAD;
-		this._HEADMergeBase = mergeBase;
-
-		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
-		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit || this.repository.HEAD.type === RefType.Tag) {
-			this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] HEAD does not support incoming/outgoing');
-
+		if (!this.repository.HEAD) {
+			this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] repository.HEAD is undefined');
 			this.currentHistoryItemGroup = undefined;
 			return;
 		}
 
+		// Get the merge base of the current history item group
+		const mergeBase = await this.resolveHEADMergeBase();
+
+		// Handle tag, and detached commit
+		const currentHistoryItemGroupId =
+			this.repository.HEAD.name === undefined ?
+				this.repository.HEAD.commit :
+				this.repository.HEAD.type === RefType.Tag ?
+					`refs/tags/${this.repository.HEAD.name}` :
+					`refs/heads/${this.repository.HEAD.name}`;
+
+		// Detached commit
+		const currentHistoryItemGroupName =
+			this.repository.HEAD.name ?? this.repository.HEAD.commit;
+
 		this.currentHistoryItemGroup = {
-			id: `refs/heads/${this.repository.HEAD.name ?? ''}`,
-			name: this.repository.HEAD.name ?? '',
+			id: currentHistoryItemGroupId ?? '',
+			name: currentHistoryItemGroupName ?? '',
 			revision: this.repository.HEAD.commit,
 			remote: this.repository.HEAD.upstream ? {
 				id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
@@ -127,15 +115,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			await ensureEmojis();
 
 			return commits.map(commit => {
-				const newLineIndex = commit.message.indexOf('\n');
-				const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
-
 				const labels = this.resolveHistoryItemLabels(commit);
 
 				return {
 					id: commit.hash,
 					parentIds: commit.parents,
-					message: emojify(subject),
+					message: emojify(commit.message),
 					author: commit.authorName,
 					icon: new ThemeIcon('git-commit'),
 					displayId: commit.hash.substring(0, 8),

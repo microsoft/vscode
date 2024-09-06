@@ -16,7 +16,7 @@ import { IRequestContext, IRequestOptions } from '../../../base/parts/request/co
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { ILogService, ILoggerService } from '../../log/common/log.js';
+import { ILogService, ILogger } from '../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
@@ -52,12 +52,12 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
+		logger: ILogger,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILogService private readonly logService: ILogService,
-		@ILoggerService loggerService: ILoggerService
 	) {
-		super(loggerService);
+		super(logger);
 		this.configure();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('http')) {
@@ -103,7 +103,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 			};
 		}
 
-		return this.logAndRequest(options.isChromiumNetwork ? 'electron' : 'node', options, () => nodeRequest(options, token));
+		return this.logAndRequest(options, () => nodeRequest(options, token));
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {
