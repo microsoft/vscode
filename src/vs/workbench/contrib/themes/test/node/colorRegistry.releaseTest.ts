@@ -15,11 +15,10 @@ import { RequestService } from '../../../../../platform/request/node/requestServ
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../workbench.desktop.main.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileAccess } from '../../../../../base/common/network.js';
-import { TestLoggerService } from '../../../../test/common/workbenchTestServices.js';
 
 interface ColorInfo {
 	description: string;
@@ -92,7 +91,7 @@ suite('Color Registry', function () {
 
 		const docUrl = 'https://raw.githubusercontent.com/microsoft/vscode-docs/main/api/references/theme-color.md';
 
-		const reqContext = await new RequestService(new TestConfigurationService(), environmentService, new NullLogService(), new TestLoggerService()).request({ url: docUrl }, CancellationToken.None);
+		const reqContext = await new RequestService(new NullLogger(), new TestConfigurationService(), environmentService, new NullLogService()).request({ url: docUrl }, CancellationToken.None);
 		const content = (await asTextOrError(reqContext))!;
 
 		const expression = /-\s*\`([\w\.]+)\`: (.*)/g;

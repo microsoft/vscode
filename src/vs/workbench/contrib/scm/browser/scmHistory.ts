@@ -6,9 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonForeground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
-import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorUtils.js';
+import { asCssVariable, ColorIdentifier, registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
@@ -28,7 +28,11 @@ export const historyItemGroupBase = registerColor('scmGraph.historyItemGroupBase
 /**
  * History item hover color
  */
-export const historyItemGroupHoverLabelForeground = registerColor('scmGraph.historyItemGroupHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemGroupHoverLabelForeground', "History item group hover label foreground color."));
+export const historyItemHoverDefaultLabelForeground = registerColor('scmGraph.historyItemHoverDefaultLabelForeground', foreground, localize('scmGraphHistoryItemHoverDefaultLabelForeground', "History item hover default label foreground color."));
+export const historyItemHoverDefaultLabelBackground = registerColor('scmGraph.historyItemHoverDefaultLabelBackground', transparent(foreground, 0.2), localize('scmGraphHistoryItemHoverDefaultLabelBackground', "History item hover default label background color."));
+export const historyItemHoverLabelForeground = registerColor('scmGraph.historyItemHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemHoverLabelForeground', "History item hover label foreground color."));
+export const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
+export const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
 /**
  * History graph color registry
@@ -301,7 +305,20 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 		// Add colors to labels
 		const labels = (historyItem.labels ?? [])
 			.map(label => {
-				return { ...label, color: colorMap.get(label.title) };
+				let color = colorMap.get(label.title);
+				if (!color && colorMap.has('*')) {
+					// Find the history item in the input swimlanes
+					const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
+
+					// Circle index - use the input swimlane index if present, otherwise add it to the end
+					const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
+
+					// Circle color - use the output swimlane color if present, otherwise the input swimlane color
+					color = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
+						circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemGroupLocal;
+				}
+
+				return { ...label, color };
 			});
 
 		viewModels.push({

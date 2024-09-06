@@ -61,7 +61,7 @@ import './interactiveEditor.css';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { deepClone } from '../../../../base/common/objects.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { ReplInputHintContentWidget } from './replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 
@@ -388,7 +388,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
@@ -407,7 +407,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					SnippetController2.ID,
 					TabCompletionController.ID,
 					ContentHoverController.ID,
-					MarginHoverController.ID,
+					GlyphHoverController.ID,
 					MarkerController.ID
 				])
 			}

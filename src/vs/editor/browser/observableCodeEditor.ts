@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { IObservable, ITransaction, autorun, autorunOpts, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { TransactionImpl } from '../../base/common/observableInternal/base.js';
 import { derivedWithSetter } from '../../base/common/observableInternal/derived.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
@@ -245,40 +245,4 @@ interface IObservableOverlayWidget {
 	readonly position: IObservable<IOverlayWidgetPosition | null>;
 	readonly minContentWidthInPx: IObservable<number>;
 	get allowEditorOverflow(): boolean;
-}
-
-type RemoveUndefined<T> = T extends undefined ? never : T;
-export function reactToChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
-	return autorunWithStoreHandleChanges({
-		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
-		handleChange: (context, changeSummary) => {
-			if (context.didChange(observable)) {
-				const e = context.change;
-				if (e !== undefined) {
-					changeSummary.deltas.push(e as RemoveUndefined<TChange>);
-				}
-				changeSummary.didChange = true;
-			}
-			return true;
-		},
-	}, (reader, changeSummary) => {
-		const value = observable.read(reader);
-		if (changeSummary.didChange) {
-			cb(value, changeSummary.deltas);
-		}
-	});
-}
-
-export function reactToChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
-	const store = new DisposableStore();
-	const disposable = reactToChange(observable, (value, deltas) => {
-		store.clear();
-		cb(value, deltas, store);
-	});
-	return {
-		dispose() {
-			disposable.dispose();
-			store.dispose();
-		}
-	};
 }

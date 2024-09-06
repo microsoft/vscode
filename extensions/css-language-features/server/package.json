@@ -22,10 +22,10 @@
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-server",
     "watch": "gulp watch-extension:css-language-features-server",
-    "install-service-next": "yarn add vscode-css-languageservice@next",
-    "install-service-local": "yarn link vscode-css-languageservice",
-    "install-server-next": "yarn add vscode-languageserver@next",
-    "install-server-local": "yarn link vscode-languageserver",
+    "install-service-next": "npm install vscode-css-languageservice@next",
+    "install-service-local": "npm link vscode-css-languageservice",
+    "install-server-next": "npm install vscode-languageserver@next",
+    "install-server-local": "npm install vscode-languageserver",
     "test": "node ./test/index.js"
   }
 }
