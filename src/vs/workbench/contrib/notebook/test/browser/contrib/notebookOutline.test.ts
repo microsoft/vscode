@@ -28,13 +28,14 @@ suite('Notebook Outline', function () {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
-	let symbolsCached = false;
+	let symbolsCached: boolean;
 
 	teardown(() => disposables.dispose());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
+		symbolsCached = false;
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
