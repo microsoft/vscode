@@ -21,11 +21,16 @@ export class NativeClipboardService implements IClipboardService {
 	) { }
 
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
+		console.log('writeText of NativeClipboardService');
+		console.log('text:', text);
 		return this.nativeHostService.writeClipboardText(text, type);
 	}
 
 	async readText(type?: 'selection' | 'clipboard'): Promise<string> {
-		return this.nativeHostService.readClipboardText(type);
+		console.log('readText of NativeClipboardService');
+		const readTextRes = await this.nativeHostService.readClipboardText(type);
+		console.log('readTextRes:', readTextRes);
+		return readTextRes;
 	}
 
 	async readFindText(): Promise<string> {

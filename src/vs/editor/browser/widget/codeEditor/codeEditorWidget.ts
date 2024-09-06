@@ -1044,6 +1044,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
+		console.log('trigger');
 		payload = payload || {};
 
 		try {
@@ -1142,6 +1143,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
+		console.log('_paste');
+		console.log('source : ', source);
+		console.log('text : ', text);
+		console.log('pasteOnNewLine : ', pasteOnNewLine);
+		console.log('multicursorText : ', multicursorText);
+		console.log('mode : ', mode);
+		console.log('clipboardEvent : ', clipboardEvent);
 		if (!this._modelData) {
 			return;
 		}

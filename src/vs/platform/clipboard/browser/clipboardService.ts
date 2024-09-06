@@ -145,7 +145,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async readText(type?: string): Promise<string> {
-
+		console.log('readText of BrowserClipboardService');
 		// With type: only in-memory is supported
 		if (type) {
 			return this.mapTextToType.get(type) || '';

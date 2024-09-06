@@ -116,6 +116,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			new UriIdentityService(fileService),
 			new class extends mock<IClipboardService>() {
 				override readText() {
+					console.log('readText of MainThreadDocumentsAndEditors');
 					return Promise.resolve('clipboard_contents');
 				}
 			},

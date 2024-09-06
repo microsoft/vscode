@@ -687,10 +687,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
+		console.log('readClipboardText of NativeHostMainService, type: ', type);
 		return clipboard.readText(type);
 	}
 
 	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
+		console.log('writeClipboardText of NativeHostMainService text: ', text);
 		return clipboard.writeText(text, type);
 	}
 

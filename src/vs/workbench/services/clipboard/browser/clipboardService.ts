@@ -37,6 +37,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 	}
 
 	override async readText(type?: string): Promise<string> {
+		console.log('readText of BrowserClipboardService 2');
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}

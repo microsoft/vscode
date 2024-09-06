@@ -186,6 +186,8 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 }
 
 function registerExecCommandImpl(target: MultiCommand | undefined, browserCommand: 'cut' | 'copy'): void {
+	console.log('registerExecCommandImpl');
+	console.log('browserCommand', browserCommand);
 	if (!target) {
 		return;
 	}
@@ -202,6 +204,7 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 				return true;
 			}
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
+			console.log('focusedEditor.getOption(EditorOption.experimentalEditContextEnabled) : ', focusedEditor.getOption(EditorOption.experimentalEditContextEnabled));
 			if (focusedEditor.getOption(EditorOption.experimentalEditContextEnabled) && browserCommand === 'cut') {
 				// execCommand(copy) works for edit context, but not execCommand(cut).
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
@@ -227,6 +230,7 @@ registerExecCommandImpl(CopyAction, 'copy');
 if (PasteAction) {
 	// 1. Paste: handle case when focus is in editor.
 	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
+		console.log('PasteAction.addImplementation');
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 
@@ -235,12 +239,15 @@ if (PasteAction) {
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
 			const canDoDocumentExecCommand = !focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
+			console.log('canDoDocumentExecCommand : ', canDoDocumentExecCommand);
 			const result = canDoDocumentExecCommand && focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+			console.log('result : ', result);
 			if (result) {
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
 			} else if (platform.isWeb || !canDoDocumentExecCommand) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
+					// Does it have to be reading text from the clipboard? What does readText from the selection mean?
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
@@ -252,6 +259,9 @@ if (PasteAction) {
 							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
 							mode = metadata.mode;
 						}
+						console.log('before trigerring the paste');
+						console.log('clipboardText : ', clipboardText);
+						console.log('multicursorText : ', multicursorText);
 						focusedEditor.trigger('keyboard', Handler.Paste, {
 							text: clipboardText,
 							pasteOnNewLine,
