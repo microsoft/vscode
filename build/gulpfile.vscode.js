@@ -377,12 +377,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
-			], isAMD()) ? [
+			], isAMD() ? [
 				'**/*.mk',
 			] : [
 				'**/*.mk',
 				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
-			], 'node_modules.asar');
+			], 'node_modules.asar'));
 
 		let all = es.merge(
 			packageJsonStream,
@@ -559,9 +559,9 @@ BUILD_TARGETS.forEach(buildTarget => {
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			compileBuildTask,
-			compileExtensionsBuildTask,
-			compileExtensionMediaBuildTask,
+			// compileBuildTask,
+			// compileExtensionsBuildTask,
+			// compileExtensionMediaBuildTask,
 			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			vscodeTaskCI
 		));
