@@ -73,6 +73,12 @@ function createAsar(folderPath, unpackGlobs, skipGlobs, destFilename) {
             throw new Error(`unknown item in stream!`);
         }
         if (shouldSkipFile(file)) {
+            this.queue(new VinylFile({
+                base: '.',
+                path: file.path,
+                stat: file.stat,
+                contents: file.contents
+            }));
             return;
         }
         const shouldUnpack = shouldUnpackFile(file);
