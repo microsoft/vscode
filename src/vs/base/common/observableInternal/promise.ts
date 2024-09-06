@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import { autorun } from './autorun.js';
 import { IObservable, IReader, observableValue, transaction } from './base.js';
-import { Derived, derived } from './derived.js';
-import { CancellationToken, CancellationTokenSource } from '../cancellation.js';
 import { DebugNameData, DebugOwner } from './debugName.js';
-import { strictEquals } from '../equals.js';
-import { CancellationError } from '../errors.js';
+import { CancellationError, CancellationToken, CancellationTokenSource, strictEquals } from './deps.js';
+import { Derived, derived } from './derived.js';
 
 export class ObservableLazy<T> {
 	private readonly _value = observableValue<T | undefined>(this, undefined);

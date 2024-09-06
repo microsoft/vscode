@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, IValueWithChangeEvent } from '../event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../lifecycle.js';
 import { autorun, autorunOpts, autorunWithStoreHandleChanges } from './autorun.js';
 import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base.js';
-import { DebugNameData, IDebugNameData, DebugOwner, getDebugName, } from './debugName.js';
+import { DebugNameData, DebugOwner, IDebugNameData, getDebugName, } from './debugName.js';
+import { BugIndicatingError, DisposableStore, EqualityComparer, Event, IDisposable, IValueWithChangeEvent, strictEquals, toDisposable } from './deps.js';
 import { derived, derivedOpts } from './derived.js';
 import { getLogger } from './logging.js';
-import { BugIndicatingError } from '../errors.js';
-import { EqualityComparer, strictEquals } from '../equals.js';
 
 /**
  * Represents an efficient observable whose value never changes.
