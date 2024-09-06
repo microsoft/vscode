@@ -38,7 +38,7 @@
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
-  "resolutions": {
+  "overrides": {
     "node-gyp-build": "4.8.1"
   }
 }

@@ -198,7 +198,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 			}
 
 			console.log(`Open in VS Code the folder at '${destPath}' and you can analyze the compilation error`);
-			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `yarn run gulp editor-distro` on your machine to further analyze the compilation problem.');
+			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `npm run gulp editor-distro` on your machine to further analyze the compilation problem.');
 		});
 	}
 });

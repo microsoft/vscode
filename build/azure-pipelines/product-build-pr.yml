@@ -122,7 +122,7 @@ jobs:
     - job: Windowsx64IntegrationTests
       displayName: Windows (Integration Tests)
       pool: 1es-oss-windows-2022-x64
-      timeoutInMinutes: 30
+      timeoutInMinutes: 60
       variables:
         VSCODE_ARCH: x64
         NPM_ARCH: x64
