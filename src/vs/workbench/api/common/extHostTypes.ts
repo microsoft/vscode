@@ -4422,10 +4422,12 @@ export class ChatResponseFileTreePart {
 }
 
 export class ChatResponseAnchorPart {
-	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	value: vscode.Uri | vscode.Location;
+	value2: vscode.Uri | vscode.Location | vscode.SymbolInformation;
 	title?: string;
 	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
-		this.value = value;
+		this.value = value as any;
+		this.value2 = value;
 		this.title = title;
 	}
 }
