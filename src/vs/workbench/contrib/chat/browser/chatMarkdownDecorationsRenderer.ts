@@ -309,7 +309,7 @@ class InlineFileLinkWidget extends Disposable {
 		element.replaceChildren();
 
 		const resourceLabel = this._register(new IconLabel(element, { supportHighlights: false, supportIcons: true }));
-		resourceLabel.setLabel(label, undefined, {
+		resourceLabel.setLabel(title, undefined, {
 			extraClasses: getIconClasses(modelService, languageService, location.uri)
 		});
 
