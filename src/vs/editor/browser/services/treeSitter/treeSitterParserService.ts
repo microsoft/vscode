@@ -220,15 +220,12 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 				break;
 			}
 			if (isTreeEmpty()) {
-				// If the tree is empty then start over
+				// Something has gone horribly wrong
 				oldTree = undefined;
 				tree = undefined;
+				this.parser.reset();
 			}
 		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
-		if (isTreeEmpty()) {
-			// Something has gone horribly wrong
-			tree = undefined;
-		}
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
 		return tree;
 	}
