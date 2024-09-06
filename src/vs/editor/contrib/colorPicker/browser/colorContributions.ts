@@ -15,6 +15,8 @@ import { ContentHoverController } from '../../hover/browser/contentHoverControll
 import { HoverParticipantRegistry } from '../../hover/browser/hoverTypes.js';
 import { ColorHoverParticipant } from './colorHoverParticipant.js';
 
+
+
 enum ColorDecoratorActivatedOn {
 	Hover = 'hover',
 	Click = 'click',
