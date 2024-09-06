@@ -5,6 +5,7 @@ extension.webpack.config.js
 esbuild.js
 cgmanifest.json
 yarn.lock
+package-lock.json
 webpack.config.js
 tsconfig.json
 .gitignore

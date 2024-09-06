@@ -68,7 +68,7 @@ const loader = require(`../../../${out}/vs/loader`);
 const src = path.join(REPO_ROOT, out);
 
 //@ts-ignore
-const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
+const majorRequiredNodeVersion = `v${/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]}`.substring(0, 3);
 const currentMajorNodeVersion = process.version.substring(0, 3);
 if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 	console.error(`node.js unit tests require a major node.js version of ${majorRequiredNodeVersion} (your version is: ${currentMajorNodeVersion})`);

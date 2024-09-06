@@ -305,7 +305,20 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 		// Add colors to labels
 		const labels = (historyItem.labels ?? [])
 			.map(label => {
-				return { ...label, color: colorMap.get(label.title) };
+				let color = colorMap.get(label.title);
+				if (!color && colorMap.has('*')) {
+					// Find the history item in the input swimlanes
+					const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
+
+					// Circle index - use the input swimlane index if present, otherwise add it to the end
+					const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
+
+					// Circle color - use the output swimlane color if present, otherwise the input swimlane color
+					color = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
+						circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemGroupLocal;
+				}
+
+				return { ...label, color };
 			});
 
 		viewModels.push({

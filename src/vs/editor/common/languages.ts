@@ -1206,6 +1206,16 @@ export function isLocationLink(thing: any): thing is LocationLink {
 		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
 }
 
+/**
+ * @internal
+ */
+export function isLocation(thing: any): thing is Location {
+	return thing
+		&& URI.isUri((thing as Location).uri)
+		&& Range.isIRange((thing as Location).range);
+}
+
+
 export type Definition = Location | Location[] | LocationLink[];
 
 /**
@@ -2264,7 +2274,28 @@ export interface DocumentContextItem {
 
 export interface MappedEditsContext {
 	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
-	documents: DocumentContextItem[][];
+	readonly documents: DocumentContextItem[][];
+	/**
+	 * @internal
+	 */
+	readonly conversation?: (ConversationRequest | ConversationResponse)[];
+}
+
+/**
+ * @internal
+ */
+export interface ConversationRequest {
+	readonly type: 'request';
+	readonly message: string;
+}
+
+/**
+ * @internal
+ */
+export interface ConversationResponse {
+	readonly type: 'response';
+	readonly message: string;
+	readonly references?: DocumentContextItem[];
 }
 
 export interface MappedEditsProvider {
