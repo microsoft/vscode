@@ -81,40 +81,42 @@ export class DiffEditorGutter extends Disposable {
 			);
 		}).recomputeInitiallyAndOnChange(this._store);
 
+		const gutterItems = derived(this, reader => {
+			const model = this._diffModel.read(reader);
+			if (!model) {
+				return [];
+			}
+			const diffs = model.diff.read(reader);
+			if (!diffs) { return []; }
+
+			const selection = this._selectedDiffs.read(reader);
+			if (selection.length > 0) {
+				const m = DetailedLineRangeMapping.fromRangeMappings(selection.flatMap(s => s.rangeMappings));
+				return [
+					new DiffGutterItem(
+						m,
+						true,
+						MenuId.DiffEditorSelectionToolbar,
+						undefined,
+						model.model.original.uri,
+						model.model.modified.uri,
+					)];
+			}
+
+			const currentDiff = this._currentDiff.read(reader);
+
+			return diffs.mappings.map(m => new DiffGutterItem(
+				m.lineRangeMapping.withInnerChangesFromLineRanges(),
+				m.lineRangeMapping === currentDiff?.lineRangeMapping,
+				MenuId.DiffEditorHunkToolbar,
+				undefined,
+				model.model.original.uri,
+				model.model.modified.uri,
+			));
+		});
+
 		this._register(new EditorGutter<DiffGutterItem>(this._editors.modified, this.elements.root, {
-			getIntersectingGutterItems: (range, reader) => {
-				const model = this._diffModel.read(reader);
-				if (!model) {
-					return [];
-				}
-				const diffs = model.diff.read(reader);
-				if (!diffs) { return []; }
-
-				const selection = this._selectedDiffs.read(reader);
-				if (selection.length > 0) {
-					const m = DetailedLineRangeMapping.fromRangeMappings(selection.flatMap(s => s.rangeMappings));
-					return [
-						new DiffGutterItem(
-							m,
-							true,
-							MenuId.DiffEditorSelectionToolbar,
-							undefined,
-							model.model.original.uri,
-							model.model.modified.uri,
-						)];
-				}
-
-				const currentDiff = this._currentDiff.read(reader);
-
-				return diffs.mappings.map(m => new DiffGutterItem(
-					m.lineRangeMapping.withInnerChangesFromLineRanges(),
-					m.lineRangeMapping === currentDiff?.lineRangeMapping,
-					MenuId.DiffEditorHunkToolbar,
-					undefined,
-					model.model.original.uri,
-					model.model.modified.uri,
-				));
-			},
+			getIntersectingGutterItems: (range, reader) => gutterItems.read(reader),
 			createView: (item, target) => {
 				return this._instantiationService.createInstance(DiffToolBar, item, target, this);
 			},

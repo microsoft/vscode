@@ -180,13 +180,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	if (options.actionHandler) {
 		const _activateLink = function (event: StandardMouseEvent | StandardKeyboardEvent): void {
-			let target: HTMLElement | null = event.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
-					return;
-				}
+			const target = event.target.closest('a[data-href]');
+			if (!DOM.isHTMLElement(target)) {
+				return;
 			}
+
 			try {
 				let href = target.dataset['href'];
 				if (href) {
@@ -398,7 +396,7 @@ function sanitizeRenderedMarkdown(
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
-					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
+					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
 					return;
 				} else if (e.attrName === 'class') {
 					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);

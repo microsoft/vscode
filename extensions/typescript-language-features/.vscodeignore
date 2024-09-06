@@ -9,3 +9,4 @@ extension.webpack.config.js
 extension-browser.webpack.config.js
 cgmanifest.json
 yarn.lock
+package-lock.json
