@@ -47,7 +47,10 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	# 1 means ask and then write if Yes
 	# 2 means write without asking
 	WRITE_SOURCE=0
-	if [ "$RET" = false ]; then
+	if [ "$CODE_INSTALL_WITH_REPO" = false ]; then
+		# The user does not want to add the Microsoft repository
+		WRITE_SOURCE=0
+	elif [ "$RET" = false ]; then
 		# The user does not want to add the Microsoft repository
 		WRITE_SOURCE=0
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
@@ -62,14 +65,17 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
 		# The user is already on the new repository
 		WRITE_SOURCE=0
-	elif [ -n "$CODE_INSTALL_WITH_REPO" ]; then
-		# The user wants to install Code with the Microsoft repo
+	elif [ "$RET" = true ]; then
+		# User explicitly wants to add the Microsoft repository
+		WRITE_SOURCE=2
+	elif [ "$CODE_INSTALL_WITH_REPO" = true ]; then
+		# User explicitly wants to add the Microsoft repository
 		WRITE_SOURCE=2
 	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
-		# Write source list if it does not exist and we're not running on Raspberry Pi OS
+		# Source list does not exist and we're not running on Raspberry Pi OS
 		WRITE_SOURCE=1
 	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
-		# Write source list if it was disabled by OS upgrade
+		# Source list was disabled by OS upgrade
 		WRITE_SOURCE=1
 	fi
 
