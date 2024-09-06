@@ -195,6 +195,15 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		let passes: number = 0;
 		this._newEdits = false;
 		this._logService.debug(`TreeSitter: Starting parse for ${model.uri.toString()}`);
+
+		const isTreeEmpty = () => {
+			return (tree?.rootNode.childCount === 0) && model.getValueLength() > 0;
+		};
+
+		const shouldKeepLooping = () => {
+			return (!tree || isTreeEmpty()) && !this._newEdits;
+		};
+
 		do {
 			const timer = performance.now();
 			try {
@@ -211,10 +220,10 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			await new Promise<void>(resolve => setTimeout0(resolve));
 
 			if (model.isDisposed() || this.isDisposed) {
-				return;
+				break;
 			}
-		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
-		if ((tree?.rootNode.childCount === 0) && model.getValueLength() > 0) {
+		} while (shouldKeepLooping()); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
+		if (isTreeEmpty()) {
 			// Something has gone horribly wrong
 			tree = undefined;
 		}
