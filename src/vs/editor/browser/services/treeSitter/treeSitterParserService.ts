@@ -191,6 +191,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	private async _parseAndYield(model: ITextModel, parseType: TelemetryParseType): Promise<Parser.Tree | undefined> {
 		const language = model.getLanguageId();
 		let tree: Parser.Tree | undefined;
+		const oldTree = this.tree?.copy();
 		let time: number = 0;
 		let passes: number = 0;
 		this._newEdits = false;
@@ -200,14 +201,10 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			return (tree?.rootNode.childCount === 0) && model.getValueLength() > 0;
 		};
 
-		const shouldKeepLooping = () => {
-			return (!tree || isTreeEmpty()) && !this._newEdits;
-		};
-
 		do {
 			const timer = performance.now();
 			try {
-				tree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), this.tree);
+				tree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), oldTree);
 			} catch (e) {
 				// parsing can fail when the timeout is reached, will resume upon next loop
 				this._logService.debug('Error parsing tree-sitter tree', e);
@@ -222,7 +219,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			if (model.isDisposed() || this.isDisposed) {
 				break;
 			}
-		} while (shouldKeepLooping()); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
+		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
 		if (isTreeEmpty()) {
 			// Something has gone horribly wrong
 			tree = undefined;
