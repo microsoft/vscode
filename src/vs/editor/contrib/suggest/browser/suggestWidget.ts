@@ -367,9 +367,11 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
-		// This can happen when focus is in the details-panel and when
-		// arrow keys are pressed to select next/prev items
-		this._setState(State.Open);
+		if (this._state === State.Details) {
+			// This can happen when focus is in the details-panel and when
+			// arrow keys are pressed to select next/prev items
+			this._setState(State.Open);
+		}
 
 		if (!e.elements.length) {
 			if (this._currentSuggestionDetails) {
