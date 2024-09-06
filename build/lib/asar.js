@@ -92,7 +92,6 @@ function createAsar(folderPath, unpackGlobs, skipGlobs, duplicateGlobs, destFile
             return;
         }
         if (shouldDuplicateFile(file)) {
-            console.log(file.relative);
             this.queue(new VinylFile({
                 base: '.',
                 path: file.path,
