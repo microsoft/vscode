@@ -465,6 +465,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 			showChanged: false,
 			maxValueLength: 1024,
 			colorize: true,
+			session: expression.getSession(),
 		}));
 	}
 

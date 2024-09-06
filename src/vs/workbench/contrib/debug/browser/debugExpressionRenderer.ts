@@ -19,7 +19,7 @@ import { ReplEvaluationResult } from '../common/replModel.js';
 import { IVariableTemplateData } from './baseDebugView.js';
 import { handleANSIOutput } from './debugANSIHandling.js';
 import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from './debugCommands.js';
-import { DebugLinkHoverBehavior, DebugLinkHoverBehaviorTypeData, LinkDetector } from './linkDetector.js';
+import { DebugLinkHoverBehavior, DebugLinkHoverBehaviorTypeData, ILinkDetector, LinkDetector } from './linkDetector.js';
 
 export interface IValueHoverOptions {
 	/** Commands to show in the hover footer. */
@@ -104,6 +104,7 @@ export class DebugExpressionRenderer {
 
 	renderValue(container: HTMLElement, expressionOrValue: IExpressionValue | string, options: IRenderValueOptions = {}): IDisposable {
 		const store = new DisposableStore();
+		const supportsANSI = !!options.session?.capabilities.supportsANSIStyling;
 
 		let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
@@ -142,15 +143,21 @@ export class DebugExpressionRenderer {
 			value = '';
 		}
 
-		const session = (expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined;
+		const session = options.session ?? ((expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined);
 		// Only use hovers for links if thre's not going to be a hover for the value.
 		const hoverBehavior: DebugLinkHoverBehaviorTypeData = options.hover === false ? { type: DebugLinkHoverBehavior.Rich, store } : { type: DebugLinkHoverBehavior.None };
-		if (expressionOrValue instanceof ExpressionContainer && expressionOrValue.valueLocationReference !== undefined && session) {
-			container.textContent = '';
-			container.appendChild(this.linkDetector.linkifyLocation(value, expressionOrValue.valueLocationReference, session, hoverBehavior));
+		dom.clearNode(container);
+		const locationReference = options.locationReference ?? (expressionOrValue instanceof ExpressionContainer && expressionOrValue.valueLocationReference);
+
+		let linkDetector: ILinkDetector = this.linkDetector;
+		if (locationReference && session) {
+			linkDetector = this.linkDetector.makeReferencedLinkDetector(locationReference, session);
+		}
+
+		if (supportsANSI) {
+			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined));
 		} else {
-			container.textContent = '';
-			container.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined));
+			container.appendChild(linkDetector.linkify(value, false, session?.root, true, hoverBehavior));
 		}
 
 		if (options.hover !== false) {
@@ -160,7 +167,13 @@ export class DebugExpressionRenderer {
 				const markdownHoverElement = dom.$('div.hover-row');
 				const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
 				const hoverContentsPre = dom.append(hoverContentsElement, dom.$('pre.debug-var-hover-pre'));
-				hoverContentsPre.textContent = value;
+				if (supportsANSI) {
+					// note: intentionally using `this.linkDetector` so we don't blindly linkify the
+					// entire contents and instead only link file paths that it contains.
+					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined));
+				} else {
+					hoverContentsPre.textContent = value;
+				}
 				container.appendChild(markdownHoverElement);
 				return container;
 			}, {

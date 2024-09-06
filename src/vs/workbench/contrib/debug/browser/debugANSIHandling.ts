@@ -378,7 +378,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 		if (colorIndex !== undefined && colorType) {
 			const colorName = ansiColorIdentifiers[colorIndex];
-			changeColor(colorType, `--vscode-terminal-${colorName}`);
+			changeColor(colorType, `--vscode-${colorName.replaceAll('.', '-')}`);
 		}
 	}
 }

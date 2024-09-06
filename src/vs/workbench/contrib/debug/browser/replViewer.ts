@@ -300,6 +300,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 		// value
 		templateData.elementStore.add(this.expressionRenderer.renderValue(templateData.value, element.value, {
 			hover: false,
+			session: node.element.getSession(),
 		}));
 	}
 

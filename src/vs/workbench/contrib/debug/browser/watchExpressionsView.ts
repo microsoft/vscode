@@ -334,7 +334,8 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		data.elementDisposable.add(this.expressionRenderer.renderValue(data.value, expression, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			colorize: true
+			colorize: true,
+			session: expression.getSession(),
 		}));
 	}
 

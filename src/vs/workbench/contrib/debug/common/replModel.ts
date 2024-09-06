@@ -76,11 +76,16 @@ export class ReplVariableElement implements INestingReplElement {
 	private readonly id = generateUuid();
 
 	constructor(
+		private readonly session: IDebugSession,
 		public readonly expression: IExpression,
 		public readonly severity: severity,
 		public readonly sourceData?: IReplElementSource,
 	) {
 		this.hasChildren = expression.hasChildren;
+	}
+
+	getSession() {
+		return this.session;
 	}
 
 	getChildren(): IReplElement[] | Promise<IReplElement[]> {
@@ -104,6 +109,10 @@ export class RawObjectReplElement implements IExpression, INestingReplElement {
 
 	getId(): string {
 		return this.id;
+	}
+
+	getSession(): IDebugSession | undefined {
+		return undefined;
 	}
 
 	get value(): string {
@@ -292,7 +301,7 @@ export class ReplModel {
 			// have formatted it nicely e.g. with ANSI color codes.
 			this.addReplElement(output
 				? new ReplOutputElement(session, getUniqueId(), output, sev, source, expression)
-				: new ReplVariableElement(expression, sev, source));
+				: new ReplVariableElement(session, expression, sev, source));
 			return;
 		}
 

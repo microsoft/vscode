@@ -70,6 +70,7 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		data.elementDisposables.add(this.expressionRenderer.renderValue(data.value, element.element, {
 			colorize: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			session: undefined,
 		}));
 	}
 
