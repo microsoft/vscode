@@ -42,7 +42,10 @@ if [ "@@NAME@@" != "code-oss" ]; then
 		db_get @@NAME@@/add-microsoft-repo || true
 	fi
 
-	# Determine whether to install the repository source list
+	# Determine whether to write the Microsoft repository source list
+	# 0 means do not write
+	# 1 means ask and then write if Yes
+	# 2 means write without asking
 	WRITE_SOURCE=0
 	if [ "$RET" = false ]; then
 		# The user does not want to add the Microsoft repository
@@ -59,6 +62,9 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
 		# The user is already on the new repository
 		WRITE_SOURCE=0
+	elif [ -n "$CODE_INSTALL_WITH_REPO" ]; then
+		# The user wants to install Code with the Microsoft repo
+		WRITE_SOURCE=2
 	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
 		# Write source list if it does not exist and we're not running on Raspberry Pi OS
 		WRITE_SOURCE=1
