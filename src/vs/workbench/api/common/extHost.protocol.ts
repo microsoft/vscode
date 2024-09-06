@@ -381,8 +381,15 @@ export interface IDocumentContextItemDto {
 	readonly ranges: IRange[];
 }
 
+export interface IConversationItemDto {
+	readonly type: 'request' | 'response';
+	readonly message: string;
+	readonly references?: IDocumentContextItemDto[];
+}
+
 export interface IMappedEditsContextDto {
 	documents: IDocumentContextItemDto[][];
+	conversation?: IConversationItemDto[];
 }
 
 export interface ISignatureHelpProviderMetadataDto {
