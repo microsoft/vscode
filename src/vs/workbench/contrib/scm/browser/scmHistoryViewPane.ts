@@ -574,7 +574,33 @@ class SCMHistoryViewModel extends Disposable {
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
 	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
-	private readonly _historyItemGroupIds = observableValue<'all' | 'auto' | string[]>(this, 'auto');
+
+	private readonly _historyItemGroupFilter = observableValue<'all' | 'auto' | string[]>(this, 'auto');
+
+	readonly historyItemGroupFilter = derived<string[]>(reader => {
+		const filter = this._historyItemGroupFilter.read(reader);
+		if (Array.isArray(filter)) {
+			return filter;
+		}
+
+		if (filter === 'all') {
+			return [];
+		}
+
+		const repository = this.repository.get();
+		const historyProvider = repository?.provider.historyProvider.get();
+		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
+
+		if (!currentHistoryItemGroup) {
+			return [];
+		}
+
+		return [
+			currentHistoryItemGroup.revision ?? currentHistoryItemGroup.id,
+			...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.revision ?? currentHistoryItemGroup.remote.id] : [],
+			...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.revision ?? currentHistoryItemGroup.base.id] : [],
+		];
+	});
 
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
 
@@ -633,13 +659,9 @@ class SCMHistoryViewModel extends Disposable {
 		}
 
 		if (!state || state.loadMore) {
-			const historyItemGroupIds = [
-				currentHistoryItemGroup.revision ?? currentHistoryItemGroup.id,
-				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.revision ?? currentHistoryItemGroup.remote.id] : [],
-				...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.revision ?? currentHistoryItemGroup.base.id] : [],
-			];
-
 			const existingHistoryItems = state?.items ?? [];
+
+			const historyItemGroupIds = this.historyItemGroupFilter.get();
 			const limit = clamp(this._configurationService.getValue<number>('scm.graph.pageSize'), 1, 1000);
 
 			const historyItems = await historyProvider.provideHistoryItems({
@@ -656,7 +678,7 @@ class SCMHistoryViewModel extends Disposable {
 		}
 
 		// Create the color map
-		const colorMap = this._getHistoryItemsColorMap(currentHistoryItemGroup);
+		const colorMap = this._getGraphColorMap(currentHistoryItemGroup);
 
 		return toISCMHistoryItemViewModelArray(state.items, colorMap)
 			.map(historyItemViewModel => ({
@@ -670,11 +692,7 @@ class SCMHistoryViewModel extends Disposable {
 		this._selectedRepository.set(repository, undefined);
 	}
 
-	private _getHistoryItemsColorMap(currentHistoryItemGroup: ISCMHistoryItemGroup): Map<string, ColorIdentifier> {
-		if (this._historyItemGroupIds.get() !== 'auto') {
-			return new Map<string, ColorIdentifier>();
-		}
-
+	private _getGraphColorMap(currentHistoryItemGroup: ISCMHistoryItemGroup): Map<string, ColorIdentifier> {
 		const colorMap = new Map<string, ColorIdentifier>([
 			[currentHistoryItemGroup.name, historyItemGroupLocal]
 		]);
@@ -683,6 +701,9 @@ class SCMHistoryViewModel extends Disposable {
 		}
 		if (currentHistoryItemGroup.base) {
 			colorMap.set(currentHistoryItemGroup.base.name, historyItemGroupBase);
+		}
+		if (this._historyItemGroupFilter.get() === 'all') {
+			colorMap.set('*', '');
 		}
 
 		return colorMap;
