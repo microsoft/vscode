@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { homedir } from 'os';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
 import * as fileSchemes from './configuration/fileSchemes';
 import { Schemes } from './configuration/schemes';
@@ -1038,15 +1039,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				return;
 
 			case EventName.createDirectoryWatcher: {
-				const path = (event.body as Proto.CreateDirectoryWatcherEventBody).path;
-				if (path.startsWith(inMemoryResourcePrefix)) {
+				const fpath = (event.body as Proto.CreateDirectoryWatcherEventBody).path;
+				if (fpath.startsWith(inMemoryResourcePrefix)) {
+					return;
+				}
+				if (process.platform === 'darwin' && fpath === path.join(homedir(), 'Library')) {
+					// ignore directory watch requests on ~/Library
+					// until microsoft/TypeScript#59831 is resolved
 					return;
 				}
 
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
 					new vscode.RelativePattern(
-						vscode.Uri.file(path),
+						vscode.Uri.file(fpath),
 						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
 					),
 					(event.body as Proto.CreateDirectoryWatcherEventBody).ignoreUpdate
