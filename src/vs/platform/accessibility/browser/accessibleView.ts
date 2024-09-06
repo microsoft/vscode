@@ -31,6 +31,7 @@ export const enum AccessibleViewProviderId {
 	Repl = 'repl',
 	ReplHelp = 'replHelp',
 	RunAndDebug = 'runAndDebug',
+	Walkthrough = 'walkthrough',
 }
 
 export const enum AccessibleViewType {
