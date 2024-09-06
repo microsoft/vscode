@@ -1346,14 +1346,14 @@ export class SymbolInformation {
 	location!: Location;
 	kind: SymbolKind;
 	tags?: SymbolTag[];
-	containerName: string | undefined;
+	containerName: string;
 
 	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
 	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
 	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | undefined | Range, locationOrUri?: Location | URI, containerName?: string) {
 		this.name = name;
 		this.kind = kind;
-		this.containerName = containerName;
+		this.containerName = containerName ?? '';
 
 		if (typeof rangeOrContainer === 'string') {
 			this.containerName = rangeOrContainer;
@@ -4422,9 +4422,9 @@ export class ChatResponseFileTreePart {
 }
 
 export class ChatResponseAnchorPart {
-	value: vscode.Uri | vscode.Location;
+	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
 	title?: string;
-	constructor(value: vscode.Uri | vscode.Location, title?: string) {
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
 		this.value = value;
 		this.title = title;
 	}

@@ -289,11 +289,14 @@ export class Response extends Disposable implements IResponse {
 	}
 
 	private _updateRepr(quiet?: boolean) {
+		const inlineRefToRepr = (part: IChatContentInlineReference) =>
+			'uri' in part.inlineReference ? basename(part.inlineReference.uri) : 'name' in part.inlineReference ? part.inlineReference.name : basename(part.inlineReference);
+
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {
 				return '';
 			} else if (part.kind === 'inlineReference') {
-				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+				return inlineRefToRepr(part);
 			} else if (part.kind === 'command') {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
@@ -313,7 +316,7 @@ export class Response extends Disposable implements IResponse {
 
 		this._markdownContent = this._responseParts.map(part => {
 			if (part.kind === 'inlineReference') {
-				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+				return inlineRefToRepr(part);
 			} else if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
 				return part.content.value;
 			} else {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { applyDragImage } from '../../../../base/browser/dnd.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -13,7 +12,8 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Location } from '../../../../editor/common/languages.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -23,11 +23,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colors/listColors.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
-import { contentRefUrl } from '../common/annotations.js';
+import { ContentRefData, contentRefUrl } from '../common/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/chatColors.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
@@ -36,7 +34,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
-import './media/chatInlineFileLinkWidget.css';
+import './media/chatInlineAnchorWidget.css';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -241,20 +239,20 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 	private renderFileWidget(href: string, a: HTMLAnchorElement, store: DisposableStore): void {
 		// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
 		const fullUri = URI.parse(href);
-		let location: Location | { uri: URI; range: undefined };
+		let data: ContentRefData;
 		try {
-			location = revive(JSON.parse(fullUri.fragment));
+			data = revive(JSON.parse(fullUri.fragment));
 		} catch (err) {
 			this.logService.error('Invalid chat widget render data JSON', toErrorMessage(err));
 			return;
 		}
 
-		if (!location.uri || !URI.isUri(location.uri)) {
+		if (data.kind !== 'symbol' && !URI.isUri(data.uri)) {
 			this.logService.error(`Invalid chat widget render data: ${fullUri.fragment}`);
 			return;
 		}
 
-		store.add(this.instantiationService.createInstance(InlineFileLinkWidget, a, location));
+		store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data));
 	}
 
 	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {
@@ -284,47 +282,56 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 }
 
 
-class InlineFileLinkWidget extends Disposable {
+class InlineAnchorWidget extends Disposable {
 
 	constructor(
 		element: HTMLAnchorElement,
-		location: Location | { uri: URI; range: undefined },
+		data: ContentRefData,
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
-		@IThemeService themeService: IThemeService,
 	) {
 		super();
 
-		element.classList.add('chat-inline-file-link-widget');
+		element.classList.add('chat-inline-anchor-widget', 'show-file-icons');
+		element.replaceChildren();
+
+		const resourceLabel = this._register(new IconLabel(element, { supportHighlights: false, supportIcons: true }));
+
+		let location: { readonly uri: URI; readonly range?: IRange };
+		if (data.kind === 'symbol') {
+			location = data.symbol.location;
+
+			const icon = SymbolKinds.toIcon(data.symbol.kind);
+			resourceLabel.setLabel(`$(${icon.id}) ${data.symbol.name}`, undefined, {});
+		} else {
+			location = data;
+
+			const label = labelService.getUriBasenameLabel(location.uri);
+			const title = location.range && data.kind !== 'symbol' ?
+				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
+				label;
+
+			resourceLabel.setLabel(title, undefined, {
+				extraClasses: getIconClasses(modelService, languageService, location.uri)
+			});
+		}
 
 		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
 		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
 
-		const label = labelService.getUriLabel(location.uri, { relative: true });
-		const title = location.range ?
-			`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-			label;
-
-		element.replaceChildren();
-
-		const resourceLabel = this._register(new IconLabel(element, { supportHighlights: false, supportIcons: true }));
-		resourceLabel.setLabel(label, undefined, {
-			extraClasses: getIconClasses(modelService, languageService, location.uri)
-		});
-
 		// Hover
-		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
+		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
 
 		// Drag and drop
 		element.draggable = true;
 		this._register(dom.addDisposableListener(element, 'dragstart', e => {
 			instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [location.uri], e));
 
-			const theme = themeService.getColorTheme();
-			applyDragImage(e, label, 'monaco-drag-image', theme.getColor(listActiveSelectionBackground)?.toString(), theme.getColor(listActiveSelectionForeground)?.toString());
+			e.dataTransfer?.setDragImage(element, 0, 0);
 		}));
 	}
 }
