@@ -258,12 +258,7 @@ export class SuggestDetailsWidget {
 	}
 
 	focus() {
-		this.domNode.classList.add('focused');
 		this.domNode.focus();
-	}
-
-	removeFocusIndicator() {
-		this.domNode.classList.remove('focused');
 	}
 }
 
