@@ -23,6 +23,7 @@
 	-webkit-text-size-adjust: 100%;
 	color: var(--vscode-editor-foreground);
 	background-color: var(--vscode-editor-background);
+	overflow-wrap: initial;
 }
 .monaco-editor-background {
 	background-color: var(--vscode-editor-background);

@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { Position } from 'vs/workbench/api/common/extHostTypes';
-import { Range } from 'vs/editor/common/core/range';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { mock } from 'vs/base/test/common/mock';
-import * as perfData from './extHostDocumentData.test.perf-data';
-import { setDefaultGetWordAtTextConfig } from 'vs/editor/common/core/wordHelper';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtHostDocumentData } from '../../common/extHostDocumentData.js';
+import { Position } from '../../common/extHostTypes.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { MainThreadDocumentsShape } from '../../common/extHost.protocol.js';
+import { IModelChangedEvent } from '../../../../editor/common/model/mirrorTextModel.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import * as perfData from './extHostDocumentData.test.perf-data.js';
+import { setDefaultGetWordAtTextConfig } from '../../../../editor/common/core/wordHelper.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostDocumentData', () => {
 

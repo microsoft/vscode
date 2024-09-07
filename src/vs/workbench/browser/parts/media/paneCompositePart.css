@@ -73,13 +73,9 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
 	height: 35px; /* matches height of composite container */
-	padding: 0 5px;
+	padding: 0 3px;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar .monaco-action-bar .action-label.codicon,
-.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container >.composite-bar .monaco-action-bar .action-label.codicon {
-	font-size: 18px;
-}
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label:not(.codicon),
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label:not(.codicon) {
@@ -235,6 +231,12 @@
 	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.compact-content .badge-content,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.compact-content .badge-content {
+	font-size: 8px;
+	padding: 0 3px;
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before,

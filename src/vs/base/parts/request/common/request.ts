@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
+import { VSBufferReadableStream } from '../../../common/buffer.js';
 
 const offlineName = 'Offline';
 
@@ -25,7 +25,14 @@ export class OfflineError extends Error {
 }
 
 export interface IHeaders {
-	[header: string]: string;
+	'Proxy-Authorization'?: string;
+	'x-operation-id'?: string;
+	'retry-after'?: string;
+	etag?: string;
+	'Content-Length'?: string;
+	'activityid'?: string;
+	'X-Market-User-Id'?: string;
+	[header: string]: string | string[] | undefined;
 }
 
 export interface IRequestOptions {

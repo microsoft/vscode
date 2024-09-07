@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import 'vs/css!./media/terminalChatWidget';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
-import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { ITerminalInstance, type IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalStickyScrollContribution } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollContribution';
+import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from '../../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
+import './media/terminalChatWidget.css';
+import { localize } from '../../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
+import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -57,7 +56,13 @@ export class TerminalChatWidget extends Disposable {
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
-			ChatAgentLocation.Terminal,
+			{
+				location: ChatAgentLocation.Terminal,
+				resolveData: () => {
+					// TODO@meganrogge return something that identifies this terminal
+					return undefined;
+				}
+			},
 			{
 				statusMenuId: {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
@@ -96,11 +101,14 @@ export class TerminalChatWidget extends Disposable {
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+		this._register(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this._register(this._focusTracker.onDidBlur(() => {
+			this._focusedContextKey.set(false);
 			if (!this.inlineChatWidget.responseContent) {
 				this.hide();
 			}
 		}));
+
 		this.hide();
 	}
 
@@ -150,7 +158,6 @@ export class TerminalChatWidget extends Disposable {
 	reveal(): void {
 		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
-		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
 		this._instance.scrollToBottom();
@@ -194,12 +201,9 @@ export class TerminalChatWidget extends Disposable {
 
 	hide(): void {
 		this._container.classList.add('hide');
-		this._reset();
-		this._inlineChatWidget.updateChatMessage(undefined);
-		this._inlineChatWidget.updateProgress(false);
-		this._inlineChatWidget.updateToolbar(false);
 		this._inlineChatWidget.reset();
-		this._focusedContextKey.set(false);
+		this._reset();
+		this._inlineChatWidget.updateToolbar(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
 		this._instance.focus();
@@ -226,22 +230,12 @@ export class TerminalChatWidget extends Disposable {
 	input(): string {
 		return this._inlineChatWidget.value;
 	}
-	addToHistory(input: string): void {
-		this._inlineChatWidget.addToHistory(input);
-		this._inlineChatWidget.saveState();
-		this._inlineChatWidget.value = input;
-		this._inlineChatWidget.selectAll(true);
-	}
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 	}
 	acceptCommand(code: string, shouldExecute: boolean): void {
 		this._instance.runCommand(code, shouldExecute);
 		this.hide();
-	}
-
-	updateProgress(progress?: IChatProgress): void {
-		this._inlineChatWidget.updateProgress(progress?.kind === 'markdownContent');
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;

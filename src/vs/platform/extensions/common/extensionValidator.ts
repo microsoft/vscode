@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { IExtensionManifest, parseApiProposals } from 'vs/platform/extensions/common/extensions';
-import { allApiProposals } from 'vs/platform/extensions/common/extensionsApiProposals';
+import { isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { IExtensionManifest, parseApiProposals } from './extensions.js';
+import { allApiProposals } from './extensionsApiProposals.js';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -240,7 +240,7 @@ export function isValidVersion(_inputVersion: string | INormalizedVersion, _inpu
 
 type ProductDate = string | Date | undefined;
 
-export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean): readonly [Severity, string][] {
+export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean, validateApiVersion: boolean): readonly [Severity, string][] {
 	const validations: [Severity, string][] = [];
 	if (typeof extensionManifest.publisher !== 'undefined' && typeof extensionManifest.publisher !== 'string') {
 		validations.push([Severity.Error, nls.localize('extensionDescription.publisher', "property publisher must be of type `string`.")]);
@@ -322,7 +322,7 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 		}
 	}
 
-	if (extensionManifest.enabledApiProposals?.length) {
+	if (validateApiVersion && extensionManifest.enabledApiProposals?.length) {
 		const incompatibleNotices: string[] = [];
 		if (!areApiProposalsCompatible([...extensionManifest.enabledApiProposals], incompatibleNotices)) {
 			for (const notice of incompatibleNotices) {

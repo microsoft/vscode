@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/suggest';
-import * as dom from 'vs/base/browser/dom';
-import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
-import { SimpleSuggestWidgetItemRenderer } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import './media/suggest.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { IListEvent, IListGestureEvent, IListMouseEvent } from '../../../../base/browser/ui/list/list.js';
+import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
+import { SimpleCompletionItem } from './simpleCompletionItem.js';
+import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
+import { SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/suggestWidgetStatus.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 
 const $ = dom.$;
 
@@ -84,6 +84,7 @@ export class SimpleSuggestWidget extends Disposable {
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -140,7 +141,7 @@ export class SimpleSuggestWidget extends Disposable {
 			state = undefined;
 		}));
 
-		const renderer = new SimpleSuggestWidgetItemRenderer();
+		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
 		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
 		this._list = this._register(new List('SuggestWidget', this._listElement, {
@@ -503,11 +504,8 @@ export class SimpleSuggestWidget extends Disposable {
 	}
 
 	private _getLayoutInfo() {
-		const fontInfo = {
-			lineHeight: 20,
-			typicalHalfwidthCharacterWidth: 10
-		}; //this.editor.getOption(EditorOption.fontInfo);
-		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
+		const fontInfo = this._getFontInfo();
+		const itemHeight = clamp(Math.ceil(fontInfo.lineHeight), 8, 1000);
 		const statusBarHeight = 0; //!this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
 		const borderWidth = 1; //this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
@@ -517,7 +515,7 @@ export class SimpleSuggestWidget extends Disposable {
 			statusBarHeight,
 			borderWidth,
 			borderHeight,
-			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
+			typicalHalfwidthCharacterWidth: 10,
 			verticalPadding: 22,
 			horizontalPadding: 14,
 			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight + borderHeight)

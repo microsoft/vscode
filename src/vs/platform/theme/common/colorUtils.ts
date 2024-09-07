@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from 'vs/base/common/assert';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import * as nls from 'vs/nls';
+import { assertNever } from '../../../base/common/assert.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IJSONSchema, IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import * as platform from '../../registry/common/platform.js';
+import { IColorTheme } from './themeService.js';
+import * as nls from '../../../nls.js';
 
 //  ------ API types
 
@@ -20,7 +20,7 @@ export type ColorIdentifier = string;
 export interface ColorContribution {
 	readonly id: ColorIdentifier;
 	readonly description: string;
-	readonly defaults: ColorDefaults | null;
+	readonly defaults: ColorDefaults | ColorValue | null;
 	readonly needsTransparency: boolean;
 	readonly deprecationMessage: string | undefined;
 }
@@ -62,10 +62,6 @@ export type ColorTransform =
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
 	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue };
 
-export function isColorTransform(value: unknown): value is ColorTransform {
-	return typeof value === 'object' && !!value && 'op' in value && typeof value.op === 'number';
-}
-
 export interface ColorDefaults {
 	light: ColorValue | null;
 	dark: ColorValue | null;
@@ -73,15 +69,14 @@ export interface ColorDefaults {
 	hcLight: ColorValue | null;
 }
 
+export function isColorDefaults(value: unknown): value is ColorDefaults {
+	return value !== null && typeof value === 'object' && 'light' in value && 'dark' in value;
+}
 
 /**
  * A Color Value is either a color literal, a reference to an other color or a derived color
  */
 export type ColorValue = Color | string | ColorIdentifier | ColorTransform;
-
-export function isColorValue(value: unknown): value is ColorValue {
-	return typeof value === 'string' || value instanceof Color || isColorTransform(value);
-}
 
 // color registry
 export const Extensions = {
@@ -161,10 +156,10 @@ class ColorRegistry implements IColorRegistry {
 		this._onDidChangeSchema.fire();
 	}
 
-	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
+	public registerColor(id: string, defaults: ColorDefaults | ColorValue | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		const colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
-		const propertySchema: IJSONSchemaWithSnippets = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		const propertySchema: IJSONSchemaWithSnippets = { type: 'string', format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
@@ -173,6 +168,7 @@ class ColorRegistry implements IColorRegistry {
 			propertySchema.patternErrorMessage = nls.localize('transparecyRequired', 'This color must be transparent or it will obscure content');
 		}
 		this.colorSchema.properties[id] = {
+			description,
 			oneOf: [
 				propertySchema,
 				{ type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') }
@@ -203,8 +199,8 @@ class ColorRegistry implements IColorRegistry {
 
 	public resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined {
 		const colorDesc = this.colorsById[id];
-		if (colorDesc && colorDesc.defaults) {
-			const colorValue = colorDesc.defaults[theme.type];
+		if (colorDesc?.defaults) {
+			const colorValue = isColorDefaults(colorDesc.defaults) ? colorDesc.defaults[theme.type] : colorDesc.defaults;
 			return resolveColorValue(colorValue, theme);
 		}
 		return undefined;
@@ -238,14 +234,6 @@ platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
 
 export function registerColor(id: string, defaults: ColorDefaults | ColorValue | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
-	if (isColorValue(defaults)) {
-		defaults = {
-			dark: defaults,
-			light: defaults,
-			hcDark: defaults,
-			hcLight: defaults
-		} satisfies ColorDefaults;
-	}
 	return colorRegistry.registerColor(id, defaults, description, needsTransparency, deprecationMessage);
 }
 

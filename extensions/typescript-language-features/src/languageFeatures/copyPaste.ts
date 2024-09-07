@@ -106,7 +106,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 			pasteLocations: ranges.map(typeConverters.Range.toTextSpan),
 			copiedFrom
 		}, token));
-		if (response.type !== 'response' || !response.body || token.isCancellationRequested) {
+		if (response.type !== 'response' || !response.body?.edits.length || token.isCancellationRequested) {
 			return;
 		}
 

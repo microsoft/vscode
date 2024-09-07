@@ -105,6 +105,10 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			console.error(`Error saving web client logs (${error})`);
 		}
 
+		if (args.debug) {
+			return;
+		}
+
 		try {
 			await browser.close();
 		} catch (error) {
@@ -188,11 +192,11 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	serverArgs.push('--logsPath', serverLogsPath);
 
 	const stdio: cp.StdioOptions = args.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
-
+	const shell: boolean = (process.platform === 'win32');
 	const serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
-		{ env, stdio }
+		{ env, stdio, shell }
 	);
 
 	if (args.debug) {

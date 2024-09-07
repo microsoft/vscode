@@ -5,23 +5,25 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, Display, screen } from 'electron';
 import { arch, release, type } from 'os';
-import { raceTimeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { localize } from 'vs/nls';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import product from 'vs/platform/product/common/product';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { raceTimeout } from '../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { IIssueMainService, OldIssueReporterData, OldIssueReporterWindowConfiguration } from '../common/issue.js';
+import { ILogService } from '../../log/common/log.js';
+import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
+import product from '../../product/common/product.js';
+import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-main/protocol.js';
+import { zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { ICodeWindow, IWindowState } from '../../window/electron-main/window.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { isESM } from '../../../base/common/amd.js';
+import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -49,17 +51,18 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
 	) { }
 
 	//#region Used by renderer
 
-	async openReporter(data: IssueReporterData): Promise<void> {
+	async openReporter(data: OldIssueReporterData): Promise<void> {
 		if (!this.issueReporterWindow) {
 			this.issueReporterParentWindow = BrowserWindow.getFocusedWindow();
 			if (this.issueReporterParentWindow) {
 				const issueReporterDisposables = new DisposableStore();
 
-				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IssueReporterWindowConfiguration>());
+				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<OldIssueReporterWindowConfiguration>());
 				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
 
 				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, {
@@ -81,11 +84,16 @@ export class IssueMainService implements IIssueMainService {
 						arch: arch(),
 						release: release(),
 					},
-					product
+					product,
+					nls: {
+						messages: getNLSMessages(),
+						language: getNLSLanguage()
+					},
+					cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
+					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {
@@ -169,16 +177,16 @@ export class IssueMainService implements IIssueMainService {
 		return window;
 	}
 
-	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<OldIssueReporterData | undefined> {
 		const window = this.issueReporterWindowCheck();
 		const replyChannel = `vscode:triggerReporterMenu`;
 		const cts = new CancellationTokenSource();
 		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
-		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: OldIssueReporterData | undefined) => resolve(data))), 5000, () => {
 			this.logService.error(`Error: Extension ${extensionId} timed out waiting for menu response`);
 			cts.cancel();
 		});
-		return result as IssueReporterData | undefined;
+		return result as OldIssueReporterData | undefined;
 	}
 
 	async $closeReporter(): Promise<void> {

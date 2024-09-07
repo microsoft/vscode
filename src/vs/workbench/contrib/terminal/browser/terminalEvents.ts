@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { DynamicListEventMultiplexer, Event, EventMultiplexer, IDynamicListEventMultiplexer } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalInstance } from './terminal.js';
+import { DynamicListEventMultiplexer, Event, EventMultiplexer, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
+import { DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ITerminalCapabilityImplMap, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 
 export function createInstanceCapabilityEventMultiplexer<T extends TerminalCapability, K>(
 	currentInstances: ITerminalInstance[],

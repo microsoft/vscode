@@ -8,8 +8,20 @@
 //@ts-check
 'use strict';
 
+// ESM-uncomment-begin
+/** @type any */
+const module = { exports: {} };
+// ESM-uncomment-end
+
 (function () {
-	function factory(path, os, productName, cwd) {
+	// ESM-comment-begin
+	// const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	const isESM = true;
+	// ESM-uncomment-end
+
+	function factory() {
 		// First group matches a double quoted string
 		// Second group matches a single quoted string
 		// Third group matches a multi line comment
@@ -67,7 +79,7 @@
 		};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		// amd
 		define([], function () { return factory(); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
@@ -77,3 +89,8 @@
 		console.trace('jsonc defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
+
+// ESM-uncomment-begin
+export const stripComments = module.exports.stripComments;
+export const parse = module.exports.parse;
+// ESM-uncomment-end
