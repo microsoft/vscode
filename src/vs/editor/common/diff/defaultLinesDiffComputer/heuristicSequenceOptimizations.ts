@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEachWithNeighbors } from 'vs/base/common/arrays';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { ISequence, OffsetPair, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
-import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
+import { forEachWithNeighbors } from '../../../../base/common/arrays.js';
+import { OffsetRange } from '../../core/offsetRange.js';
+import { ISequence, OffsetPair, SequenceDiff } from './algorithms/diffAlgorithm.js';
+import { LineSequence } from './lineSequence.js';
+import { LinesSliceCharSequence } from './linesSliceCharSequence.js';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
@@ -247,7 +247,7 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 
 		while (equalMappings.length > 0) {
 			const next = equalMappings[0];
-			const intersects = next.seq1Range.intersects(w1) || next.seq2Range.intersects(w2);
+			const intersects = next.seq1Range.intersects(w.seq1Range) || next.seq2Range.intersects(w.seq2Range);
 			if (!intersects) {
 				break;
 			}
@@ -272,7 +272,7 @@ export function extendDiffsToEntireWordIfAppropriate(sequence1: LinesSliceCharSe
 		}
 
 		if (equalChars1 + equalChars2 < (w.seq1Range.length + w.seq2Range.length) * 2 / 3) {
-			additional.push(new SequenceDiff(w1, w2));
+			additional.push(w);
 		}
 
 		lastPoint = w.getEndExclusives();
@@ -456,7 +456,11 @@ export function removeVeryShortMatchingTextBetweenLongDiffs(sequence1: LinesSlic
 			next ? next.getStarts() : OffsetPair.max,
 		);
 		const result = newDiff.intersect(availableSpace)!;
-		newDiffs.push(result);
+		if (newDiffs.length > 0 && result.getStarts().equals(newDiffs[newDiffs.length - 1].getEndExclusives())) {
+			newDiffs[newDiffs.length - 1] = newDiffs[newDiffs.length - 1].join(result);
+		} else {
+			newDiffs.push(result);
+		}
 	});
 
 	return newDiffs;

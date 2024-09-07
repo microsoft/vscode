@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AsyncDataTree, CompressibleAsyncDataTree, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { Iterable } from 'vs/base/common/iterator';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { AsyncDataTree, CompressibleAsyncDataTree, ITreeCompressionDelegate } from '../../../../browser/ui/tree/asyncDataTree.js';
+import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressibleTreeRenderer } from '../../../../browser/ui/tree/objectTree.js';
+import { IAsyncDataSource, ITreeNode } from '../../../../browser/ui/tree/tree.js';
+import { timeout } from '../../../../common/async.js';
+import { Iterable } from '../../../../common/iterator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 interface Element {
 	id: string;
@@ -267,6 +267,127 @@ suite('AsyncDataTree', function () {
 		assert(!twistie.classList.contains('collapsible'));
 		assert(!twistie.classList.contains('collapsed'));
 		assert(tree.getNode(model.get('a')).collapsed);
+	});
+
+	test('issue #192422 - resolved collapsed nodes with changed children don\'t show old children', async () => {
+		const container = document.createElement('div');
+		let hasGottenAChildren = false;
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				if (element.id === 'a') {
+					if (!hasGottenAChildren) {
+						hasGottenAChildren = true;
+					} else {
+						return [{ id: 'c' }];
+					}
+				}
+				return element.children || [];
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b' }]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		const a = model.get('a');
+		const aNode = tree.getNode(a);
+		assert(aNode.collapsed);
+		await tree.expand(a);
+		assert(!aNode.collapsed);
+		assert.equal(aNode.children.length, 1);
+		assert.equal(aNode.children[0].element.id, 'b');
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(bChild?.textContent, 'b');
+		tree.collapse(a);
+		assert(aNode.collapsed);
+
+		await tree.updateChildren(a);
+		const aUpdated1 = model.get('a');
+		const aNodeUpdated1 = tree.getNode(a);
+		assert(aNodeUpdated1.collapsed);
+		assert.equal(aNodeUpdated1.children.length, 0);
+		let didCheckNoChildren = false;
+		const event = tree.onDidChangeCollapseState(e => {
+			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+			assert.equal(child, undefined);
+			didCheckNoChildren = true;
+		});
+		await tree.expand(aUpdated1);
+		event.dispose();
+		assert(didCheckNoChildren);
+
+		const aNodeUpdated2 = tree.getNode(a);
+		assert(!aNodeUpdated2.collapsed);
+		assert.equal(aNodeUpdated2.children.length, 1);
+		assert.equal(aNodeUpdated2.children[0].element.id, 'c');
+		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(child?.textContent, 'c');
+	});
+
+	test('issue #192422 - resolved collapsed nodes with unchanged children immediately show children', async () => {
+		const container = document.createElement('div');
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				return element.children || [];
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b' }]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		const a = model.get('a');
+		const aNode = tree.getNode(a);
+		assert(aNode.collapsed);
+		await tree.expand(a);
+		assert(!aNode.collapsed);
+		assert.equal(aNode.children.length, 1);
+		assert.equal(aNode.children[0].element.id, 'b');
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(bChild?.textContent, 'b');
+		tree.collapse(a);
+		assert(aNode.collapsed);
+
+		const aUpdated1 = model.get('a');
+		const aNodeUpdated1 = tree.getNode(a);
+		assert(aNodeUpdated1.collapsed);
+		assert.equal(aNodeUpdated1.children.length, 1);
+		let didCheckSameChildren = false;
+		const event = tree.onDidChangeCollapseState(e => {
+			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+			assert.equal(child?.textContent, 'b');
+			didCheckSameChildren = true;
+		});
+		await tree.expand(aUpdated1);
+		event.dispose();
+		assert(didCheckSameChildren);
+
+		const aNodeUpdated2 = tree.getNode(a);
+		assert(!aNodeUpdated2.collapsed);
+		assert.equal(aNodeUpdated2.children.length, 1);
+		assert.equal(aNodeUpdated2.children[0].element.id, 'b');
+		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(child?.textContent, 'b');
 	});
 
 	test('support default collapse state per element', async () => {

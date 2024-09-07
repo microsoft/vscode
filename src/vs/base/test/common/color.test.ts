@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Color, HSLA, HSVA, RGBA } from 'vs/base/common/color';
+import assert from 'assert';
+import { Color, HSLA, HSVA, RGBA } from '../../common/color.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Color', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('isLighterColor', () => {
 		const color1 = new Color(new HSLA(60, 1, 0.5, 1)), color2 = new Color(new HSLA(0, 0, 0.753, 1));

@@ -3,25 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from 'vs/base/common/assert';
-import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, IObserver, IChangeContext, getFunctionName } from 'vs/base/common/observableInternal/base';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { assertFn } from '../assert.js';
+import { onBugIndicatingError } from '../errors.js';
+import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from '../lifecycle.js';
+import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
+import { DebugNameData, IDebugNameData } from './debugName.js';
+import { getLogger } from './logging.js';
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
 export function autorun(fn: (reader: IReader) => void): IDisposable {
-	return new AutorunObserver(undefined, fn, undefined, undefined);
+	return new AutorunObserver(
+		new DebugNameData(undefined, undefined, fn),
+		fn,
+		undefined,
+		undefined
+	);
 }
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
  * {@link fn} should start with a JS Doc using `@description` to name the autorun.
  */
-export function autorunOpts(options: { debugName?: string | (() => string | undefined) }, fn: (reader: IReader) => void): IDisposable {
-	return new AutorunObserver(options.debugName, fn, undefined, undefined);
+export function autorunOpts(options: IDebugNameData & {}, fn: (reader: IReader) => void): IDisposable {
+	return new AutorunObserver(
+		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
+		fn,
+		undefined,
+		undefined
+	);
 }
 
 /**
@@ -36,22 +48,25 @@ export function autorunOpts(options: { debugName?: string | (() => string | unde
  * @see autorun
  */
 export function autorunHandleChanges<TChangeSummary>(
-	options: {
-		debugName?: string | (() => string | undefined);
+	options: IDebugNameData & {
 		createEmptyChangeSummary?: () => TChangeSummary;
 		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
 	fn: (reader: IReader, changeSummary: TChangeSummary) => void
 ): IDisposable {
-	return new AutorunObserver(options.debugName, fn, options.createEmptyChangeSummary, options.handleChange);
+	return new AutorunObserver(
+		new DebugNameData(options.owner, options.debugName, options.debugReferenceFn ?? fn),
+		fn,
+		options.createEmptyChangeSummary,
+		options.handleChange
+	);
 }
 
 /**
  * @see autorunHandleChanges (but with a disposable store that is cleared before the next run or on dispose)
  */
 export function autorunWithStoreHandleChanges<TChangeSummary>(
-	options: {
-		debugName?: string | (() => string | undefined);
+	options: IDebugNameData & {
 		createEmptyChangeSummary?: () => TChangeSummary;
 		handleChange: (context: IChangeContext, changeSummary: TChangeSummary) => boolean;
 	},
@@ -60,7 +75,9 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 	const store = new DisposableStore();
 	const disposable = autorunHandleChanges(
 		{
-			debugName: options.debugName ?? (() => getFunctionName(fn)),
+			owner: options.owner,
+			debugName: options.debugName,
+			debugReferenceFn: options.debugReferenceFn ?? fn,
 			createEmptyChangeSummary: options.createEmptyChangeSummary,
 			handleChange: options.handleChange,
 		},
@@ -82,7 +99,9 @@ export function autorunWithStore(fn: (reader: IReader, store: DisposableStore) =
 	const store = new DisposableStore();
 	const disposable = autorunOpts(
 		{
-			debugName: () => getFunctionName(fn) || '(anonymous)',
+			owner: undefined,
+			debugName: undefined,
+			debugReferenceFn: fn,
 		},
 		reader => {
 			store.clear();
@@ -94,6 +113,20 @@ export function autorunWithStore(fn: (reader: IReader, store: DisposableStore) =
 		store.dispose();
 	});
 }
+
+export function autorunDelta<T>(
+	observable: IObservable<T>,
+	handler: (args: { lastValue: T | undefined; newValue: T }) => void
+): IDisposable {
+	let _lastValue: T | undefined;
+	return autorunOpts({ debugReferenceFn: handler }, (reader) => {
+		const newValue = observable.read(reader);
+		const lastValue = _lastValue;
+		_lastValue = newValue;
+		handler({ lastValue, newValue });
+	});
+}
+
 
 const enum AutorunState {
 	/**
@@ -118,21 +151,11 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	private changeSummary: TChangeSummary | undefined;
 
 	public get debugName(): string {
-		if (typeof this._debugName === 'string') {
-			return this._debugName;
-		}
-		if (typeof this._debugName === 'function') {
-			const name = this._debugName();
-			if (name !== undefined) { return name; }
-		}
-		const name = getFunctionName(this._runFn);
-		if (name !== undefined) { return name; }
-
-		return '(anonymous)';
+		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
 	}
 
 	constructor(
-		private readonly _debugName: string | (() => string | undefined) | undefined,
+		public readonly _debugNameData: DebugNameData,
 		public readonly _runFn: (reader: IReader, changeSummary: TChangeSummary) => void,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
 		private readonly _handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
@@ -170,8 +193,12 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			if (!isDisposed) {
 				getLogger()?.handleAutorunTriggered(this);
 				const changeSummary = this.changeSummary!;
-				this.changeSummary = this.createChangeSummary?.();
-				this._runFn(this, changeSummary);
+				try {
+					this.changeSummary = this.createChangeSummary?.();
+					this._runFn(this, changeSummary);
+				} catch (e) {
+					onBugIndicatingError(e);
+				}
 			}
 		} finally {
 			if (!isDisposed) {
@@ -199,23 +226,26 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	public endUpdate(): void {
-		if (this.updateCount === 1) {
-			do {
-				if (this.state === AutorunState.dependenciesMightHaveChanged) {
-					this.state = AutorunState.upToDate;
-					for (const d of this.dependencies) {
-						d.reportChanges();
-						if (this.state as AutorunState === AutorunState.stale) {
-							// The other dependencies will refresh on demand
-							break;
+		try {
+			if (this.updateCount === 1) {
+				do {
+					if (this.state === AutorunState.dependenciesMightHaveChanged) {
+						this.state = AutorunState.upToDate;
+						for (const d of this.dependencies) {
+							d.reportChanges();
+							if (this.state as AutorunState === AutorunState.stale) {
+								// The other dependencies will refresh on demand
+								break;
+							}
 						}
 					}
-				}
 
-				this._runIfNeeded();
-			} while (this.state !== AutorunState.upToDate);
+					this._runIfNeeded();
+				} while (this.state !== AutorunState.upToDate);
+			}
+		} finally {
+			this.updateCount--;
 		}
-		this.updateCount--;
 
 		assertFn(() => this.updateCount >= 0);
 	}
@@ -228,13 +258,17 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
-			const shouldReact = this._handleChange ? this._handleChange({
-				changedObservable: observable,
-				change,
-				didChange: o => o === observable as any,
-			}, this.changeSummary!) : true;
-			if (shouldReact) {
-				this.state = AutorunState.stale;
+			try {
+				const shouldReact = this._handleChange ? this._handleChange({
+					changedObservable: observable,
+					change,
+					didChange: (o): this is any => o === observable as any,
+				}, this.changeSummary!) : true;
+				if (shouldReact) {
+					this.state = AutorunState.stale;
+				}
+			} catch (e) {
+				onBugIndicatingError(e);
 			}
 		}
 	}
@@ -256,17 +290,4 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 export namespace autorun {
 	export const Observer = AutorunObserver;
-}
-
-export function autorunDelta<T>(
-	observable: IObservable<T>,
-	handler: (args: { lastValue: T | undefined; newValue: T }) => void
-): IDisposable {
-	let _lastValue: T | undefined;
-	return autorunOpts({ debugName: () => getFunctionName(handler) }, (reader) => {
-		const newValue = observable.read(reader);
-		const lastValue = _lastValue;
-		_lastValue = newValue;
-		handler({ lastValue, newValue });
-	});
 }

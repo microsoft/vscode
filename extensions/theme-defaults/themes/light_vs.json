@@ -23,6 +23,8 @@
 		"ports.iconRunningProcessForeground": "#369432",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#61616130",
+		"tab.selectedForeground": "#333333b3",
+		"tab.selectedBackground": "#ffffffa5",
 		"tab.lastPinnedBorder": "#61616130",
 		"notebook.cellBorderColor": "#E8E8E8",
 		"notebook.selectedCellBackground": "#c8ddf150",
@@ -31,7 +33,8 @@
 		"list.focusAndSelectionOutline": "#90C2F9",
 		"terminal.inactiveSelectionBackground": "#E5EBF1",
 		"widget.border": "#d4d4d4",
-		"actionBar.toggledBackground": "#dddddd"
+		"actionBar.toggledBackground": "#dddddd",
+		"diffEditor.unchangedRegionBackground": "#f8f8f8"
 	},
 	"tokenColors": [
 		{

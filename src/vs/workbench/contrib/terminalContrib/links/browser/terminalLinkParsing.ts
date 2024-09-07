@@ -9,8 +9,8 @@
  * exist.
  */
 
-import { Lazy } from 'vs/base/common/lazy';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 
 export interface IParsedLink {
 	path: ILinkPartialRange;
@@ -277,6 +277,11 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 				};
 				path = path.substring(prefix.text.length);
 
+				// Don't allow suffix links to be returned when the link itself is the empty string
+				if (path.trim().length === 0) {
+					continue;
+				}
+
 				// If there are multiple characters in the prefix, trim the prefix if the _first_
 				// suffix character is the same as the last prefix character. For example, for the
 				// text `echo "'foo' on line 1"`:
@@ -315,7 +320,7 @@ enum RegexPathConstants {
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
 	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
-	ExcludedStartPathCharactersClause = '[^\\0<>\\s!`&*()\\[\\]\'":;\\\\]',
+	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(?:\\\\|\\/)',

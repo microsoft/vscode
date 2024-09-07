@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { EditorTheme } from 'vs/editor/common/editorTheme';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';
-import { equals } from 'vs/base/common/arrays';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { Color } from '../../../../base/common/color.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { Position } from '../../../common/core/position.js';
+import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
+import { TokenizationRegistry } from '../../../common/languages.js';
+import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground, editorMultiCursorSecondaryForeground, editorMultiCursorPrimaryForeground } from '../../../common/core/editorColorRegistry.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { EditorTheme } from '../../../common/editorTheme.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { OverviewRulerDecorationsGroup } from '../../../common/viewModel.js';
+import { equals } from '../../../../base/common/arrays.js';
 
 class Settings {
 
@@ -29,7 +29,9 @@ class Settings {
 	public readonly borderColor: string | null;
 
 	public readonly hideCursor: boolean;
-	public readonly cursorColor: string | null;
+	public readonly cursorColorSingle: string | null;
+	public readonly cursorColorPrimary: string | null;
+	public readonly cursorColorSecondary: string | null;
 
 	public readonly themeType: 'light' | 'dark' | 'hcLight' | 'hcDark';
 	public readonly backgroundColor: Color | null;
@@ -55,8 +57,12 @@ class Settings {
 		this.borderColor = borderColor ? borderColor.toString() : null;
 
 		this.hideCursor = options.get(EditorOption.hideCursorInOverviewRuler);
-		const cursorColor = theme.getColor(editorCursorForeground);
-		this.cursorColor = cursorColor ? cursorColor.transparent(0.7).toString() : null;
+		const cursorColorSingle = theme.getColor(editorCursorForeground);
+		this.cursorColorSingle = cursorColorSingle ? cursorColorSingle.transparent(0.7).toString() : null;
+		const cursorColorPrimary = theme.getColor(editorMultiCursorPrimaryForeground);
+		this.cursorColorPrimary = cursorColorPrimary ? cursorColorPrimary.transparent(0.7).toString() : null;
+		const cursorColorSecondary = theme.getColor(editorMultiCursorSecondaryForeground);
+		this.cursorColorSecondary = cursorColorSecondary ? cursorColorSecondary.transparent(0.7).toString() : null;
 
 		this.themeType = theme.type;
 
@@ -189,7 +195,9 @@ class Settings {
 			&& this.renderBorder === other.renderBorder
 			&& this.borderColor === other.borderColor
 			&& this.hideCursor === other.hideCursor
-			&& this.cursorColor === other.cursorColor
+			&& this.cursorColorSingle === other.cursorColorSingle
+			&& this.cursorColorPrimary === other.cursorColorPrimary
+			&& this.cursorColorSecondary === other.cursorColorSecondary
 			&& this.themeType === other.themeType
 			&& Color.equals(this.backgroundColor, other.backgroundColor)
 			&& this.top === other.top
@@ -213,6 +221,11 @@ const enum OverviewRulerLane {
 	Full = 7
 }
 
+type Cursor = {
+	position: Position;
+	color: string | null;
+};
+
 const enum ShouldRenderValue {
 	NotNeeded = 0,
 	Maybe = 1,
@@ -226,10 +239,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private _settings!: Settings;
-	private _cursorPositions: Position[];
+	private _cursorPositions: Cursor[];
 
 	private _renderedDecorations: OverviewRulerDecorationsGroup[] = [];
-	private _renderedCursorPositions: Position[] = [];
+	private _renderedCursorPositions: Cursor[] = [];
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -249,7 +262,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			}
 		});
 
-		this._cursorPositions = [];
+		this._cursorPositions = [{ position: new Position(1, 1), color: this._settings.cursorColorSingle }];
 	}
 
 	public override dispose(): void {
@@ -298,9 +311,13 @@ export class DecorationsOverviewRuler extends ViewPart {
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._cursorPositions = [];
 		for (let i = 0, len = e.selections.length; i < len; i++) {
-			this._cursorPositions[i] = e.selections[i].getPosition();
+			let color = this._settings.cursorColorSingle;
+			if (len > 1) {
+				color = i === 0 ? this._settings.cursorColorPrimary : this._settings.cursorColorSecondary;
+			}
+			this._cursorPositions.push({ position: e.selections[i].getPosition(), color });
 		}
-		this._cursorPositions.sort(Position.compare);
+		this._cursorPositions.sort((a, b) => Position.compare(a.position, b.position));
 		return this._markRenderingIsMaybeNeeded();
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -352,7 +369,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		if (this._actualShouldRender === ShouldRenderValue.Maybe && !OverviewRulerDecorationsGroup.equalsArr(this._renderedDecorations, decorations)) {
 			this._actualShouldRender = ShouldRenderValue.Needed;
 		}
-		if (this._actualShouldRender === ShouldRenderValue.Maybe && !equals(this._renderedCursorPositions, this._cursorPositions, (a, b) => a.lineNumber === b.lineNumber)) {
+		if (this._actualShouldRender === ShouldRenderValue.Maybe && !equals(this._renderedCursorPositions, this._cursorPositions, (a, b) => a.position.lineNumber === b.position.lineNumber && a.color === b.color)) {
 			this._actualShouldRender = ShouldRenderValue.Needed;
 		}
 		if (this._actualShouldRender === ShouldRenderValue.Maybe) {
@@ -443,17 +460,21 @@ export class DecorationsOverviewRuler extends ViewPart {
 		}
 
 		// Draw cursors
-		if (!this._settings.hideCursor && this._settings.cursorColor) {
+		if (!this._settings.hideCursor) {
 			const cursorHeight = (2 * this._settings.pixelRatio) | 0;
 			const halfCursorHeight = (cursorHeight / 2) | 0;
 			const cursorX = this._settings.x[OverviewRulerLane.Full];
 			const cursorW = this._settings.w[OverviewRulerLane.Full];
-			canvasCtx.fillStyle = this._settings.cursorColor;
 
 			let prevY1 = -100;
 			let prevY2 = -100;
+			let prevColor: string | null = null;
 			for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
-				const cursor = this._cursorPositions[i];
+				const color = this._cursorPositions[i].color;
+				if (!color) {
+					continue;
+				}
+				const cursor = this._cursorPositions[i].position;
 
 				let yCenter = (viewLayout.getVerticalOffsetForLineNumber(cursor.lineNumber) * heightRatio) | 0;
 				if (yCenter < halfCursorHeight) {
@@ -464,9 +485,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 				const y1 = yCenter - halfCursorHeight;
 				const y2 = y1 + cursorHeight;
 
-				if (y1 > prevY2 + 1) {
+				if (y1 > prevY2 + 1 || color !== prevColor) {
 					// flush prev
-					if (i !== 0) {
+					if (i !== 0 && prevColor) {
 						canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
 					}
 					prevY1 = y1;
@@ -477,8 +498,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 						prevY2 = y2;
 					}
 				}
+				prevColor = color;
+				canvasCtx.fillStyle = color;
 			}
-			canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
+			if (prevColor) {
+				canvasCtx.fillRect(cursorX, prevY1, cursorW, prevY2 - prevY1);
+			}
 		}
 
 		if (this._settings.renderBorder && this._settings.borderColor && this._settings.overviewRulerLanes > 0) {
@@ -487,9 +512,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			canvasCtx.strokeStyle = this._settings.borderColor;
 			canvasCtx.moveTo(0, 0);
 			canvasCtx.lineTo(0, canvasHeight);
-			canvasCtx.stroke();
-
-			canvasCtx.moveTo(0, 0);
+			canvasCtx.moveTo(1, 0);
 			canvasCtx.lineTo(canvasWidth, 0);
 			canvasCtx.stroke();
 		}

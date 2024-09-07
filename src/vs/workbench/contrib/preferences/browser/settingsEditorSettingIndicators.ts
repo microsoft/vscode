@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import * as DOM from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { SettingsTreeSettingElement } from './settingsTreeModels.js';
+import { POLICY_SETTING_TAG } from '../common/preferences.js';
+import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 
 const $ = DOM.$;
 
@@ -135,12 +135,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private createWorkspaceTrustIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		const workspaceTrustElement = $('span.setting-indicator.setting-item-workspace-trust');
-		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
+		const workspaceTrustLabel = disposables.add(new SimpleIconLabel(workspaceTrustElement));
 		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
 
 		const content = localize('trustLabel', "The setting value can only be applied in a trusted workspace.");
-		const disposables = new DisposableStore();
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showHover({
 				...this.defaultHoverOptions,
@@ -164,23 +164,24 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private createScopeOverridesIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		// Don't add .setting-indicator class here, because it gets conditionally added later.
 		const otherOverridesElement = $('span.setting-item-overrides');
-		const otherOverridesLabel = new SimpleIconLabel(otherOverridesElement);
+		const otherOverridesLabel = disposables.add(new SimpleIconLabel(otherOverridesElement));
 		return {
 			element: otherOverridesElement,
 			label: otherOverridesLabel,
-			disposables: new DisposableStore()
+			disposables
 		};
 	}
 
 	private createSyncIgnoredIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		const syncIgnoredElement = $('span.setting-indicator.setting-item-ignored');
-		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
+		const syncIgnoredLabel = disposables.add(new SimpleIconLabel(syncIgnoredElement));
 		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Not synced');
 
 		const syncIgnoredHoverContent = localize('syncIgnoredTitle', "This setting is ignored during sync");
-		const disposables = new DisposableStore();
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showHover({
 				...this.defaultHoverOptions,
@@ -193,19 +194,20 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		return {
 			element: syncIgnoredElement,
 			label: syncIgnoredLabel,
-			disposables: new DisposableStore()
+			disposables
 		};
 	}
 
 	private createDefaultOverrideIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
 		const defaultOverrideIndicator = $('span.setting-indicator.setting-item-default-overridden');
-		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
+		const defaultOverrideLabel = disposables.add(new SimpleIconLabel(defaultOverrideIndicator));
 		defaultOverrideLabel.text = localize('defaultOverriddenLabel', "Default value changed");
 
 		return {
 			element: defaultOverrideIndicator,
 			label: defaultOverrideLabel,
-			disposables: new DisposableStore()
+			disposables
 		};
 	}
 
@@ -446,15 +448,27 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
 		this.defaultOverrideIndicator.element.style.display = 'none';
-		const sourceToDisplay = getDefaultValueSourceToDisplay(element);
+		let sourceToDisplay = getDefaultValueSourceToDisplay(element);
 		if (sourceToDisplay !== undefined) {
 			this.defaultOverrideIndicator.element.style.display = 'inline';
 			this.defaultOverrideIndicator.disposables.clear();
 
-			const defaultOverrideHoverContent = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
+			// Show source of default value when hovered
+			if (Array.isArray(sourceToDisplay) && sourceToDisplay.length === 1) {
+				sourceToDisplay = sourceToDisplay[0];
+			}
+
+			let defaultOverrideHoverContent;
+			if (!Array.isArray(sourceToDisplay)) {
+				defaultOverrideHoverContent = localize('defaultOverriddenDetails', "Default setting value overridden by `{0}`", sourceToDisplay);
+			} else {
+				sourceToDisplay = sourceToDisplay.map(source => `\`${source}\``);
+				defaultOverrideHoverContent = localize('multipledefaultOverriddenDetails', "A default values has been set by {0}", sourceToDisplay.slice(0, -1).join(', ') + ' & ' + sourceToDisplay.slice(-1));
+			}
+
 			const showHover = (focus: boolean) => {
 				return this.hoverService.showHover({
-					content: defaultOverrideHoverContent,
+					content: new MarkdownString().appendMarkdown(defaultOverrideHoverContent),
 					target: this.defaultOverrideIndicator.element,
 					position: {
 						hoverPosition: HoverPosition.BELOW,
@@ -471,14 +485,22 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 }
 
-function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): string | undefined {
-	let sourceToDisplay: string | undefined;
+function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): string | undefined | string[] {
+	let sourceToDisplay: string | undefined | string[];
 	const defaultValueSource = element.defaultValueSource;
 	if (defaultValueSource) {
-		if (typeof defaultValueSource !== 'string') {
-			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
+		if (defaultValueSource instanceof Map) {
+			sourceToDisplay = [];
+			for (const [, value] of defaultValueSource) {
+				const newValue = typeof value !== 'string' ? value.displayName ?? value.id : value;
+				if (!sourceToDisplay.includes(newValue)) {
+					sourceToDisplay.push(newValue);
+				}
+			}
 		} else if (typeof defaultValueSource === 'string') {
 			sourceToDisplay = defaultValueSource;
+		} else {
+			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
 		}
 	}
 	return sourceToDisplay;
@@ -536,9 +558,19 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add default override indicator text
-	const sourceToDisplay = getDefaultValueSourceToDisplay(element);
+	let sourceToDisplay = getDefaultValueSourceToDisplay(element);
 	if (sourceToDisplay !== undefined) {
-		ariaLabelSections.push(localize('defaultOverriddenDetailsAriaLabel', "{0} overrides the default value", sourceToDisplay));
+		if (Array.isArray(sourceToDisplay) && sourceToDisplay.length === 1) {
+			sourceToDisplay = sourceToDisplay[0];
+		}
+
+		let overriddenDetailsText;
+		if (!Array.isArray(sourceToDisplay)) {
+			overriddenDetailsText = localize('defaultOverriddenDetailsAriaLabel', "{0} overrides the default value", sourceToDisplay);
+		} else {
+			overriddenDetailsText = localize('multipleDefaultOverriddenDetailsAriaLabel', "{0} override the default value", sourceToDisplay.slice(0, -1).join(', ') + ' & ' + sourceToDisplay.slice(-1));
+		}
+		ariaLabelSections.push(overriddenDetailsText);
 	}
 
 	// Add text about default values being overridden in other languages

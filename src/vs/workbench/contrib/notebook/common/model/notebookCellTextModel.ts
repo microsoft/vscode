@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { hash, StringSHA1 } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import { Range } from 'vs/editor/common/core/range';
-import * as model from 'vs/editor/common/model';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { hash, StringSHA1 } from '../../../../../base/common/hash.js';
+import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import * as UUID from '../../../../../base/common/uuid.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import * as model from '../../../../../editor/common/model.js';
+import { PieceTreeTextBuffer } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
+import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
+import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from '../notebookCommon.js';
+import { ThrottledDelayer } from '../../../../../base/common/async.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -85,25 +88,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return;
 		}
 
-		const newLanguageId = this._languageService.getLanguageIdByLanguageName(newLanguage);
 
-		if (newLanguageId === null) {
-			return;
-		}
-
-		if (this._textModel) {
-			const languageId = this._languageService.createById(newLanguageId);
-			this._textModel.setLanguage(languageId.languageId);
-		}
-
-		if (this._language === newLanguage) {
-			return;
-		}
-
-		this._language = newLanguage;
-		this._hash = null;
-		this._onDidChangeLanguage.fire(newLanguage);
-		this._onDidChangeContent.fire('language');
+		this._hasLanguageSetExplicitly = true;
+		this._setLanguageInternal(newLanguage);
 	}
 
 	public get mime(): string | undefined {
@@ -138,6 +125,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			if (!this._textModel) {
 				this._onDidChangeContent.fire('content');
 			}
+			this.autoDetectLanguage();
 		}));
 
 		return this._textBuffer;
@@ -176,6 +164,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 					this._versionId = this._textModel.getVersionId();
 					this._alternativeId = this._textModel.getAlternativeVersionId();
 				}
+				this._textBufferHash = null;
 				this._onDidChangeContent.fire('content');
 			}));
 
@@ -195,6 +184,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			this.language = newLanguage;
 		}
 	}
+	private static readonly AUTO_DETECT_LANGUAGE_THROTTLE_DELAY = 600;
+	private readonly autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(NotebookCellTextModel.AUTO_DETECT_LANGUAGE_THROTTLE_DELAY));
+	private _autoLanguageDetectionEnabled: boolean = false;
+	private _hasLanguageSetExplicitly: boolean = false;
+	get hasLanguageSetExplicitly(): boolean { return this._hasLanguageSetExplicitly; }
 
 	constructor(
 		readonly uri: URI,
@@ -208,12 +202,65 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		internalMetadata: NotebookCellInternalMetadata | undefined,
 		public readonly collapseState: NotebookCellCollapseState | undefined,
 		public readonly transientOptions: TransientOptions,
-		private readonly _languageService: ILanguageService
+		private readonly _languageService: ILanguageService,
+		private readonly _languageDetectionService: ILanguageDetectionService | undefined = undefined
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
 		this._metadata = metadata ?? {};
 		this._internalMetadata = internalMetadata ?? {};
+	}
+
+	enableAutoLanguageDetection() {
+		this._autoLanguageDetectionEnabled = true;
+		this.autoDetectLanguage();
+	}
+
+	async autoDetectLanguage(): Promise<void> {
+		if (this._autoLanguageDetectionEnabled) {
+			this.autoDetectLanguageThrottler.trigger(() => this._doAutoDetectLanguage());
+		}
+	}
+
+	private async _doAutoDetectLanguage(): Promise<void> {
+		if (this.hasLanguageSetExplicitly) {
+			return;
+		}
+
+		const newLanguage = await this._languageDetectionService?.detectLanguage(this.uri);
+		if (!newLanguage) {
+			return;
+		}
+
+		if (this._textModel
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdByLanguageName(newLanguage)
+			&& this._textModel.getLanguageId() === this._languageService.getLanguageIdByLanguageName(this.language)) {
+			return;
+		}
+
+		this._setLanguageInternal(newLanguage);
+	}
+
+	private _setLanguageInternal(newLanguage: string) {
+		const newLanguageId = this._languageService.getLanguageIdByLanguageName(newLanguage);
+
+		if (newLanguageId === null) {
+			return;
+		}
+
+		if (this._textModel) {
+			const languageId = this._languageService.createById(newLanguageId);
+			this._textModel.setLanguage(languageId.languageId);
+		}
+
+		if (this._language === newLanguage) {
+			return;
+		}
+
+		this._language = newLanguage;
+		this._hash = null;
+		this._onDidChangeLanguage.fire(newLanguage);
+		this._onDidChangeContent.fire('language');
 	}
 
 	resetTextBuffer(textBuffer: model.ITextBuffer) {
@@ -261,18 +308,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		const filteredMetadata: { [key: string]: any } = {};
-		const transientCellMetadata = this.transientOptions.transientCellMetadata;
-
-		const keys = new Set([...Object.keys(this.metadata)]);
-		for (const key of keys) {
-			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
-			) {
-				filteredMetadata[key] = this.metadata[key as keyof NotebookCellMetadata];
-			}
-		}
-
-		return filteredMetadata;
+		return getFormattedMetadataJSON(this.transientOptions.transientCellMetadata, this.metadata, this.language);
 	}
 
 	getTextLength(): number {
@@ -373,6 +409,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
+		if (this.outputs.length !== b.outputs.length) {
+			return false;
+		}
+
 		if (this.getTextLength() !== b.getTextLength()) {
 			return false;
 		}
@@ -459,4 +499,35 @@ function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata
 	} else {
 		return newMetadata.runStartTimeAdjustment;
 	}
+}
+
+
+export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string) {
+	let filteredMetadata: { [key: string]: any } = {};
+
+	if (transientCellMetadata) {
+		const keys = new Set([...Object.keys(metadata)]);
+		for (const key of keys) {
+			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
+			) {
+				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+			}
+		}
+	} else {
+		filteredMetadata = metadata;
+	}
+
+	const obj = {
+		language,
+		...filteredMetadata
+	};
+	// Give preference to the language we have been given.
+	// Metadata can contain `language` due to round-tripping of cell metadata.
+	// I.e. we add it here, and then from SCM when we revert the cell, we get this same metadata back with the `language` property.
+	if (language) {
+		obj.language = language;
+	}
+	const metadataSource = toFormattedString(obj, {});
+
+	return metadataSource;
 }

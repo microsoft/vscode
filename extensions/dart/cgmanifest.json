@@ -6,7 +6,7 @@
 				"git": {
 					"name": "dart-lang/dart-syntax-highlight",
 					"repositoryUrl": "https://github.com/dart-lang/dart-syntax-highlight",
-					"commitHash": "0a6648177bdbb91a4e1a38c16e57ede0ccba4f18"
+					"commitHash": "e8b053f9834cb44db0f49ac4a4567177bd943dbf"
 				}
 			},
 			"licenseDetail": [

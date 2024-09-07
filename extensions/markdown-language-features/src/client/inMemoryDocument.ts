@@ -27,4 +27,9 @@ export class InMemoryDocument implements ITextDocument {
 	getText(range?: vscode.Range): string {
 		return this._doc.getText(range);
 	}
+
+	positionAt(offset: number): vscode.Position {
+		const pos = this._doc.positionAt(offset);
+		return new vscode.Position(pos.line, pos.character);
+	}
 }

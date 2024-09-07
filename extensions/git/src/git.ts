@@ -35,8 +35,11 @@ export interface IFileStatus {
 }
 
 export interface Stash {
-	index: number;
-	description: string;
+	readonly hash: string;
+	readonly parents: string[];
+	readonly index: number;
+	readonly description: string;
+	readonly branchName?: string;
 }
 
 interface MutableRemote extends Remote {
@@ -352,6 +355,7 @@ function sanitizePath(path: string): string {
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
+const STASH_FORMAT = '%H%n%P%n%gd%n%gs';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -487,7 +491,6 @@ export class Git {
 			const repoUri = Uri.file(repositoryRootPath);
 			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
@@ -933,7 +936,7 @@ function parseGitDiffShortStat(data: string): CommitShortStat {
 	return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
 }
 
-interface LsTreeElement {
+export interface LsTreeElement {
 	mode: string;
 	type: string;
 	object: string;
@@ -964,6 +967,93 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
+
+function parseGitStashes(raw: string): Stash[] {
+	const result: Stash[] = [];
+
+	let match, hash, parents, index, wip, branchName, description;
+
+	do {
+		match = stashRegex.exec(raw);
+		if (match === null) {
+			break;
+		}
+
+		[, hash, parents, index, wip, branchName, description] = match;
+		result.push({
+			hash,
+			parents: parents.split(' '),
+			index: parseInt(index),
+			branchName: branchName.trim(),
+			description: wip ? `WIP (${description.trim()})` : description.trim()
+		});
+	} while (true);
+
+	return result;
+}
+
+function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
+	let index = 0;
+	const result: Change[] = [];
+	const segments = raw.trim().split('\x00').filter(s => s);
+
+	segmentsLoop:
+	while (index < segments.length - 1) {
+		const change = segments[index++];
+		const resourcePath = segments[index++];
+
+		if (!change || !resourcePath) {
+			break;
+		}
+
+		const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(repositoryRoot, resourcePath));
+
+		let uri = originalUri;
+		let renameUri = originalUri;
+		let status = Status.UNTRACKED;
+
+		// Copy or Rename status comes with a number (ex: 'R100').
+		// We don't need the number, we use only first character of the status.
+		switch (change[0]) {
+			case 'A':
+				status = Status.INDEX_ADDED;
+				break;
+
+			case 'M':
+				status = Status.MODIFIED;
+				break;
+
+			case 'D':
+				status = Status.DELETED;
+				break;
+
+			// Rename contains two paths, the second one is what the file is renamed/copied to.
+			case 'R': {
+				if (index >= segments.length) {
+					break;
+				}
+
+				const newPath = segments[index++];
+				if (!newPath) {
+					break;
+				}
+
+				status = Status.INDEX_RENAMED;
+				uri = renameUri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(repositoryRoot, newPath));
+				break;
+			}
+			default:
+				// Unknown status
+				break segmentsLoop;
+		}
+
+		result.push({ status, uri, originalUri, renameUri });
+	}
+
+	return result;
+}
+
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
@@ -971,6 +1061,7 @@ export interface PullOptions {
 }
 
 export class Repository {
+	private _isUsingRefTable = false;
 
 	constructor(
 		private _git: Git,
@@ -1022,7 +1113,7 @@ export class Repository {
 			return result.stdout.trim();
 		}
 		catch (err) {
-			this.logger.warn(`git config failed: ${err.message}`);
+			this.logger.warn(`[Git][config] git config failed: ${err.message}`);
 			return '';
 		}
 	}
@@ -1068,6 +1159,27 @@ export class Repository {
 			args.push(options.range);
 		} else {
 			args.push(`-n${options?.maxEntries ?? 32}`);
+		}
+
+		if (options?.author) {
+			args.push(`--author="${options.author}"`);
+		}
+
+		if (typeof options?.maxParents === 'number') {
+			args.push(`--max-parents=${options.maxParents}`);
+		}
+
+		if (typeof options?.skip === 'number') {
+			args.push(`--skip=${options.skip}`);
+		}
+
+		if (options?.refNames) {
+			if (options.refNames.length === 0) {
+				args.push('--all');
+			}
+			args.push('--topo-order');
+			args.push('--decorate=full');
+			args.push(...options.refNames);
 		}
 
 		if (options?.path) {
@@ -1138,11 +1250,11 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
 		const stdout = await this.buffer(object);
 
 		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout) || encoding;
+			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
 		}
 
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -1200,8 +1312,13 @@ export class Repository {
 		return { mode, object, size: parseInt(size) };
 	}
 
-	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.exec(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
+	async lstree(treeish: string, path?: string): Promise<LsTreeElement[]> {
+		const args = ['ls-tree', '-l', treeish];
+		if (path) {
+			args.push('--', sanitizePath(path));
+		}
+
+		const { stdout } = await this.exec(args);
 		return parseLsTree(stdout);
 	}
 
@@ -1393,75 +1510,34 @@ export class Repository {
 			return [];
 		}
 
-		const entries = gitResult.stdout.split('\x00');
-		let index = 0;
-		const result: Change[] = [];
-
-		entriesLoop:
-		while (index < entries.length - 1) {
-			const change = entries[index++];
-			const resourcePath = entries[index++];
-			if (!change || !resourcePath) {
-				break;
-			}
-
-			const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
-			let status: Status = Status.UNTRACKED;
-
-			// Copy or Rename status comes with a number, e.g. 'R100'. We don't need the number, so we use only first character of the status.
-			switch (change[0]) {
-				case 'M':
-					status = Status.MODIFIED;
-					break;
-
-				case 'A':
-					status = Status.INDEX_ADDED;
-					break;
-
-				case 'D':
-					status = Status.DELETED;
-					break;
-
-				// Rename contains two paths, the second one is what the file is renamed/copied to.
-				case 'R': {
-					if (index >= entries.length) {
-						break;
-					}
-
-					const newPath = entries[index++];
-					if (!newPath) {
-						break;
-					}
-
-					const uri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
-					result.push({
-						uri,
-						renameUri: uri,
-						originalUri,
-						status: Status.INDEX_RENAMED
-					});
-
-					continue;
-				}
-				default:
-					// Unknown status
-					break entriesLoop;
-			}
-
-			result.push({
-				status,
-				originalUri,
-				uri: originalUri,
-				renameUri: originalUri,
-			});
-		}
-
-		return result;
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
-	async getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
+	async diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR', treeish1];
+
+		if (treeish2) {
+			args.push(treeish2);
+		}
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
+	async getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
 		try {
-			const args = ['merge-base', ref1, ref2];
+			const args = ['merge-base'];
+			if (refs.length !== 0) {
+				args.push('--octopus');
+				args.push(...refs);
+			}
+
+			args.push(ref1, ref2);
+
 			const result = await this.exec(args);
 
 			return result.stdout.trim();
@@ -2114,6 +2190,25 @@ export class Repository {
 		}
 	}
 
+	async showStash(index: number): Promise<Change[] | undefined> {
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-status', '-z', '-u'];
+
+		try {
+			const result = await this.exec(args);
+			if (result.exitCode) {
+				return [];
+			}
+
+			return parseGitChanges(this.repositoryRoot, result.stdout.trim());
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				return undefined;
+			}
+
+			throw err;
+		}
+	}
+
 	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; similarityThreshold?: number; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
@@ -2242,13 +2337,25 @@ export class Repository {
 	}
 
 	async getHEAD(): Promise<Ref> {
-		try {
-			// Attempt to parse the HEAD file
-			const result = await this.getHEADFS();
-			return result;
-		}
-		catch (err) {
-			this.logger.warn(err.message);
+		if (!this._isUsingRefTable) {
+			try {
+				// Attempt to parse the HEAD file
+				const result = await this.getHEADFS();
+
+				// Git 2.45 adds support for a new reference storage backend called "reftable", promising
+				// faster lookups, reads, and writes for repositories with any number of references. For
+				// backwards compatibility the `.git/HEAD` file contains `ref: refs/heads/.invalid`. More
+				// details are available at https://git-scm.com/docs/reftable
+				if (result.name === '.invalid') {
+					this._isUsingRefTable = true;
+					this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: Repository is using reftable format.`);
+				} else {
+					return result;
+				}
+			}
+			catch (err) {
+				this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: ${err.message}`);
+			}
 		}
 
 		try {
@@ -2384,15 +2491,8 @@ export class Repository {
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		const result = await this.exec(['stash', 'list']);
-		const regex = /^stash@{(\d+)}:(.+)$/;
-		const rawStashes = result.stdout.trim().split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line) as RegExpExecArray)
-			.filter(g => !!g)
-			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
-
-		return rawStashes;
+		const result = await this.exec(['stash', 'list', `--format=${STASH_FORMAT}`, '-z']);
+		return parseGitStashes(result.stdout.trim());
 	}
 
 	async getRemotes(): Promise<Remote[]> {
@@ -2403,11 +2503,11 @@ export class Repository {
 			remotes.push(...await this.getRemotesFS());
 
 			if (remotes.length === 0) {
-				this.logger.info('No remotes found in the git config file.');
+				this.logger.info('[Git][getRemotes] No remotes found in the git config file');
 			}
 		}
 		catch (err) {
-			this.logger.warn(`getRemotes() - ${err.message}`);
+			this.logger.warn(`[Git][getRemotes] Error: ${err.message}`);
 
 			// Fallback to using git to get the remotes
 			remotes.push(...await this.getRemotesGit());
@@ -2476,7 +2576,7 @@ export class Repository {
 		// On Windows and macOS ref names are case insensitive so we add --ignore-case
 		// to handle the scenario where the user switched to a branch with incorrect
 		// casing
-		if (isWindows || isMacintosh) {
+		if (this.git.compareGitVersionTo('2.12') !== -1 && (isWindows || isMacintosh)) {
 			args.push('--ignore-case');
 		}
 
@@ -2543,13 +2643,13 @@ export class Repository {
 			return branch;
 		}
 
-		this.logger.warn(`No such branch: ${name}.`);
+		this.logger.warn(`[Git][getBranch] No such branch: ${name}`);
 		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
 	async getDefaultBranch(): Promise<Branch> {
 		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-		if (!result.stdout) {
+		if (!result.stdout || result.stderr) {
 			throw new Error('No default branch');
 		}
 
@@ -2608,7 +2708,7 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.exec(['show', '-s', `--format=${COMMIT_FORMAT}`, '-z', ref]);
+		const result = await this.exec(['show', '-s', '--decorate=full', '--shortstat', `--format=${COMMIT_FORMAT}`, '-z', ref]);
 		const commits = parseGitCommits(result.stdout);
 		if (commits.length === 0) {
 			return Promise.reject<Commit>('bad commit format');
@@ -2616,30 +2716,12 @@ export class Repository {
 		return commits[0];
 	}
 
-	async getCommitFiles(ref: string): Promise<string[]> {
-		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
-		return result.stdout.split('\n').filter(l => !!l);
-	}
-
-	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const args = ['rev-list', '--count', '--left-right', range];
-
-		if (isWindows) {
-			args.splice(0, 0, '-c', 'core.longpaths=true');
-		}
-
-		const result = await this.exec(args);
-		const [ahead, behind] = result.stdout.trim().split('\t');
-
-		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
-	}
-
 	async revParse(ref: string): Promise<string | undefined> {
 		try {
 			const result = await fs.readFile(path.join(this.dotGit.path, ref), 'utf8');
 			return result.trim();
 		} catch (err) {
-			this.logger.warn(err.message);
+			this.logger.warn(`[Git][revParse] Unable to read file: ${err.message}`);
 		}
 
 		try {

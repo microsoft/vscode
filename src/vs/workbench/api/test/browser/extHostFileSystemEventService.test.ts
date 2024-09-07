@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
-import { IMainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { ExtHostFileSystemEventService } from '../../common/extHostFileSystemEventService.js';
+import { IMainContext } from '../../common/extHost.protocol.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostFileSystemEventService', () => {
 

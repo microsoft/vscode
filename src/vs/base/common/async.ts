@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { BugIndicatingError, CancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { setTimeout0 } from 'vs/base/common/platform';
-import { MicrotaskDelay } from './symbols';
-import { Lazy } from 'vs/base/common/lazy';
+import { CancellationToken, CancellationTokenSource } from './cancellation.js';
+import { BugIndicatingError, CancellationError } from './errors.js';
+import { Emitter, Event } from './event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
+import { extUri as defaultExtUri, IExtUri } from './resources.js';
+import { URI } from './uri.js';
+import { setTimeout0 } from './platform.js';
+import { MicrotaskDelay } from './symbols.js';
+import { Lazy } from './lazy.js';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -135,6 +135,21 @@ export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 			resolve(item);
 		}
 	});
+}
+
+/**
+ * Creates and returns a new promise, plus its `resolve` and `reject` callbacks.
+ *
+ * Replace with standardized [`Promise.withResolvers`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/withResolvers) once it is supported
+ */
+export function promiseWithResolvers<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void; reject: (err?: any) => void } {
+	let resolve: (value: T | PromiseLike<T>) => void;
+	let reject: (reason?: any) => void;
+	const promise = new Promise<T>((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	return { promise, resolve: resolve!, reject: reject! };
 }
 
 export interface ITask<T> {
@@ -626,6 +641,8 @@ export interface ILimiter<T> {
 	readonly size: number;
 
 	queue(factory: ITask<Promise<T>>): Promise<T>;
+
+	clear(): void;
 }
 
 /**
@@ -635,6 +652,7 @@ export interface ILimiter<T> {
 export class Limiter<T> implements ILimiter<T> {
 
 	private _size = 0;
+	private _isDisposed = false;
 	private runningPromises: number;
 	private readonly maxDegreeOfParalellism: number;
 	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
@@ -648,13 +666,16 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	/**
-	 * An event that fires when every promise in the queue
-	 * has started to execute. In other words: no work is
-	 * pending to be scheduled.
 	 *
-	 * This is NOT an event that signals when all promises
-	 * have finished though.
+	 * @returns A promise that resolved when all work is done (onDrained) or when
+	 * there is nothing to do
 	 */
+	whenIdle(): Promise<void> {
+		return this.size > 0
+			? Event.toPromise(this.onDrained)
+			: Promise.resolve();
+	}
+
 	get onDrained(): Event<void> {
 		return this._onDrained.event;
 	}
@@ -664,6 +685,9 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
 		this._size++;
 
 		return new Promise<T>((c, e) => {
@@ -684,17 +708,31 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	private consumed(): void {
-		this._size--;
+		if (this._isDisposed) {
+			return;
+		}
 		this.runningPromises--;
+		if (--this._size === 0) {
+			this._onDrained.fire();
+		}
 
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
-		} else {
-			this._onDrained.fire();
 		}
 	}
 
+	clear(): void {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
+		this.outstandingPromises.length = 0;
+		this._size = this.runningPromises;
+	}
+
 	dispose(): void {
+		this._isDisposed = true;
+		this.outstandingPromises.length = 0; // stop further processing
+		this._size = 0;
 		this._onDrained.dispose();
 	}
 }
@@ -768,7 +806,13 @@ export class ResourceQueue implements IDisposable {
 		return true;
 	}
 
-	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): ILimiter<void> {
+	queueSize(resource: URI, extUri: IExtUri = defaultExtUri): number {
+		const key = extUri.getComparisonKey(resource);
+
+		return this.queues.get(key)?.size ?? 0;
+	}
+
+	queueFor(resource: URI, factory: ITask<Promise<void>>, extUri: IExtUri = defaultExtUri): Promise<void> {
 		const key = extUri.getComparisonKey(resource);
 
 		let queue = this.queues.get(key);
@@ -796,7 +840,7 @@ export class ResourceQueue implements IDisposable {
 			this.queues.set(key, queue);
 		}
 
-		return queue;
+		return queue.queue(factory);
 	}
 
 	private onDidQueueDrain(): void {
@@ -836,6 +880,7 @@ export class ResourceQueue implements IDisposable {
 
 export class TimeoutTimer implements IDisposable {
 	private _token: any;
+	private _isDisposed = false;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
@@ -849,6 +894,7 @@ export class TimeoutTimer implements IDisposable {
 
 	dispose(): void {
 		this.cancel();
+		this._isDisposed = true;
 	}
 
 	cancel(): void {
@@ -859,6 +905,10 @@ export class TimeoutTimer implements IDisposable {
 	}
 
 	cancelAndSet(runner: () => void, timeout: number): void {
+		if (this._isDisposed) {
+			throw new BugIndicatingError(`Calling 'cancelAndSet' on a disposed TimeoutTimer`);
+		}
+
 		this.cancel();
 		this._token = setTimeout(() => {
 			this._token = -1;
@@ -867,6 +917,10 @@ export class TimeoutTimer implements IDisposable {
 	}
 
 	setIfNotSet(runner: () => void, timeout: number): void {
+		if (this._isDisposed) {
+			throw new BugIndicatingError(`Calling 'setIfNotSet' on a disposed TimeoutTimer`);
+		}
+
 		if (this._token !== -1) {
 			// timer is already set
 			return;
@@ -881,6 +935,7 @@ export class TimeoutTimer implements IDisposable {
 export class IntervalTimer implements IDisposable {
 
 	private disposable: IDisposable | undefined = undefined;
+	private isDisposed = false;
 
 	cancel(): void {
 		this.disposable?.dispose();
@@ -888,6 +943,10 @@ export class IntervalTimer implements IDisposable {
 	}
 
 	cancelAndSet(runner: () => void, interval: number, context = globalThis): void {
+		if (this.isDisposed) {
+			throw new BugIndicatingError(`Calling 'cancelAndSet' on a disposed IntervalTimer`);
+		}
+
 		this.cancel();
 		const handle = context.setInterval(() => {
 			runner();
@@ -901,6 +960,7 @@ export class IntervalTimer implements IDisposable {
 
 	dispose(): void {
 		this.cancel();
+		this.isDisposed = true;
 	}
 }
 
@@ -1438,13 +1498,7 @@ export class TaskSequentializer {
 		// so that we can return a promise that completes when the task has
 		// completed.
 		if (!this._queued) {
-			let promiseResolve: () => void;
-			let promiseReject: (error: Error) => void;
-			const promise = new Promise<void>((resolve, reject) => {
-				promiseResolve = resolve;
-				promiseReject = reject;
-			});
-
+			const { promise, resolve: promiseResolve, reject: promiseReject } = promiseWithResolvers<void>();
 			this._queued = {
 				run,
 				promise,
@@ -1651,6 +1705,10 @@ export class StatefulPromise<T> {
 		);
 	}
 
+	/**
+	 * Returns the resolved value.
+	 * Throws if the promise is not resolved yet.
+	 */
 	public requireValue(): T {
 		if (!this._isResolved) {
 			throw new BugIndicatingError('Promise is not resolved yet');
@@ -1663,7 +1721,7 @@ export class StatefulPromise<T> {
 }
 
 export class LazyStatefulPromise<T> {
-	private _promise = new Lazy(() => new StatefulPromise(this._compute()));
+	private readonly _promise = new Lazy(() => new StatefulPromise(this._compute()));
 
 	constructor(
 		private readonly _compute: () => Promise<T>,
@@ -1671,7 +1729,7 @@ export class LazyStatefulPromise<T> {
 
 	/**
 	 * Returns the resolved value.
-	 * Crashes if the promise is not resolved yet.
+	 * Throws if the promise is not resolved yet.
 	 */
 	public requireValue(): T {
 		return this._promise.value.requireValue();
@@ -1682,6 +1740,13 @@ export class LazyStatefulPromise<T> {
 	 */
 	public getPromise(): Promise<T> {
 		return this._promise.value.promise;
+	}
+
+	/**
+	 * Reads the current value without triggering a computation of the promise.
+	 */
+	public get currentValue(): T | undefined {
+		return this._promise.rawValue?.value;
 	}
 }
 
@@ -1769,12 +1834,14 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	private _state: AsyncIterableSourceState;
 	private _results: T[];
 	private _error: Error | null;
+	private readonly _onReturn?: () => void | Promise<void>;
 	private readonly _onStateChanged: Emitter<void>;
 
-	constructor(executor: AsyncIterableExecutor<T>) {
+	constructor(executor: AsyncIterableExecutor<T>, onReturn?: () => void | Promise<void>) {
 		this._state = AsyncIterableSourceState.Initial;
 		this._results = [];
 		this._error = null;
+		this._onReturn = onReturn;
 		this._onStateChanged = new Emitter<void>();
 
 		queueMicrotask(async () => {
@@ -1812,6 +1879,10 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 					}
 					await Event.toPromise(this._onStateChanged.event);
 				} while (true);
+			},
+			return: async () => {
+				this._onReturn?.();
+				return { done: true, value: undefined };
 			}
 		};
 	}
@@ -1971,7 +2042,13 @@ export class AsyncIterableSource<T> {
 	private _errorFn: (error: Error) => void;
 	private _emitFn: (item: T) => void;
 
-	constructor() {
+	/**
+	 *
+	 * @param onReturn A function that will be called when consuming the async iterable
+	 * has finished by the consumer, e.g the for-await-loop has be existed (break, return) early.
+	 * This is NOT called when resolving this source by its owner.
+	 */
+	constructor(onReturn?: () => Promise<void> | void) {
 		this._asyncIterable = new AsyncIterableObject(emitter => {
 
 			if (earlyError) {
@@ -1984,7 +2061,7 @@ export class AsyncIterableSource<T> {
 			this._errorFn = (error: Error) => emitter.reject(error);
 			this._emitFn = (item: T) => emitter.emitOne(item);
 			return this._deferred.p;
-		});
+		}, onReturn);
 
 		let earlyError: Error | undefined;
 		let earlyItems: T[] | undefined;

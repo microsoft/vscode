@@ -3,51 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import assert from 'assert';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ExtensionsListView } from '../../browser/extensionsViews.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IExtensionsWorkbenchService } from '../../common/extensions.js';
+import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent, SortBy
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestMenuService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { URI } from 'vs/base/common/uri';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+	getTargetPlatform, IExtensionInfo, SortBy
+} from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { getGalleryExtensionId } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
+import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
+import { IURLService } from '../../../../../platform/url/common/url.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IPager } from '../../../../../base/common/paging.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IExtensionService, toExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestSharedProcessService } from '../../../../test/electron-sandbox/workbenchTestServices.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SinonStub } from 'sinon';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
-import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Schemas } from 'vs/base/common/network';
-import { platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { RemoteAgentService } from '../../../../services/remote/electron-sandbox/remoteAgentService.js';
+import { ExtensionType, IExtension } from '../../../../../platform/extensions/common/extensions.js';
+import { ISharedProcessService } from '../../../../../platform/ipc/electron-sandbox/services.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { platform } from '../../../../../base/common/platform.js';
+import { arch } from '../../../../../base/common/process.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfileService.js';
+import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 
 suite('ExtensionsViews Tests', () => {
 
@@ -55,18 +61,14 @@ suite('ExtensionsViews Tests', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testableView: ExtensionsListView;
-	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<UninstallExtensionEvent>,
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installedTimestamp: 123456 });
 	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'], version: '1.0.0' }, { installedTimestamp: Date.now(), updated: false });
 	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] }, { installedTimestamp: 234567 });
 	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] }, { installedTimestamp: Date.now() - 50000, updated: true });
 	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] }, { installedTimestamp: 345678 });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
+	const builtInTheme = aLocalExtension('my-theme', { categories: ['Themes'], contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System, installedTimestamp: 222 });
+	const builtInBasic = aLocalExtension('my-lang', { categories: ['Programming Languages'], contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System, installedTimestamp: 666666 });
 
 	const galleryEnabledLanguage = aGalleryExtension(localEnabledLanguage.manifest.name, { ...localEnabledLanguage.manifest, version: '1.0.1', identifier: localDisabledLanguage.identifier });
 
@@ -79,14 +81,10 @@ suite('ExtensionsViews Tests', () => {
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
 
 	setup(async () => {
-		installEvent = disposableStore.add(new Emitter<InstallExtensionEvent>());
-		didInstallEvent = disposableStore.add(new Emitter<readonly InstallExtensionResult[]>());
-		uninstallEvent = disposableStore.add(new Emitter<UninstallExtensionEvent>());
-		didUninstallEvent = disposableStore.add(new Emitter<DidUninstallExtensionEvent>());
-
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProductService, {});
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
@@ -95,14 +93,15 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
-			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			onDidChangeProfile: Event.None,
+		instantiationService.stub(IWorkbenchExtensionManagementService, {
+			onInstallExtension: Event.None,
+			onDidInstallExtensions: Event.None,
+			onUninstallExtension: Event.None,
+			onDidUninstallExtension: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
+			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
+			async getInstalledWorkspaceExtensions() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
@@ -113,7 +112,7 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stub(IMenuService, new TestMenuService());
 
 		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'vscode-local' };
-		instantiationService.stub(IExtensionManagementServerService, <Partial<IExtensionManagementServerService>>{
+		instantiationService.stub(IExtensionManagementServerService, {
 			get localExtensionManagementServer(): IExtensionManagementServer {
 				return localExtensionManagementServer;
 			},
@@ -126,6 +125,7 @@ suite('ExtensionsViews Tests', () => {
 		});
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
+		instantiationService.stub(IUserDataProfileService, disposableStore.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache')))));
 
 		const reasons: { [key: string]: any } = {};
 		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
@@ -134,7 +134,7 @@ suite('ExtensionsViews Tests', () => {
 		reasons[fileBasedRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
 		reasons[otherRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Executable };
 		reasons[configBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.WorkspaceConfig };
-		instantiationService.stub(IExtensionRecommendationsService, <Partial<IExtensionRecommendationsService>>{
+		instantiationService.stub(IExtensionRecommendationsService, {
 			getWorkspaceRecommendations() {
 				return Promise.resolve([
 					workspaceRecommendationA.identifier.id,
@@ -181,7 +181,7 @@ suite('ExtensionsViews Tests', () => {
 			onDidChangeLocation: Event.None
 		});
 
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
 			extensions: [
 				toExtensionDescription(localEnabledTheme),
@@ -196,6 +196,7 @@ suite('ExtensionsViews Tests', () => {
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 	});
@@ -295,12 +296,12 @@ suite('ExtensionsViews Tests', () => {
 			assert.strictEqual(result.get(2).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query.');
 		});
 
-		await testableView.show('@builtin:themes').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin:themes query');
+		await testableView.show('@builtin category:themes').then(result => {
+			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin category:themes query');
 			assert.strictEqual(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin:themes query.');
 		});
 
-		await testableView.show('@builtin:basics').then(result => {
+		await testableView.show('@builtin category:"programming languages"').then(result => {
 			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin:basics query');
 			assert.strictEqual(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin:basics query.');
 		});
@@ -504,9 +505,6 @@ suite('ExtensionsViews Tests', () => {
 			}]
 		});
 
-		testableView.dispose();
-		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
-
 		return testableView.show('search-me').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
 
@@ -530,9 +528,6 @@ suite('ExtensionsViews Tests', () => {
 		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
-
-		testableView.dispose();
-		disposableStore.add(testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
@@ -573,4 +568,3 @@ suite('ExtensionsViews Tests', () => {
 	}
 
 });
-

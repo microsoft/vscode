@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { DEFAULT_LOG_LEVEL, LogLevel } from 'vs/platform/log/common/log';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TestTelemetryLoggerService } from 'vs/platform/telemetry/test/common/telemetryLogAppender.test';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostTelemetry, ExtHostTelemetryLogger } from 'vs/workbench/api/common/extHostTelemetry';
-import { IEnvironment } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { DEFAULT_LOG_LEVEL, LogLevel } from '../../../../platform/log/common/log.js';
+import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { TestTelemetryLoggerService } from '../../../../platform/telemetry/test/common/telemetryLogAppender.test.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { ExtHostTelemetry, ExtHostTelemetryLogger } from '../../common/extHostTelemetry.js';
+import { IEnvironment } from '../../../services/extensions/common/extensionHostProtocol.js';
+import { mock } from '../../../test/common/workbenchTestServices.js';
 import type { TelemetryLoggerOptions, TelemetrySender } from 'vscode';
 
 interface TelemetryLoggerSpy {
@@ -44,7 +44,8 @@ suite('ExtHostTelemetry', function () {
 		firstSessionDate: '2020-01-01T00:00:00.000Z',
 		sessionId: 'test',
 		machineId: 'test',
-		sqmId: 'test'
+		sqmId: 'test',
+		devDeviceId: 'test'
 	};
 
 	const mockRemote = {
@@ -63,7 +64,8 @@ suite('ExtHostTelemetry', function () {
 		publisher: 'vscode',
 		version: '1.0.0',
 		engines: { vscode: '*' },
-		extensionLocation: URI.parse('fake')
+		extensionLocation: URI.parse('fake'),
+		enabledApiProposals: undefined,
 	};
 
 	const createExtHostTelemetry = () => {
@@ -213,6 +215,34 @@ suite('ExtHostTelemetry', function () {
 		logger.dispose();
 		assert.strictEqual(functionSpy.flushCalled, true);
 
+	});
+
+	test('Log error should get common properties #193205', function () {
+		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
+
+		const logger = createLogger(functionSpy, undefined, { additionalCommonProperties: { 'common.foo': 'bar' } });
+		logger.logError(new Error('Test error'));
+		assert.strictEqual(functionSpy.exceptionArr.length, 1);
+		assert.strictEqual(functionSpy.exceptionArr[0].data['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.exceptionArr[0].data['common.product'], 'test');
+
+		logger.logError('test-error-event');
+		assert.strictEqual(functionSpy.dataArr.length, 1);
+		assert.strictEqual(functionSpy.dataArr[0].data['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[0].data['common.product'], 'test');
+
+		logger.logError('test-error-event', { 'test-data': 'test-data' });
+		assert.strictEqual(functionSpy.dataArr.length, 2);
+		assert.strictEqual(functionSpy.dataArr[1].data['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[1].data['common.product'], 'test');
+
+		logger.logError('test-error-event', { properties: { 'test-data': 'test-data' } });
+		assert.strictEqual(functionSpy.dataArr.length, 3);
+		assert.strictEqual(functionSpy.dataArr[2].data.properties['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[2].data.properties['common.product'], 'test');
+
+		logger.dispose();
+		assert.strictEqual(functionSpy.flushCalled, true);
 	});
 
 

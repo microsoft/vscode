@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
+exports.extractEditor = extractEditor;
+exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 const fs = require("fs");
 const path = require("path");
 const tss = require("./treeshaking");
@@ -78,13 +79,7 @@ function extractEditor(options) {
             const info = ts.preProcessFile(fileContents);
             for (let i = info.importedFiles.length - 1; i >= 0; i--) {
                 const importedFileName = info.importedFiles[i].fileName;
-                let importedFilePath;
-                if (/^vs\/css!/.test(importedFileName)) {
-                    importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
-                }
-                else {
-                    importedFilePath = importedFileName;
-                }
+                let importedFilePath = importedFileName;
                 if (/(^\.\/)|(^\.\.\/)/.test(importedFilePath)) {
                     importedFilePath = path.join(path.dirname(fileName), importedFilePath);
                 }
@@ -92,8 +87,9 @@ function extractEditor(options) {
                     transportCSS(importedFilePath, copyFile, writeOutputFile);
                 }
                 else {
-                    if (fs.existsSync(path.join(options.sourcesRoot, importedFilePath + '.js'))) {
-                        copyFile(importedFilePath + '.js');
+                    const pathToCopy = path.join(options.sourcesRoot, importedFilePath);
+                    if (fs.existsSync(pathToCopy) && !fs.statSync(pathToCopy).isDirectory()) {
+                        copyFile(importedFilePath);
                     }
                 }
             }
@@ -105,15 +101,10 @@ function extractEditor(options) {
         'vs/css.build.ts',
         'vs/css.ts',
         'vs/loader.js',
-        'vs/loader.d.ts',
-        'vs/nls.build.ts',
-        'vs/nls.ts',
-        'vs/nls.mock.ts',
+        'vs/loader.d.ts'
     ].forEach(copyFile);
 }
-exports.extractEditor = extractEditor;
 function createESMSourcesAndResources2(options) {
-    const ts = require('typescript');
     const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
     const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
     const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
@@ -134,56 +125,14 @@ function createESMSourcesAndResources2(options) {
         }
         if (file === 'tsconfig.json') {
             const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
-            tsConfig.compilerOptions.module = 'es6';
+            tsConfig.compilerOptions.module = 'es2022';
             tsConfig.compilerOptions.outDir = path.join(path.relative(OUT_FOLDER, OUT_RESOURCES_FOLDER), 'vs').replace(/\\/g, '/');
             write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
             continue;
         }
-        if (/\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
+        if (/\.ts$/.test(file) || /\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
             // Transport the files directly
             write(getDestAbsoluteFilePath(file), fs.readFileSync(path.join(SRC_FOLDER, file)));
-            continue;
-        }
-        if (/\.ts$/.test(file)) {
-            // Transform the .ts file
-            let fileContents = fs.readFileSync(path.join(SRC_FOLDER, file)).toString();
-            const info = ts.preProcessFile(fileContents);
-            for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-                const importedFilename = info.importedFiles[i].fileName;
-                const pos = info.importedFiles[i].pos;
-                const end = info.importedFiles[i].end;
-                let importedFilepath;
-                if (/^vs\/css!/.test(importedFilename)) {
-                    importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
-                }
-                else {
-                    importedFilepath = importedFilename;
-                }
-                if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
-                    importedFilepath = path.join(path.dirname(file), importedFilepath);
-                }
-                let relativePath;
-                if (importedFilepath === path.dirname(file).replace(/\\/g, '/')) {
-                    relativePath = '../' + path.basename(path.dirname(file));
-                }
-                else if (importedFilepath === path.dirname(path.dirname(file)).replace(/\\/g, '/')) {
-                    relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
-                }
-                else {
-                    relativePath = path.relative(path.dirname(file), importedFilepath);
-                }
-                relativePath = relativePath.replace(/\\/g, '/');
-                if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
-                    relativePath = './' + relativePath;
-                }
-                fileContents = (fileContents.substring(0, pos + 1)
-                    + relativePath
-                    + fileContents.substring(end + 1));
-            }
-            fileContents = fileContents.replace(/import ([a-zA-Z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
-                return `import * as ${m1} from ${m2};`;
-            });
-            write(getDestAbsoluteFilePath(file), fileContents);
             continue;
         }
         console.log(`UNKNOWN FILE: ${file}`);
@@ -251,7 +200,6 @@ function createESMSourcesAndResources2(options) {
         }
     }
 }
-exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {
         return false;

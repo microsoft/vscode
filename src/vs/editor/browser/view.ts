@@ -3,59 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
-import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
-import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
-import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
-import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
-import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
-import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
-import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
-import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
-import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
-import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
-import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
-import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
-import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
-import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
-import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
-import { Rulers } from 'vs/editor/browser/viewParts/rulers/rulers';
-import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
-import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
-import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
-import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import { Position } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { IViewModel } from 'vs/editor/common/viewModel';
-import { getThemeTypeSelector, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
-import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/blockDecorations';
-import { inputLatency } from 'vs/base/browser/performance';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
-import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { GlyphMarginLane } from 'vs/editor/common/model';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeWindow } from 'vs/base/browser/window';
+import * as dom from '../../base/browser/dom.js';
+import { FastDomNode, createFastDomNode } from '../../base/browser/fastDomNode.js';
+import { IMouseWheelEvent } from '../../base/browser/mouseEvent.js';
+import { inputLatency } from '../../base/browser/performance.js';
+import { CodeWindow } from '../../base/browser/window.js';
+import { BugIndicatingError, onUnexpectedError } from '../../base/common/errors.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
+import { IPointerHandlerHelper } from './controller/mouseHandler.js';
+import { PointerHandlerLastRenderData } from './controller/mouseTarget.js';
+import { PointerHandler } from './controller/pointerHandler.js';
+import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from './editorBrowser.js';
+import { RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
+import { ICommandDelegate, ViewController } from './view/viewController.js';
+import { ContentViewOverlays, MarginViewOverlays } from './view/viewOverlays.js';
+import { PartFingerprint, PartFingerprints, ViewPart } from './view/viewPart.js';
+import { ViewUserInputEvents } from './view/viewUserInputEvents.js';
+import { BlockDecorations } from './viewParts/blockDecorations/blockDecorations.js';
+import { ViewContentWidgets } from './viewParts/contentWidgets/contentWidgets.js';
+import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from './viewParts/currentLineHighlight/currentLineHighlight.js';
+import { DecorationsOverlay } from './viewParts/decorations/decorations.js';
+import { EditorScrollbar } from './viewParts/editorScrollbar/editorScrollbar.js';
+import { GlyphMarginWidgets } from './viewParts/glyphMargin/glyphMargin.js';
+import { IndentGuidesOverlay } from './viewParts/indentGuides/indentGuides.js';
+import { LineNumbersOverlay } from './viewParts/lineNumbers/lineNumbers.js';
+import { ViewLines } from './viewParts/lines/viewLines.js';
+import { LinesDecorationsOverlay } from './viewParts/linesDecorations/linesDecorations.js';
+import { Margin } from './viewParts/margin/margin.js';
+import { MarginViewLineDecorationsOverlay } from './viewParts/marginDecorations/marginDecorations.js';
+import { Minimap } from './viewParts/minimap/minimap.js';
+import { ViewOverlayWidgets } from './viewParts/overlayWidgets/overlayWidgets.js';
+import { DecorationsOverviewRuler } from './viewParts/overviewRuler/decorationsOverviewRuler.js';
+import { OverviewRuler } from './viewParts/overviewRuler/overviewRuler.js';
+import { Rulers } from './viewParts/rulers/rulers.js';
+import { ScrollDecorationViewPart } from './viewParts/scrollDecoration/scrollDecoration.js';
+import { SelectionsOverlay } from './viewParts/selections/selections.js';
+import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
+import { ViewZones } from './viewParts/viewZones/viewZones.js';
+import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
+import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
+import { EditorOption } from '../common/config/editorOptions.js';
+import { Position } from '../common/core/position.js';
+import { Range } from '../common/core/range.js';
+import { Selection } from '../common/core/selection.js';
+import { ScrollType } from '../common/editorCommon.js';
+import { GlyphMarginLane, IGlyphMarginLanesModel } from '../common/model.js';
+import { ViewEventHandler } from '../common/viewEventHandler.js';
+import * as viewEvents from '../common/viewEvents.js';
+import { ViewportData } from '../common/viewLayout/viewLinesViewportData.js';
+import { IViewModel } from '../common/viewModel.js';
+import { ViewContext } from '../common/viewModel/viewContext.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
+import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
+import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
+import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 
 
 export interface IContentWidgetData {
@@ -90,7 +92,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
 
-	private readonly _textAreaHandler: TextAreaHandler;
+	private _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
 	// Dom nodes
@@ -126,8 +128,12 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
-		this._viewParts.push(this._textAreaHandler);
+		const editContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		this._editContext = editContextEnabled
+			? this._instantiationService.createInstance(NativeEditContext, this._context, viewController)
+			: this._instantiationService.createInstance(TextAreaEditContext, this._context, viewController, this._createTextAreaHandlerHelper());
+
+		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this._linesContent = createFastDomNode(document.createElement('div'));
@@ -222,8 +228,7 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
+		this._editContext.appendTo(this._overflowGuardContainer);
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this._overflowGuardContainer.appendChild(blockOutline.domNode);
@@ -243,60 +248,36 @@ export class View extends ViewEventHandler {
 		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
 	}
 
-	private _computeGlyphMarginLaneCount(): number {
+	private _computeGlyphMarginLanes(): IGlyphMarginLanesModel {
 		const model = this._context.viewModel.model;
-		type Glyph = { range: Range; lane: GlyphMarginLane };
+		const laneModel = this._context.viewModel.glyphLanes;
+		type Glyph = { range: Range; lane: GlyphMarginLane; persist?: boolean };
 		let glyphs: Glyph[] = [];
+		let maxLineNumber = 0;
 
 		// Add all margin decorations
 		glyphs = glyphs.concat(model.getAllMarginDecorations().map((decoration) => {
-			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
-			return { range: decoration.range, lane };
+			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Center;
+			maxLineNumber = Math.max(maxLineNumber, decoration.range.endLineNumber);
+			return { range: decoration.range, lane, persist: decoration.options.glyphMargin?.persistLane };
 		}));
 
 		// Add all glyph margin widgets
 		glyphs = glyphs.concat(this._glyphMarginWidgets.getWidgets().map((widget) => {
 			const range = model.validateRange(widget.preference.range);
+			maxLineNumber = Math.max(maxLineNumber, range.endLineNumber);
 			return { range, lane: widget.preference.lane };
 		}));
 
 		// Sorted by their start position
 		glyphs.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 
-		let leftDecRange: Range | null = null;
-		let rightDecRange: Range | null = null;
-		for (const decoration of glyphs) {
-
-			if (decoration.lane === GlyphMarginLane.Left && (!leftDecRange || Range.compareRangesUsingEnds(leftDecRange, decoration.range) < 0)) {
-				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-				leftDecRange = decoration.range;
-			}
-
-			if (decoration.lane === GlyphMarginLane.Right && (!rightDecRange || Range.compareRangesUsingEnds(rightDecRange, decoration.range) < 0)) {
-				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-				rightDecRange = decoration.range;
-			}
-
-			if (leftDecRange && rightDecRange) {
-
-				if (leftDecRange.endLineNumber < rightDecRange.startLineNumber) {
-					// there's no chance for `leftDecRange` to ever intersect something going further
-					leftDecRange = null;
-					continue;
-				}
-
-				if (rightDecRange.endLineNumber < leftDecRange.startLineNumber) {
-					// there's no chance for `rightDecRange` to ever intersect something going further
-					rightDecRange = null;
-					continue;
-				}
-
-				// leftDecRange and rightDecRange are intersecting or touching => we need two lanes
-				return 2;
-			}
+		laneModel.reset(maxLineNumber);
+		for (const glyph of glyphs) {
+			laneModel.push(glyph.lane, glyph.range, glyph.persist);
 		}
 
-		return 1;
+		return laneModel;
 	}
 
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
@@ -310,12 +291,12 @@ export class View extends ViewEventHandler {
 			},
 
 			dispatchTextAreaEvent: (event: CustomEvent) => {
-				this._textAreaHandler.textArea.domNode.dispatchEvent(event);
+				this._editContext.domNode.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
 				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
-				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
+				const lastTextareaPosition = this._editContext.getLastRenderData();
 				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			renderNow: (): void => {
@@ -363,12 +344,13 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.setWidth(layoutInfo.width);
 		this._overflowGuardContainer.setHeight(layoutInfo.height);
 
-		this._linesContent.setWidth(1000000);
-		this._linesContent.setHeight(1000000);
+		// https://stackoverflow.com/questions/38905916/content-in-google-chrome-larger-than-16777216-px-not-being-rendered
+		this._linesContent.setWidth(16777216);
+		this._linesContent.setHeight(16777216);
 	}
 
 	private _getEditorClassName() {
-		const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+		const focused = this._editContext.isFocused() ? ' focused' : '';
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
@@ -431,7 +413,7 @@ export class View extends ViewEventHandler {
 		if (this._renderAnimationFrame === null) {
 			const rendering = this._createCoordinatedRendering();
 			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
-				window: dom.getWindow(this.domNode.domNode),
+				window: dom.getWindow(this.domNode?.domNode),
 				prepareRenderText: () => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
@@ -491,7 +473,8 @@ export class View extends ViewEventHandler {
 			prepareRenderText: () => {
 				if (this._shouldRecomputeGlyphMarginLanes) {
 					this._shouldRecomputeGlyphMarginLanes = false;
-					this._context.configuration.setGlyphMarginDecorationLaneCount(this._computeGlyphMarginLaneCount());
+					const model = this._computeGlyphMarginLanes();
+					this._context.configuration.setGlyphMarginDecorationLaneCount(model.requiredLanes);
 				}
 				inputLatency.onRenderStart();
 			},
@@ -608,23 +591,23 @@ export class View extends ViewEventHandler {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		this._textAreaHandler.writeScreenReaderContent(reason);
+		this._editContext.writeScreenReaderContent(reason);
 	}
 
 	public focus(): void {
-		this._textAreaHandler.focusTextArea();
+		this._editContext.focus();
 	}
 
 	public isFocused(): boolean {
-		return this._textAreaHandler.isFocused();
+		return this._editContext.isFocused();
 	}
 
 	public refreshFocusState() {
-		this._textAreaHandler.refreshFocusState();
+		this._editContext.refreshFocusState();
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
-		this._textAreaHandler.setAriaOptions(options);
+		this._editContext.setAriaOptions(options);
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {
@@ -656,8 +639,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
-		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, widgetData.position);
 		if (shouldRender) {
 			this._scheduleRender();
 		}

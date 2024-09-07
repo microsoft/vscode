@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IObjectTreeElement, ObjectTreeElementCollapseState } from 'vs/base/browser/ui/tree/tree';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
-import { ITestItemContext, InternalTestItem, TestItemExpandState, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IIdentityProvider } from '../../../../../base/browser/ui/list/list.js';
+import { ObjectTree } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from './testingViewState.js';
+import { ITestItemContext, InternalTestItem, TestItemExpandState, TestResultState } from '../../common/testTypes.js';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -142,7 +142,15 @@ export type TestExplorerTreeElement = TestItemTreeElement | TestTreeErrorMessage
 
 export const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
 	getId(element) {
-		return element.treeId + '\0' + (element instanceof TestTreeErrorMessage ? 'error' : element.test.expand);
+		// For "not expandable" elements, whether they have children is part of the
+		// ID so they're rerendered if that changes (#204805)
+		const expandComponent = element instanceof TestTreeErrorMessage
+			? 'error'
+			: element.test.expand === TestItemExpandState.NotExpandable
+				? !!element.children.size
+				: element.test.expand;
+
+		return element.treeId + '\0' + expandComponent;
 	}
 };
 

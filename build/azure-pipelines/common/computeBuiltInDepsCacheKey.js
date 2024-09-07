@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../product.json'), 'utf8'));
-const shasum = crypto.createHash('sha1');
+const shasum = crypto.createHash('sha256');
 for (const ext of productjson.builtInExtensions) {
     shasum.update(`${ext.name}@${ext.version}`);
 }

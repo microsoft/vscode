@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkQueryString, removeLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkQueryString, removeLinkSuffix } from '../../browser/terminalLinkParsing.js';
 
 interface ITestLink {
 	link: string;
@@ -561,6 +561,14 @@ suite('TerminalLinkParsing', () => {
 						] as IParsedLink[]
 					);
 				});
+				test('should not detect links starting with ? within query strings that contain posix-style paths (#204195)', () => {
+					// ? appended to the cwd will exist since it's just the cwd
+					strictEqual(detectLinks(`http://foo.com/?bar=/a/b&baz=c`, os).some(e => e.path.text.startsWith('?')), false);
+				});
+				test('should not detect links starting with ? within query strings that contain Windows-style paths (#204195)', () => {
+					// ? appended to the cwd will exist since it's just the cwd
+					strictEqual(detectLinks(`http://foo.com/?bar=a:\\b&baz=c`, os).some(e => e.path.text.startsWith('?')), false);
+				});
 			}
 		});
 
@@ -697,6 +705,12 @@ suite('TerminalLinkParsing', () => {
 					);
 				});
 			}
+		});
+		suite('should ignore links with suffixes when the path itself is the empty string', () => {
+			deepStrictEqual(
+				detectLinks('""",1', OperatingSystem.Linux),
+				[] as IParsedLink[]
+			);
 		});
 	});
 });

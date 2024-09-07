@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from 'vs/editor/common/viewModel';
-import * as strings from 'vs/base/common/strings';
+import { IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
+import * as strings from '../../../base/common/strings.js';
 
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
 interface IPendingRemove { id: string }
@@ -644,6 +644,17 @@ export class LinesLayout {
 		let currentVerticalOffset = startLineNumberVerticalOffset;
 		let currentLineRelativeOffset = currentVerticalOffset;
 
+		// IE (all versions) cannot handle units above about 1,533,908 px, so every 500k pixels bring numbers down
+		const STEP_SIZE = 500000;
+		let bigNumbersDelta = 0;
+		if (startLineNumberVerticalOffset >= STEP_SIZE) {
+			// Compute a delta that guarantees that lines are positioned at `lineHeight` increments
+			bigNumbersDelta = Math.floor(startLineNumberVerticalOffset / STEP_SIZE) * STEP_SIZE;
+			bigNumbersDelta = Math.floor(bigNumbersDelta / lineHeight) * lineHeight;
+
+			currentLineRelativeOffset -= bigNumbersDelta;
+		}
+
 		const linesOffsets: number[] = [];
 
 		const verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
@@ -710,12 +721,14 @@ export class LinesLayout {
 		}
 
 		return {
+			bigNumbersDelta: bigNumbersDelta,
 			startLineNumber: startLineNumber,
 			endLineNumber: endLineNumber,
 			relativeVerticalOffset: linesOffsets,
 			centeredLineNumber: centeredLineNumber,
 			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
-			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber
+			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber,
+			lineHeight: this._lineHeight,
 		};
 	}
 

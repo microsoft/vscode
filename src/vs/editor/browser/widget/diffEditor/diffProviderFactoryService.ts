@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { ITextModel } from 'vs/editor/common/model';
-import { DiffAlgorithmName, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { LineRange } from '../../../common/core/lineRange.js';
+import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from '../../../common/diff/documentDiffProvider.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { ITextModel } from '../../../common/model.js';
+import { DiffAlgorithmName, IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export const IDiffProviderFactoryService = createDecorator<IDiffProviderFactoryService>('diffProviderFactoryService');
 
@@ -67,6 +67,16 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			return this.diffAlgorithm.computeDiff(original, modified, options, cancellationToken);
 		}
 
+		if (original.isDisposed() || modified.isDisposed()) {
+			// TODO@hediet
+			return {
+				changes: [],
+				identical: true,
+				quitEarly: false,
+				moves: [],
+			};
+		}
+
 		// This significantly speeds up the case when the original file is empty
 		if (original.getLineCount() === 1 && original.getLineMaxColumn(1) === 1) {
 			if (modified.getLineCount() === 1 && modified.getLineMaxColumn(1) === 1) {
@@ -115,9 +125,9 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 		}, {
 			owner: 'hediet';
 
-			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand if the new diff algorithm is slower/faster than the old one' };
-			timedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how often the new diff algorithm times out' };
-			detectedMoves: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how often the new diff algorithm detects moves' };
+			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand if the new diff algorithm is slower/faster than the old one' };
+			timedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand how often the new diff algorithm times out' };
+			detectedMoves: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand how often the new diff algorithm detects moves' };
 
 			comment: 'This event gives insight about the performance of the new diff algorithm.';
 		}>('diffEditor.computeDiff', {
@@ -142,7 +152,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 		// max 10 items in cache
 		if (WorkerBasedDocumentDiffProvider.diffCache.size > 10) {
-			WorkerBasedDocumentDiffProvider.diffCache.delete(WorkerBasedDocumentDiffProvider.diffCache.keys().next().value);
+			WorkerBasedDocumentDiffProvider.diffCache.delete(WorkerBasedDocumentDiffProvider.diffCache.keys().next().value!);
 		}
 
 		WorkerBasedDocumentDiffProvider.diffCache.set(uriKey, { result, context });

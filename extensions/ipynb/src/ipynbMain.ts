@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { NotebookSerializer } from './notebookSerializer';
-import { ensureAllNewCellsHaveCellIds } from './cellIdService';
+import { activate as keepNotebookModelStoreInSync } from './notebookModelStoreSync';
 import { notebookImagePasteSetup } from './notebookImagePaste';
 import { AttachmentCleaner } from './notebookAttachmentCleaner';
 
@@ -30,12 +30,13 @@ type NotebookMetadata = {
 
 export function activate(context: vscode.ExtensionContext) {
 	const serializer = new NotebookSerializer(context);
-	ensureAllNewCellsHaveCellIds(context);
+	keepNotebookModelStoreInSync(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
-			custom: false,
+			id: false,
+			metadata: false,
 			attachments: false
 		},
 		cellContentMetadata: {
@@ -47,7 +48,8 @@ export function activate(context: vscode.ExtensionContext) {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
-			custom: false,
+			id: false,
+			metadata: false,
 			attachments: false
 		},
 		cellContentMetadata: {
@@ -74,12 +76,10 @@ export function activate(context: vscode.ExtensionContext) {
 		const cell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '', language);
 		const data = new vscode.NotebookData([cell]);
 		data.metadata = {
-			custom: {
-				cells: [],
-				metadata: {},
-				nbformat: 4,
-				nbformat_minor: 2
-			}
+			cells: [],
+			metadata: {},
+			nbformat: 4,
+			nbformat_minor: 2
 		};
 		const doc = await vscode.workspace.openNotebookDocument('jupyter-notebook', data);
 		await vscode.window.showNotebookDocument(doc);
@@ -101,14 +101,10 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(cleaner);
 	}
 
-	// Update new file contribution
-	vscode.extensions.onDidChange(() => {
-		vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
-	});
-	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
-
-
 	return {
+		get dropCustomMetadata() {
+			return true;
+		},
 		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);
 		},
@@ -121,13 +117,10 @@ export function activate(context: vscode.ExtensionContext) {
 			const edit = new vscode.WorkspaceEdit();
 			edit.set(resource, [vscode.NotebookEdit.updateNotebookMetadata({
 				...document.metadata,
-				custom: {
-					...(document.metadata.custom ?? {}),
-					metadata: <NotebookMetadata>{
-						...(document.metadata.custom?.metadata ?? {}),
-						...metadata
-					},
-				}
+				metadata: <NotebookMetadata>{
+					...(document.metadata.metadata ?? {}),
+					...metadata
+				},
 			})]);
 			return vscode.workspace.applyEdit(edit);
 		},

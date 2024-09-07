@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from 'vs/platform/window/common/window';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
@@ -18,7 +18,6 @@ export const IHostService = createDecorator<IHostService>('hostService');
 export interface IHostService {
 
 	readonly _serviceBrand: undefined;
-
 
 	//#region Focus
 
@@ -56,7 +55,6 @@ export interface IHostService {
 
 	//#endregion
 
-
 	//#region Window
 
 	/**
@@ -69,7 +67,7 @@ export interface IHostService {
 	 * Emitted when the window with the given identifier changes
 	 * its fullscreen state.
 	 */
-	readonly onDidChangeFullScreen: Event<number>;
+	readonly onDidChangeFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
 
 	/**
 	 * Opens an empty window. The optional parameter allows to define if
@@ -121,6 +119,12 @@ export interface IHostService {
 	 * in progress, attempts to quit the application will not be vetoed with a dialog.
 	 */
 	withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T>;
+
+	//#endregion
+
+	//#region File
+
+	getPathForFile(file: File): string | undefined;
 
 	//#endregion
 }

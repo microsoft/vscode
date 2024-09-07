@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createTypeScriptBuilder = exports.CancellationToken = void 0;
+exports.CancellationToken = void 0;
+exports.createTypeScriptBuilder = createTypeScriptBuilder;
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -89,7 +90,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                     if (/\.d\.ts$/.test(fileName)) {
                         // if it's already a d.ts file just emit it signature
                         const snapshot = host.getScriptSnapshot(fileName);
-                        const signature = crypto.createHash('md5')
+                        const signature = crypto.createHash('sha256')
                             .update(snapshot.getText(0, snapshot.getLength()))
                             .digest('base64');
                         return resolve({
@@ -106,7 +107,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                             continue;
                         }
                         if (/\.d\.ts$/.test(file.name)) {
-                            signature = crypto.createHash('md5')
+                            signature = crypto.createHash('sha256')
                                 .update(file.text)
                                 .digest('base64');
                             if (!userWantsDeclarations) {
@@ -354,7 +355,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             // print stats
             const headNow = process.memoryUsage().heapUsed;
             const MB = 1024 * 1024;
-            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
+            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
             headUsed = headNow;
         });
     }
@@ -364,7 +365,6 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         languageService: service
     };
 }
-exports.createTypeScriptBuilder = createTypeScriptBuilder;
 class ScriptSnapshot {
     _text;
     _mtime;
@@ -550,7 +550,10 @@ class LanguageServiceHost {
             let found = false;
             while (!found && dirname.indexOf(stopDirname) === 0) {
                 dirname = path.dirname(dirname);
-                const resolvedPath = path.resolve(dirname, ref.fileName);
+                let resolvedPath = path.resolve(dirname, ref.fileName);
+                if (resolvedPath.endsWith('.js')) {
+                    resolvedPath = resolvedPath.slice(0, -3);
+                }
                 const normalizedPath = normalize(resolvedPath);
                 if (this.getScriptSnapshot(normalizedPath + '.ts')) {
                     this._dependencies.inertEdge(filename, normalizedPath + '.ts');

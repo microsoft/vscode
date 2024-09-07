@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType } from 'vs/base/browser/ui/tree/abstractTree';
-import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
-import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { isIterable } from 'vs/base/common/types';
+import { IDragAndDropData } from '../../dnd.js';
+import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from '../list/list.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
+import { IListStyles } from '../list/listWidget.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart } from './abstractTree.js';
+import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
+import { getVisibleState, isFilterResult } from './indexTreeModel.js';
+import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
+import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
+import { CancelablePromise, createCancelablePromise, Promises, timeout } from '../../../common/async.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { isCancellationError, onUnexpectedError } from '../../../common/errors.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Iterable } from '../../../common/iterator.js';
+import { DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { ScrollEvent } from '../../../common/scrollable.js';
+import { isIterable } from '../../../common/types.js';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -152,7 +152,8 @@ function asTreeContextMenuEvent<TInput, T>(e: ITreeContextMenuEvent<IAsyncDataTr
 	return {
 		browserEvent: e.browserEvent,
 		element: e.element && e.element.element as T,
-		anchor: e.anchor
+		anchor: e.anchor,
+		isStickyScroll: e.isStickyScroll
 	};
 }
 
@@ -238,10 +239,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			...options.accessibilityProvider,
 			getPosInSet: undefined,
 			getSetSize: undefined,
-			getRole: options.accessibilityProvider!.getRole ? (el) => {
+			getRole: options.accessibilityProvider.getRole ? (el) => {
 				return options.accessibilityProvider!.getRole!(el.element as T);
 			} : () => 'treeitem',
-			isChecked: options.accessibilityProvider!.isChecked ? (e) => {
+			isChecked: options.accessibilityProvider.isChecked ? (e) => {
 				return !!(options.accessibilityProvider?.isChecked!(e.element as T));
 			} : undefined,
 			getAriaLabel(e) {
@@ -250,8 +251,8 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			getWidgetAriaLabel() {
 				return options.accessibilityProvider!.getWidgetAriaLabel();
 			},
-			getWidgetRole: options.accessibilityProvider!.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
-			getAriaLevel: options.accessibilityProvider!.getAriaLevel && (node => {
+			getWidgetRole: options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
+			getAriaLevel: options.accessibilityProvider.getAriaLevel && (node => {
 				return options.accessibilityProvider!.getAriaLevel!(node.element as T);
 			}),
 			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
@@ -362,6 +363,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
 	get onDidChangeFindOpenState(): Event<boolean> { return this.tree.onDidChangeFindOpenState; }
+	get onDidChangeStickyScrollFocused(): Event<boolean> { return this.tree.onDidChangeStickyScrollFocused; }
 
 	get findMode(): TreeFindMode { return this.tree.findMode; }
 	set findMode(mode: TreeFindMode) { this.tree.findMode = mode; }
@@ -522,7 +524,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.root.element = input!;
 
-		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
+		const viewStateContext: IAsyncDataTreeViewStateContext<TInput, T> | undefined = viewState && { viewState, focus: [], selection: [] };
 
 		await this._updateChildren(input, true, false, viewStateContext);
 
@@ -565,10 +567,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	resort(element: TInput | T = this.root.element, recursive = true): void {
 		this.tree.resort(this.getDataNode(element), recursive);
-	}
-
-	hasElement(element: TInput | T): boolean {
-		return this.tree.hasElement(this.getDataNode(element));
 	}
 
 	hasNode(element: TInput | T): boolean {
@@ -756,6 +754,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return nodes.map(n => n!.element as T);
 	}
 
+	getStickyScrollFocus(): T[] {
+		const nodes = this.tree.getStickyScrollFocus();
+		return nodes.map(n => n!.element as T);
+	}
+
+	getFocusedPart(): AbstractTreePart {
+		return this.tree.getFocusedPart();
+	}
+
 	reveal(element: T, relativeTop?: number): void {
 		this.tree.reveal(this.getDataNode(element), relativeTop);
 	}
@@ -814,8 +821,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const treeNode = this.tree.getNode(node);
 
 			if (treeNode.collapsed) {
-				node.hasChildren = !!this.dataSource.hasChildren(node.element!);
+				node.hasChildren = !!this.dataSource.hasChildren(node.element);
 				node.stale = true;
+				this.setChildren(node, [], recursive, viewStateContext);
 				return;
 			}
 		}
@@ -844,7 +852,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private async doRefreshNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): Promise<IAsyncDataTreeNode<TInput, T>[]> {
-		node.hasChildren = !!this.dataSource.hasChildren(node.element!);
+		node.hasChildren = !!this.dataSource.hasChildren(node.element);
 
 		let childrenPromise: Promise<Iterable<T>>;
 
@@ -893,7 +901,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (result) {
 			return result;
 		}
-		const children = this.dataSource.getChildren(node.element!);
+		const children = this.dataSource.getChildren(node.element);
 		if (isIterable(children)) {
 			return this.processChildren(children);
 		} else {
@@ -1022,9 +1030,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const children = node.children.map(node => this.asTreeElement(node, viewStateContext));
 		const objectTreeOptions: IObjectTreeSetChildrenOptions<IAsyncDataTreeNode<TInput, T>> | undefined = options && {
 			...options,
-			diffIdentityProvider: options!.diffIdentityProvider && {
+			diffIdentityProvider: options.diffIdentityProvider && {
 				getId(node: IAsyncDataTreeNode<TInput, T>): { toString(): string } {
-					return options!.diffIdentityProvider!.getId(node.element as T);
+					return options.diffIdentityProvider!.getId(node.element as T);
 				}
 			}
 		};
@@ -1199,7 +1207,7 @@ function asCompressibleObjectTreeOptions<TInput, T, TFilterData>(options?: IComp
 		keyboardNavigationLabelProvider: objectTreeOptions.keyboardNavigationLabelProvider && {
 			...objectTreeOptions.keyboardNavigationLabelProvider,
 			getCompressedNodeKeyboardNavigationLabel(els) {
-				return options!.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
+				return options.keyboardNavigationLabelProvider!.getCompressedNodeKeyboardNavigationLabel(els.map(e => e.element as T));
 			}
 		}
 	};

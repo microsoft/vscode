@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, DisposableTracker, IDisposable, setDisposableTracker } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import { DisposableStore, DisposableTracker, IDisposable, setDisposableTracker } from '../../common/lifecycle.js';
+import { join } from '../../common/path.js';
+import { isWindows } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
 
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 

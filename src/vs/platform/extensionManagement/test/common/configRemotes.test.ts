@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getDomainsOfRemotes, getRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getDomainsOfRemotes, getRemotes } from '../../common/configRemotes.js';
 
 suite('Config Remotes', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const allowedDomains = [
 		'github.com',
@@ -129,5 +131,4 @@ suite('Config Remotes', () => {
 `;
 	}
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

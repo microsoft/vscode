@@ -2,25 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { sep } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { SnippetParser, Variable, VariableResolver } from '../../browser/snippetParser.js';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { toWorkspaceFolders } from '../../../../../platform/workspaces/common/workspaces.js';
 
 suite('Snippet Variables Resolver', function () {
+
 
 	const labelService = new class extends mock<ILabelService>() {
 		override getUriLabel(uri: URI) {
@@ -47,6 +49,9 @@ suite('Snippet Variables Resolver', function () {
 	teardown(function () {
 		model.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 
 	function assertVariableResolve(resolver: VariableResolver, varName: string, expected?: string) {
 		const snippet = new SnippetParser().parse(`$${varName}`);
@@ -270,7 +275,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'cLIPBOARD', undefined);
 	});
 
-	test('Add variable to insert value from clipboard to a snippet #40153', function () {
+	test('Add variable to insert value from clipboard to a snippet #40153, 2', function () {
 
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1', 1, 2, true), 'CLIPBOARD', 'line1');
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');

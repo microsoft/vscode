@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IAction } from 'vs/base/common/actions';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IMenu } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { CommentCommandId } from '../common/commentCommandIds.js';
 
 export class CommentFormActions implements IDisposable {
 	private _buttonElements: HTMLElement[] = [];
@@ -15,6 +18,8 @@ export class CommentFormActions implements IDisposable {
 	private _actions: IAction[] = [];
 
 	constructor(
+		private readonly keybindingService: IKeybindingService,
+		private readonly contextKeyService: IContextKeyService,
 		private container: HTMLElement,
 		private actionHandler: (action: IAction) => void,
 		private readonly maxActions?: number
@@ -33,7 +38,12 @@ export class CommentFormActions implements IDisposable {
 
 			this._actions = actions;
 			for (const action of actions) {
-				const button = new Button(this.container, { secondary: !isPrimary, ...defaultButtonStyles });
+				let keybinding = this.keybindingService.lookupKeybinding(action.id, this.contextKeyService)?.getLabel();
+				if (!keybinding && isPrimary) {
+					keybinding = this.keybindingService.lookupKeybinding(CommentCommandId.Submit, this.contextKeyService)?.getLabel();
+				}
+				const title = keybinding ? `${action.label} (${keybinding})` : action.label;
+				const button = new Button(this.container, { secondary: !isPrimary, title, ...defaultButtonStyles });
 
 				isPrimary = false;
 				this._buttonElements.push(button.element);

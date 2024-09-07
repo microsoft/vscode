@@ -7,11 +7,12 @@ import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
 import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
-import { combinedDisposable, mapEvent } from '../util';
+import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
 import { PickRemoteSourceOptions } from './git-base';
+import { Operation, OperationResult } from '../operation';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -43,6 +44,7 @@ export class ApiRepositoryState implements RepositoryState {
 	get mergeChanges(): Change[] { return this._repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
 	get indexChanges(): Change[] { return this._repository.indexGroup.resourceStates.map(r => new ApiChange(r)); }
 	get workingTreeChanges(): Change[] { return this._repository.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
+	get untrackedChanges(): Change[] { return this._repository.untrackedGroup.resourceStates.map(r => new ApiChange(r)); }
 
 	readonly onDidChange: Event<void> = this._repository.onDidRunGitStatus;
 
@@ -64,6 +66,8 @@ export class ApiRepository implements Repository {
 	readonly inputBox: InputBox = new ApiInputBox(this.repository.inputBox);
 	readonly state: RepositoryState = new ApiRepositoryState(this.repository);
 	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this.repository.sourceControl);
+
+	readonly onDidCommit: Event<void> = mapEvent<OperationResult, void>(filterEvent(this.repository.onDidRunOperation, e => e.operation === Operation.Commit), () => null);
 
 	constructor(readonly repository: BaseRepository) { }
 
@@ -157,10 +161,6 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
-	getDiff(): Promise<string[]> {
-		return this.repository.getDiff();
-	}
-
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -191,6 +191,10 @@ export class ApiRepository implements Repository {
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return this.repository.getRefs(query, cancellationToken);
+	}
+
+	checkIgnore(paths: string[]): Promise<Set<string>> {
+		return this.repository.checkIgnore(paths);
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
@@ -254,7 +258,15 @@ export class ApiRepository implements Repository {
 	}
 
 	commit(message: string, opts?: CommitOptions): Promise<void> {
-		return this.repository.commit(message, opts);
+		return this.repository.commit(message, { ...opts, postCommitCommand: null });
+	}
+
+	merge(ref: string): Promise<void> {
+		return this.repository.merge(ref);
+	}
+
+	mergeAbort(): Promise<void> {
+		return this.repository.mergeAbort();
 	}
 }
 
@@ -310,6 +322,10 @@ export class ApiImpl implements API {
 	}
 
 	async openRepository(root: Uri): Promise<Repository | null> {
+		if (root.scheme !== 'file') {
+			return null;
+		}
+
 		await this._model.openRepository(root.fsPath);
 		return this.getRepository(root) || null;
 	}

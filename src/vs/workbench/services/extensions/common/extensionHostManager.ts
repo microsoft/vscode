@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import * as nls from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtensionHostKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
+import { IntervalTimer } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import * as errors from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc.js';
+import * as nls from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { RemoteAuthorityResolverErrorCode, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { ExtHostCustomersRegistry, IInternalExtHostContext } from './extHostCustomers.js';
+import { ExtensionHostKind, extensionHostKindToString } from './extensionHostKind.js';
+import { IExtensionHostManager } from './extensionHostManagers.js';
+import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
+import { IExtensionHostProxy, IResolveAuthorityResult } from './extensionHostProxy.js';
+import { ExtensionRunningLocation } from './extensionRunningLocation.js';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from './extensions.js';
+import { Proxied, ProxyIdentifier } from './proxyIdentifier.js';
+import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from './rpcProtocol.js';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -161,13 +161,14 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 		});
 	}
 
+	public async disconnect(): Promise<void> {
+		await this._extensionHost?.disconnect?.();
+	}
+
 	public override dispose(): void {
-		if (this._extensionHost) {
-			this._extensionHost.dispose();
-		}
-		if (this._rpcProtocol) {
-			this._rpcProtocol.dispose();
-		}
+		this._extensionHost?.dispose();
+		this._rpcProtocol?.dispose();
+
 		for (let i = 0, len = this._customers.length; i < len; i++) {
 			const customer = this._customers[i];
 			try {
@@ -354,7 +355,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 		this._resolvedActivationEvents.add(activationEvent);
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined> {
 		if (this._extensionHost) {
 			if (tryEnableInspector) {
 				await this._extensionHost.enableInspectPort();
@@ -364,7 +365,8 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 				return port;
 			}
 		}
-		return 0;
+
+		return undefined;
 	}
 
 	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
@@ -544,7 +546,7 @@ type RPCTelemetryDataClassification = {
 	owner: 'jrieken';
 	comment: 'Insights about RPC message sizes';
 	type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of the RPC message' };
-	length: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The byte-length of the RPC message' };
+	length: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The byte-length of the RPC message' };
 };
 
 class TelemetryRPCLogger implements IRPCProtocolLogger {
@@ -626,10 +628,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.measureExtHostLatency',
-			title: {
-				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
-				original: 'Measure Extension Host Latency'
-			},
+			title: nls.localize2('measureExtHostLatency', "Measure Extension Host Latency"),
 			category: Categories.Developer,
 			f1: true
 		});

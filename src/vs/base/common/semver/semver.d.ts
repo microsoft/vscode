@@ -3,9 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export as namespace semver;
+// ESM-comment-begin
+// export as namespace semver;
+// export = semver;
+// ESM-comment-end
 
-export = semver;
+// ESM-uncomment-begin
+export * from 'semver'
+// ESM-uncomment-end
 
 declare namespace semver {
 

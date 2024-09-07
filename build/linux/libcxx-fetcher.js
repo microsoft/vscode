@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.downloadLibcxxObjects = exports.downloadLibcxxHeaders = void 0;
+exports.downloadLibcxxHeaders = downloadLibcxxHeaders;
+exports.downloadLibcxxObjects = downloadLibcxxObjects;
 // Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
 const fs = require("fs");
 const path = require("path");
@@ -29,7 +30,6 @@ async function downloadLibcxxHeaders(outDir, electronVersion, lib_name) {
     d(`unpacking ${lib_name}_headers from ${headers}`);
     await extract(headers, { dir: outDir });
 }
-exports.downloadLibcxxHeaders = downloadLibcxxHeaders;
 async function downloadLibcxxObjects(outDir, electronVersion, targetArch = 'x64') {
     if (await fs.existsSync(path.resolve(outDir, 'libc++.a'))) {
         return;
@@ -47,7 +47,6 @@ async function downloadLibcxxObjects(outDir, electronVersion, targetArch = 'x64'
     d(`unpacking libcxx-objects from ${objects}`);
     await extract(objects, { dir: outDir });
 }
-exports.downloadLibcxxObjects = downloadLibcxxObjects;
 async function main() {
     const libcxxObjectsDirPath = process.env['VSCODE_LIBCXX_OBJECTS_DIR'];
     const libcxxHeadersDownloadDir = process.env['VSCODE_LIBCXX_HEADERS_DIR'];

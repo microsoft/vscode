@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getChromiumSysroot = exports.getVSCodeSysroot = void 0;
+exports.getVSCodeSysroot = getVSCodeSysroot;
+exports.getChromiumSysroot = getChromiumSysroot;
 const child_process_1 = require("child_process");
 const os_1 = require("os");
 const fs = require("fs");
@@ -28,9 +29,9 @@ const ghDownloadHeaders = {
     Accept: 'application/octet-stream',
 };
 function getElectronVersion() {
-    const yarnrc = fs.readFileSync(path.join(REPO_ROOT, '.yarnrc'), 'utf8');
-    const electronVersion = /^target "(.*)"$/m.exec(yarnrc)[1];
-    const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)[1];
+    const npmrc = fs.readFileSync(path.join(REPO_ROOT, '.npmrc'), 'utf8');
+    const electronVersion = /^target="(.*)"$/m.exec(npmrc)[1];
+    const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
     return { electronVersion, msBuildId };
 }
 function getSha(filename) {
@@ -67,7 +68,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-        const version = '20231122-245579';
+        const version = '20240129-253798';
         try {
             const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
                 headers: ghApiHeaders,
@@ -119,20 +120,22 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
 async function getVSCodeSysroot(arch) {
     let expectedName;
     let triple;
+    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28';
     switch (arch) {
         case 'amd64':
-            expectedName = `x86_64-linux-gnu.tar.gz`;
+            expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
             triple = 'x86_64-linux-gnu';
             break;
         case 'arm64':
-            expectedName = `aarch64-linux-gnu.tar.gz`;
+            expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
             triple = 'aarch64-linux-gnu';
             break;
         case 'armhf':
-            expectedName = `arm-rpi-linux-gnueabihf.tar.gz`;
+            expectedName = `arm-rpi-linux-gnueabihf${prefix}.tar.gz`;
             triple = 'arm-rpi-linux-gnueabihf';
             break;
     }
+    console.log(`Fetching ${expectedName} for ${triple}`);
     const checksumSha256 = getVSCodeSysrootChecksum(expectedName);
     if (!checksumSha256) {
         throw new Error(`Could not find checksum for ${expectedName}`);
@@ -154,7 +157,6 @@ async function getVSCodeSysroot(arch) {
     fs.writeFileSync(stamp, expectedName);
     return result;
 }
-exports.getVSCodeSysroot = getVSCodeSysroot;
 async function getChromiumSysroot(arch) {
     const sysrootJSONUrl = `https://raw.githubusercontent.com/electron/electron/v${getElectronVersion().electronVersion}/script/sysroots.json`;
     const sysrootDictLocation = `${(0, os_1.tmpdir)()}/sysroots.json`;
@@ -212,5 +214,4 @@ async function getChromiumSysroot(arch) {
     fs.writeFileSync(stamp, url);
     return sysroot;
 }
-exports.getChromiumSysroot = getChromiumSysroot;
 //# sourceMappingURL=install-sysroot.js.map

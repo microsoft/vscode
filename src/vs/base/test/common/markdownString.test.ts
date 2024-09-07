@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import assert from 'assert';
+import { MarkdownString } from '../../common/htmlContent.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('MarkdownString', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Escape leading whitespace', function () {
 		const mds = new MarkdownString();

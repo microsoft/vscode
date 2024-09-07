@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getVariableNameValidator = void 0;
+exports.getVariableNameValidator = getVariableNameValidator;
 const fs_1 = require("fs");
 const path = require("path");
 const RE_VAR_PROP = /var\(\s*(--([\w\-\.]+))/g;
@@ -17,6 +17,7 @@ function getKnownVariableNames() {
     }
     return knownVariables;
 }
+const iconVariable = /^--vscode-icon-.+-(content|font-family)$/;
 function getVariableNameValidator() {
     const allVariables = getKnownVariableNames();
     return (value, report) => {
@@ -24,11 +25,10 @@ function getVariableNameValidator() {
         let match;
         while (match = RE_VAR_PROP.exec(value)) {
             const variableName = match[1];
-            if (variableName && !allVariables.has(variableName)) {
+            if (variableName && !allVariables.has(variableName) && !iconVariable.test(variableName)) {
                 report(variableName);
             }
         }
     };
 }
-exports.getVariableNameValidator = getVariableNameValidator;
 //# sourceMappingURL=validateVariableNames.js.map

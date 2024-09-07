@@ -58,5 +58,9 @@ export interface CellMetadata {
 	/**
 	 * Stores cell metadata.
 	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
+	metadata?: Partial<nbformat.ICellMetadata> & { vscode?: { languageId?: string } };
+	/**
+	 * The code cell's prompt number. Will be null if the cell has not been run.
+	 */
+	execution_count?: number;
 }

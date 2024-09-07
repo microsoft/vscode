@@ -2,39 +2,39 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'vs/css!./output';
-import * as nls from 'vs/nls';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/services/output/common/output';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Dimension } from 'vs/base/browser/dom';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
+import './output.css';
+import * as nls from '../../../../nls.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOpenContext } from '../../../common/editor.js';
+import { AbstractTextResourceEditor } from '../../../browser/parts/editor/textResourceEditor.js';
+import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK } from '../../../services/output/common/output.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
+import { computeEditorAriaLabel } from '../../../browser/editor.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class OutputViewPane extends ViewPane {
 
@@ -57,12 +57,13 @@ export class OutputViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
 
-		const editorInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		this.editor = editorInstantiationService.createInstance(OutputEditor);
+		const editorInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		this.editor = this._register(editorInstantiationService.createInstance(OutputEditor));
 		this._register(this.editor.onTitleAreaUpdate(() => {
 			this.updateTitle(this.editor.getTitle());
 			this.updateActions();
@@ -161,10 +162,9 @@ class OutputEditor extends AbstractTextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IFileService fileService: IFileService
 	) {
-		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
+		super(OUTPUT_VIEW_ID, editorGroupService.activeGroup /* TODO@bpasero this is wrong */, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
 
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 	}
@@ -215,6 +215,10 @@ class OutputEditor extends AbstractTextResourceEditor {
 		return this.input ? this.input.getAriaLabel() : nls.localize('outputViewAriaLabel', "Output panel");
 	}
 
+	protected override computeAriaLabel(): string {
+		return this.input ? computeEditorAriaLabel(this.input, undefined, undefined, this.editorGroupService.count) : this.getAriaLabel();
+	}
+
 	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const focus = !(options && options.preserveFocus);
 		if (this.input && input.matches(this.input)) {
@@ -257,17 +261,3 @@ class OutputEditor extends AbstractTextResourceEditor {
 		}
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	// Sidebar background for the output view
-	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.sidebar .output-view .monaco-editor,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background {
-				background-color: ${sidebarBackground};
-			}
-		`);
-	}
-});

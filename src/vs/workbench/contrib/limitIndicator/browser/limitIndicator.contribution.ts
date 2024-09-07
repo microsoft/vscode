@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import * as nls from 'vs/nls';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ILanguageStatus, ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import * as nls from '../../../../nls.js';
 
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
+import { FoldingController } from '../../../../editor/contrib/folding/browser/folding.js';
+import { ColorDetector } from '../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 
 const openSettingsCommand = 'workbench.action.openSettings';
 const configureSettingsLabel = nls.localize('status.button.configure', "Configure");

@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./findInput';
-import * as nls from 'vs/nls';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import * as dom from '../../dom.js';
+import { IKeyboardEvent } from '../../keyboardEvent.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { IToggleStyles, Toggle } from '../toggle/toggle.js';
+import { IContextViewProvider } from '../contextview/contextview.js';
+import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
+import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
+import { Widget } from '../widget.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import './findInput.css';
+import * as nls from '../../../../nls.js';
+import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 
 
 export interface IFindInputOptions {
@@ -50,7 +51,7 @@ export class FindInput extends Widget {
 	private readonly showCommonFindToggles: boolean;
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
-	private additionalTogglesDisposables: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
+	private readonly additionalTogglesDisposables: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 
 	protected readonly controls: HTMLDivElement;
 	protected readonly regex?: RegexToggle;
@@ -113,10 +114,13 @@ export class FindInput extends Widget {
 			inputBoxStyles: options.inputBoxStyles,
 		}));
 
+		const hoverDelegate = this._register(createInstantHoverDelegate());
+
 		if (this.showCommonFindToggles) {
 			this.regex = this._register(new RegexToggle({
 				appendTitle: appendRegexLabel,
 				isChecked: false,
+				hoverDelegate,
 				...options.toggleStyles
 			}));
 			this._register(this.regex.onChange(viaKeyboard => {
@@ -133,6 +137,7 @@ export class FindInput extends Widget {
 			this.wholeWords = this._register(new WholeWordsToggle({
 				appendTitle: appendWholeWordsLabel,
 				isChecked: false,
+				hoverDelegate,
 				...options.toggleStyles
 			}));
 			this._register(this.wholeWords.onChange(viaKeyboard => {
@@ -146,6 +151,7 @@ export class FindInput extends Widget {
 			this.caseSensitive = this._register(new CaseSensitiveToggle({
 				appendTitle: appendCaseSensitiveLabel,
 				isChecked: false,
+				hoverDelegate,
 				...options.toggleStyles
 			}));
 			this._register(this.caseSensitive.onChange(viaKeyboard => {

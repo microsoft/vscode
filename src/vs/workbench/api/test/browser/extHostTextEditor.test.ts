@@ -2,16 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/common/extHostTypes';
-import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Lazy } from 'vs/base/common/lazy';
+import assert from 'assert';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { RenderLineNumbersType, TextEditorCursorStyle } from '../../../../editor/common/config/editorOptions.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from '../../common/extHost.protocol.js';
+import { ExtHostDocumentData } from '../../common/extHostDocumentData.js';
+import { ExtHostTextEditor, ExtHostTextEditorOptions } from '../../common/extHostTextEditor.js';
+import { Range, TextEditorLineNumbersStyle } from '../../common/extHostTypes.js';
 
 suite('ExtHostTextEditor', () => {
 
@@ -59,6 +60,8 @@ suite('ExtHostTextEditor', () => {
 		await editor.value.edit(edit => { edit.delete(new Range(0, 0, 1, 1)); });
 		assert.strictEqual(applyCount, 2);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('ExtHostTextEditorOptions', () => {
@@ -513,4 +516,5 @@ suite('ExtHostTextEditorOptions', () => {
 		assert.deepStrictEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: RenderLineNumbersType.Relative }]);
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

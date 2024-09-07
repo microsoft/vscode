@@ -2,22 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./actionWidget';
-import { localize } from 'vs/nls';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
+import * as dom from '../../../base/browser/dom.js';
+import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { List } from '../../../base/browser/ui/list/listWidget.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { OS } from '../../../base/common/platform.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import './actionWidget.css';
+import { localize } from '../../../nls.js';
+import { IContextViewService } from '../../contextview/browser/contextView.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../theme/common/colorRegistry.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -130,9 +130,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
-				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
+				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
+				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
 			}
 		} else {
 			data.container.title = '';
@@ -140,7 +140,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	}
 
 	disposeTemplate(_templateData: IActionMenuTemplateData): void {
-		// noop
+		_templateData.keybinding.dispose();
 	}
 }
 

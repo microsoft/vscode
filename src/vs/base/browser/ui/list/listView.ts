@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { distinct, equals } from 'vs/base/common/arrays';
-import { Delayer, disposableTimeout } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/base/common/range';
-import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
-import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import { DataTransfers, IDragAndDropData } from '../../dnd.js';
+import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { IMouseWheelEvent } from '../../mouseEvent.js';
+import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
+import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
+import { distinct, equals } from '../../../common/arrays.js';
+import { Delayer, disposableTimeout } from '../../../common/async.js';
+import { memoize } from '../../../common/decorators.js';
+import { Emitter, Event, IValueWithChangeEvent } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { IRange, Range } from '../../../common/range.js';
+import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import { ISpliceable } from '../../../common/sequence.js';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from './list.js';
+import { IRangeMap, RangeMap, shift } from './rangeMap.js';
+import { IRow, RowCache } from './rowCache.js';
+import { BugIndicatingError } from '../../../common/errors.js';
+import { AriaRole } from '../aria/aria.js';
+import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
+import { clamp } from '../../../common/numbers.js';
 
 interface IItem<T> {
 	readonly id: string;
@@ -38,6 +38,7 @@ interface IItem<T> {
 	dropTarget: boolean;
 	dragStartDisposable: IDisposable;
 	checkedDisposable: IDisposable;
+	stale: boolean;
 }
 
 const StaticDND = {
@@ -60,7 +61,7 @@ export interface IListViewAccessibilityProvider<T> {
 	getSetSize?(element: T, index: number, listLength: number): number;
 	getPosInSet?(element: T, index: number): number;
 	getRole?(element: T): AriaRole | undefined;
-	isChecked?(element: T): boolean | IObservableValue<boolean> | undefined;
+	isChecked?(element: T): boolean | IValueWithChangeEvent<boolean> | undefined;
 }
 
 export interface IListViewOptionsUpdate {
@@ -182,7 +183,7 @@ export class NativeDragAndDropData implements IDragAndDropData {
 
 function equalsDragFeedback(f1: number[] | undefined, f2: number[] | undefined): boolean {
 	if (Array.isArray(f1) && Array.isArray(f2)) {
-		return equals(f1, f2!);
+		return equals(f1, f2);
 	}
 
 	return f1 === f2;
@@ -193,7 +194,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 	readonly getSetSize: (element: any, index: number, listLength: number) => number;
 	readonly getPosInSet: (element: any, index: number) => number;
 	readonly getRole: (element: T) => AriaRole | undefined;
-	readonly isChecked: (element: T) => boolean | IObservableValue<boolean> | undefined;
+	readonly isChecked: (element: T) => boolean | IValueWithChangeEvent<boolean> | undefined;
 
 	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
 		if (accessibilityProvider?.getSetSize) {
@@ -290,11 +291,11 @@ export class ListView<T> implements IListView<T> {
 
 	private items: IItem<T>[];
 	private itemId: number;
-	private rangeMap: RangeMap;
+	protected rangeMap: IRangeMap;
 	private cache: RowCache<T>;
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
-	private lastRenderTop: number;
-	private lastRenderHeight: number;
+	protected lastRenderTop: number;
+	protected lastRenderHeight: number;
 	private renderWidth = 0;
 	private rowsContainer: HTMLElement;
 	private scrollable: Scrollable;
@@ -376,7 +377,7 @@ export class ListView<T> implements IListView<T> {
 
 		this.items = [];
 		this.itemId = 0;
-		this.rangeMap = new RangeMap(options.paddingTop ?? 0);
+		this.rangeMap = this.createRangeMap(options.paddingTop ?? 0);
 
 		for (const renderer of renderers) {
 			this.renderers.set(renderer.templateId, renderer);
@@ -518,7 +519,7 @@ export class ListView<T> implements IListView<T> {
 
 		if (typeof size === 'undefined') {
 			if (!this.supportDynamicHeights) {
-				console.warn('Dynamic heights not supported');
+				console.warn('Dynamic heights not supported', new Error().stack);
 				return;
 			}
 
@@ -558,6 +559,10 @@ export class ListView<T> implements IListView<T> {
 		if (this.supportDynamicHeights) {
 			this._rerender(this.lastRenderTop, this.lastRenderHeight);
 		}
+	}
+
+	protected createRangeMap(paddingTop: number): IRangeMap {
+		return new RangeMap(paddingTop);
 	}
 
 	splice(start: number, deleteCount: number, elements: readonly T[] = []): T[] {
@@ -601,10 +606,11 @@ export class ListView<T> implements IListView<T> {
 					renderer.disposeElement(item.element, i, item.row.templateData, item.size);
 				}
 
-				rows.push(item.row);
+				rows.unshift(item.row);
 			}
 
 			item.row = null;
+			item.stale = true;
 		}
 
 		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
@@ -623,14 +629,15 @@ export class ListView<T> implements IListView<T> {
 			uri: undefined,
 			dropTarget: false,
 			dragStartDisposable: Disposable.None,
-			checkedDisposable: Disposable.None
+			checkedDisposable: Disposable.None,
+			stale: false
 		}));
 
 		let deleted: IItem<T>[];
 
 		// TODO@joao: improve this optimization to catch even more cases
 		if (start === 0 && deleteCount >= this.items.length) {
-			this.rangeMap = new RangeMap(this.rangeMap.paddingTop);
+			this.rangeMap = this.createRangeMap(this.rangeMap.paddingTop);
 			this.rangeMap.splice(0, 0, inserted);
 			deleted = this.items;
 			this.items = inserted;
@@ -658,15 +665,14 @@ export class ListView<T> implements IListView<T> {
 
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
-		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r));
-		const beforeElement = this.getNextToLastElement(insertRanges);
+		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
 
 		for (const range of insertRanges) {
-			for (let i = range.start; i < range.end; i++) {
+			for (let i = range.end - 1; i >= range.start; i--) {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
 				const row = rows?.pop();
-				this.insertItemInDOM(i, beforeElement, row);
+				this.insertItemInDOM(i, row);
 			}
 		}
 
@@ -685,7 +691,7 @@ export class ListView<T> implements IListView<T> {
 		return deleted.map(i => i.element);
 	}
 
-	private eventuallyUpdateScrollDimensions(): void {
+	protected eventuallyUpdateScrollDimensions(): void {
 		this._scrollHeight = this.contentHeight;
 		this.rowsContainer.style.height = `${this._scrollHeight}px`;
 
@@ -847,9 +853,8 @@ export class ListView<T> implements IListView<T> {
 	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false): void {
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
-		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange);
+		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange).reverse();
 		const rangesToRemove = Range.relativeComplement(previousRenderRange, renderRange);
-		const beforeElement = this.getNextToLastElement(rangesToInsert);
 
 		if (updateItemsInDOM) {
 			const rangesToUpdate = Range.intersect(previousRenderRange, renderRange);
@@ -867,8 +872,8 @@ export class ListView<T> implements IListView<T> {
 			}
 
 			for (const range of rangesToInsert) {
-				for (let i = range.start; i < range.end; i++) {
-					this.insertItemInDOM(i, beforeElement);
+				for (let i = range.end - 1; i >= range.start; i--) {
+					this.insertItemInDOM(i);
 				}
 			}
 		});
@@ -889,17 +894,17 @@ export class ListView<T> implements IListView<T> {
 
 	// DOM operations
 
-	private insertItemInDOM(index: number, beforeElement: HTMLElement | null, row?: IRow): void {
+	private insertItemInDOM(index: number, row?: IRow): void {
 		const item = this.items[index];
 
-		let isStale = false;
 		if (!item.row) {
 			if (row) {
 				item.row = row;
+				item.stale = true;
 			} else {
 				const result = this.cache.alloc(item.templateId);
 				item.row = result.row;
-				isStale = result.isReusingConnectedDomNode;
+				item.stale ||= result.isReusingConnectedDomNode;
 			}
 		}
 
@@ -909,19 +914,19 @@ export class ListView<T> implements IListView<T> {
 		const checked = this.accessibilityProvider.isChecked(item.element);
 
 		if (typeof checked === 'boolean') {
-			item.row!.domNode.setAttribute('aria-checked', String(!!checked));
+			item.row.domNode.setAttribute('aria-checked', String(!!checked));
 		} else if (checked) {
 			const update = (checked: boolean) => item.row!.domNode.setAttribute('aria-checked', String(!!checked));
 			update(checked.value);
-			item.checkedDisposable = checked.onDidChange(update);
+			item.checkedDisposable = checked.onDidChange(() => update(checked.value));
 		}
 
-		if (isStale || !item.row.domNode.parentElement) {
-			if (beforeElement) {
-				this.rowsContainer.insertBefore(item.row.domNode, beforeElement);
-			} else {
-				this.rowsContainer.appendChild(item.row.domNode);
+		if (item.stale || !item.row.domNode.parentElement) {
+			const referenceNode = this.items.at(index + 1)?.row?.domNode ?? null;
+			if (item.row.domNode.parentElement !== this.rowsContainer || item.row.domNode.nextElementSibling !== referenceNode) {
+				this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
 			}
+			item.stale = false;
 		}
 
 		this.updateItemInDOM(item, index);
@@ -1153,7 +1158,7 @@ export class ListView<T> implements IListView<T> {
 			const container = getDragImageContainer(this.domNode);
 			container.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => container.removeChild(dragImage), 0);
+			setTimeout(() => dragImage.remove(), 0);
 		}
 
 		this.domNode.classList.add('dragging');
@@ -1221,7 +1226,7 @@ export class ListView<T> implements IListView<T> {
 		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort((a, b) => a - b);
 		feedback = feedback[0] === -1 ? [-1] : feedback;
 
-		const dragOverEffectPosition = typeof result !== 'boolean' && result.effect && result.effect.position ? result.effect.position : ListDragOverEffectPosition.Over;
+		let dragOverEffectPosition = typeof result !== 'boolean' && result.effect && result.effect.position ? result.effect.position : ListDragOverEffectPosition.Over;
 
 		if (equalsDragFeedback(this.currentDragFeedback, feedback) && this.currentDragFeedbackPosition === dragOverEffectPosition) {
 			return true;
@@ -1242,6 +1247,15 @@ export class ListView<T> implements IListView<T> {
 
 			if (feedback.length > 1 && dragOverEffectPosition !== ListDragOverEffectPosition.Over) {
 				throw new Error('Can\'t use multiple feedbacks with position different than \'over\'');
+			}
+
+			// Make sure there is no flicker when moving between two items
+			// Always use the before feedback if possible
+			if (dragOverEffectPosition === ListDragOverEffectPosition.After) {
+				if (feedback[0] < this.length - 1) {
+					feedback[0] += 1;
+					dragOverEffectPosition = ListDragOverEffectPosition.Before;
+				}
 			}
 
 			for (const index of feedback) {
@@ -1362,14 +1376,15 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const relativePosition = browserEvent.offsetY / this.items[targetIndex].size;
-		return Math.floor(relativePosition / 0.25);
+		const sector = Math.floor(relativePosition / 0.25);
+		return clamp(sector, 0, 3);
 	}
 
 	private getItemIndexFromEventTarget(target: EventTarget | null): number | undefined {
 		const scrollableElement = this.scrollableElement.getDomNode();
-		let element: HTMLElement | null = target as (HTMLElement | null);
+		let element: HTMLElement | SVGElement | null = target as (HTMLElement | SVGElement | null);
 
-		while (element instanceof HTMLElement && element !== this.rowsContainer && scrollableElement.contains(element)) {
+		while ((isHTMLElement(element) || isSVGElement(element)) && element !== this.rowsContainer && scrollableElement.contains(element)) {
 			const rawIndex = element.getAttribute('data-index');
 
 			if (rawIndex) {
@@ -1386,7 +1401,7 @@ export class ListView<T> implements IListView<T> {
 		return undefined;
 	}
 
-	private getRenderRange(renderTop: number, renderHeight: number): IRange {
+	protected getRenderRange(renderTop: number, renderHeight: number): IRange {
 		return {
 			start: this.rangeMap.indexAt(renderTop),
 			end: this.rangeMap.indexAfter(renderTop + renderHeight - 1)
@@ -1446,14 +1461,11 @@ export class ListView<T> implements IListView<T> {
 					}
 				}
 
-				const renderRanges = Range.relativeComplement(renderRange, previousRenderRange);
+				const renderRanges = Range.relativeComplement(renderRange, previousRenderRange).reverse();
 
 				for (const range of renderRanges) {
-					for (let i = range.start; i < range.end; i++) {
-						const afterIndex = i + 1;
-						const beforeRow = afterIndex < this.items.length ? this.items[afterIndex].row : null;
-						const beforeElement = beforeRow ? beforeRow.domNode : null;
-						this.insertItemInDOM(i, beforeElement);
+					for (let i = range.end - 1; i >= range.start; i--) {
+						this.insertItemInDOM(i);
 					}
 				}
 
@@ -1506,6 +1518,9 @@ export class ListView<T> implements IListView<T> {
 		if (item.row) {
 			item.row.domNode.style.height = '';
 			item.size = item.row.domNode.offsetHeight;
+			if (item.size === 0 && !isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
+				console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
+			}
 			item.lastDynamicHeightWidth = this.renderWidth;
 			return item.size - size;
 		}
@@ -1527,30 +1542,10 @@ export class ListView<T> implements IListView<T> {
 		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
 
 		item.lastDynamicHeightWidth = this.renderWidth;
-		this.rowsContainer.removeChild(row.domNode);
+		row.domNode.remove();
 		this.cache.release(row);
 
 		return item.size - size;
-	}
-
-	private getNextToLastElement(ranges: IRange[]): HTMLElement | null {
-		const lastRange = ranges[ranges.length - 1];
-
-		if (!lastRange) {
-			return null;
-		}
-
-		const nextToLastItem = this.items[lastRange.end];
-
-		if (!nextToLastItem) {
-			return null;
-		}
-
-		if (!nextToLastItem.row) {
-			return null;
-		}
-
-		return nextToLastItem.row.domNode;
 	}
 
 	getElementDomId(index: number): string {
@@ -1575,9 +1570,7 @@ export class ListView<T> implements IListView<T> {
 
 		this.items = [];
 
-		if (this.domNode && this.domNode.parentNode) {
-			this.domNode.parentNode.removeChild(this.domNode);
-		}
+		this.domNode?.remove();
 
 		this.dragOverAnimationDisposable?.dispose();
 		this.disposables.dispose();

@@ -117,6 +117,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 			extensions: ['.ts', '.js'], // support ts-files and js-files
 			fallback: {
 				'path': require.resolve('path-browserify'),
+				'os': require.resolve('os-browserify'),
 				'util': require.resolve('util')
 			}
 		},

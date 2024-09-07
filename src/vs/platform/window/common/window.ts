@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { FileType } from 'vs/platform/files/common/files';
-import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
-import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { PerformanceMark } from '../../../base/common/performance.js';
+import { isLinux, isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditorOptions } from '../../editor/common/editor.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FileType } from '../../files/common/files.js';
+import { ILoggerResource, LogLevel } from '../../log/common/log.js';
+import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -49,6 +49,9 @@ export interface IBaseOpenWindowsOptions {
 	 * If not set, defaults to the remote authority of the current window.
 	 */
 	readonly remoteAuthority?: string | null;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -64,9 +67,6 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
-
-	readonly forceProfile?: string;
-	readonly forceTempProfile?: boolean;
 }
 
 export interface IAddFoldersRequest {
@@ -127,10 +127,10 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const titleBarStyle = getTitleBarStyle(configurationService);
+	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -148,7 +148,7 @@ export interface IWindowSettings {
 	readonly restoreWindows: 'preserve' | 'all' | 'folders' | 'one' | 'none';
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
-	readonly titleBarStyle: 'native' | 'custom';
+	readonly titleBarStyle: TitlebarStyle;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -158,46 +158,87 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
+	readonly experimentalControlOverlay?: boolean;
 }
 
 export interface IDensitySettings {
 	readonly editorTabHeight: 'default' | 'compact';
 }
 
-export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
+export const enum TitleBarSetting {
+	TITLE_BAR_STYLE = 'window.titleBarStyle',
+	CUSTOM_TITLE_BAR_VISIBILITY = 'window.customTitleBarVisibility',
+}
+
+export const enum TitlebarStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+}
+
+export const enum CustomTitleBarVisibility {
+	AUTO = 'auto',
+	WINDOWED = 'windowed',
+	NEVER = 'never',
+}
+
+export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	// Returns if it possible to have a custom title bar in the curren session
+	// Does not imply that the title bar is visible
+
+	return true;
+}
+
+export function hasNativeTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (!titleBarStyle) {
+		titleBarStyle = getTitleBarStyle(configurationService);
+	}
+	return titleBarStyle === TitlebarStyle.NATIVE;
+}
+
+export function getTitleBarStyle(configurationService: IConfigurationService): TitlebarStyle {
 	if (isWeb) {
-		return 'custom';
+		return TitlebarStyle.CUSTOM;
 	}
 
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
-			return 'native'; // native tabs on sierra do not work with custom title style
+			return TitlebarStyle.NATIVE; // native tabs on sierra do not work with custom title style
 		}
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
 		const style = configuration.titleBarStyle;
-		if (style === 'native' || style === 'custom') {
+		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
 			return style;
 		}
 	}
 
-	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
+	return isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all macOS and Windows
 }
 
+export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
+
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
-	if (!isWindows || isWeb) {
-		return false; // only supported on a desktop Windows instance
+	if (isMacintosh || isWeb) {
+		return false; // only supported on a Windows/Linux desktop instances
 	}
 
-	if (getTitleBarStyle(configurationService) === 'native') {
+	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
+	}
+
+	if (isLinux) {
+		const setting = configurationService.getValue('window.experimentalControlOverlay');
+		if (typeof setting === 'boolean') {
+			return setting;
+		}
 	}
 
 	// Default to true.
@@ -316,6 +357,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	machineId: string;
 	sqmId: string;
+	devDeviceId: string;
 
 	execPath: string;
 	backupPath?: string;

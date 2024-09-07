@@ -4,20 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITextDocument } from '../../types/textDocument';
+import { IMdParser } from '../../markdownEngine';
 import { Mime } from '../../util/mimes';
-import { createInsertUriListEdit, externalUriSchemes } from './shared';
-
-enum PasteUrlAsFormattedLink {
-	Always = 'always',
-	Smart = 'smart',
-	Never = 'never'
-}
-
-function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): PasteUrlAsFormattedLink {
-	return vscode.workspace.getConfiguration('markdown', document)
-		.get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Smart);
-}
+import { createInsertUriListEdit } from './shared';
+import { InsertMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefault } from './smartDropOrPaste';
+import { UriList } from '../../util/uriList';
 
 /**
  * Adds support for pasting text uris to create markdown links.
@@ -26,125 +17,62 @@ function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): Paste
  */
 class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
-	public static readonly id = 'insertMarkdownLink';
+	public static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link');
 
 	public static readonly pasteMimeTypes = [Mime.textPlain];
+
+	constructor(
+		private readonly _parser: IMdParser,
+	) { }
 
 	async provideDocumentPasteEdits(
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
+		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
-	): Promise<vscode.DocumentPasteEdit | undefined> {
-		const pasteUrlSetting = getPasteUrlAsFormattedLinkSetting(document);
-		if (pasteUrlSetting === PasteUrlAsFormattedLink.Never) {
+	): Promise<vscode.DocumentPasteEdit[] | undefined> {
+		const pasteUrlSetting = vscode.workspace.getConfiguration('markdown', document)
+			.get<InsertMarkdownLink>('editor.pasteUrlAsFormattedLink.enabled', InsertMarkdownLink.SmartWithSelection);
+		if (pasteUrlSetting === InsertMarkdownLink.Never) {
 			return;
 		}
 
 		const item = dataTransfer.get(Mime.textPlain);
-		const urlList = await item?.asString();
-		if (token.isCancellationRequested || !urlList) {
+		const text = await item?.asString();
+		if (token.isCancellationRequested || !text) {
 			return;
 		}
 
-		const uriText = findValidUriInText(urlList);
+		const uriText = findValidUriInText(text);
 		if (!uriText) {
 			return;
 		}
 
-		const edit = createInsertUriListEdit(document, ranges, uriText);
+		const edit = createInsertUriListEdit(document, ranges, UriList.from(uriText), { preserveAbsoluteUris: true });
 		if (!edit) {
 			return;
 		}
 
-		const pasteEdit = new vscode.DocumentPasteEdit('', edit.label);
+		const pasteEdit = new vscode.DocumentPasteEdit('', edit.label, PasteUrlEditProvider.kind);
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		workspaceEdit.set(document.uri, edit.edits);
 		pasteEdit.additionalEdit = workspaceEdit;
 
-		// If smart pasting is enabled, deprioritize this provider when:
-		// - The user has no selection
-		// - At least one of the ranges occurs in a context where smart pasting is disabled (such as a fenced code block)
-		if (pasteUrlSetting === PasteUrlAsFormattedLink.Smart) {
-			if (!ranges.every(range => shouldSmartPaste(document, range))) {
-				pasteEdit.yieldTo = [{ mimeType: Mime.textPlain }];
-			}
+		if (!(await shouldInsertMarkdownLinkByDefault(this._parser, document, pasteUrlSetting, ranges, token))) {
+			pasteEdit.yieldTo = [
+				vscode.DocumentDropOrPasteEditKind.Empty.append('text'),
+				vscode.DocumentDropOrPasteEditKind.Empty.append('uri')
+			];
 		}
-		return pasteEdit;
+
+		return [pasteEdit];
 	}
 }
 
-export function registerLinkPasteSupport(selector: vscode.DocumentSelector,) {
-	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteUrlEditProvider(), {
-		id: PasteUrlEditProvider.id,
+export function registerPasteUrlSupport(selector: vscode.DocumentSelector, parser: IMdParser) {
+	return vscode.languages.registerDocumentPasteEditProvider(selector, new PasteUrlEditProvider(parser), {
+		providedPasteEditKinds: [PasteUrlEditProvider.kind],
 		pasteMimeTypes: PasteUrlEditProvider.pasteMimeTypes,
 	});
-}
-
-const smartPasteRegexes = [
-	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g }, // In a Markdown link
-	{ regex: /^```[\s\S]*?```$/gm }, // In a backtick fenced code block
-	{ regex: /^~~~[\s\S]*?~~~$/gm }, // In a tildefenced code block
-	{ regex: /^\$\$[\s\S]*?\$\$$/gm }, // In a fenced math block
-	{ regex: /`[^`]*`/g }, // In inline code
-	{ regex: /\$[^$]*\$/g }, // In inline math
-];
-
-export function shouldSmartPaste(document: ITextDocument, selectedRange: vscode.Range): boolean {
-	// Disable for empty selections and multi-line selections
-	if (selectedRange.isEmpty || selectedRange.start.line !== selectedRange.end.line) {
-		return false;
-	}
-
-	const rangeText = document.getText(selectedRange);
-	// Disable for whitespace only selections
-	if (rangeText.trim().length === 0) {
-		return false;
-	}
-
-	// Disable when the selection is already a link
-	if (findValidUriInText(rangeText)) {
-		return false;
-	}
-
-	if (/\[.*\]\(.*\)/.test(rangeText) || /!\[.*\]\(.*\)/.test(rangeText)) {
-		return false;
-	}
-
-	for (const regex of smartPasteRegexes) {
-		const matches = [...document.getText().matchAll(regex.regex)];
-		for (const match of matches) {
-			if (match.index !== undefined) {
-				const useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
-				if (useDefaultPaste) {
-					return false;
-				}
-			}
-		}
-	}
-
-	return true;
-}
-
-export function findValidUriInText(text: string): string | undefined {
-	const trimmedUrlList = text.trim();
-
-	// Uri must consist of a single sequence of characters without spaces
-	if (!/^\S+$/.test(trimmedUrlList)) {
-		return;
-	}
-
-	let uri: vscode.Uri;
-	try {
-		uri = vscode.Uri.parse(trimmedUrlList);
-	} catch {
-		// Could not parse
-		return;
-	}
-
-	if (!externalUriSchemes.includes(uri.scheme.toLowerCase()) || uri.authority.length <= 1) {
-		return;
-	}
-
-	return trimmedUrlList;
 }

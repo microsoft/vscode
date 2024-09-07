@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, terminalEditorId } from './terminal.js';
+import { parseTerminalUri } from './terminalUri.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IEmbedderTerminalService } from '../../../services/terminal/common/embedderTerminalService.js';
 
 /**
  * The main contribution for the terminal contrib. This contains calls to other components necessary
@@ -20,10 +22,14 @@ import { IEmbedderTerminalService } from 'vs/workbench/services/terminal/common/
  * be more relevant).
  */
 export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
+	static ID = 'terminalMain';
+
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEmbedderTerminalService embedderTerminalService: IEmbedderTerminalService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@ILabelService labelService: ILabelService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
@@ -31,8 +37,46 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
+		this._init(
+			editorResolverService,
+			embedderTerminalService,
+			workbenchEnvironmentService,
+			labelService,
+			lifecycleService,
+			terminalService,
+			terminalEditorService,
+			terminalGroupService,
+			terminalInstanceService
+		);
+	}
+
+	private async _init(
+		editorResolverService: IEditorResolverService,
+		embedderTerminalService: IEmbedderTerminalService,
+		workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		labelService: ILabelService,
+		lifecycleService: ILifecycleService,
+		terminalService: ITerminalService,
+		terminalEditorService: ITerminalEditorService,
+		terminalGroupService: ITerminalGroupService,
+		terminalInstanceService: ITerminalInstanceService
+	) {
+		// IMPORTANT: This listener needs to be set up before the workbench is ready to support
+		// embedder terminals.
+		this._register(embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
+			const terminal = await terminalService.createTerminal({
+				config: embedderTerminal,
+				location: TerminalLocation.Panel,
+				skipContributedProfileCheck: true,
+			});
+			terminalService.setActiveInstance(terminal);
+			await terminalService.revealActiveTerminal();
+		}));
+
+		await lifecycleService.when(LifecyclePhase.Restored);
+
 		// Register terminal editors
-		editorResolverService.registerEditor(
+		this._register(editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
 				id: terminalEditorId,
@@ -80,24 +124,15 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 					};
 				}
 			}
-		);
+		));
 
 		// Register a resource formatter for terminal URIs
-		labelService.registerFormatter({
+		this._register(labelService.registerFormatter({
 			scheme: Schemas.vscodeTerminal,
 			formatting: {
 				label: '${path}',
 				separator: ''
 			}
-		});
-
-		embedderTerminalService.onDidCreateTerminal(async embedderTerminal => {
-			const terminal = await terminalService.createTerminal({
-				config: embedderTerminal,
-				location: TerminalLocation.Panel
-			});
-			terminalService.setActiveInstance(terminal);
-			await terminalService.revealActiveTerminal();
-		});
+		}));
 	}
 }

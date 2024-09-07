@@ -3,19 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
-import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { MockChatWidgetService } from 'vs/workbench/contrib/chat/test/browser/mockChatWidget';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ChatVariablesService } from '../../browser/chatVariables.js';
+import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatRequestParser } from '../../common/chatRequestParser.js';
+import { IChatService } from '../../common/chatService.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { MockChatWidgetService } from './mockChatWidget.js';
+import { MockChatService } from '../common/mockChatService.js';
+import { MockLanguageModelToolsService } from '../common/mockLanguageModelToolsService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { TestViewsService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ChatVariables', function () {
 
@@ -24,65 +31,64 @@ suite('ChatVariables', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
-		service = new ChatVariablesService(new MockChatWidgetService());
+		service = new ChatVariablesService(new MockChatWidgetService(), new TestViewsService(), new MockLanguageModelToolsService());
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatVariablesService, service);
-		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(ILanguageModelToolsService, new MockLanguageModelToolsService());
+		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
 	});
 
 	test('ChatVariables - resolveVariables', async function () {
 
-		const v1 = service.registerVariable({ name: 'foo', description: 'bar' }, async () => ([{ level: 'full', value: 'farboo' }]));
-		const v2 = service.registerVariable({ name: 'far', description: 'boo' }, async () => ([{ level: 'full', value: 'farboo' }]));
+		const v1 = service.registerVariable({ id: 'id', name: 'foo', description: 'bar' }, async () => 'farboo');
+		const v2 = service.registerVariable({ id: 'id', name: 'far', description: 'boo' }, async () => 'farboo');
 
 		const parser = instantiationService.createInstance(ChatRequestParser);
 
 		const resolveVariables = async (text: string) => {
-			const result = await parser.parseChatRequest('1', text);
-			return await service.resolveVariables(result, null!, CancellationToken.None);
+			const result = parser.parseChatRequest('1', text);
+			return await service.resolveVariables(result, undefined, null!, () => { }, CancellationToken.None);
 		};
 
 		{
 			const data = await resolveVariables('Hello #foo and#far');
-			assert.strictEqual(Object.keys(data.variables).length, 1);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
-			assert.strictEqual(data.prompt, 'Hello [#foo](values:foo) and#far');
+			assert.strictEqual(data.variables.length, 1);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('#foo Hello');
-			assert.strictEqual(Object.keys(data.variables).length, 1);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
-			assert.strictEqual(data.prompt, '[#foo](values:foo) Hello');
+			assert.strictEqual(data.variables.length, 1);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo');
-			assert.strictEqual(Object.keys(data.variables).length, 1);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+			assert.strictEqual(data.variables.length, 1);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo?');
-			assert.strictEqual(Object.keys(data.variables).length, 1);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
-			assert.strictEqual(data.prompt, 'Hello [#foo](values:foo)?');
+			assert.strictEqual(data.variables.length, 1);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo and#far #foo');
-			assert.strictEqual(Object.keys(data.variables).length, 1);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+			assert.strictEqual(data.variables.length, 2);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo', 'foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo and #far #foo');
-			assert.strictEqual(Object.keys(data.variables).length, 2);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['far', 'foo']);
+			assert.strictEqual(data.variables.length, 3);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo', 'far', 'foo']);
 		}
 		{
 			const data = await resolveVariables('Hello #foo and #far #foo #unknown');
-			assert.strictEqual(Object.keys(data.variables).length, 2);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['far', 'foo']);
-			assert.strictEqual(data.prompt, 'Hello [#foo](values:foo) and [#far](values:far) [#foo](values:foo) #unknown');
+			assert.strictEqual(data.variables.length, 3);
+			assert.deepEqual(data.variables.map(v => v.name), ['foo', 'far', 'foo']);
 		}
 
 		v1.dispose();

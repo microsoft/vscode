@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel';
+import { Position } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
@@ -22,6 +22,7 @@ export abstract class RestrictedRenderingContext {
 	public readonly scrollHeight: number;
 
 	public readonly visibleRange: Range;
+	public readonly bigNumbersDelta: number;
 
 	public readonly scrollTop: number;
 	public readonly scrollLeft: number;
@@ -39,6 +40,7 @@ export abstract class RestrictedRenderingContext {
 		this.scrollHeight = this._viewLayout.getScrollHeight();
 
 		this.visibleRange = this.viewportData.visibleRange;
+		this.bigNumbersDelta = this.viewportData.bigNumbersDelta;
 
 		const vInfo = this._viewLayout.getCurrentViewport();
 		this.scrollTop = vInfo.top;

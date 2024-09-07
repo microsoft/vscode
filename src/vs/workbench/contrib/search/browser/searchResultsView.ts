@@ -3,33 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/path';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, MatchInNotebook } from 'vs/workbench/contrib/search/browser/searchModel';
-import { isEqual } from 'vs/base/common/resources';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { ISearchActionContext } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IsEditableItemKey, FileFocusKey, FolderFocusKey, MatchFocusKey } from 'vs/workbench/contrib/search/common/constants';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
+import * as DOM from '../../../../base/browser/dom.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import * as paths from '../../../../base/common/path.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { SearchView } from './searchView.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, MatchInNotebook } from './searchModel.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
+import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { ISearchActionContext } from './searchActionsRemoveReplace.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { SearchContext } from '../common/constants.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -130,11 +132,11 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		disposables.add(elementDisposables);
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
-		MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
-		FileFocusKey.bindTo(contextKeyServiceMain).set(false);
-		FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
+		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
 
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
+		const instantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -168,10 +170,10 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 			templateData.label.setLabel(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
 
-		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
+		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
 
 		templateData.elementDisposables.add(folderMatch.onChange(() => {
-			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
+			SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!folderMatch.hasOnlyReadOnlyMatches());
 		}));
 
 		this.renderFolderDetails(folderMatch, templateData);
@@ -194,7 +196,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: folder };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: folder } satisfies ISearchActionContext;
 	}
 }
 
@@ -229,11 +231,11 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
-		MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
-		FileFocusKey.bindTo(contextKeyServiceMain).set(true);
-		FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(true);
+		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
 
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
+		const instantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -265,12 +267,12 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: fileMatch } satisfies ISearchActionContext;
 
-		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
+		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
 
 		templateData.elementDisposables.add(fileMatch.onChange(() => {
-			IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
+			SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
 		}));
 
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
@@ -294,12 +296,12 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	readonly templateId = MatchRenderer.TEMPLATE_ID;
 
 	constructor(
-		private searchModel: SearchModel,
 		private searchView: SearchView,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 	}
@@ -321,11 +323,11 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const disposables = new DisposableStore();
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));
-		MatchFocusKey.bindTo(contextKeyServiceMain).set(true);
-		FileFocusKey.bindTo(contextKeyServiceMain).set(false);
-		FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.MatchFocusKey.bindTo(contextKeyServiceMain).set(true);
+		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
+		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
 
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
+		const instantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -352,8 +354,8 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
 		const match = node.element;
 		const preview = match.preview();
-		const replace = this.searchModel.isReplaceActive() &&
-			!!this.searchModel.replaceString &&
+		const replace = this.searchView.model.isReplaceActive() &&
+			!!this.searchView.model.replaceString &&
 			!(match instanceof MatchInNotebook && match.isReadonly());
 
 		templateData.before.textContent = preview.before;
@@ -361,9 +363,11 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
-		templateData.parent.title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
-		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
+		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
+
+		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
@@ -373,9 +377,9 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
+		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: match };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 
 	}
 
@@ -402,7 +406,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 export class SearchAccessibilityProvider implements IListAccessibilityProvider<RenderableMatch> {
 
 	constructor(
-		private searchModel: SearchModel,
+		private searchView: SearchView,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 	}
@@ -427,7 +431,7 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 
 		if (element instanceof Match) {
 			const match = <Match>element;
-			const searchModel: SearchModel = this.searchModel;
+			const searchModel: SearchModel = this.searchView.model;
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();

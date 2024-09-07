@@ -12,11 +12,11 @@ const fs = require('fs');
 	let logging = false;
 	let withStacks = false;
 
-	self.beginLoggingFS = (_withStacks) => {
+	globalThis.beginLoggingFS = (_withStacks) => {
 		logging = true;
 		withStacks = _withStacks || false;
 	};
-	self.endLoggingFS = () => {
+	globalThis.endLoggingFS = () => {
 		logging = false;
 		withStacks = false;
 	};
@@ -65,25 +65,20 @@ const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
 const util = require('util');
-const bootstrap = require('../../../src/bootstrap');
 const coverage = require('../coverage');
-const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
+const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
 	util.inspect['defaultOptions'].customInspect = false;
 }
 
-// VSCODE_GLOBALS: node_modules
-globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => (require.__$__nodeRequire ?? require)(String(mod)) });
-
 // VSCODE_GLOBALS: package/product.json
-globalThis._VSCODE_PRODUCT_JSON = (require.__$__nodeRequire ?? require)('../../../product.json');
-globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)('../../../package.json');
+globalThis._VSCODE_PRODUCT_JSON = require('../../../product.json');
+globalThis._VSCODE_PACKAGE_JSON = require('../../../package.json');
 
 // Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 Object.assign(globalThis, {
-	__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
 	__readFileInTests: path => fs.promises.readFile(path, 'utf-8'),
 	__writeFileInTests: (path, contents) => fs.promises.writeFile(path, contents),
 	__readDirInTests: path => fs.promises.readdir(path),
@@ -94,36 +89,50 @@ Object.assign(globalThis, {
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
 const _tests_glob = '**/test/**/*.test.js';
 let loader;
+const _loaderErrors = [];
 let _out;
+
+function initNls(opts) {
+	if (opts.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		globalThis._VSCODE_NLS_MESSAGES = require(`../../../out-build/nls.messages.json`);
+	}
+}
 
 function initLoader(opts) {
 	const outdir = opts.build ? 'out-build' : 'out';
 	_out = path.join(__dirname, `../../../${outdir}`);
 
-	// setup loader
-	loader = require(`${_out}/vs/loader`);
-	const loaderConfig = {
-		nodeRequire: require,
-		catchError: true,
-		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
-		paths: {
-			'vs': `../${outdir}/vs`,
-			'lib': `../${outdir}/lib`,
-			'bootstrap-fork': `../${outdir}/bootstrap-fork`
-		}
-	};
+	const baseUrl = pathToFileURL(path.join(__dirname, `../../../${outdir}/`));
+	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
 
-	if (opts.coverage) {
-		// initialize coverage if requested
-		coverage.initialize(loaderConfig);
+	// set loader
+	/**
+	 * @param {string[]} modules
+	 * @param {(...args:any[]) => void} callback
+	 */
+	function esmRequire(modules, callback, errorback) {
+		const tasks = modules.map(mod => {
+			const url = new URL(`./${mod}.js`, baseUrl).href;
+			return import(url).catch(err => {
+				console.log(mod, url);
+				console.log(err);
+				_loaderErrors.push(err);
+				throw err;
+			});
+		});
+
+		Promise.all(tasks).then(modules => callback(...modules)).catch(errorback);
 	}
 
-	loader.require.config(loaderConfig);
+	loader = { require: esmRequire };
 }
 
 function createCoverageReport(opts) {
 	if (opts.coverage) {
-		return coverage.createReport(opts.run || opts.runGlob, opts.coveragePath, opts.coverageFormats);
+		return coverage.createReport(opts.run || opts.runGlob);
 	}
 	return Promise.resolve(undefined);
 }
@@ -148,9 +157,8 @@ function loadTestModules(opts) {
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
-			file = file.replace(/^src/, 'out');
-			file = file.replace(/\.ts$/, '.js');
-			return path.relative(_out, file).replace(/\.js$/, '');
+			file = file.replace(/^src[\\/]/, '');
+			return file.replace(/\.[jt]s$/, '');
 		});
 		return loadModules(modules);
 	}
@@ -169,9 +177,10 @@ function loadTestModules(opts) {
 	}).then(loadModules);
 }
 
-let currentTestTitle;
+/** @type Mocha.Test */
+let currentTest;
 
-function loadTests(opts) {
+async function loadTests(opts) {
 
 	//#region Unexpected Output
 
@@ -185,6 +194,8 @@ function loadTests(opts) {
 		_allowedTestOutput.push(/Deleting [0-9]+ old snapshots/);
 	}
 
+	const perTestCoverage = opts['per-test-coverage'] ? await PerTestCoverage.init() : undefined;
+
 	const _allowedTestsWithOutput = new Set([
 		'creates a snapshot', // self-testing
 		'validates a snapshot', // self-testing
@@ -195,13 +206,21 @@ function loadTests(opts) {
 		'issue #149130: vscode freezes because of Bracket Pair Colorization', // https://github.com/microsoft/vscode/issues/192440
 		'property limits', // https://github.com/microsoft/vscode/issues/192443
 		'Error events', // https://github.com/microsoft/vscode/issues/192443
+		'fetch returns keybinding with user first if title and id matches', //
+		'throw ListenerLeakError'
+	]);
+
+	const _allowedSuitesWithOutput = new Set([
+		'InteractiveChatController'
 	]);
 
 	let _testsWithUnexpectedOutput = false;
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
-			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTestTitle)) {
+			if (!currentTest) {
+				consoleFn.apply(console, arguments);
+			} else if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title) && !_allowedSuitesWithOutput.has(currentTest.parent?.title)) {
 				_testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}
@@ -213,7 +232,6 @@ function loadTests(opts) {
 	//#region Unexpected / Loader Errors
 
 	const _unexpectedErrors = [];
-	const _loaderErrors = [];
 
 	const _allowedTestsWithUnhandledRejections = new Set([
 		// Lifecycle tests
@@ -223,13 +241,6 @@ function loadTests(opts) {
 		// Search tests
 		'Search Model: Search reports timed telemetry on search when error is called'
 	]);
-
-	loader.require.config({
-		onError(err) {
-			_loaderErrors.push(err);
-			console.error(err);
-		}
-	});
 
 	loader.require(['vs/base/common/errors'], function (errors) {
 
@@ -255,7 +266,7 @@ function loadTests(opts) {
 			event.preventDefault(); // Do not log to test output, we show an error later when test ends
 			event.stopPropagation();
 
-			if (!_allowedTestsWithUnhandledRejections.has(currentTestTitle)) {
+			if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
 				onUnexpectedError(event.reason);
 			}
 		});
@@ -274,7 +285,12 @@ function loadTests(opts) {
 			});
 		});
 
-		teardown(() => {
+		setup(async () => {
+			await perTestCoverage?.startTest();
+		});
+
+		teardown(async () => {
+			await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
 
 			// should not have unexpected output
 			if (_testsWithUnexpectedOutput && !opts.dev) {
@@ -409,7 +425,7 @@ function runTests(opts) {
 			});
 		});
 
-		runner.on('test', test => currentTestTitle = test.title);
+		runner.on('test', test => currentTest = test);
 
 		if (opts.dev) {
 			runner.on('fail', (test, err) => {
@@ -420,14 +436,37 @@ function runTests(opts) {
 	});
 }
 
-ipcRenderer.on('run', (e, opts) => {
+ipcRenderer.on('run', async (_e, opts) => {
+	initNls(opts);
 	initLoader(opts);
-	runTests(opts).catch(err => {
+
+	await Promise.resolve(globalThis._VSCODE_TEST_INIT);
+
+	try {
+		await runTests(opts);
+	} catch (err) {
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
-
 		console.error(err);
 		ipcRenderer.send('error', err);
-	});
+	}
 });
+
+class PerTestCoverage {
+	static async init() {
+		await ipcRenderer.invoke('startCoverage');
+		return new PerTestCoverage();
+	}
+
+	async startTest() {
+		if (!this.didInit) {
+			this.didInit = true;
+			await ipcRenderer.invoke('snapshotCoverage');
+		}
+	}
+
+	async finishTest(file, fullTitle) {
+		await ipcRenderer.invoke('snapshotCoverage', { file, fullTitle });
+	}
+}

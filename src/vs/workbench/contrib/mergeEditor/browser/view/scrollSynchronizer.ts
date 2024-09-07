@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorunWithStore, IObservable } from 'vs/base/common/observable';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { DocumentLineRangeMap } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { ReentrancyBarrier } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
-import { IMergeEditorLayout } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { InputCodeEditorView } from './editors/inputCodeEditorView';
-import { ResultCodeEditorView } from './editors/resultCodeEditorView';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { autorunWithStore, IObservable } from '../../../../../base/common/observable.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ScrollType } from '../../../../../editor/common/editorCommon.js';
+import { DocumentLineRangeMap } from '../model/mapping.js';
+import { ReentrancyBarrier } from '../../../../../base/common/controlFlow.js';
+import { BaseCodeEditorView } from './editors/baseCodeEditorView.js';
+import { IMergeEditorLayout } from './mergeEditor.js';
+import { MergeEditorViewModel } from './viewModel.js';
+import { InputCodeEditorView } from './editors/inputCodeEditorView.js';
+import { ResultCodeEditorView } from './editors/resultCodeEditorView.js';
 
 export class ScrollSynchronizer extends Disposable {
 	private get model() { return this.viewModel.get()?.model; }
@@ -45,7 +45,7 @@ export class ScrollSynchronizer extends Disposable {
 			if (this.shouldAlignResult) {
 				this.inputResultView.editor.setScrollTop(this.input1View.editor.getScrollTop(), ScrollType.Immediate);
 			} else {
-				const mappingInput1Result = this.model!.input1ResultMapping.get();
+				const mappingInput1Result = this.model.input1ResultMapping.get();
 				this.synchronizeScrolling(this.input1View.editor, this.inputResultView.editor, mappingInput1Result);
 			}
 
@@ -54,7 +54,7 @@ export class ScrollSynchronizer extends Disposable {
 				if (this.shouldAlignBase) {
 					this.baseView.get()?.editor.setScrollTop(this.input1View.editor.getScrollTop(), ScrollType.Immediate);
 				} else {
-					const mapping = new DocumentLineRangeMap(this.model!.baseInput1Diffs.get(), -1).reverse();
+					const mapping = new DocumentLineRangeMap(this.model.baseInput1Diffs.get(), -1).reverse();
 					this.synchronizeScrolling(this.input1View.editor, baseView.editor, mapping);
 				}
 			}
@@ -62,7 +62,7 @@ export class ScrollSynchronizer extends Disposable {
 
 		this._store.add(
 			this.input1View.editor.onDidScrollChange(
-				this.reentrancyBarrier.makeExclusive((c) => {
+				this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 					if (c.scrollTopChanged) {
 						handleInput1OnScroll();
 					}
@@ -77,7 +77,7 @@ export class ScrollSynchronizer extends Disposable {
 
 		this._store.add(
 			this.input2View.editor.onDidScrollChange(
-				this.reentrancyBarrier.makeExclusive((c) => {
+				this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 					if (!this.model) {
 						return;
 					}
@@ -88,7 +88,7 @@ export class ScrollSynchronizer extends Disposable {
 						if (this.shouldAlignResult) {
 							this.inputResultView.editor.setScrollTop(this.input2View.editor.getScrollTop(), ScrollType.Immediate);
 						} else {
-							const mappingInput2Result = this.model!.input2ResultMapping.get();
+							const mappingInput2Result = this.model.input2ResultMapping.get();
 							this.synchronizeScrolling(this.input2View.editor, this.inputResultView.editor, mappingInput2Result);
 						}
 
@@ -97,7 +97,7 @@ export class ScrollSynchronizer extends Disposable {
 							if (this.shouldAlignBase) {
 								this.baseView.get()?.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 							} else {
-								const mapping = new DocumentLineRangeMap(this.model!.baseInput2Diffs.get(), -1).reverse();
+								const mapping = new DocumentLineRangeMap(this.model.baseInput2Diffs.get(), -1).reverse();
 								this.synchronizeScrolling(this.input2View.editor, baseView.editor, mapping);
 							}
 						}
@@ -112,7 +112,7 @@ export class ScrollSynchronizer extends Disposable {
 		);
 		this._store.add(
 			this.inputResultView.editor.onDidScrollChange(
-				this.reentrancyBarrier.makeExclusive((c) => {
+				this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 					if (c.scrollTopChanged) {
 						if (this.shouldAlignResult) {
 							this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
@@ -146,7 +146,7 @@ export class ScrollSynchronizer extends Disposable {
 				const baseView = this.baseView.read(reader);
 				if (baseView) {
 					store.add(baseView.editor.onDidScrollChange(
-						this.reentrancyBarrier.makeExclusive((c) => {
+						this.reentrancyBarrier.makeExclusiveOrSkip((c) => {
 							if (c.scrollTopChanged) {
 								if (!this.model) {
 									return;
@@ -155,10 +155,10 @@ export class ScrollSynchronizer extends Disposable {
 									this.input1View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 									this.input2View.editor.setScrollTop(c.scrollTop, ScrollType.Immediate);
 								} else {
-									const baseInput1Mapping = new DocumentLineRangeMap(this.model!.baseInput1Diffs.get(), -1);
+									const baseInput1Mapping = new DocumentLineRangeMap(this.model.baseInput1Diffs.get(), -1);
 									this.synchronizeScrolling(baseView.editor, this.input1View.editor, baseInput1Mapping);
 
-									const baseInput2Mapping = new DocumentLineRangeMap(this.model!.baseInput2Diffs.get(), -1);
+									const baseInput2Mapping = new DocumentLineRangeMap(this.model.baseInput2Diffs.get(), -1);
 									this.synchronizeScrolling(baseView.editor, this.input2View.editor, baseInput2Mapping);
 								}
 
