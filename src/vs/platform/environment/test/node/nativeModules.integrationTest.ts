@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { flakySuite } from 'vs/base/test/common/testUtils';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
@@ -108,30 +108,30 @@ flakySuite('Native Modules (all platforms)', () => {
 
 	test('@vscode/sqlite3', async () => {
 		// ESM-comment-begin
-		const sqlite3 = await import('@vscode/sqlite3');
+		// const sqlite3 = await import('@vscode/sqlite3');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const { default: sqlite3 } = await import('@vscode/sqlite3');
+		const { default: sqlite3 } = await import('@vscode/sqlite3');
 		// ESM-uncomment-end
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
 	test('http-proxy-agent', async () => {
 		// ESM-comment-begin
-		const mod = await import('http-proxy-agent');
+		// const mod = await import('http-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const { default: mod } = await import('http-proxy-agent');
+		const { default: mod } = await import('http-proxy-agent');
 		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpProxyAgent === 'function', testErrorMessage('http-proxy-agent'));
 	});
 
 	test('https-proxy-agent', async () => {
 		// ESM-comment-begin
-		const mod = await import('https-proxy-agent');
+		// const mod = await import('https-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const { default: mod } = await import('https-proxy-agent');
+		const { default: mod } = await import('https-proxy-agent');
 		// ESM-uncomment-end
 		assert.ok(typeof mod.HttpsProxyAgent === 'function', testErrorMessage('https-proxy-agent'));
 	});

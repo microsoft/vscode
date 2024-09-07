@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompressedNavigationController } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import * as dom from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenchTestServices';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { TestFileService } from '../../../../test/browser/workbenchTestServices.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
+import { getContext } from '../../browser/views/explorerView.js';
+import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { CompressedNavigationController } from '../../browser/views/explorerViewer.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('Files - ExplorerView', () => {
 

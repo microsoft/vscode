@@ -3,49 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isEqual } from 'vs/base/common/resources';
-import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentContextItem, IWorkspaceFileEdit, IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService, IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
-import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatCopyKind, IChatService, IDocumentContext } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import * as strings from 'vs/base/common/strings';
-import { CharCode } from 'vs/base/common/charCode';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { coalesce } from 'vs/base/common/arrays';
-import { AsyncIterableObject } from 'vs/base/common/async';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ConversationRequest, ConversationResponse, DocumentContextItem, isLocation, IWorkspaceFileEdit, IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
+import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
+import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { CHAT_CATEGORY } from './chatActions.js';
+import { IChatWidgetService, IChatCodeBlockContextProviderService } from '../chat.js';
+import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDIT_APPLIED } from '../../common/chatContextKeys.js';
+import { ChatCopyKind, IChatContentReference, IChatService, IDocumentContext } from '../../common/chatService.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
+import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
+import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { CharCode } from '../../../../../base/common/charCode.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+
+const shellLangIds = [
+	'fish',
+	'ps1',
+	'pwsh',
+	'powershell',
+	'sh',
+	'shellscript',
+	'zsh'
+];
 
 export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
@@ -65,6 +77,53 @@ function isResponseFiltered(context: ICodeBlockActionContext) {
 
 function getUsedDocuments(context: ICodeBlockActionContext): IDocumentContext[] | undefined {
 	return isResponseVM(context.element) ? context.element.usedContext?.documents : undefined;
+}
+
+
+function getReferencesAsDocumentContext(res: readonly IChatContentReference[]): DocumentContextItem[] {
+	const map = new ResourceMap<DocumentContextItem>();
+	for (const r of res) {
+		let uri;
+		let range;
+		if (URI.isUri(r.reference)) {
+			uri = r.reference;
+		} else if (isLocation(r.reference)) {
+			uri = r.reference.uri;
+			range = r.reference.range;
+		}
+		if (uri) {
+			const item = map.get(uri);
+			if (item) {
+				if (range) {
+					item.ranges.push(range);
+				}
+			} else {
+				map.set(uri, { uri, version: -1, ranges: range ? [range] : [] });
+			}
+		}
+	}
+	return [...map.values()];
+}
+
+
+function getChatConversation(context: ICodeBlockActionContext): (ConversationRequest | ConversationResponse)[] {
+	// TODO@aeschli for now create a conversation with just the current element
+	// this will be expanded in the future to include the request and any other responses
+
+	if (isResponseVM(context.element)) {
+		return [{
+			type: 'response',
+			message: context.element.response.toMarkdown(),
+			references: getReferencesAsDocumentContext(context.element.contentReferences)
+		}];
+	} else if (isRequestVM(context.element)) {
+		return [{
+			type: 'request',
+			message: context.element.messageText,
+		}];
+	} else {
+		return [];
+	}
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
@@ -409,7 +468,10 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+					),
 					order: 10
 				},
 				keybinding: {
@@ -462,7 +524,10 @@ export function registerChatCodeBlockActions() {
 								const mappedEdits = await provider.provideMappedEdits(
 									activeModel,
 									[codeBlockActionContext.code],
-									{ documents: docRefs },
+									{
+										documents: docRefs,
+										conversation: getChatConversation(codeBlockActionContext),
+									},
 									cancellationTokenSource.token
 								);
 								if (mappedEdits) {
@@ -566,15 +631,6 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	const shellLangIds = [
-		'fish',
-		'ps1',
-		'pwsh',
-		'powershell',
-		'sh',
-		'shellscript',
-		'zsh'
-	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({

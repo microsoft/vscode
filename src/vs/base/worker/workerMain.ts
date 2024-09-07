@@ -103,29 +103,31 @@
 		});
 	}
 
-	function configureAMDLoader() {
-		require.config({
-			baseUrl: monacoBaseUrl,
-			catchError: true,
-			trustedTypesPolicy,
-			amdModulesPattern: /^vs\//
-		});
-	}
+	// ESM-comment-begin
+	// function configureAMDLoader() {
+	// 	require.config({
+	// 		baseUrl: monacoBaseUrl,
+	// 		catchError: true,
+	// 		trustedTypesPolicy,
+	// 		amdModulesPattern: /^vs\//
+	// 	});
+	// }
+	// ESM-comment-end
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
 		// ESM-uncomment-begin
-		// if (typeof loadAMDLoader === 'function') { /* fixes unused import, remove me */}
-		// const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
-		// return import(moduleUrl.href);
+		if (typeof loadAMDLoader === 'function') { /* fixes unused import, remove me */ }
+		const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
+		return import(moduleUrl.href);
 		// ESM-uncomment-end
 
 		// ESM-comment-begin
-		return loadAMDLoader().then(() => {
-			configureAMDLoader();
-			return new Promise<SimpleWorkerModule>((resolve, reject) => {
-				require([moduleId], resolve, reject);
-			});
-		});
+		// return loadAMDLoader().then(() => {
+		// configureAMDLoader();
+		// return new Promise<SimpleWorkerModule>((resolve, reject) => {
+		// require([moduleId], resolve, reject);
+		// });
+		// });
 		// ESM-comment-end
 	}
 
@@ -154,9 +156,11 @@
 	// If the loader is already defined, configure it immediately
 	// This helps in the bundled case, where we must load nls files
 	// and they need a correct baseUrl to be loaded.
-	if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
-		configureAMDLoader();
-	}
+	// ESM-comment-begin
+	// if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
+	// 	configureAMDLoader();
+	// }
+	// ESM-comment-end
 
 	let isFirstMessage = true;
 	const beforeReadyMessages: MessageEvent[] = [];

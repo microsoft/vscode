@@ -9,14 +9,20 @@
 'use strict';
 
 // ESM-uncomment-begin
-// import * as os from 'os';
-// import * as path from 'path';
-//
-// /** @type any */
-// const module = { exports: {} };
+import * as os from 'os';
+import * as path from 'path';
+
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
+	// ESM-comment-begin
+	// const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	const isESM = true;
+	// ESM-uncomment-end
 
 	/**
 	 * @import { NativeParsedArgs } from '../../environment/common/argv'
@@ -117,7 +123,7 @@
 		};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		define(['path', 'os', 'vs/base/common/process'], function (
 			/** @type {typeof import('path')} */ path,
 			/** @type {typeof import('os')} */ os,
@@ -127,8 +133,8 @@
 		});
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
 		// ESM-comment-begin
-		const path = require('path');
-		const os = require('os');
+		// const path = require('path');
+		// const os = require('os');
 		// ESM-comment-end
 
 		module.exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
@@ -138,5 +144,5 @@
 }());
 
 // ESM-uncomment-begin
-// export const getUserDataPath = module.exports.getUserDataPath;
+export const getUserDataPath = module.exports.getUserDataPath;
 // ESM-uncomment-end

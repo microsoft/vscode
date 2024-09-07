@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IChatUserActionEvent, ChatAgentVoteDirection, ChatCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IChatUserActionEvent, ChatAgentVoteDirection, ChatCopyKind } from './chatService.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';

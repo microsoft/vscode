@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as glob from 'vs/base/common/glob';
-import * as resources from 'vs/base/common/resources';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
-import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import * as path from '../../../../base/common/path.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import * as glob from '../../../../base/common/glob.js';
+import * as resources from '../../../../base/common/resources.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
+import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes.js';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
+import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
 
 interface IInternalFileMatch {
 	base: URI;
@@ -53,7 +54,7 @@ class FileSearchEngine {
 
 	private globalExcludePattern?: glob.ParsedExpression;
 
-	constructor(private config: IFileQuery, private provider: FileSearchProviderNew, private sessionToken?: unknown) {
+	constructor(private config: IFileQuery, private provider: FileSearchProviderNew, private sessionLifecycle?: SessionLifecycle) {
 		this.filePattern = config.filePattern;
 		this.includePattern = config.includePattern && glob.parse(config.includePattern);
 		this.maxResults = config.maxResults || undefined;
@@ -116,10 +117,11 @@ class FileSearchEngine {
 	private async doSearch(fqs: IFolderQuery<URI>[], onResult: (match: IInternalFileMatch) => void): Promise<IFileSearchProviderStats | null> {
 		const cancellation = new CancellationTokenSource();
 		const folderOptions = fqs.map(fq => this.getSearchOptionsForFolder(fq));
+		const session = this.provider instanceof OldFileSearchProviderConverter ? this.sessionLifecycle?.tokenSource.token : this.sessionLifecycle?.obj;
 		const options: FileSearchProviderOptions = {
 			folderOptions,
 			maxResults: this.config.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
-			session: this.sessionToken
+			session
 		};
 
 
@@ -301,11 +303,37 @@ interface IInternalSearchComplete {
 	stats?: IFileSearchProviderStats;
 }
 
+/**
+ * For backwards compatibility, store both a cancellation token and a session object. The session object is the new implementation, where
+ */
+class SessionLifecycle {
+	private _obj: object | undefined;
+	public readonly tokenSource: CancellationTokenSource;
+
+	constructor() {
+		this._obj = new Object();
+		this.tokenSource = new CancellationTokenSource();
+	}
+
+	public get obj() {
+		if (this._obj) {
+			return this._obj;
+		}
+
+		throw new Error('Session object has been dereferenced.');
+	}
+
+	cancel() {
+		this.tokenSource.cancel();
+		this._obj = undefined; // dereference
+	}
+}
+
 export class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private readonly sessions = new Map<string, unknown>();
+	private readonly sessions = new Map<string, SessionLifecycle>();
 
 	fileSearch(config: IFileQuery, provider: FileSearchProviderNew, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
@@ -333,17 +361,19 @@ export class FileSearchManager {
 	}
 
 	clearCache(cacheKey: string): void {
+		// cancel the token
+		this.sessions.get(cacheKey)?.cancel();
 		// with no reference to this, it will be removed from WeakMaps
 		this.sessions.delete(cacheKey);
 	}
 
-	private getSessionTokenSource(cacheKey: string | undefined): unknown {
+	private getSessionTokenSource(cacheKey: string | undefined): SessionLifecycle | undefined {
 		if (!cacheKey) {
 			return undefined;
 		}
 
 		if (!this.sessions.has(cacheKey)) {
-			this.sessions.set(cacheKey, new Object());
+			this.sessions.set(cacheKey, new SessionLifecycle());
 		}
 
 		return this.sessions.get(cacheKey);

@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IProfileResourceChildTreeItem, IProfileTemplateInfo, isProfileURL, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/objects';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
-import { SettingsResource, SettingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/settingsResource';
-import { KeybindingsResource, KeybindingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
-import { TasksResource, TasksResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/tasksResource';
-import { SnippetsResource, SnippetsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/snippetsResource';
-import { Codicon } from 'vs/base/common/codicons';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IFileService } from 'vs/platform/files/common/files';
-import { generateUuid } from 'vs/base/common/uuid';
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ITreeItemCheckboxState } from 'vs/workbench/common/views';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CONFIG_NEW_WINDOW_PROFILE } from 'vs/workbench/common/configuration';
-import { ResourceMap } from 'vs/base/common/map';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { isWeb } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags, toUserDataProfile, UseDefaultProfileFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IProfileResourceChildTreeItem, IProfileTemplateInfo, isProfileURL, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { equals } from '../../../../base/common/objects.js';
+import { EditorModel } from '../../../common/editor/editorModel.js';
+import { ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem } from '../../../services/userDataProfile/browser/extensionsResource.js';
+import { SettingsResource, SettingsResourceTreeItem } from '../../../services/userDataProfile/browser/settingsResource.js';
+import { KeybindingsResource, KeybindingsResourceTreeItem } from '../../../services/userDataProfile/browser/keybindingsResource.js';
+import { TasksResource, TasksResourceTreeItem } from '../../../services/userDataProfile/browser/tasksResource.js';
+import { SnippetsResource, SnippetsResourceTreeItem } from '../../../services/userDataProfile/browser/snippetsResource.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from '../../../../base/common/async.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ITreeItemCheckboxState } from '../../../common/views.js';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -713,8 +713,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private _onDidChange = this._register(new Emitter<AbstractUserDataProfileElement | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _templates: IProfileTemplateInfo[] | undefined;
-	get templates(): readonly IProfileTemplateInfo[] { return this._templates ?? []; }
+	private templates: Promise<readonly IProfileTemplateInfo[]> | undefined;
 
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -761,9 +760,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
-	override async resolve(): Promise<void> {
-		await super.resolve();
-		this._templates = await this.userDataProfileManagementService.getBuiltinProfileTemplates();
+	getTemplates(): Promise<readonly IProfileTemplateInfo[]> {
+		if (!this.templates) {
+			this.templates = this.userDataProfileManagementService.getBuiltinProfileTemplates();
+		}
+		return this.templates;
 	}
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
@@ -771,7 +772,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		const activateAction = disposables.add(new Action(
 			'userDataProfile.activate',
-			localize('active', "Use for Current Window"),
+			localize('active', "Use this Profile for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
 			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
@@ -808,25 +809,16 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			() => this.openWindow(profileElement.profile)
 		));
 
-		const useAsNewWindowProfileAction = disposables.add(new Action(
-			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows"),
-			undefined,
-			true,
-			() => profileElement.toggleNewWindowProfile()
-		));
-
 		const primaryActions: IAction[] = [];
+		primaryActions.push(activateAction);
 		primaryActions.push(newWindowAction);
-		if (!profile.isDefault) {
-			primaryActions.push(deleteAction);
-		}
 		const secondaryActions: IAction[] = [];
-		secondaryActions.push(activateAction);
-		secondaryActions.push(useAsNewWindowProfileAction);
-		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
+		if (!profile.isDefault) {
+			secondaryActions.push(new Separator());
+			secondaryActions.push(deleteAction);
+		}
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
@@ -834,16 +826,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id;
+		activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id));
-
-		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-		disposables.add(profileElement.onDidChange(e => {
-			if (e.newWindowProfile) {
-				useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
-			}
-		}));
+			activateAction.enabled = this.userDataProfileService.currentProfile.id !== profileElement.profile.id));
 
 		return [profileElement, disposables];
 	}

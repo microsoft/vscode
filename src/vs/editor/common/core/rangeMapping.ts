@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLastMonotonous } from 'vs/base/common/arraysFind';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
+import { findLastMonotonous } from '../../../base/common/arraysFind.js';
+import { Position } from './position.js';
+import { Range } from './range.js';
+import { TextLength } from './textLength.js';
 
 /**
  * Represents a list of mappings of ranges from one document to another.

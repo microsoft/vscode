@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { Emitter } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { URI } from 'vs/base/common/uri';
-import { FileKind } from 'vs/platform/files/common/files';
-import { Range } from 'vs/editor/common/core/range';
-import { basename, dirname } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { ChatResponseReferencePartStatusKind, IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ResourceLabels } from '../../../../browser/labels.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { basename, dirname } from '../../../../../base/common/path.js';
+import { localize } from '../../../../../nls.js';
+import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());

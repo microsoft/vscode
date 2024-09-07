@@ -9,37 +9,41 @@ import * as http from 'http';
 import * as net from 'net';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
-import { LoaderStats, isESM } from 'vs/base/common/amd';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CharCode } from 'vs/base/common/charCode';
-import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { connectionTokenQueryName, FileAccess, getServerRootPath, Schemas } from 'vs/base/common/network';
-import { dirname, join } from 'vs/base/common/path';
-import * as perf from 'vs/base/common/performance';
-import * as platform from 'vs/base/common/platform';
-import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
-import { findFreePort } from 'vs/base/node/ports';
-import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
-import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
-import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
-import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-import { IServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { setupServerServices, SocketServer } from 'vs/server/node/serverServices';
-import { CacheControl, serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
+import { LoaderStats, isESM } from '../../base/common/amd.js';
+import { VSBuffer } from '../../base/common/buffer.js';
+import { CharCode } from '../../base/common/charCode.js';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
+import { isEqualOrParent } from '../../base/common/extpath.js';
+import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { connectionTokenQueryName, FileAccess, getServerRootPath, Schemas } from '../../base/common/network.js';
+import { dirname, join } from '../../base/common/path.js';
+import * as perf from '../../base/common/performance.js';
+import * as platform from '../../base/common/platform.js';
+import { createRegExp, escapeRegExpCharacters } from '../../base/common/strings.js';
+import { URI } from '../../base/common/uri.js';
+import { generateUuid } from '../../base/common/uuid.js';
+import { getOSReleaseInfo } from '../../base/node/osReleaseInfo.js';
+import { findFreePort } from '../../base/node/ports.js';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
+import { PersistentProtocol } from '../../base/parts/ipc/common/ipc.net.js';
+import { NodeSocket, WebSocketNodeSocket } from '../../base/parts/ipc/node/ipc.net.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
+import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { ExtensionHostConnection } from './extensionHostConnection.js';
+import { ManagementConnection } from './remoteExtensionManagement.js';
+import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from './serverConnectionToken.js';
+import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
+import { setupServerServices, SocketServer } from './serverServices.js';
+import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
+// ESM-uncomment-begin
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+// ESM-uncomment-end
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -768,7 +772,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('').fsPath, '../node_modules/vsda'));
 		if (hasVSDA) {
 			try {
-				return <typeof vsda>globalThis._VSCODE_NODE_MODULES['vsda'];
+				return require('vsda');
 			} catch (err) {
 				logService.error(err);
 			}

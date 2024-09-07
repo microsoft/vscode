@@ -33,12 +33,12 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
-const { isESM } = require('./lib/esm');
+const { isAMD } = require('./lib/amd');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
 // Build
-const vscodeEntryPoints = isESM() ? [
+const vscodeEntryPoints = !isAMD() ? [
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -61,7 +61,7 @@ const vscodeEntryPoints = isESM() ? [
 	buildfile.code
 ].flat();
 
-const vscodeResourceIncludes = isESM() ? [
+const vscodeResourceIncludes = !isAMD() ? [
 
 	// NLS
 	'out-build/nls.messages.json',
@@ -85,11 +85,11 @@ const vscodeResourceIncludes = isESM() ? [
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.psm1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/*.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
 
 	// Accessibility Signals
 	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
@@ -130,11 +130,11 @@ const vscodeResourceIncludes = isESM() ? [
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.psm1',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/*.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
@@ -163,7 +163,7 @@ const vscodeResources = [
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
 const windowBootstrapFiles = [];
-if (!isESM('Skipping loader.js in window bootstrap files')) {
+if (isAMD()) {
 	windowBootstrapFiles.push('out-build/vs/loader.js');
 }
 windowBootstrapFiles.push('out-build/bootstrap-window.js');
@@ -296,7 +296,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			isESM() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
+			!isAMD() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
 			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
@@ -325,13 +325,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			version += '-' + quality;
 		}
 
-		if (isESM() && typeof quality === 'string' && quality !== 'exploration') {
-			// TODO@esm remove this safeguard
-			throw new Error('Refuse to build ESM on quality other than exploration');
-		}
-
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version, ...(isESM(`Setting 'type: module' and 'main: out/main.js' in top level package.json`) ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
+		const packageJsonUpdates = { name, version, ...(!isAMD() ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
 
 		// for linux url handling
 		if (platform === 'linux') {
@@ -364,18 +359,16 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!**/*.mk`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!**/*.mk`]).flat();
 
-		let deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
+		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
-			.pipe(jsFilter.restore);
-
-		if (!isESM('ASAR disabled in VS Code builds')) { // TODO@esm: ASAR disabled in ESM
-			deps = deps.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
+			.pipe(jsFilter.restore)
+			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
@@ -384,10 +377,14 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
-			], [
+			], isAMD() ? [
 				'**/*.mk',
+			] : [
+				'**/*.mk',
+				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
+			], isAMD() ? [] : [
+				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
-		}
 
 		let all = es.merge(
 			packageJsonStream,
@@ -505,7 +502,7 @@ function patchWin32DependenciesTask(destinationFolderName) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const deps = await glob('**/*.node', { cwd });
+		const deps = await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' });
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
