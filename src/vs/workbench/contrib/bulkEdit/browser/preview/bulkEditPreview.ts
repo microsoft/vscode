@@ -312,17 +312,19 @@ export class BulkFileOperations {
 		for (const file of this.fileOperations) {
 			if (file.uri.toString() === uri.toString()) {
 
-				const result: ISingleEditOperation[] = [];
+				const result: Promise<ISingleEditOperation | undefined>[] = [];
 				let ignoreAll = false;
 
 				for (const edit of file.originalEdits.values()) {
 					if (edit instanceof ResourceFileEdit) {
-						const content = await edit.options.contents;
-						if (!content) { continue; }
-						result.push(EditOperation.replaceMove(Range.lift({ startLineNumber: 0, startColumn: 0, endLineNumber: Number.MAX_VALUE, endColumn: 0 }), content.toString()));
+						result.push(new Promise(async (res) => {
+							const content = await edit.options.contents;
+							if (!content) { res(undefined); return; }
+							res(EditOperation.replaceMove(Range.lift({ startLineNumber: 0, startColumn: 0, endLineNumber: Number.MAX_VALUE, endColumn: 0 }), content.toString()))
+						}))
 					} else if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
-							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text)));
+							result.push(Promise.resolve(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text))));
 						}
 
 					} else if (!this.checked.isChecked(edit)) {
@@ -335,7 +337,7 @@ export class BulkFileOperations {
 					return [];
 				}
 
-				return result.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+				return (await Promise.all(result)).filter(r => r != null).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			}
 		}
 		return [];
