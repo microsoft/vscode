@@ -307,6 +307,12 @@ export class BulkFileOperations {
 		return result;
 	}
 
+	private async getFileEditOperation(edit: ResourceFileEdit): Promise<ISingleEditOperation | undefined> {
+		const content = await edit.options.contents;
+		if (!content) { return undefined; }
+		return EditOperation.replaceMove(Range.lift({ startLineNumber: 0, startColumn: 0, endLineNumber: Number.MAX_VALUE, endColumn: 0 }), content.toString());
+	}
+
 	async getFileEdits(uri: URI): Promise<ISingleEditOperation[]> {
 
 		for (const file of this.fileOperations) {
@@ -317,11 +323,7 @@ export class BulkFileOperations {
 
 				for (const edit of file.originalEdits.values()) {
 					if (edit instanceof ResourceFileEdit) {
-						result.push(new Promise(async (res) => {
-							const content = await edit.options.contents;
-							if (!content) { res(undefined); return; }
-							res(EditOperation.replaceMove(Range.lift({ startLineNumber: 0, startColumn: 0, endLineNumber: Number.MAX_VALUE, endColumn: 0 }), content.toString()))
-						}))
+						result.push(this.getFileEditOperation(edit)));
 					} else if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
 							result.push(Promise.resolve(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text))));
@@ -337,7 +339,7 @@ export class BulkFileOperations {
 					return [];
 				}
 
-				return (await Promise.all(result)).filter(r => r != null).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+				return (await Promise.all(result)).filter(r => r !== undefined).sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			}
 		}
 		return [];
