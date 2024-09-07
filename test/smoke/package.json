@@ -4,8 +4,8 @@
   "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
-    "compile": "yarn --cwd ../automation compile && node ../../node_modules/typescript/bin/tsc",
-    "watch-automation": "yarn --cwd ../automation watch",
+    "compile": "cd ../automation && npm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc",
+    "watch-automation": "cd ../automation && npm run watch",
     "watch-smoke": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
     "watch": "npm-run-all -lp watch-automation watch-smoke",
     "mocha": "node ../node_modules/mocha/bin/mocha"

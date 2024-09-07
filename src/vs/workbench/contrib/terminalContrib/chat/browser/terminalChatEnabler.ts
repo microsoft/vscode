@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IChatAgentService, ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IChatAgentService, ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { TerminalChatContextKeys } from '../../../terminal/terminalContribExports.js';
 
 
 export class TerminalChatEnabler {

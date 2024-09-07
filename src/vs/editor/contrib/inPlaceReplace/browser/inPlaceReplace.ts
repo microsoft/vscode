@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
-import 'vs/css!./inPlaceReplace';
+import { CancelablePromise, createCancelablePromise, timeout } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { CodeEditorStateFlag, EditorState } from '../../editorState/browser/editorState.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { IInplaceReplaceSupportResult } from '../../../common/languages.js';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import * as nls from '../../../../nls.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { InPlaceReplaceCommand } from './inPlaceReplaceCommand.js';
+import './inPlaceReplace.css';
 
 class InPlaceReplaceController implements IEditorContribution {
 

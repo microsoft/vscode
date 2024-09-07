@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
-import { IDialogService, IPrompt, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { mock } from 'vs/base/test/common/mock';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { MainThreadMessageService } from '../../browser/mainThreadMessageService.js';
+import { IDialogService, IPrompt, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,

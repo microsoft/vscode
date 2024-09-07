@@ -32,7 +32,8 @@
               extensionDisplayName: "",
               locations: [ "panel" ],
               metadata: { requester: { name: "test" } },
-              slashCommands: [  ]
+              slashCommands: [  ],
+              disambiguation: [  ]
             },
             kind: "agent"
           },
@@ -56,9 +57,17 @@
       variableData: { variables: [  ] },
       response: [  ],
       result: { metadata: { metadataKey: "value" } },
-      followups: undefined,
+      followups: [
+        {
+          kind: "reply",
+          message: "Something else",
+          agentId: "",
+          tooltip: "a tooltip"
+        }
+      ],
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -71,7 +80,8 @@
         extensionDisplayName: "",
         locations: [ "panel" ],
         metadata: { requester: { name: "test" } },
-        slashCommands: [  ]
+        slashCommands: [  ],
+        disambiguation: [  ]
       },
       slashCommand: undefined,
       usedContext: {
@@ -91,6 +101,54 @@
         ],
         kind: "usedContext"
       },
+      contentReferences: [  ],
+      codeCitations: [  ]
+    },
+    {
+      message: {
+        parts: [
+          {
+            range: {
+              start: 0,
+              endExclusive: 14
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 15
+            },
+            text: "test request 2",
+            kind: "text"
+          }
+        ],
+        text: "test request 2"
+      },
+      variableData: { variables: [  ] },
+      response: [  ],
+      result: {  },
+      followups: [  ],
+      isCanceled: false,
+      vote: undefined,
+      voteDownReason: undefined,
+      agent: {
+        name: "testAgent",
+        id: "testAgent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionPublisherId: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
+        metadata: { requester: { name: "test" } },
+        slashCommands: [  ],
+        disambiguation: [  ],
+        isDefault: true
+      },
+      slashCommand: undefined,
+      usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ]
     }

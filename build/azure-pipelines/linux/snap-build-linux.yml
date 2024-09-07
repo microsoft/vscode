@@ -22,17 +22,11 @@ steps:
       sudo apt-get upgrade -y
       sudo apt-get install -y curl apt-transport-https ca-certificates
 
-      # Yarn
-      curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
-      echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
-      sudo apt-get update
-      sudo apt-get install -y yarn
-
       # Define variables
       SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
 
       # Install build dependencies
-      (cd build && yarn)
+      (cd build && npm ci)
 
       # Unpack snap tarball artifact, in order to preserve file perms
       (cd .build/linux && tar -xzf snap-tarball/snap-$(VSCODE_ARCH).tar.gz)

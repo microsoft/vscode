@@ -28,10 +28,10 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { isWeb, isWindows } from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as path from '../../common/path.js';
+import { isWeb, isWindows } from '../../common/platform.js';
+import * as process from '../../common/process.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Paths (Node Implementation)', () => {
 	const __filename = 'path.test.js';

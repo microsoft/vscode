@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Emitter, DebounceEmitter, Event } from 'vs/base/common/event';
-import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isThenable } from 'vs/base/common/async';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { isCancellationError } from 'vs/base/common/errors';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { hash } from 'vs/base/common/hash';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { asArray, distinct } from 'vs/base/common/arrays';
-import { asCssVariable, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { URI } from '../../../../base/common/uri.js';
+import { Emitter, DebounceEmitter, Event } from '../../../../base/common/event.js';
+import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations.js';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
+import { IDisposable, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isThenable } from '../../../../base/common/async.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from '../../../../base/browser/dom.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { hash } from '../../../../base/common/hash.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { asArray, distinct } from '../../../../base/common/arrays.js';
+import { asCssVariable, ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
+import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 
 class DecorationRule {
 

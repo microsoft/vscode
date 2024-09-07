@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, GroupModelChangeKind, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { coalesce } from 'vs/base/common/arrays';
-import { LinkedMap, Touch, ResourceMap } from 'vs/base/common/map';
-import { equals } from 'vs/base/common/objects';
-import { IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
-import { URI } from 'vs/base/common/uri';
+import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder, GroupModelChangeKind, EditorInputCapabilities } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { dispose, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { LinkedMap, Touch, ResourceMap } from '../../../../base/common/map.js';
+import { equals } from '../../../../base/common/objects.js';
+import { IResourceEditorInputIdentifier } from '../../../../platform/editor/common/editor.js';
+import { URI } from '../../../../base/common/uri.js';
 
 interface ISerializedEditorsList {
 	entries: ISerializedEditorIdentifier[];

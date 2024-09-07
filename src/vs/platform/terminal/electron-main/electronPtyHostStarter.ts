@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IReconnectConstants, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { parsePtyHostDebugPort } from '../../environment/node/environmentService.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
+import { IReconnectConstants, TerminalSettingId } from '../common/terminal.js';
+import { IPtyHostConnection, IPtyHostStarter } from '../node/ptyHost.js';
+import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
+import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
 import { IpcMainEvent } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { deepClone } from 'vs/base/common/objects';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Schemas } from 'vs/base/common/network';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter } from '../../../base/common/event.js';
+import { deepClone } from '../../../base/common/objects.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { Schemas } from '../../../base/common/network.js';
 
 export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarter {
 

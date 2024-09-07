@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { COLOR_THEME_CONFIGURATION_SETTINGS_TAG, formatSettingAsLink } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { isLinux } from 'vs/base/common/platform';
+import { localize } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ThemeSettings } from '../common/workbenchThemeService.js';
+import { COLOR_THEME_CONFIGURATION_SETTINGS_TAG, formatSettingAsLink } from '../common/themeConfiguration.js';
+import { isLinux } from '../../../../base/common/platform.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({

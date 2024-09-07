@@ -145,11 +145,13 @@ function hygiene(some, linting = true) {
 
 	const productJsonFilter = filter('product.json', { restore: true });
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
+	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
 	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
 	const result = input
 		.pipe(filter((f) => !f.stat.isDirectory()))
 		.pipe(snapshotFilter)
+		.pipe(yarnLockFilter)
 		.pipe(productJsonFilter)
 		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
 		.pipe(productJsonFilter.restore)

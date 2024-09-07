@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { INotificationViewItem, isNotificationViewItem, NotificationsModel } from 'vs/workbench/common/notifications';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { localize, localize2 } from 'vs/nls';
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
-import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService, INotificationSourceFilter, NotificationPriority, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { hash } from 'vs/base/common/hash';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { INotificationViewItem, isNotificationViewItem, NotificationsModel } from '../../../common/notifications.js';
+import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from './notificationsTelemetry.js';
+import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
+import { INotificationService, INotificationSourceFilter, NotificationPriority, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
+import { hash } from '../../../../base/common/hash.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -171,11 +170,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 		handler: (accessor) => {
 			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
-			const notification = getNotificationFromContext(accessor.get(IListService)) || firstOrDefault(model.notifications);
+			const notification = getNotificationFromContext(accessor.get(IListService)) || model.notifications.at(0);
 			if (!notification) {
 				return;
 			}
-			const primaryAction = notification.actions?.primary ? firstOrDefault(notification.actions.primary) : undefined;
+			const primaryAction = notification.actions?.primary ? notification.actions.primary.at(0) : undefined;
 			if (!primaryAction) {
 				return;
 			}

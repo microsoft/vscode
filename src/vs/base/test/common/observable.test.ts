@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from 'vs/base/common/observable';
-import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Emitter, Event } from '../../common/event.js';
+import { DisposableStore } from '../../common/lifecycle.js';
+import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from '../../common/observable.js';
+import { BaseObservable, IObservable, IObserver } from '../../common/observableInternal/base.js';
+import { derivedDisposable } from '../../common/observableInternal/derived.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { setUnexpectedErrorHandler } from '../../common/errors.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1125,6 +1126,31 @@ suite('observables', () => {
 		]);
 	});
 
+	test('bug: Event.fromObservable always should get events', () => {
+		const emitter = new Emitter();
+		const log = new Log();
+		let i = 0;
+		const obs = observableFromEvent(emitter.event, () => i);
+
+		i++;
+		emitter.fire(1);
+
+		const evt2 = Event.fromObservable(obs);
+		const d = evt2(e => {
+			log.log(`event fired ${e}`);
+		});
+
+		i++;
+		emitter.fire(2);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 2"]);
+
+		i++;
+		emitter.fire(3);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 3"]);
+
+		d.dispose();
+	});
+
 	test('dont run autorun after dispose', () => {
 		const log = new Log();
 		const myObservable = new LoggingObservableValue('myObservable', 0, log);
@@ -1299,6 +1325,79 @@ suite('observables', () => {
 		]);
 
 		d.dispose();
+	});
+
+	suite('autorun error handling', () => {
+		test('immediate throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				myObservable.read(reader);
+				throw new Error('foobar');
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+				"error: foobar"
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
+		});
+
+		test('late throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				const value = myObservable.read(reader);
+				if (value >= 1) {
+					throw new Error('foobar');
+				}
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			myObservable.set(2, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 2)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
+		});
 	});
 });
 

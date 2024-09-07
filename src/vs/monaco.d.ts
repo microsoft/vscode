@@ -3789,6 +3789,10 @@ declare namespace monaco.editor {
 		 */
 		dropIntoEditor?: IDropIntoEditorOptions;
 		/**
+		 * Sets whether the new experimental edit context should be used instead of the text area.
+		 */
+		experimentalEditContextEnabled?: boolean;
+		/**
 		 * Controls support for changing how content is pasted into the editor.
 		 */
 		pasteAs?: IPasteAsOptions;
@@ -4286,6 +4290,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		padding?: boolean;
+		/**
+		 * Maximum length for inlay hints per line
+		 * Set to 0 to have an unlimited length.
+		 */
+		maximumLength?: number;
 	}
 
 	/**
@@ -4565,6 +4574,7 @@ declare namespace monaco.editor {
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
 		showToolbar?: 'always' | 'onHover' | 'never';
+		syntaxHighlightingEnabled?: boolean;
 		suppressSuggestions?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
@@ -4901,53 +4911,53 @@ declare namespace monaco.editor {
 		domReadOnly = 34,
 		dragAndDrop = 35,
 		dropIntoEditor = 36,
-		emptySelectionClipboard = 37,
-		experimentalWhitespaceRendering = 38,
-		extraEditorClassName = 39,
-		fastScrollSensitivity = 40,
-		find = 41,
-		fixedOverflowWidgets = 42,
-		folding = 43,
-		foldingStrategy = 44,
-		foldingHighlight = 45,
-		foldingImportsByDefault = 46,
-		foldingMaximumRegions = 47,
-		unfoldOnClickAfterEndOfLine = 48,
-		fontFamily = 49,
-		fontInfo = 50,
-		fontLigatures = 51,
-		fontSize = 52,
-		fontWeight = 53,
-		fontVariations = 54,
-		formatOnPaste = 55,
-		formatOnType = 56,
-		glyphMargin = 57,
-		gotoLocation = 58,
-		hideCursorInOverviewRuler = 59,
-		hover = 60,
-		inDiffEditor = 61,
-		inlineSuggest = 62,
-		inlineEdit = 63,
-		letterSpacing = 64,
-		lightbulb = 65,
-		lineDecorationsWidth = 66,
-		lineHeight = 67,
-		lineNumbers = 68,
-		lineNumbersMinChars = 69,
-		linkedEditing = 70,
-		links = 71,
-		matchBrackets = 72,
-		minimap = 73,
-		mouseStyle = 74,
-		mouseWheelScrollSensitivity = 75,
-		mouseWheelZoom = 76,
-		multiCursorMergeOverlapping = 77,
-		multiCursorModifier = 78,
-		multiCursorPaste = 79,
-		multiCursorLimit = 80,
-		occurrencesHighlight = 81,
-		overviewRulerBorder = 82,
-		overviewRulerEnabled = 83,
+		experimentalEditContextEnabled = 37,
+		emptySelectionClipboard = 38,
+		experimentalWhitespaceRendering = 39,
+		extraEditorClassName = 40,
+		fastScrollSensitivity = 41,
+		find = 42,
+		fixedOverflowWidgets = 43,
+		folding = 44,
+		foldingStrategy = 45,
+		foldingHighlight = 46,
+		foldingImportsByDefault = 47,
+		foldingMaximumRegions = 48,
+		unfoldOnClickAfterEndOfLine = 49,
+		fontFamily = 50,
+		fontInfo = 51,
+		fontLigatures = 52,
+		fontSize = 53,
+		fontWeight = 54,
+		fontVariations = 55,
+		formatOnPaste = 56,
+		formatOnType = 57,
+		glyphMargin = 58,
+		gotoLocation = 59,
+		hideCursorInOverviewRuler = 60,
+		hover = 61,
+		inDiffEditor = 62,
+		inlineSuggest = 63,
+		inlineEdit = 64,
+		letterSpacing = 65,
+		lightbulb = 66,
+		lineDecorationsWidth = 67,
+		lineHeight = 68,
+		lineNumbers = 69,
+		lineNumbersMinChars = 70,
+		linkedEditing = 71,
+		links = 72,
+		matchBrackets = 73,
+		minimap = 74,
+		mouseStyle = 75,
+		mouseWheelScrollSensitivity = 76,
+		mouseWheelZoom = 77,
+		multiCursorMergeOverlapping = 78,
+		multiCursorModifier = 79,
+		multiCursorPaste = 80,
+		multiCursorLimit = 81,
+		occurrencesHighlight = 82,
+		overviewRulerBorder = 83,
 		overviewRulerLanes = 84,
 		padding = 85,
 		pasteAs = 86,
@@ -5059,6 +5069,7 @@ declare namespace monaco.editor {
 		dragAndDrop: IEditorOption<EditorOption.dragAndDrop, boolean>;
 		emptySelectionClipboard: IEditorOption<EditorOption.emptySelectionClipboard, boolean>;
 		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
+		experimentalEditContextEnabled: IEditorOption<EditorOption.experimentalEditContextEnabled, boolean>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
 		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'svg' | 'font'>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
@@ -8076,7 +8087,7 @@ declare namespace monaco.languages {
 
 	export interface MappedEditsContext {
 		/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
-		documents: DocumentContextItem[][];
+		readonly documents: DocumentContextItem[][];
 	}
 
 	export interface MappedEditsProvider {
