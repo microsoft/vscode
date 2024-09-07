@@ -3,39 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { sequence } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as json from 'vs/base/common/json';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import * as resources from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI as uri } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, IAdapterManager, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
-import { launchSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
-import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { distinct } from '../../../../base/common/arrays.js';
+import { sequence } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import * as json from '../../../../base/common/json.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import * as objects from '../../../../base/common/objects.js';
+import * as resources from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { debugConfigure } from './debugIcons.js';
+import { CONTEXT_DEBUG_CONFIGURATION_TYPE, DebugConfigurationProviderTriggerKind, IAdapterManager, ICompound, IConfig, IConfigPresentation, IConfigurationManager, IDebugConfigurationProvider, IGlobalConfig, ILaunch } from '../common/debug.js';
+import { launchSchema } from '../common/debugSchemas.js';
+import { getVisibleAndSorted } from '../common/debugUtils.js';
+import { launchSchemaId } from '../../../services/configuration/common/configuration.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -72,7 +73,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.configProviders = [];
 		this.toDispose = [this._onDidChangeConfigurationProviders];
@@ -257,7 +259,18 @@ export class ConfigurationManager implements IConfigurationManager {
 						disposables.add(input.onDidHide(() => resolve(undefined)));
 					});
 
-					const nestedPicks = await Promise.all(picks);
+					let nestedPicks: IDynamicPickItem[][];
+					try {
+						// This await invokes the extension providers, which might fail due to several reasons,
+						// therefore we gate this logic under a try/catch to prevent leaving the Debug Tab
+						// selector in a borked state.
+						nestedPicks = await Promise.all(picks);
+					} catch (err) {
+						this.logService.error(err);
+						disposables.dispose();
+						return;
+					}
+
 					const items = nestedPicks.flat();
 
 					input.items = items;

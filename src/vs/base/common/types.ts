@@ -190,6 +190,16 @@ export function validateConstraint(arg: unknown, constraint: TypeConstraint | un
 	}
 }
 
+/**
+ * Helper type assertion that safely upcasts a type to a supertype.
+ *
+ * This can be used to make sure the argument correctly conforms to the subtype while still being able to pass it
+ * to contexts that expects the supertype.
+ */
+export function upcast<Base, Sub extends Base>(x: Sub): Base {
+	return x;
+}
+
 type AddFirstParameterToFunction<T, TargetFunctionsReturnType, FirstParameter> = T extends (...args: any[]) => TargetFunctionsReturnType ?
 	// Function: add param to function
 	(firstArg: FirstParameter, ...args: Parameters<T>) => ReturnType<T> :

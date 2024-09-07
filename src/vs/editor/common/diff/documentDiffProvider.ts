@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping } from './rangeMapping';
-import { ITextModel } from 'vs/editor/common/model';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { MovedText } from './linesDiffComputer.js';
+import { DetailedLineRangeMapping } from './rangeMapping.js';
+import { ITextModel } from '../model.js';
 
 /**
  * A document diff provider computes the diff between two text models.

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { Event } from 'vs/base/common/event';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { LanguageSelector } from '../../../../editor/common/languageSelector.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const IQuickDiffService = createDecorator<IQuickDiffService>('quickDiff');
 

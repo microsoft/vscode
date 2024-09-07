@@ -155,43 +155,52 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		code_server_args: (&ctx.args).into(),
 	};
 
-	let mut listener: Box<dyn AsyncRWAccepter> = match (args.on_port, &args.on_host, args.on_socket)
-	{
-		(_, _, true) => {
-			let socket = get_socket_name();
-			let listener = listen_socket_rw_stream(&socket)
-				.await
-				.map_err(|e| wrap(e, "error listening on socket"))?;
+	let mut listener: Box<dyn AsyncRWAccepter> =
+		match (args.on_port.first(), &args.on_host, args.on_socket) {
+			(_, _, true) => {
+				let socket = get_socket_name();
+				let listener = listen_socket_rw_stream(&socket)
+					.await
+					.map_err(|e| wrap(e, "error listening on socket"))?;
 
-			params
-				.log
-				.result(format!("Listening on {}", socket.display()));
+				params
+					.log
+					.result(format!("Listening on {}", socket.display()));
 
-			Box::new(listener)
-		}
-		(Some(_), _, _) | (_, Some(_), _) => {
-			let addr = SocketAddr::new(
-				args.on_host
+				Box::new(listener)
+			}
+			(Some(_), _, _) | (_, Some(_), _) => {
+				let host = args
+					.on_host
 					.as_ref()
 					.map(|h| h.parse().map_err(CodeError::InvalidHostAddress))
-					.unwrap_or(Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)))?,
-				args.on_port.unwrap_or_default(),
-			);
-			let listener = tokio::net::TcpListener::bind(addr)
-				.await
-				.map_err(|e| wrap(e, "error listening on port"))?;
+					.unwrap_or(Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)))?;
 
-			params
-				.log
-				.result(format!("Listening on {}", listener.local_addr().unwrap()));
+				let lower_port = args.on_port.first().copied().unwrap_or_default();
+				let port_no = if let Some(upper) = args.on_port.get(1) {
+					find_unused_port(&host, lower_port, *upper)
+						.await
+						.unwrap_or_default()
+				} else {
+					lower_port
+				};
 
-			Box::new(listener)
-		}
-		_ => {
-			serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
-			return Ok(0);
-		}
-	};
+				let addr = SocketAddr::new(host, port_no);
+				let listener = tokio::net::TcpListener::bind(addr)
+					.await
+					.map_err(|e| wrap(e, "error listening on port"))?;
+
+				params
+					.log
+					.result(format!("Listening on {}", listener.local_addr().unwrap()));
+
+				Box::new(listener)
+			}
+			_ => {
+				serve_stream(tokio::io::stdin(), tokio::io::stderr(), params).await;
+				return Ok(0);
+			}
+		};
 
 	let mut servers = FuturesUnordered::new();
 
@@ -214,6 +223,21 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			}
 		}
 	}
+}
+
+async fn find_unused_port(host: &IpAddr, start_port: u16, end_port: u16) -> Option<u16> {
+	for port in start_port..=end_port {
+		if is_port_available(*host, port).await {
+			return Some(port);
+		}
+	}
+	None
+}
+
+async fn is_port_available(host: IpAddr, port: u16) -> bool {
+	tokio::net::TcpListener::bind(SocketAddr::new(host, port))
+		.await
+		.is_ok()
 }
 
 pub async fn service(

@@ -5,30 +5,33 @@
 
 import type { Terminal } from '@xterm/xterm';
 import { strictEqual } from 'assert';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextKeyService, type IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import type { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
-import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest';
-import type { ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { getActiveDocument } from '../../../../../../base/browser/dom.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService, type IContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { TerminalContextKeys } from '../../../../terminal/common/terminalContextKey.js';
+import { parseCompletionsFromShell, SuggestAddon } from '../../browser/terminalSuggestAddon.js';
+import { TerminalSuggestCommandId } from '../../common/terminal.suggest.js';
+import type { ITerminalSuggestConfiguration } from '../../common/terminalSuggestConfiguration.js';
+import { workbenchInstantiationService, type TestTerminalConfigurationService } from '../../../../../test/browser/workbenchTestServices.js';
 
-import { events as macos_bash_echo_simple } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/macos_bash_echo_simple';
-import { events as macos_bash_echo_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/macos_bash_echo_multiline';
-import { events as windows11_pwsh_getcontent_delete_ghost } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_delete_ghost';
-import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
-import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
-import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_namespace_completion';
-import { events as windows11_pwsh_type_before_prompt } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_type_before_prompt';
-import { events as windows11_pwsh_writehost_multiline_nav_up } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline_nav_up';
-import { events as windows11_pwsh_writehost_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline';
-import { importAMDNodeModule } from 'vs/amdX';
+import { events as macos_bash_echo_simple } from './recordings/macos_bash_echo_simple.js';
+import { events as macos_bash_echo_multiline } from './recordings/macos_bash_echo_multiline.js';
+import { events as windows11_pwsh_getcontent_delete_ghost } from './recordings/windows11_pwsh_getcontent_delete_ghost.js';
+import { events as windows11_pwsh_getcontent_file } from './recordings/windows11_pwsh_getcontent_file.js';
+import { events as windows11_pwsh_input_ls_complete_ls } from './recordings/windows11_pwsh_input_ls_complete_ls.js';
+import { events as windows11_pwsh_namespace_completion } from './recordings/windows11_pwsh_namespace_completion.js';
+import { events as windows11_pwsh_type_before_prompt } from './recordings/windows11_pwsh_type_before_prompt.js';
+import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
+import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { testRawPwshCompletions } from './testRawPwshCompletions.js';
+import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
+import { timeout } from '../../../../../../base/common/async.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
@@ -69,31 +72,44 @@ suite('Terminal Contrib Suggest Recordings', () => {
 	let suggestAddon: SuggestAddon;
 
 	setup(async () => {
+		const terminalConfig = {
+			fontFamily: 'monospace',
+			fontSize: 12,
+			fontWeight: 'normal',
+			letterSpacing: 0,
+			lineHeight: 1,
+			integrated: {
+				suggest: {
+					enabled: true,
+					quickSuggestions: true,
+					suggestOnTriggerCharacters: true,
+					runOnEnter: 'never',
+					builtinCompletions: {
+						pwshCode: true,
+						pwshGit: true
+					}
+				} satisfies ITerminalSuggestConfiguration
+			}
+		};
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: { autoSave: false },
-				terminal: {
-					integrated: {
-						suggest: {
-							enabled: true,
-							quickSuggestions: true,
-							suggestOnTriggerCharacters: true,
-						} satisfies ITerminalSuggestConfiguration
-					}
-				}
+				terminal: terminalConfig
 			})
 		}, store);
+		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
+		terminalConfigurationService.setConfig(terminalConfig as any);
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		capabilities = shellIntegrationAddon.capabilities;
 		suggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(instantiationService.get(IContextKeyService));
-		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
+		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions)), shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
 
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
 		xterm.open(testContainer);
-		suggestAddon.setPanel(testContainer);
+		suggestAddon.setContainerWithOverflow(testContainer);
 		suggestAddon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		xterm.loadAddon(shellIntegrationAddon);
@@ -147,14 +163,17 @@ suite('Terminal Contrib Suggest Recordings', () => {
 					case 'promptInputChange': {
 						const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
 						if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
-							await new Promise<void>(r => {
-								const d = promptInputModel.onDidChangeInput(() => {
-									if (promptInputModel.getCombinedString() === event.data) {
-										d.dispose();
-										r();
-									}
-								});
-							});
+							await Promise.race([
+								await timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
+								await new Promise<void>(r => {
+									const d = promptInputModel.onDidChangeInput(() => {
+										if (promptInputModel.getCombinedString() === event.data) {
+											d.dispose();
+											r();
+										}
+									});
+								})
+							]);
 						}
 						break;
 					}

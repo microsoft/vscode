@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { mark } from 'vs/base/common/performance';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { BeforeShutdownErrorEvent, ILifecycleService, InternalBeforeShutdownEvent, LifecyclePhase, LifecyclePhaseToString, ShutdownReason, StartupKind, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Emitter } from '../../../../base/common/event.js';
+import { Barrier } from '../../../../base/common/async.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILifecycleService, WillShutdownEvent, StartupKind, LifecyclePhase, LifecyclePhaseToString, ShutdownReason, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from './lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { mark } from '../../../../base/common/performance.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 
 export abstract class AbstractLifecycleService extends Disposable implements ILifecycleService {
 
@@ -44,7 +44,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 
 	constructor(
 		@ILogService protected readonly logService: ILogService,
-		@IStorageService protected readonly storageService: IStorageService,
+		@IStorageService protected readonly storageService: IStorageService
 	) {
 		super();
 

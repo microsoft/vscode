@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CachedFunction } from 'vs/base/common/cache';
-import { getStructuralKey } from 'vs/base/common/equals';
-import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { derived, observableFromEvent } from 'vs/base/common/observable';
-import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CachedFunction } from '../../../base/common/cache.js';
+import { getStructuralKey } from '../../../base/common/equals.js';
+import { Event, IValueWithChangeEvent } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { derived, observableFromEvent } from '../../../base/common/observable.js';
+import { ValueWithChangeEventFromObservable } from '../../../base/common/observableInternal/utils.js';
+import { localize } from '../../../nls.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { observableConfigValue } from '../../observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalService>('accessibilitySignalService');
 
@@ -145,7 +145,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	private getVolumeInPercent(): number {
-		const volume = this.configurationService.getValue<number>('accessibilitySignals.volume');
+		const volume = this.configurationService.getValue<number>('accessibility.signalOptions.volume');
 		if (typeof volume !== 'number') {
 			return 50;
 		}
@@ -342,8 +342,7 @@ export class AccessibilitySignal {
 		public readonly legacySoundSettingsKey: string | undefined,
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
-		public readonly announcementMessage: string | undefined,
-		public readonly delaySettingsKey: string | undefined
+		public readonly announcementMessage: string | undefined
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -370,7 +369,6 @@ export class AccessibilitySignal {
 			options.settingsKey,
 			options.legacyAnnouncementSettingsKey,
 			options.announcementMessage,
-			options.delaySettingsKey
 		);
 		AccessibilitySignal._signals.add(signal);
 		return signal;

@@ -11,8 +11,8 @@ import { spawn } from '@malept/cross-spawn-promise';
 const root = path.dirname(path.dirname(__dirname));
 
 function getElectronVersion(): string {
-	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
+	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
+	const target = /^target="(.*)"$/m.exec(npmrc)![1];
 	return target;
 }
 

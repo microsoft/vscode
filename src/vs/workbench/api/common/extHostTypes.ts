@@ -5,21 +5,21 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { illegalArgument } from 'vs/base/common/errors';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
-import { ResourceMap } from 'vs/base/common/map';
-import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
-import { nextCharLength } from 'vs/base/common/strings';
-import { isNumber, isObject, isString, isStringArray } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
-import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
+import { illegalArgument } from '../../../base/common/errors.js';
+import { IRelativePattern } from '../../../base/common/glob.js';
+import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { Mimes, normalizeMimeType } from '../../../base/common/mime.js';
+import { nextCharLength } from '../../../base/common/strings.js';
+import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
+import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRelativePatternDto } from './extHost.protocol.js';
+import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import type * as vscode from 'vscode';
 
 /**
@@ -4107,7 +4107,7 @@ export class TestMessageStackFrame {
 	 */
 	constructor(
 		public label: string,
-		public file?: vscode.Uri,
+		public uri?: vscode.Uri,
 		public position?: Position,
 	) { }
 }
@@ -4465,11 +4465,32 @@ export class ChatResponseCommandButtonPart {
 }
 
 export class ChatResponseReferencePart {
-	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
+	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string;
 	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
+	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
 		this.value = value;
 		this.iconPath = iconPath;
+		this.options = options;
+	}
+}
+
+export class ChatResponseCodeCitationPart {
+	value: vscode.Uri;
+	license: string;
+	snippet: string;
+	constructor(value: vscode.Uri, license: string, snippet: string) {
+		this.value = value;
+		this.license = license;
+		this.snippet = snippet;
+	}
+}
+
+export class ChatResponseMovePart {
+	constructor(
+		public readonly uri: vscode.Uri,
+		public readonly range: vscode.Range,
+	) {
 	}
 }
 
@@ -4483,6 +4504,8 @@ export class ChatResponseTextEditPart {
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
+	toolReferences?: vscode.ChatLanguageModelToolReference[];
+
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
@@ -4508,6 +4531,12 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
+}
+
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
 		readonly document: vscode.TextDocument,
@@ -4528,14 +4557,14 @@ export enum LanguageModelChatMessageRole {
 	System = 3
 }
 
-export class LanguageModelFunctionResultPart implements vscode.LanguageModelChatMessageFunctionResultPart {
+export class LanguageModelToolResultPart implements vscode.LanguageModelChatMessageToolResultPart {
 
-	name: string;
+	toolCallId: string;
 	content: string;
 	isError: boolean;
 
-	constructor(name: string, content: string, isError?: boolean) {
-		this.name = name;
+	constructor(toolCallId: string, content: string, isError?: boolean) {
+		this.toolCallId = toolCallId;
 		this.content = content;
 		this.isError = isError ?? false;
 	}
@@ -4543,9 +4572,9 @@ export class LanguageModelFunctionResultPart implements vscode.LanguageModelChat
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | LanguageModelFunctionResultPart, name?: string): LanguageModelChatMessage {
+	static User(content: string | LanguageModelToolResultPart, name?: string): LanguageModelChatMessage {
 		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		value.content2 = content;
+		value.content2 = [content];
 		return value;
 	}
 
@@ -4555,23 +4584,25 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
-	content2: string | vscode.LanguageModelChatMessageFunctionResultPart;
+	content2: (string | vscode.LanguageModelChatMessageToolResultPart | vscode.LanguageModelChatResponseToolCallPart)[];
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
 		this.role = role;
 		this.content = content;
-		this.content2 = content;
+		this.content2 = [content];
 		this.name = name;
 	}
 }
 
-export class LanguageModelFunctionUsePart implements vscode.LanguageModelChatResponseFunctionUsePart {
+export class LanguageModelToolCallPart implements vscode.LanguageModelChatResponseToolCallPart {
 	name: string;
+	toolCallId: string;
 	parameters: any;
 
-	constructor(name: string, parameters: any) {
+	constructor(name: string, toolCallId: string, parameters: any) {
 		this.name = name;
+		this.toolCallId = toolCallId;
 		this.parameters = parameters;
 	}
 }

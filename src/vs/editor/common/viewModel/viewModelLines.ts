@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LineInjectedText } from 'vs/editor/common/textModelEvents';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { createModelLineProjection, IModelLineProjection } from 'vs/editor/common/viewModel/modelLineProjection';
-import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
-import { ConstantTimePrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel';
+import * as arrays from '../../../base/common/arrays.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { WrappingIndent } from '../config/editorOptions.js';
+import { FontInfo } from '../config/fontInfo.js';
+import { IPosition, Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
+import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides.js';
+import { ModelDecorationOptions } from '../model/textModel.js';
+import { LineInjectedText } from '../textModelEvents.js';
+import * as viewEvents from '../viewEvents.js';
+import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
+import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';
+import { ConstantTimePrefixSumComputer } from '../model/prefixSumComputer.js';
+import { ICoordinatesConverter, ViewLineData } from '../viewModel.js';
 
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;

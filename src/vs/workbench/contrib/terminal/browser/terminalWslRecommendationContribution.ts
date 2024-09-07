@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, type IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
-import { IProductService } from 'vs/platform/product/common/productService';
-import type { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import type { IWorkbenchContribution } from '../../../common/contributions.js';
+import { InstallRecommendedExtensionAction } from '../../extensions/browser/extensionsActions.js';
+import { ITerminalService } from './terminal.js';
 
 export class TerminalWslRecommendationContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'terminalWslRecommendation';
