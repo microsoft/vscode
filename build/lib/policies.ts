@@ -9,7 +9,6 @@ import * as path from 'path';
 import * as byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
 import * as Parser from 'tree-sitter';
-import fetch from 'node-fetch';
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
 const packageJson = require('../../package.json');

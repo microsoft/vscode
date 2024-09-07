@@ -3,20 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, List, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
-import { raceTimeout } from 'vs/base/common/async';
-import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
-import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
+import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Event } from '../../../../base/common/event.js';
+import { raceTimeout } from '../../../../base/common/async.js';
+import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { QuickInputController } from '../../browser/quickInputController.js';
+import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { QuickPick } from '../../browser/quickInput.js';
+import { IQuickPickItem, ItemActivation } from '../../common/quickInput.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { IThemeService } from '../../../theme/common/themeService.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { ILayoutService } from '../../../layout/browser/layoutService.js';
+import { IContextViewService } from '../../../contextview/browser/contextView.js';
+import { IListService, ListService } from '../../../list/browser/listService.js';
+import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../contextkey/browser/contextKeyService.js';
+import { NoMatchingKb } from '../../../keybinding/common/keybindingResolver.js';
+import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
+import { ContextViewService } from '../../../contextview/browser/contextViewService.js';
+import { IAccessibilityService } from '../../../accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -39,53 +56,62 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 	setup(() => {
 		const fixture = document.createElement('div');
-		document.body.appendChild(fixture);
-		store.add(toDisposable(() => document.body.removeChild(fixture)));
+		mainWindow.document.body.appendChild(fixture);
+		store.add(toDisposable(() => fixture.remove()));
 
-		controller = store.add(new QuickInputController({
-			container: fixture,
-			idPrefix: 'testQuickInput',
-			ignoreFocusOut() { return true; },
-			returnFocus() { },
-			backKeybindingLabel() { return undefined; },
-			setContextKey() { return undefined; },
-			linkOpenerDelegate(content) { },
-			createList: <T>(
-				user: string,
-				container: HTMLElement,
-				delegate: IListVirtualDelegate<T>,
-				renderers: IListRenderer<T, any>[],
-				options: IListOptions<T>,
-			) => new List<T>(user, container, delegate, renderers, options),
-			hoverDelegate: {
-				showHover(options, focus) {
-					return undefined;
+		const instantiationService = new TestInstantiationService();
+
+		// Stub the services the quick input controller needs to function
+		instantiationService.stub(IThemeService, new TestThemeService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+		instantiationService.stub(IListService, store.add(new ListService()));
+		instantiationService.stub(ILayoutService, { activeContainer: fixture, onDidLayoutContainer: Event.None } as any);
+		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
+		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
+		instantiationService.stub(IKeybindingService, {
+			mightProducePrintableCharacter() { return false; },
+			softDispatch() { return NoMatchingKb; },
+		});
+
+		controller = store.add(instantiationService.createInstance(
+			QuickInputController,
+			{
+				container: fixture,
+				idPrefix: 'testQuickInput',
+				ignoreFocusOut() { return true; },
+				returnFocus() { },
+				backKeybindingLabel() { return undefined; },
+				setContextKey() { return undefined; },
+				linkOpenerDelegate(content) { },
+				hoverDelegate: {
+					showHover(options, focus) {
+						return undefined;
+					},
+					delay: 200
 				},
-				delay: 200
-			},
-			styles: {
-				button: unthemedButtonStyles,
-				countBadge: unthemedCountStyles,
-				inputBox: unthemedInboxStyles,
-				toggle: unthemedToggleStyles,
-				keybindingLabel: unthemedKeybindingLabelOptions,
-				list: unthemedListStyles,
-				progressBar: unthemedProgressBarOptions,
-				widget: {
-					quickInputBackground: undefined,
-					quickInputForeground: undefined,
-					quickInputTitleBackground: undefined,
-					widgetBorder: undefined,
-					widgetShadow: undefined,
-				},
-				pickerGroup: {
-					pickerGroupBorder: undefined,
-					pickerGroupForeground: undefined,
+				styles: {
+					button: unthemedButtonStyles,
+					countBadge: unthemedCountStyles,
+					inputBox: unthemedInboxStyles,
+					toggle: unthemedToggleStyles,
+					keybindingLabel: unthemedKeybindingLabelOptions,
+					list: unthemedListStyles,
+					progressBar: unthemedProgressBarOptions,
+					widget: {
+						quickInputBackground: undefined,
+						quickInputForeground: undefined,
+						quickInputTitleBackground: undefined,
+						widgetBorder: undefined,
+						widgetShadow: undefined,
+					},
+					pickerGroup: {
+						pickerGroupBorder: undefined,
+						pickerGroupForeground: undefined,
+					}
 				}
 			}
-		},
-			new TestThemeService(),
-			{ activeContainer: fixture } as any));
+		));
 
 		// initial layout
 		controller.layout({ height: 20, width: 40 }, 0);
@@ -145,7 +171,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('keepScrollPosition - works with activeItems', async () => {
-		const quickpick = store.add(controller.createQuickPick());
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {
@@ -170,7 +196,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('keepScrollPosition - works with items', async () => {
-		const quickpick = store.add(controller.createQuickPick());
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {
@@ -214,5 +240,42 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		// Since we don't select any items, the selected items should be empty
 		assert.strictEqual(quickpick.selectedItems.length, 0);
+	});
+
+	test('activeItems - verify onDidChangeActive is triggered after setting items', async () => {
+		const quickpick = store.add(controller.createQuickPick());
+
+		// Setup listener for verification
+		const activeItemsFromEvent: IQuickPickItem[] = [];
+		store.add(quickpick.onDidChangeActive(items => activeItemsFromEvent.push(...items)));
+
+		quickpick.show();
+
+		const item = { label: 'step 1' };
+		quickpick.items = [item];
+
+		assert.strictEqual(activeItemsFromEvent.length, 1);
+		assert.strictEqual(activeItemsFromEvent[0], item);
+		assert.strictEqual(quickpick.activeItems.length, 1);
+		assert.strictEqual(quickpick.activeItems[0], item);
+	});
+
+	test('activeItems - verify setting itemActivation to None still triggers onDidChangeActive after selection #207832', async () => {
+		const quickpick = store.add(controller.createQuickPick());
+		const item = { label: 'step 1' };
+		quickpick.items = [item];
+		quickpick.show();
+		assert.strictEqual(quickpick.activeItems[0], item);
+
+		// Setup listener for verification
+		const activeItemsFromEvent: IQuickPickItem[] = [];
+		store.add(quickpick.onDidChangeActive(items => activeItemsFromEvent.push(...items)));
+
+		// Trigger a change
+		quickpick.itemActivation = ItemActivation.NONE;
+		quickpick.items = [item];
+
+		assert.strictEqual(activeItemsFromEvent.length, 0);
+		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
 });

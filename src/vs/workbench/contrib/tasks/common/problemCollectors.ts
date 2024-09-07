@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IStringDictionary, INumberDictionary } from '../../../../base/common/collections.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IDisposable, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
 
-import { IModelService } from 'vs/editor/common/services/model';
+import { IModelService } from '../../../../editor/common/services/model.js';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isWindows } from 'vs/base/common/platform';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from './problemMatcher.js';
+import { IMarkerService, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
@@ -438,10 +438,10 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			let markerChanged: IDisposable | undefined =
 				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
 					return (last ?? []).concat(e);
-				}, 500)(async (markerEvent) => {
+				}, 500, false, true)(async (markerEvent) => {
 					markerChanged?.dispose();
 					markerChanged = undefined;
-					if (!markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
+					if (!markerEvent || !markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
 						return;
 					}
 					const oldLines = Array.from(this.lines);
@@ -450,8 +450,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					}
 				});
 			setTimeout(async () => {
-				markerChanged?.dispose();
+				// Calling dispose below can trigger the debounce event (via flushOnListenerRemove), so we
+				// have to unset markerChanged first to make sure the handler above doesn't dispose it again.
+				const _markerChanged = markerChanged;
 				markerChanged = undefined;
+				_markerChanged?.dispose();
 			}, 600);
 		}));
 	}

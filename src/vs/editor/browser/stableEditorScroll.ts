@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
+import { ICodeEditor } from './editorBrowser.js';
+import { Position } from '../common/core/position.js';
+import { ScrollType } from '../common/editorCommon.js';
 
 export class StableEditorScrollState {
 
@@ -59,6 +60,47 @@ export class StableEditorScrollState {
 		}
 
 		const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);
-		editor.setScrollTop(editor.getScrollTop() + offset);
+		editor.setScrollTop(editor.getScrollTop() + offset, ScrollType.Immediate);
+	}
+}
+
+
+export class StableEditorBottomScrollState {
+
+	public static capture(editor: ICodeEditor): StableEditorBottomScrollState {
+		if (editor.hasPendingScrollAnimation()) {
+			// Never mess with the scroll if there is a pending scroll animation
+			return new StableEditorBottomScrollState(editor.getScrollTop(), editor.getContentHeight(), null, 0);
+		}
+
+		let visiblePosition: Position | null = null;
+		let visiblePositionScrollDelta = 0;
+		const visibleRanges = editor.getVisibleRanges();
+		if (visibleRanges.length > 0) {
+			visiblePosition = visibleRanges.at(-1)!.getEndPosition();
+			const visiblePositionScrollBottom = editor.getBottomForLineNumber(visiblePosition.lineNumber);
+			visiblePositionScrollDelta = visiblePositionScrollBottom - editor.getScrollTop();
+		}
+		return new StableEditorBottomScrollState(editor.getScrollTop(), editor.getContentHeight(), visiblePosition, visiblePositionScrollDelta);
+	}
+
+	constructor(
+		private readonly _initialScrollTop: number,
+		private readonly _initialContentHeight: number,
+		private readonly _visiblePosition: Position | null,
+		private readonly _visiblePositionScrollDelta: number,
+	) {
+	}
+
+	public restore(editor: ICodeEditor): void {
+		if (this._initialContentHeight === editor.getContentHeight() && this._initialScrollTop === editor.getScrollTop()) {
+			// The editor's content height and scroll top haven't changed, so we don't need to do anything
+			return;
+		}
+
+		if (this._visiblePosition) {
+			const visiblePositionScrollBottom = editor.getBottomForLineNumber(this._visiblePosition.lineNumber);
+			editor.setScrollTop(visiblePositionScrollBottom - this._visiblePositionScrollDelta, ScrollType.Immediate);
+		}
 	}
 }

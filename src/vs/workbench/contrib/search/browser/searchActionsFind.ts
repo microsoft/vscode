@@ -2,36 +2,38 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { dirname } from 'vs/base/common/resources';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
-import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { URI } from 'vs/base/common/uri';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
-import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, VIEWLET_ID as VIEWLET_ID_FILES } from 'vs/workbench/contrib/files/common/files';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { category, getElementsToOperateOn, getSearchView, openSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { Schemas } from 'vs/base/common/network';
+import { dirname } from '../../../../base/common/resources.js';
+import * as nls from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListService, WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import * as Constants from '../common/constants.js';
+import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
+import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from './searchModel.js';
+import { OpenSearchEditorArgs } from '../../searchEditor/browser/searchEditor.contribution.js';
+import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { resolveResourcesForSearchIncludes } from '../../../services/search/common/queryBuilder.js';
+import { getMultiSelectedResources, IExplorerService } from '../../files/browser/files.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition, VIEWLET_ID as VIEWLET_ID_FILES } from '../../files/common/files.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ExplorerViewPaneContainer } from '../../files/browser/explorerViewlet.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { category, getElementsToOperateOn, getSearchView, openSearchView } from './searchActionsBase.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 
 //#region Interfaces
@@ -47,21 +49,19 @@ export interface IFindInFilesArgs {
 	matchWholeWord?: boolean;
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 	onlyOpenEditors?: boolean;
+	showIncludesExcludes?: boolean;
 }
 //#endregion
 
 registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.RestrictSearchToFolderId,
-			title: {
-				value: nls.localize('restrictResultsToFolder', "Restrict Search to Folder"),
-				original: 'Restrict Search to Folder'
-			},
+			id: Constants.SearchCommandIds.RestrictSearchToFolderId,
+			title: nls.localize2('restrictResultsToFolder', "Restrict Search to Folder"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ResourceFolderFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.ResourceFolderFocusKey),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
 			},
 			menu: [
@@ -69,7 +69,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 					id: MenuId.SearchContext,
 					group: 'search',
 					order: 3,
-					when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
+					when: ContextKeyExpr.and(Constants.SearchContext.ResourceFolderFocusKey)
 				}
 			]
 		});
@@ -79,21 +79,43 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	}
 });
 
+
+registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
+	constructor(
+	) {
+		super({
+			id: Constants.SearchCommandIds.ExpandRecursivelyCommandId,
+			title: nls.localize('search.expandRecursively', "Expand Recursively"),
+			category,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: ContextKeyExpr.and(
+					Constants.SearchContext.FolderFocusKey,
+					Constants.SearchContext.HasSearchResults
+				),
+				group: 'search',
+				order: 4
+			}]
+		});
+	}
+
+	override run(accessor: any) {
+		expandSelectSubtree(accessor);
+	}
+});
+
 registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
-			id: Constants.ExcludeFolderFromSearchId,
-			title: {
-				value: nls.localize('excludeFolderFromSearch', "Exclude Folder from Search"),
-				original: 'Exclude Folder from Search'
-			},
+			id: Constants.SearchCommandIds.ExcludeFolderFromSearchId,
+			title: nls.localize2('excludeFolderFromSearch', "Exclude Folder from Search"),
 			category,
 			menu: [
 				{
 					id: MenuId.SearchContext,
 					group: 'search',
 					order: 4,
-					when: ContextKeyExpr.and(Constants.ResourceFolderFocusKey)
+					when: ContextKeyExpr.and(Constants.SearchContext.ResourceFolderFocusKey)
 				}
 			]
 		});
@@ -108,15 +130,12 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.RevealInSideBarForSearchResults,
-			title: {
-				value: nls.localize('revealInSideBar', "Reveal in Explorer View"),
-				original: 'Reveal in Explorer View'
-			},
+			id: Constants.SearchCommandIds.RevealInSideBarForSearchResults,
+			title: nls.localize2('revealInSideBar', "Reveal in Explorer View"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
-				when: ContextKeyExpr.and(Constants.FileFocusKey, Constants.HasSearchResults),
+				when: ContextKeyExpr.and(Constants.SearchContext.FileFocusKey, Constants.SearchContext.HasSearchResults),
 				group: 'search_3',
 				order: 1
 			}]
@@ -166,11 +185,10 @@ registerAction2(class FindInFilesAction extends Action2 {
 	constructor(
 	) {
 		super({
-			id: Constants.FindInFilesActionId,
+			id: Constants.SearchCommandIds.FindInFilesActionId,
 			title: {
-				value: nls.localize('findInFiles', "Find in Files"),
+				...nls.localize2('findInFiles', "Find in Files"),
 				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
-				original: 'Find in Files'
 			},
 			metadata: {
 				description: nls.localize('findInFiles.description', "Open a workspace search"),
@@ -191,6 +209,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 								matchWholeWord: { 'type': 'boolean' },
 								useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 								onlyOpenEditors: { 'type': 'boolean' },
+								showIncludesExcludes: { 'type': 'boolean' }
 							}
 						}
 					},
@@ -220,11 +239,8 @@ registerAction2(class FindInFolderAction extends Action2 {
 	// from explorer
 	constructor() {
 		super({
-			id: Constants.FindInFolderId,
-			title: {
-				value: nls.localize('findInFolder', "Find in Folder..."),
-				original: 'Find in Folder...'
-			},
+			id: Constants.SearchCommandIds.FindInFolderId,
+			title: nls.localize2('findInFolder', "Find in Folder..."),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -250,11 +266,8 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 	// from explorer
 	constructor() {
 		super({
-			id: Constants.FindInWorkspaceId,
-			title: {
-				value: nls.localize('findInWorkspace', "Find in Workspace..."),
-				original: 'Find in Workspace...'
-			},
+			id: Constants.SearchCommandIds.FindInWorkspaceId,
+			title: nls.localize2('findInWorkspace', "Find in Workspace..."),
 			category,
 			menu: [
 				{
@@ -285,8 +298,17 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 });
 
 //#region Helpers
+function expandSelectSubtree(accessor: ServicesAccessor) {
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		const viewer = searchView.getControl();
+		const selected = viewer.getFocus()[0];
+		viewer.expand(selected, true);
+	}
+}
+
 async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: FolderMatchWithResource) {
-	const listService = accessor.get(IListService);
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
 	const contextService = accessor.get(IWorkspaceContextService);
@@ -297,9 +319,9 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	let resources: URI[];
 
 	if (isFromExplorer) {
-		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
+		resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	} else {
-		const searchView = getSearchView(accessor.get(IViewsService));
+		const searchView = getSearchView(viewsService);
 		if (!searchView) {
 			return;
 		}
@@ -386,6 +408,9 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
 				openedView.setSearchParameters(args);
+				if (typeof args.showIncludesExcludes === 'boolean') {
+					openedView.toggleQueryDetails(false, args.showIncludesExcludes);
+				}
 
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}

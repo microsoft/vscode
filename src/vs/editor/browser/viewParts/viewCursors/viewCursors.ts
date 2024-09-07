@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./viewCursors';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/core/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import './viewCursors.css';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
+import { ViewPart } from '../../view/viewPart.js';
+import { IViewCursorRenderData, ViewCursor, CursorPlurality } from './viewCursor.js';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import {
+	editorCursorBackground, editorCursorForeground,
+	editorMultiCursorPrimaryForeground, editorMultiCursorPrimaryBackground,
+	editorMultiCursorSecondaryForeground, editorMultiCursorSecondaryBackground
+} from '../../../common/core/editorColorRegistry.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { CursorChangeReason } from '../../../common/cursorEvents.js';
+import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom.js';
 
 export class ViewCursors extends ViewPart {
 
@@ -56,7 +61,7 @@ export class ViewCursors extends ViewPart {
 
 		this._isVisible = false;
 
-		this._primaryCursor = new ViewCursor(this._context);
+		this._primaryCursor = new ViewCursor(this._context, CursorPlurality.Single);
 		this._secondaryCursors = [];
 		this._renderData = [];
 
@@ -68,7 +73,7 @@ export class ViewCursors extends ViewPart {
 		this._domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._startCursorBlinkAnimation = new TimeoutTimer();
-		this._cursorFlatBlinkInterval = new IntervalTimer();
+		this._cursorFlatBlinkInterval = new WindowIntervalTimer();
 
 		this._blinkingEnabled = false;
 
@@ -87,6 +92,7 @@ export class ViewCursors extends ViewPart {
 	}
 
 	// --- begin event handlers
+
 	public override onCompositionStart(e: viewEvents.ViewCompositionStartEvent): boolean {
 		this._isComposingInput = true;
 		this._updateBlinking();
@@ -119,6 +125,7 @@ export class ViewCursors extends ViewPart {
 			this._secondaryCursors.length !== secondaryPositions.length
 			|| (this._cursorSmoothCaretAnimation === 'explicit' && reason !== CursorChangeReason.Explicit)
 		);
+		this._primaryCursor.setPlurality(secondaryPositions.length ? CursorPlurality.MultiPrimary : CursorPlurality.Single);
 		this._primaryCursor.onCursorPositionChanged(position, pauseAnimation);
 		this._updateBlinking();
 
@@ -126,7 +133,7 @@ export class ViewCursors extends ViewPart {
 			// Create new cursors
 			const addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
-				const newCursor = new ViewCursor(this._context);
+				const newCursor = new ViewCursor(this._context, CursorPlurality.MultiSecondary);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
@@ -159,7 +166,6 @@ export class ViewCursors extends ViewPart {
 
 		return true;
 	}
-
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;
@@ -253,7 +259,7 @@ export class ViewCursors extends ViewPart {
 					} else {
 						this._show();
 					}
-				}, ViewCursors.BLINK_INTERVAL);
+				}, ViewCursors.BLINK_INTERVAL, getWindow(this._domNode.domNode));
 			} else {
 				this._startCursorBlinkAnimation.setIfNotSet(() => {
 					this._blinkingEnabled = true;
@@ -262,6 +268,7 @@ export class ViewCursors extends ViewPart {
 			}
 		}
 	}
+
 	// --- end blinking logic
 
 	private _updateDomClassName(): void {
@@ -374,16 +381,29 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	const caret = theme.getColor(editorCursorForeground);
-	if (caret) {
-		let caretBackground = theme.getColor(editorCursorBackground);
-		if (!caretBackground) {
-			caretBackground = caret.opposite();
-		}
-		collector.addRule(`.monaco-editor .cursors-layer .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
-		if (isHighContrast(theme.type)) {
-			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
+	type CursorTheme = {
+		foreground: string;
+		background: string;
+		class: string;
+	};
+
+	const cursorThemes: CursorTheme[] = [
+		{ class: '.cursor', foreground: editorCursorForeground, background: editorCursorBackground },
+		{ class: '.cursor-primary', foreground: editorMultiCursorPrimaryForeground, background: editorMultiCursorPrimaryBackground },
+		{ class: '.cursor-secondary', foreground: editorMultiCursorSecondaryForeground, background: editorMultiCursorSecondaryBackground },
+	];
+
+	for (const cursorTheme of cursorThemes) {
+		const caret = theme.getColor(cursorTheme.foreground);
+		if (caret) {
+			let caretBackground = theme.getColor(cursorTheme.background);
+			if (!caretBackground) {
+				caretBackground = caret.opposite();
+			}
+			collector.addRule(`.monaco-editor .cursors-layer ${cursorTheme.class} { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
+			if (isHighContrast(theme.type)) {
+				collector.addRule(`.monaco-editor .cursors-layer.has-selection ${cursorTheme.class} { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
+			}
 		}
 	}
-
 });

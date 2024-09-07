@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
-import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/common/decorations';
-import { Schemas } from 'vs/base/common/network';
-import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { ITextModel } from 'vs/editor/common/model';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { IRange } from 'vs/editor/common/core/range';
+import { localize } from '../../nls.js';
+import { URI } from '../../base/common/uri.js';
+import { dirname, isEqual, basenameOrAuthority } from '../../base/common/resources.js';
+import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from '../../base/browser/ui/iconLabel/iconLabel.js';
+import { ILanguageService } from '../../editor/common/languages/language.js';
+import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IModelService } from '../../editor/common/services/model.js';
+import { ITextFileService } from '../services/textfile/common/textfiles.js';
+import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from '../services/decorations/common/decorations.js';
+import { Schemas } from '../../base/common/network.js';
+import { FileKind, FILES_ASSOCIATIONS_CONFIG } from '../../platform/files/common/files.js';
+import { ITextModel } from '../../editor/common/model.js';
+import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { ILabelService } from '../../platform/label/common/label.js';
+import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
+import { Disposable, dispose, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { normalizeDriveLetter } from '../../base/common/labels.js';
+import { IRange } from '../../editor/common/core/range.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { INotebookDocumentService } from '../services/notebook/common/notebookDocumentService.js';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -59,6 +62,11 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
 	readonly forceLabel?: boolean;
+
+	/**
+	 * Uses the provided icon instead of deriving a resource icon.
+	 */
+	readonly icon?: ThemeIcon | URI;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -283,7 +291,7 @@ class ResourceLabelWidget extends IconLabel {
 	readonly onDidRender = this._onDidRender.event;
 
 	private label: IResourceLabelProps | undefined = undefined;
-	private decoration = this._register(new MutableDisposable<IDecoration>());
+	private readonly decoration = this._register(new MutableDisposable<IDecoration>());
 	private options: IResourceLabelOptions | undefined = undefined;
 
 	private computedIconClasses: string[] | undefined = undefined;
@@ -302,7 +310,8 @@ class ResourceLabelWidget extends IconLabel {
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService
 	) {
 		super(container, options);
 	}
@@ -413,7 +422,13 @@ class ResourceLabelWidget extends IconLabel {
 
 		let description: string | undefined;
 		if (!options?.hidePath) {
-			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
+			const descriptionCandidate = this.labelService.getUriLabel(dirname(resource), { relative: true });
+			if (descriptionCandidate && descriptionCandidate !== '.') {
+				// omit description if its not significant: a relative path
+				// of '.' just indicates that there is no parent to the path
+				// https://github.com/microsoft/vscode/issues/208692
+				description = descriptionCandidate;
+			}
 		}
 
 		this.setResource({ resource, name, description, range: options?.range }, options);
@@ -459,9 +474,25 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
+		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCell) {
+			// Notebook cells are embeded in a notebook document
+			// As such we always ask the actual notebook document
+			// for its position in the document.
+			const notebookDocument = this.notebookDocumentService.getNotebook(resource);
+			const cellIndex = notebookDocument?.getCellIndex(resource);
+			if (notebookDocument && cellIndex !== undefined && typeof label.name === 'string') {
+				options.title = localize('notebookCellLabel', "{0} • Cell {1}", label.name, `${cellIndex + 1}`);
+			}
+
+			if (typeof label.name === 'string' && notebookDocument && cellIndex !== undefined && typeof label.name === 'string') {
+				label.name = localize('notebookCellLabel', "{0} • Cell {1}", label.name, `${cellIndex + 1}`);
+			}
+		}
+
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
 		const hasFileKindChanged = this.hasFileKindChanged(options);
+		const hasIconChanged = this.hasIconChanged(options);
 
 		this.label = label;
 		this.options = options;
@@ -475,7 +506,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		this.render({
-			updateIcon: hasResourceChanged || hasFileKindChanged,
+			updateIcon: hasResourceChanged || hasFileKindChanged || hasIconChanged,
 			updateDecoration: hasResourceChanged || hasFileKindChanged
 		});
 	}
@@ -506,6 +537,10 @@ class ResourceLabelWidget extends IconLabel {
 		const newResource = toResource(newLabel);
 
 		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
+	}
+
+	private hasIconChanged(newOptions?: IResourceLabelOptions): boolean {
+		return this.options?.icon !== newOptions?.icon;
 	}
 
 	clear(): void {
@@ -545,7 +580,8 @@ class ResourceLabelWidget extends IconLabel {
 			separator: this.options?.separator,
 			domId: this.options?.domId,
 			disabledCommand: this.options?.disabledCommand,
-			labelEscapeNewLines: this.options?.labelEscapeNewLines
+			labelEscapeNewLines: this.options?.labelEscapeNewLines,
+			descriptionTitle: this.options?.descriptionTitle,
 		};
 
 		const resource = toResource(this.label);
@@ -573,7 +609,11 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind);
+				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
+			}
+
+			if (URI.isUri(this.options.icon)) {
+				iconLabelOptions.iconPath = this.options.icon;
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);

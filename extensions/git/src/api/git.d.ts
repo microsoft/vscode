@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken, ThemeIcon } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -36,12 +36,19 @@ export interface Ref {
 export interface UpstreamRef {
 	readonly remote: string;
 	readonly name: string;
+	readonly commit?: string;
 }
 
 export interface Branch extends Ref {
 	readonly upstream?: UpstreamRef;
 	readonly ahead?: number;
 	readonly behind?: number;
+}
+
+export interface CommitShortStat {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
 export interface Commit {
@@ -52,6 +59,7 @@ export interface Commit {
 	readonly authorName?: string;
 	readonly authorEmail?: string;
 	readonly commitDate?: Date;
+	readonly shortStat?: CommitShortStat;
 }
 
 export interface Submodule {
@@ -114,6 +122,7 @@ export interface RepositoryState {
 	readonly mergeChanges: Change[];
 	readonly indexChanges: Change[];
 	readonly workingTreeChanges: Change[];
+	readonly untrackedChanges: Change[];
 
 	readonly onDidChange: Event<void>;
 }
@@ -134,6 +143,11 @@ export interface LogOptions {
 	readonly range?: string;
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly shortStats?: boolean;
+	readonly author?: string;
+	readonly refNames?: string[];
+	readonly maxParents?: number;
+	readonly skip?: number;
 }
 
 export interface CommitOptions {
@@ -185,6 +199,8 @@ export interface Repository {
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 
+	readonly onDidCommit: Event<void>;
+
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
 	setConfig(key: string, value: string): Promise<string>;
@@ -223,9 +239,11 @@ export interface Repository {
 	getBranchBase(name: string): Promise<Branch | undefined>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
+	checkIgnore(paths: string[]): Promise<Set<string>>;
+
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
-	getMergeBase(ref1: string, ref2: string): Promise<string>;
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
 	tag(name: string, upstream: string): Promise<void>;
 	deleteTag(name: string): Promise<void>;
@@ -246,6 +264,8 @@ export interface Repository {
 	log(options?: LogOptions): Promise<Commit[]>;
 
 	commit(message: string, opts?: CommitOptions): Promise<void>;
+	merge(ref: string): Promise<void>;
+	mergeAbort(): Promise<void>;
 }
 
 export interface RemoteSource {
@@ -301,12 +321,6 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
-export interface CommitMessageProvider {
-	readonly title: string;
-	readonly icon?: Uri | { light: Uri, dark: Uri } | ThemeIcon;
-	provideCommitMessage(repository: Repository, changes: string[], cancellationToken?: CancellationToken): Promise<string | undefined>;
-}
-
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -334,7 +348,6 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
-	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable;
 }
 
 export interface GitExtension {

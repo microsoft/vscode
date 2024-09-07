@@ -113,7 +113,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 					if (/\.d\.ts$/.test(fileName)) {
 						// if it's already a d.ts file just emit it signature
 						const snapshot = host.getScriptSnapshot(fileName);
-						const signature = crypto.createHash('md5')
+						const signature = crypto.createHash('sha256')
 							.update(snapshot.getText(0, snapshot.getLength()))
 							.digest('base64');
 
@@ -134,7 +134,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						}
 
 						if (/\.d\.ts$/.test(file.name)) {
-							signature = crypto.createHash('md5')
+							signature = crypto.createHash('sha256')
 								.update(file.text)
 								.digest('base64');
 
@@ -427,7 +427,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			const MB = 1024 * 1024;
 			_log(
 				'[tsb]',
-				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
+				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
 			);
 			headUsed = headNow;
 		});
@@ -660,7 +660,10 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 
 			while (!found && dirname.indexOf(stopDirname) === 0) {
 				dirname = path.dirname(dirname);
-				const resolvedPath = path.resolve(dirname, ref.fileName);
+				let resolvedPath = path.resolve(dirname, ref.fileName);
+				if (resolvedPath.endsWith('.js')) {
+					resolvedPath = resolvedPath.slice(0, -3);
+				}
 				const normalizedPath = normalize(resolvedPath);
 
 				if (this.getScriptSnapshot(normalizedPath + '.ts')) {

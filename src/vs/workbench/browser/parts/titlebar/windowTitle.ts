@@ -3,34 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { dirname, basename } from 'vs/base/common/resources';
-import { ITitleProperties } from 'vs/workbench/services/title/common/titleService';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isWeb, isMacintosh } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { trim } from 'vs/base/common/strings';
-import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { template } from 'vs/base/common/labels';
-import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
-import { Emitter } from 'vs/base/common/event';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IViewsService } from 'vs/workbench/common/views';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { localize } from '../../../../nls.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { trim } from '../../../../base/common/strings.js';
+import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
+import { template } from '../../../../base/common/labels.js';
+import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { getVirtualWorkspaceLocation } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
-	title = 'window.title',
+	title = 'window.title'
 }
+
+export const defaultWindowTitle = (() => {
+	if (isMacintosh && isNative) {
+		return '${activeEditorShort}${separator}${rootName}${separator}${profileName}'; // macOS has native dirty indicator
+	}
+
+	const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
+	if (isWeb) {
+		return base + '${separator}${remoteName}'; // Web: always show remote name
+	}
+
+	return base;
+})();
+export const defaultWindowTitleSeparator = isMacintosh ? ' \u2014 ' : ' - ';
 
 export class WindowTitle extends Disposable {
 
@@ -39,6 +56,8 @@ export class WindowTitle extends Disposable {
 	private static readonly TITLE_DIRTY = '\u25cf ';
 
 	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false, prefix: undefined };
+	private readonly variables = new Map<string /* context key */, string /* name */>();
+
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
@@ -47,16 +66,28 @@ export class WindowTitle extends Disposable {
 
 	get value() { return this.title ?? ''; }
 	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+	get fileName() {
+		const activeEditor = this.editorService.activeEditor;
+		if (!activeEditor) {
+			return undefined;
+		}
+		const fileName = activeEditor.getTitle(Verbosity.SHORT);
+		const dirty = activeEditor?.isDirty() && !activeEditor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
+		return `${dirty}${fileName}`;
+	}
 
 	private title: string | undefined;
 	private titleIncludesFocusedView: boolean = false;
 
 	private readonly editorService: IEditorService;
 
+	private readonly windowId: number;
+
 	constructor(
-		private readonly targetWindow: Window & typeof globalThis,
+		targetWindow: CodeWindow,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -68,6 +99,7 @@ export class WindowTitle extends Disposable {
 		super();
 
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+		this.windowId = targetWindow.vscodeWindowId;
 
 		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
@@ -83,6 +115,11 @@ export class WindowTitle extends Disposable {
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
 		this._register(this.viewsService.onDidChangeFocusedView(() => {
 			if (this.titleIncludesFocusedView) {
+				this.titleUpdater.schedule();
+			}
+		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this.variables)) {
 				this.titleUpdater.schedule();
 			}
 		}));
@@ -145,7 +182,8 @@ export class WindowTitle extends Disposable {
 				nativeTitle = this.productService.nameLong;
 			}
 
-			if (!this.targetWindow.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+			const window = getWindowById(this.windowId, true).window;
+			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
 				// `windowImpl.ts` somehow the window does not appear
@@ -153,10 +191,10 @@ export class WindowTitle extends Disposable {
 				// briefly to something different to ensure macOS
 				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
-				this.targetWindow.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
 
-			this.targetWindow.document.title = nativeTitle;
+			window.document.title = nativeTitle;
 			this.title = title;
 
 			this.onDidChangeEmitter.fire();
@@ -210,6 +248,22 @@ export class WindowTitle extends Disposable {
 			this.properties.isPure = isPure;
 			this.properties.prefix = prefix;
 
+			this.titleUpdater.schedule();
+		}
+	}
+
+	registerVariables(variables: ITitleVariable[]): void {
+		let changed = false;
+
+		for (const { name, contextKey } of variables) {
+			if (!this.variables.has(contextKey)) {
+				this.variables.set(contextKey, name);
+
+				changed = true;
+			}
+		}
+
+		if (changed) {
 			this.titleUpdater.schedule();
 		}
 	}
@@ -290,11 +344,24 @@ export class WindowTitle extends Disposable {
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
-		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
-		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
 		const focusedView: string = this.viewsService.getFocusedViewName();
+		const variables: Record<string, string> = {};
+		for (const [contextKey, name] of this.variables) {
+			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
+		}
+
+		let titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
+		if (typeof titleTemplate !== 'string') {
+			titleTemplate = defaultWindowTitle;
+		}
+
+		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
+		if (typeof separator !== 'string') {
+			separator = defaultWindowTitleSeparator;
+		}
 
 		return template(titleTemplate, {
+			...variables,
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,

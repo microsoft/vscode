@@ -3,45 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { marked } from 'vs/base/common/marked/marked';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { marked } from '../../../../../base/common/marked/marked.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
+import { localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
+import { CHAT_CATEGORY } from './chatActions.js';
+import { IChatWidgetService } from '../chat.js';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE, CONTEXT_VOTE_UP_ENABLED } from '../../common/chatContextKeys.js';
+import { IChatService, ChatAgentVoteDirection, ChatAgentVoteDownReason } from '../../common/chatService.js';
+import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
+import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
+import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
+import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+
+export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 
 export function registerChatTitleActions() {
 	registerAction2(class MarkHelpfulAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markHelpful',
-				title: {
-					value: localize('interactive.helpful.label', "Helpful"),
-					original: 'Helpful'
-				},
+				title: localize2('interactive.helpful.label', "Helpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('up'),
-				menu: {
+				menu: [{
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 1,
-					when: CONTEXT_RESPONSE
-				}
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
+				}, {
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_VOTE_UP_ENABLED, CONTEXT_RESPONSE_ERROR.negate())
+				}]
 			});
 		}
 
@@ -53,38 +58,94 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
 					kind: 'vote',
-					direction: InteractiveSessionVoteDirection.Up,
-					responseId: item.providerResponseId!,
+					direction: ChatAgentVoteDirection.Up,
+					reason: undefined
 				}
 			});
-			item.setVote(InteractiveSessionVoteDirection.Up);
+			item.setVote(ChatAgentVoteDirection.Up);
+			item.setVoteDownReason(undefined);
 		}
 	});
 
 	registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.markUnhelpful',
-				title: {
-					value: localize('interactive.unhelpful.label', "Unhelpful"),
-					original: 'Unhelpful'
-				},
+				id: MarkUnhelpfulActionId,
+				title: localize2('interactive.unhelpful.label', "Unhelpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('down'),
-				menu: {
+				menu: [{
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: CONTEXT_RESPONSE
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR.negate())
+				}, {
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR.negate())
+				}]
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) {
+				return;
+			}
+
+			const reason = args[1];
+			if (typeof reason !== 'string') {
+				return;
+			}
+
+			item.setVote(ChatAgentVoteDirection.Down);
+			item.setVoteDownReason(reason as ChatAgentVoteDownReason);
+
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction({
+				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
+				sessionId: item.sessionId,
+				requestId: item.requestId,
+				result: item.result,
+				action: {
+					kind: 'vote',
+					direction: ChatAgentVoteDirection.Down,
+					reason: item.voteDownReason
 				}
+			});
+		}
+	});
+
+	registerAction2(class ReportIssueForBugAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.reportIssueForBug',
+				title: localize2('interactive.reportIssueForBug.label', "Report Issue"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.report,
+				menu: [{
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+				}, {
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+				}]
 			});
 		}
 
@@ -96,17 +157,15 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
+				result: item.result,
 				action: {
-					kind: 'vote',
-					direction: InteractiveSessionVoteDirection.Down,
-					responseId: item.providerResponseId!,
+					kind: 'bug'
 				}
 			});
-			item.setVote(InteractiveSessionVoteDirection.Down);
 		}
 	});
 
@@ -114,10 +173,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNotebook',
-				title: {
-					value: localize('interactive.insertIntoNotebook.label', "Insert into Notebook"),
-					original: 'Insert into Notebook'
-				},
+				title: localize2('interactive.insertIntoNotebook.label', "Insert into Notebook"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -149,7 +205,7 @@ export function registerChatTitleActions() {
 					return;
 				}
 
-				const value = item.response.asString();
+				const value = item.response.toString();
 				const splitContents = splitMarkdownAndCodeBlocks(value);
 
 				const focusRange = notebookEditor.getFocus();
@@ -190,10 +246,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.remove',
-				title: {
-					value: localize('chat.remove.label', "Remove Request and Response"),
-					original: 'Remove Request and Response'
-				},
+				title: localize2('chat.remove.label', "Remove Request and Response"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
@@ -222,12 +275,12 @@ export function registerChatTitleActions() {
 				item = widget?.getFocus();
 			}
 
-			const providerRequestId = isRequestVM(item) ? item.providerRequestId :
-				isResponseVM(item) ? item.providerResponseId : undefined;
+			const requestId = isRequestVM(item) ? item.id :
+				isResponseVM(item) ? item.requestId : undefined;
 
-			if (providerRequestId) {
+			if (requestId) {
 				const chatService = accessor.get(IChatService);
-				chatService.removeRequest(item.sessionId, providerRequestId);
+				chatService.removeRequest(item.sessionId, requestId);
 			}
 		}
 	});

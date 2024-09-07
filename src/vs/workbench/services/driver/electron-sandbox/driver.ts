@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BrowserWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { BrowserWindowDriver } from '../browser/driver.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 
 interface INativeWindowDriverHelper {
 	exitApplication(): Promise<void>;
@@ -19,9 +21,10 @@ class NativeWindowDriver extends BrowserWindowDriver {
 		private readonly helper: INativeWindowDriverHelper,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILogService logService: ILogService
 	) {
-		super(fileService, environmentService, lifecycleService);
+		super(fileService, environmentService, lifecycleService, logService);
 	}
 
 	override exitApplication(): Promise<void> {
@@ -30,5 +33,5 @@ class NativeWindowDriver extends BrowserWindowDriver {
 }
 
 export function registerWindowDriver(instantiationService: IInstantiationService, helper: INativeWindowDriverHelper): void {
-	Object.assign(window, { driver: instantiationService.createInstance(NativeWindowDriver, helper) });
+	Object.assign(mainWindow, { driver: instantiationService.createInstance(NativeWindowDriver, helper) });
 }

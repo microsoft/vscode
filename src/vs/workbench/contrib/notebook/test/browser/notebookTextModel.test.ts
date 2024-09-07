@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, ICellEditOperation, MOVE_CURSOR_1_LINE_COMMAND, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellEditType, CellKind, ICellEditOperation, MOVE_CURSOR_1_LINE_COMMAND, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from '../../common/notebookCommon.js';
+import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookTextModel', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageService: ILanguageService;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
@@ -36,11 +39,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);
@@ -59,11 +62,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);
@@ -103,11 +106,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(textModel.cells.length, 4);
 
@@ -125,11 +128,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -148,10 +151,10 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -640,7 +643,7 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
 				const eventListener = textModel.onDidChangeContent(e => {
@@ -654,7 +657,7 @@ suite('NotebookTextModel', () => {
 
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -754,12 +757,12 @@ suite('NotebookTextModel', () => {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], (editor) => {
+		], (editor, _, ds) => {
 			const model = editor.textModel;
 
 			let event: NotebookTextModelChangedEvent | undefined;
 
-			model.onDidChangeContent(e => { event = e; });
+			ds.add(model.onDidChangeContent(e => { event = e; }));
 
 			{
 				// 1: add ouput -> event
@@ -1399,5 +1402,113 @@ suite('NotebookTextModel', () => {
 			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foobarbaz');
 		});
 
+	});
+
+	test('findNextMatch', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				const notebookModel = viewModel.notebookDocument;
+
+				// Test case 1: Find 'var' starting from the first cell
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+
+				// Test case 2: Find 'b' starting from the second cell
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 3: Find 'c' starting from the third cell
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 4: Find 'd' starting from the fourth cell
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 5: No match found
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.strictEqual(findMatch, null);
+			}
+		);
+	});
+
+	test('findNextMatch 2', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1; var a = 2;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				const notebookModel = viewModel.notebookDocument;
+
+				// Test case 1: Find 'var' starting from the first cell
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+
+				// Test case 2: Find 'b' starting from the second cell
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 3: Find 'c' starting from the third cell
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 4: Find 'd' starting from the fourth cell
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 5: No match found
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.strictEqual(findMatch, null);
+
+				// Test case 6: Same keywords in the same cell
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 5 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 12);
+
+				// Test case 7: Search from the middle of a cell with keyword before and after
+				findMatch = notebookModel.findNextMatch('a', { cellIndex: 0, position: { lineNumber: 1, column: 10 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 13);
+
+				// Test case 8: Search from a cell and next match is in another cell below
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 20 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+				// assert.strictEqual(match!.cellIndex, 1);
+			}
+		);
 	});
 });

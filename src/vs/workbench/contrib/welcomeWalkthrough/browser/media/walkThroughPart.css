@@ -18,7 +18,7 @@
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent a {
-	text-decoration: none;
+	text-decoration: var(--text-link-decoration);
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent a:focus,
@@ -153,13 +153,15 @@
 .monaco-workbench .part.editor > .content .walkThroughContent code,
 .monaco-workbench .part.editor > .content .walkThroughContent .shortcut {
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	border-radius: 3px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor {
 	border-color: var(--vscode-contrastBorder);
 }
 
-.monaco-workbench .part.editor>.content .walkThroughContent .monaco-editor-background,
-.monaco-workbench .part.editor>.content .walkThroughContent .margin-view-overlays {
+.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor-background,
+.monaco-workbench .part.editor > .content .walkThroughContent .margin-view-overlays {
 	background: var(--vscode-walkThrough-embeddedEditorBackground);
 }

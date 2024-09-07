@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as resources from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITaskService, IWorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, IWorkspaceTaskSource } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
+import * as nls from '../../../../nls.js';
+import * as resources from '../../../../base/common/resources.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ITaskService, IWorkspaceFolderTaskResult } from '../common/taskService.js';
+import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, IWorkspaceTaskSource } from '../common/tasks.js';
+import { IQuickPickItem, IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
@@ -50,9 +50,34 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			this._logService.trace('RunAutomaticTasks: Awaiting task system info.');
 			await Event.toPromise(Event.once(this._taskService.onDidChangeTaskSystemInfo));
 		}
-		const workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
+		let workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
 		this._logService.trace(`RunAutomaticTasks: Found ${workspaceTasks.size} automatic tasks`);
-		await this._runWithPermission(this._taskService, this._configurationService, workspaceTasks);
+
+		let autoTasks = this._findAutoTasks(this._taskService, workspaceTasks);
+		this._logService.trace(`RunAutomaticTasks: taskNames=${JSON.stringify(autoTasks.taskNames)}`);
+
+		// As seen in some cases with the Remote SSH extension, the tasks configuration is loaded after we have come
+		// to this point. Let's give it some extra time.
+		if (autoTasks.taskNames.length === 0) {
+			const updatedWithinTimeout = await Promise.race([
+				new Promise<boolean>((resolve) => {
+					Event.toPromise(Event.once(this._taskService.onDidChangeTaskConfig)).then(() => resolve(true));
+				}),
+				new Promise<boolean>((resolve) => {
+					const timer = setTimeout(() => { clearTimeout(timer); resolve(false); }, 10000);
+				})]);
+
+			if (!updatedWithinTimeout) {
+				this._logService.trace(`RunAutomaticTasks: waited some extra time, but no update of tasks configuration`);
+				return;
+			}
+
+			workspaceTasks = await this._taskService.getWorkspaceTasks(TaskRunSource.FolderOpen);
+			autoTasks = this._findAutoTasks(this._taskService, workspaceTasks);
+			this._logService.trace(`RunAutomaticTasks: updated taskNames=${JSON.stringify(autoTasks.taskNames)}`);
+		}
+
+		this._runWithPermission(this._taskService, this._configurationService, autoTasks.tasks, autoTasks.taskNames);
 	}
 
 	private _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
@@ -124,10 +149,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames, locations };
 	}
 
-	private async _runWithPermission(taskService: ITaskService, configurationService: IConfigurationService, workspaceTaskResult: Map<string, IWorkspaceFolderTaskResult>) {
-
-		const { tasks, taskNames } = this._findAutoTasks(taskService, workspaceTaskResult);
-
+	private async _runWithPermission(taskService: ITaskService, configurationService: IConfigurationService, tasks: (Task | Promise<Task | undefined>)[], taskNames: string[]) {
 		if (taskNames.length === 0) {
 			return;
 		}

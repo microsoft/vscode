@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, flatten } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ResourceMap } from 'vs/base/common/map';
+import { distinct } from '../../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { JSONPath, parse } from '../../../../base/common/json.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IJSONEditingService, IJSONValue } from '../../configuration/common/jsonEditing.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 
 export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
@@ -81,12 +81,12 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 
 	async getRecommendations(): Promise<string[]> {
 		const configs = await this.getExtensionsConfigs();
-		return distinct(flatten(configs.map(c => c.recommendations ? c.recommendations.map(c => c.toLowerCase()) : [])));
+		return distinct(configs.flatMap(c => c.recommendations ? c.recommendations.map(c => c.toLowerCase()) : []));
 	}
 
 	async getUnwantedRecommendations(): Promise<string[]> {
 		const configs = await this.getExtensionsConfigs();
-		return distinct(flatten(configs.map(c => c.unwantedRecommendations ? c.unwantedRecommendations.map(c => c.toLowerCase()) : [])));
+		return distinct(configs.flatMap(c => c.unwantedRecommendations ? c.unwantedRecommendations.map(c => c.toLowerCase()) : []));
 	}
 
 	async toggleRecommendation(extensionId: string): Promise<void> {
@@ -145,12 +145,20 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	private async addOrRemoveWorkspaceFolderRecommendation(extensionId: string, workspaceFolder: IWorkspaceFolder, extensionsConfigContent: IExtensionsConfigContent, add: boolean): Promise<void> {
 		const values: IJSONValue[] = [];
 		if (add) {
-			values.push({ path: ['recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
-			if (extensionsConfigContent.unwantedRecommendations && extensionsConfigContent.unwantedRecommendations.some(e => e === extensionId)) {
-				values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+			if (Array.isArray(extensionsConfigContent.recommendations)) {
+				values.push({ path: ['recommendations', -1], value: extensionId });
+			} else {
+				values.push({ path: ['recommendations'], value: [extensionId] });
+			}
+			const unwantedRecommendationEdit = this.getEditToRemoveValueFromArray(['unwantedRecommendations'], extensionsConfigContent.unwantedRecommendations, extensionId);
+			if (unwantedRecommendationEdit) {
+				values.push(unwantedRecommendationEdit);
 			}
 		} else if (extensionsConfigContent.recommendations) {
-			values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+			const recommendationEdit = this.getEditToRemoveValueFromArray(['recommendations'], extensionsConfigContent.recommendations, extensionId);
+			if (recommendationEdit) {
+				values.push(recommendationEdit);
+			}
 		}
 
 		if (values.length) {
@@ -162,12 +170,21 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		const values: IJSONValue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['extensions', 'recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
-				if (extensionsConfigContent.unwantedRecommendations && extensionsConfigContent.unwantedRecommendations.some(e => e === extensionId)) {
-					values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+				const path: JSONPath = ['extensions', 'recommendations'];
+				if (Array.isArray(extensionsConfigContent.recommendations)) {
+					values.push({ path: [...path, -1], value: extensionId });
+				} else {
+					values.push({ path, value: [extensionId] });
+				}
+				const unwantedRecommendationEdit = this.getEditToRemoveValueFromArray(['extensions', 'unwantedRecommendations'], extensionsConfigContent.unwantedRecommendations, extensionId);
+				if (unwantedRecommendationEdit) {
+					values.push(unwantedRecommendationEdit);
 				}
 			} else if (extensionsConfigContent.recommendations) {
-				values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+				const recommendationEdit = this.getEditToRemoveValueFromArray(['extensions', 'recommendations'], extensionsConfigContent.recommendations, extensionId);
+				if (recommendationEdit) {
+					values.push(recommendationEdit);
+				}
 			}
 		} else if (add) {
 			values.push({ path: ['extensions'], value: { recommendations: [extensionId] } });
@@ -181,12 +198,21 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	private async addOrRemoveWorkspaceFolderUnwantedRecommendation(extensionId: string, workspaceFolder: IWorkspaceFolder, extensionsConfigContent: IExtensionsConfigContent, add: boolean): Promise<void> {
 		const values: IJSONValue[] = [];
 		if (add) {
-			values.push({ path: ['unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
-			if (extensionsConfigContent.recommendations && extensionsConfigContent.recommendations.some(e => e === extensionId)) {
-				values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+			const path: JSONPath = ['unwantedRecommendations'];
+			if (Array.isArray(extensionsConfigContent.unwantedRecommendations)) {
+				values.push({ path: [...path, -1], value: extensionId });
+			} else {
+				values.push({ path, value: [extensionId] });
+			}
+			const recommendationEdit = this.getEditToRemoveValueFromArray(['recommendations'], extensionsConfigContent.recommendations, extensionId);
+			if (recommendationEdit) {
+				values.push(recommendationEdit);
 			}
 		} else if (extensionsConfigContent.unwantedRecommendations) {
-			values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+			const unwantedRecommendationEdit = this.getEditToRemoveValueFromArray(['unwantedRecommendations'], extensionsConfigContent.unwantedRecommendations, extensionId);
+			if (unwantedRecommendationEdit) {
+				values.push(unwantedRecommendationEdit);
+			}
 		}
 		if (values.length) {
 			return this.jsonEditingService.write(workspaceFolder.toResource(EXTENSIONS_CONFIG), values, true);
@@ -197,12 +223,21 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		const values: IJSONValue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['extensions', 'unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
-				if (extensionsConfigContent.recommendations && extensionsConfigContent.recommendations.some(e => e === extensionId)) {
-					values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+				const path: JSONPath = ['extensions', 'unwantedRecommendations'];
+				if (Array.isArray(extensionsConfigContent.recommendations)) {
+					values.push({ path: [...path, -1], value: extensionId });
+				} else {
+					values.push({ path, value: [extensionId] });
+				}
+				const recommendationEdit = this.getEditToRemoveValueFromArray(['extensions', 'recommendations'], extensionsConfigContent.recommendations, extensionId);
+				if (recommendationEdit) {
+					values.push(recommendationEdit);
 				}
 			} else if (extensionsConfigContent.unwantedRecommendations) {
-				values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+				const unwantedRecommendationEdit = this.getEditToRemoveValueFromArray(['extensions', 'unwantedRecommendations'], extensionsConfigContent.unwantedRecommendations, extensionId);
+				if (unwantedRecommendationEdit) {
+					values.push(unwantedRecommendationEdit);
+				}
 			}
 		} else if (add) {
 			values.push({ path: ['extensions'], value: { unwantedRecommendations: [extensionId] } });
@@ -237,7 +272,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		}
 
 		const result = await this.quickInputService.pick(folderPicks, { placeHolder, canPickMany: true }) || [];
-		return result.map(r => r.workspaceOrFolder!);
+		return result.map(r => r.workspaceOrFolder);
 	}
 
 	private async resolveWorkspaceExtensionConfig(workspaceConfigurationResource: URI): Promise<IExtensionsConfigContent | undefined> {
@@ -263,6 +298,14 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 			recommendations: distinct((extensionsConfigContent.recommendations || []).map(e => e.toLowerCase())),
 			unwantedRecommendations: distinct((extensionsConfigContent.unwantedRecommendations || []).map(e => e.toLowerCase()))
 		};
+	}
+
+	private getEditToRemoveValueFromArray(path: JSONPath, array: string[] | undefined, value: string): IJSONValue | undefined {
+		const index = array?.indexOf(value);
+		if (index !== undefined && index !== -1) {
+			return { path: [...path, index], value: undefined };
+		}
+		return undefined;
 	}
 
 }

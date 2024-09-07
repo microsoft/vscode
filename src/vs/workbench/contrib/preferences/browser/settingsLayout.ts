@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+import { localize } from '../../../../nls.js';
+import { ExtensionToggleData } from '../common/preferences.js';
 
 export interface ITOCEntry<T> {
 	id: string;
@@ -70,6 +70,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'editor/diffEditor',
 					label: localize('diffEditor', "Diff Editor"),
 					settings: ['diffEditor.*']
+				},
+				{
+					id: 'editor/multiDiffEditor',
+					label: localize('multiDiffEditor', "Multi-File Diff Editor"),
+					settings: ['multiDiffEditor.*']
 				},
 				{
 					id: 'editor/minimap',
@@ -141,6 +146,11 @@ export const tocData: ITOCEntry<string> = {
 			id: 'features',
 			label: localize('features', "Features"),
 			children: [
+				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signal*']
+				},
 				{
 					id: 'features/accessibility',
 					label: localize('accessibility', "Accessibility"),
@@ -217,11 +227,6 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['notebook.*', 'interactiveWindow.*']
 				},
 				{
-					id: 'features/audioCues',
-					label: localize('audioCues', 'Audio Cues'),
-					settings: ['audioCues.*']
-				},
-				{
 					id: 'features/mergeEditor',
 					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']
@@ -230,6 +235,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/chat',
 					label: localize('chat', 'Chat'),
 					settings: ['chat.*', 'inlineChat.*']
+				},
+				{
+					id: 'features/issueReporter',
+					label: localize('issueReporter', 'Issue Reporter'),
+					settings: ['issueReporter.*']
 				}
 			]
 		},

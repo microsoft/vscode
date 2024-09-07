@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { AccessibilityWorkbenchSettingId, ViewDimUnfocusedOpacityProperties } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { createStyleSheet } from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { AccessibilityWorkbenchSettingId, ViewDimUnfocusedOpacityProperties } from './accessibilityConfiguration.js';
 
 export class UnfocusedViewDimmingContribution extends Disposable implements IWorkbenchContribution {
 	private _styleElement?: HTMLStyleElement;
+	private _styleElementDisposables: DisposableStore | undefined = undefined;
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -74,14 +75,16 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 
 	private _getStyleElement(): HTMLStyleElement {
 		if (!this._styleElement) {
-			this._styleElement = createStyleSheet();
+			this._styleElementDisposables = new DisposableStore();
+			this._styleElement = createStyleSheet(undefined, undefined, this._styleElementDisposables);
 			this._styleElement.className = 'accessibilityUnfocusedViewOpacity';
 		}
 		return this._styleElement;
 	}
 
 	private _removeStyleElement(): void {
-		this._styleElement?.remove();
+		this._styleElementDisposables?.dispose();
+		this._styleElementDisposables = undefined;
 		this._styleElement = undefined;
 	}
 }

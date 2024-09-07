@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 export const DEFAULT_ICON = registerIcon('settings-view-bar-icon', Codicon.settingsGear, localize('settingsViewBarIcon', "Settings icon in the view bar."));
 
@@ -20,10 +20,14 @@ export const ICONS = [
 	Codicon.recordKeys,
 	Codicon.deviceMobile,
 	Codicon.watch,
+	Codicon.vr,
+	Codicon.piano,
 
 	/* languages */
 	Codicon.ruby,
 	Codicon.code,
+	Codicon.coffee,
+	Codicon.snake,
 
 	/* project types */
 	Codicon.window,
@@ -37,6 +41,10 @@ export const ICONS = [
 	Codicon.globe,
 	Codicon.database,
 	Codicon.notebook,
+	Codicon.robot,
+	Codicon.game,
+	Codicon.chip,
+	Codicon.music,
 
 	/* misc */
 	Codicon.gift,
@@ -63,7 +71,7 @@ export const ICONS = [
 	Codicon.pulse,
 	Codicon.radioTower,
 	Codicon.smiley,
-	Codicon.symbolEvent,
+	Codicon.zap,
 	Codicon.squirrel,
 	Codicon.symbolColor,
 	Codicon.mail,
@@ -83,5 +91,6 @@ export const ICONS = [
 	Codicon.paintcan,
 	Codicon.archive,
 	Codicon.mic,
+	Codicon.jersey,
 
 ];

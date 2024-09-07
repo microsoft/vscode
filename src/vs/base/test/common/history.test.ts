@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { HistoryNavigator, HistoryNavigator2 } from 'vs/base/common/history';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { HistoryNavigator, HistoryNavigator2 } from '../../common/history.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('History Navigator', () => {
 
@@ -183,6 +183,8 @@ suite('History Navigator', () => {
 });
 
 suite('History Navigator 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('constructor', () => {
 		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);

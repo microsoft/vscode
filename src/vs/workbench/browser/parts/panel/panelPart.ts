@@ -3,32 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panelpart';
-import { localize } from 'vs/nls';
-import { IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/contextkeys';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { contrastBorder, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension } from 'vs/base/browser/dom';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
+import './media/panelpart.css';
+import { localize } from '../../../../nls.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActivePanelContext, PanelFocusContext } from '../../../common/contextkeys.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { TogglePanelAction } from './panelActions.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../common/theme.js';
+import { contrastBorder, badgeBackground, badgeForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { Dimension } from '../../../../base/browser/dom.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class PanelPart extends AbstractPaneCompositePart {
 
@@ -70,6 +72,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -77,6 +80,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -92,6 +96,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			contextMenuService,
 			layoutService,
 			keybindingService,
+			hoverService,
 			instantiationService,
 			themeService,
 			viewDescriptorService,
@@ -99,6 +104,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 			extensionService,
 			menuService,
 		);
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.panel.showLabel')) {
+				this.updateCompositeBar(true);
+			}
+		}));
 	}
 
 	override updateStyles(): void {
@@ -109,6 +120,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		container.style.borderLeftColor = borderColor;
 		container.style.borderRightColor = borderColor;
+		container.style.borderBottomColor = borderColor;
 
 		const title = this.getTitleArea();
 		if (title) {
@@ -122,7 +134,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
 			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
-			icon: false,
+			icon: !this.configurationService.getValue('workbench.panel.showLabel'),
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -146,14 +158,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 	}
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
-		const panelPositionMenu = this.menuService.createMenu(MenuId.PanelPositionMenu, this.contextKeyService);
-		const panelAlignMenu = this.menuService.createMenu(MenuId.PanelAlignmentMenu, this.contextKeyService);
+		const panelPositionMenu = this.menuService.getMenuActions(MenuId.PanelPositionMenu, this.contextKeyService, { shouldForwardArgs: true });
+		const panelAlignMenu = this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true });
 		const positionActions: IAction[] = [];
 		const alignActions: IAction[] = [];
-		createAndFillInContextMenuActions(panelPositionMenu, { shouldForwardArgs: true }, { primary: [], secondary: positionActions });
-		createAndFillInContextMenuActions(panelAlignMenu, { shouldForwardArgs: true }, { primary: [], secondary: alignActions });
-		panelAlignMenu.dispose();
-		panelPositionMenu.dispose();
+		createAndFillInContextMenuActions(panelPositionMenu, { primary: [], secondary: positionActions });
+		createAndFillInContextMenuActions(panelAlignMenu, { primary: [], secondary: alignActions });
 
 		actions.push(...[
 			new Separator(),
@@ -165,18 +175,28 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		let dimensions: Dimension;
-		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-		} else {
-			dimensions = new Dimension(width, height);
+		switch (this.layoutService.getPanelPosition()) {
+			case Position.RIGHT:
+				dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
+				break;
+			case Position.TOP:
+				dimensions = new Dimension(width, height - 1); // Take into account the 1px border when layouting
+				break;
+			default:
+				dimensions = new Dimension(width, height);
+				break;
 		}
 
 		// Layout contents
 		super.layout(dimensions.width, dimensions.height, top, left);
 	}
 
-	protected shouldShowCompositeBar(): boolean {
+	protected override shouldShowCompositeBar(): boolean {
 		return true;
+	}
+
+	protected getCompositeBarPosition(): CompositeBarPosition {
+		return CompositeBarPosition.TITLE;
 	}
 
 	toJSON(): object {

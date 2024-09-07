@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { SnippetsSynchroniser } from '../../common/snippetsSync.js';
+import { IResourcePreview, ISyncData, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from '../../common/userDataSync.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 const tsSnippet1 = `{
 
@@ -230,7 +230,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -265,7 +265,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -300,7 +300,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1 });
 	});
 
@@ -363,7 +363,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2, 'typescript.json': tsSnippet1 });
 	});
 
@@ -383,7 +383,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'typescript.json': tsSnippet1 });
 	});
 
@@ -419,7 +419,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2 });
 	});
 
@@ -476,7 +476,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet2 });
 	});
 
@@ -497,7 +497,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1 });
 	});
 
@@ -583,7 +583,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1, 'html.json': htmlSnippet3 });
 	});
 
@@ -611,7 +611,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1 });
 	});
 
@@ -631,7 +631,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'html.json': htmlSnippet1, 'global.code-snippets': globalSnippet });
 	});
 
@@ -654,7 +654,7 @@ suite('SnippetsSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseSnippets(content!);
+		const actual = parseSnippets(content);
 		assert.deepStrictEqual(actual, { 'typescript.json': tsSnippet1, 'global.code-snippets': globalSnippet });
 	});
 

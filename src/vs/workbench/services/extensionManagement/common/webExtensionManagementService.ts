@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { isBoolean, isUndefined } from 'vs/base/common/types';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { delta } from 'vs/base/common/arrays';
-import { compare } from 'vs/base/common/strings';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { areSameExtensions, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IProfileAwareExtensionManagementService, IScannedExtension, IWebExtensionsScannerService } from './extensionManagement.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../../../../platform/extensionManagement/common/abstractExtensionManagementService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { isBoolean, isUndefined } from '../../../../base/common/types.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { delta } from '../../../../base/common/arrays.js';
+import { compare } from '../../../../base/common/strings.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IProfileAwareExtensionManagementService {
 
@@ -102,8 +102,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	async install(location: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', location.toString());
 		const manifest = await this.webExtensionsScannerService.scanExtensionManifest(location);
-		if (!manifest) {
-			throw new Error(`Cannot find packageJSON from the location ${location.toString()}`);
+		if (!manifest || !manifest.name || !manifest.version) {
+			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
 		}
 		const result = await this.installExtensions([{ manifest, extension: location, options }]);
 		if (result[0]?.local) {
@@ -149,7 +149,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return result;
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension> {
 		// unset if false
 		if (metadata.isMachineScoped === false) {
 			metadata.isMachineScoped = undefined;
@@ -160,9 +160,9 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		if (metadata.pinned === false) {
 			metadata.pinned = undefined;
 		}
-		const updatedExtension = await this.webExtensionsScannerService.updateMetadata(local, metadata, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
+		const updatedExtension = await this.webExtensionsScannerService.updateMetadata(local, metadata, profileLocation);
 		const updatedLocalExtension = toLocalExtension(updatedExtension);
-		this._onDidUpdateExtensionMetadata.fire(updatedLocalExtension);
+		this._onDidUpdateExtensionMetadata.fire({ local: updatedLocalExtension, profileLocation });
 		return updatedLocalExtension;
 	}
 
@@ -170,8 +170,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		await this.webExtensionsScannerService.copyExtensions(fromProfileLocation, toProfileLocation, e => !e.metadata?.isApplicationScoped);
 	}
 
-	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean): Promise<IGalleryExtension | null> {
-		const compatibleExtension = await super.getCompatibleVersion(extension, sameVersion, includePreRelease);
+	protected override async getCompatibleVersion(extension: IGalleryExtension, sameVersion: boolean, includePreRelease: boolean, productVersion: IProductVersion): Promise<IGalleryExtension | null> {
+		const compatibleExtension = await super.getCompatibleVersion(extension, sameVersion, includePreRelease, productVersion);
 		if (compatibleExtension) {
 			return compatibleExtension;
 		}
@@ -199,7 +199,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
 	download(): Promise<URI> { throw new Error('unsupported'); }
 	reinstallFromGallery(): Promise<ILocalExtension> { throw new Error('unsupported'); }
@@ -227,13 +226,16 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		isMachineScoped: !!metadata.isMachineScoped,
 		isApplicationScoped: !!metadata.isApplicationScoped,
 		publisherId: metadata.publisherId || null,
-		publisherDisplayName: metadata.publisherDisplayName || null,
+		publisherDisplayName: metadata.publisherDisplayName,
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
+		hasPreReleaseVersion: !!metadata.hasPreReleaseVersion,
 		preRelease: !!metadata.preRelease,
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,
+		isWorkspaceScoped: false,
+		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource')
 	};
 }
 
@@ -255,7 +257,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
-		manifest: IExtensionManifest,
+		readonly manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
 		readonly options: InstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
@@ -280,16 +282,17 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.publisherId = this.extension.publisherId;
 			metadata.installedTimestamp = Date.now();
 			metadata.isPreReleaseVersion = this.extension.properties.isPreReleaseVersion;
+			metadata.hasPreReleaseVersion = metadata.hasPreReleaseVersion || this.extension.properties.isPreReleaseVersion;
 			metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 			metadata.updated = !!existingExtension;
 			metadata.isApplicationScoped = this.options.isApplicationScoped || metadata.isApplicationScoped;
-			metadata.preRelease = this.extension.properties.isPreReleaseVersion ||
-				(isBoolean(this.options.installPreReleaseVersion)
-					? this.options.installPreReleaseVersion /* Respect the passed flag */
-					: metadata?.preRelease /* Respect the existing pre-release flag if it was set */);
+			metadata.preRelease = isBoolean(this.options.preRelease)
+				? this.options.preRelease
+				: this.options.installPreReleaseVersion || this.extension.properties.isPreReleaseVersion || metadata.preRelease;
+			metadata.source = URI.isUri(this.extension) ? 'resource' : 'gallery';
 		}
-		metadata.pinned = this.options.installGivenVersion ? true : undefined;
+		metadata.pinned = this.options.installGivenVersion ? true : (this.options.pinned ?? metadata.pinned);
 
 		this._profileLocation = metadata.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : this.options.profileLocation;
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata, this.profileLocation)
@@ -302,7 +305,7 @@ class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUni
 
 	constructor(
 		readonly extension: ILocalExtension,
-		private readonly options: UninstallExtensionTaskOptions,
+		readonly options: UninstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super();

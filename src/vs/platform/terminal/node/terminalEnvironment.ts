@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import { FileAccess } from 'vs/base/common/network';
-import { getCaseInsensitive } from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
-import { format } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import * as pfs from 'vs/base/node/pfs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/environmentVariable';
-import { deserializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { FileAccess } from '../../../base/common/network.js';
+import { getCaseInsensitive } from '../../../base/common/objects.js';
+import * as path from '../../../base/common/path.js';
+import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import * as process from '../../../base/common/process.js';
+import { format } from '../../../base/common/strings.js';
+import { isString } from '../../../base/common/types.js';
+import * as pfs from '../../../base/node/pfs.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from '../common/terminal.js';
+import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
+import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
+import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -112,12 +112,23 @@ export function getShellIntegrationInjection(
 	logService: ILogService,
 	productService: IProductService
 ): IShellIntegrationConfigInjection | undefined {
-	// Shell integration arg injection is disabled when:
+	// Conditionally disable shell integration arg injection
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
 	// - The terminal is used by a feature like tasks or debugging
 	const useWinpty = isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309);
-	if (!options.shellIntegration.enabled || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal || shellLaunchConfig.hideFromUser || shellLaunchConfig.ignoreShellIntegration || useWinpty) {
+	if (
+		// The global setting is disabled
+		!options.shellIntegration.enabled ||
+		// There is no executable (so there's no way to determine how to inject)
+		!shellLaunchConfig.executable ||
+		// It's a feature terminal (tasks, debug), unless it's explicitly being forced
+		(shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.forceShellIntegration) ||
+		// The ignoreShellIntegration flag is passed (eg. relaunching without shell integration)
+		shellLaunchConfig.ignoreShellIntegration ||
+		// Winpty is unsupported
+		useWinpty
+	) {
 		return undefined;
 	}
 
@@ -146,10 +157,25 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			// TODO: Uncomment when suggestEnabled is ready for use
-			// if (options.shellIntegration.suggestEnabled) {
-			// 	envMixin['VSCODE_SUGGEST'] = '1';
-			// }
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			if (options.shellIntegration.suggestEnabled) {
+				envMixin['VSCODE_SUGGEST'] = '1';
+			}
+			return { newArgs, envMixin };
+		} else if (shell === 'bash.exe') {
+			if (!originalArgs || originalArgs.length === 0) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
+			} else if (areZshBashLoginArgs(originalArgs)) {
+				envMixin['VSCODE_SHELL_LOGIN'] = '1';
+				addEnvMixinPathPrefix(options, envMixin);
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
+			}
+			if (!newArgs) {
+				return undefined;
+			}
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
@@ -171,13 +197,14 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		case 'fish': {
 			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
 			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
 			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/fish_xdg_data');
+			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data');
 			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
 			addEnvMixinPathPrefix(options, envMixin);
 			return { newArgs: undefined, envMixin };
@@ -191,12 +218,12 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
-			// TODO: Uncomment when suggestEnabled is ready for use
-			// if (options.shellIntegration.suggestEnabled) {
-			// 	envMixin['VSCODE_SUGGEST'] = '1';
-			// }
+			if (options.shellIntegration.suggestEnabled) {
+				envMixin['VSCODE_SUGGEST'] = '1';
+			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		case 'zsh': {
@@ -227,19 +254,19 @@ export function getShellIntegrationInjection(
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh'),
 				dest: path.join(zdotdir, '.zprofile')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh'),
 				dest: path.join(zdotdir, '.zshenv')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
 			return { newArgs, envMixin, filesToCopy };
@@ -294,23 +321,25 @@ enum ShellIntegrationExecutable {
 
 const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
 // The try catch swallows execution policy errors in the case of the archive distributable
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
-const loginArgs = ['-login', '-l'];
+shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh']);
+const pwshLoginArgs = ['-login', '-l'];
+const shLoginArgs = ['--login', '-l'];
+const shInteractiveArgs = ['-i', '--interactive'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
 
 function arePwshLoginArgs(originalArgs: string | string[]): boolean {
 	if (typeof originalArgs === 'string') {
-		return loginArgs.includes(originalArgs.toLowerCase());
+		return pwshLoginArgs.includes(originalArgs.toLowerCase());
 	} else {
-		return originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase()) ||
+		return originalArgs.length === 1 && pwshLoginArgs.includes(originalArgs[0].toLowerCase()) ||
 			(originalArgs.length === 2 &&
-				(((loginArgs.includes(originalArgs[0].toLowerCase())) || loginArgs.includes(originalArgs[1].toLowerCase())))
+				(((pwshLoginArgs.includes(originalArgs[0].toLowerCase())) || pwshLoginArgs.includes(originalArgs[1].toLowerCase())))
 				&& ((pwshImpliedArgs.includes(originalArgs[0].toLowerCase())) || pwshImpliedArgs.includes(originalArgs[1].toLowerCase())));
 	}
 }
@@ -324,6 +353,9 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 }
 
 function areZshBashLoginArgs(originalArgs: string | string[]): boolean {
-	return originalArgs === 'string' && loginArgs.includes(originalArgs.toLowerCase())
-		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase());
+	if (typeof originalArgs !== 'string') {
+		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
+	}
+	return originalArgs === 'string' && shLoginArgs.includes(originalArgs.toLowerCase())
+		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && shLoginArgs.includes(originalArgs[0].toLowerCase());
 }

@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as dom from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from '@xterm/xterm';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { convertBufferRangeToViewport } from './terminalLinkHelpers.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalLinkType } from './links.js';
+import type { URI } from '../../../../../base/common/uri.js';
+import type { IParsedLink } from './terminalLinkParsing.js';
+import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;
@@ -30,6 +32,8 @@ export class TerminalLink extends DisposableStore implements ILink {
 		private readonly _xterm: Terminal,
 		readonly range: IBufferRange,
 		readonly text: string,
+		readonly uri: URI | undefined,
+		readonly parsedLink: IParsedLink | undefined,
 		readonly actions: IHoverAction[] | undefined,
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => Promise<void>,
@@ -61,14 +65,16 @@ export class TerminalLink extends DisposableStore implements ILink {
 	}
 
 	hover(event: MouseEvent, text: string): void {
+		const w = dom.getWindow(event);
+		const d = w.document;
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
 		this._hoverListeners = new DisposableStore();
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keydown', e => {
+		this._hoverListeners.add(dom.addDisposableListener(d, 'keydown', e => {
 			if (!e.repeat && this._isModifierDown(e)) {
 				this._enableDecorations();
 			}
 		}));
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keyup', e => {
+		this._hoverListeners.add(dom.addDisposableListener(d, 'keyup', e => {
 			if (!e.repeat && !this._isModifierDown(e)) {
 				this._disableDecorations();
 			}
@@ -101,7 +107,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}
 
 		const origin = { x: event.pageX, y: event.pageY };
-		this._hoverListeners.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
+		this._hoverListeners.add(dom.addDisposableListener(d, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
 			if (this._isModifierDown(e)) {
 				this._enableDecorations();
@@ -110,7 +116,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 			}
 
 			// Reset the scheduler if the mouse moves too much
-			if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
+			if (Math.abs(e.pageX - origin.x) > w.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > w.devicePixelRatio * 2) {
 				origin.x = e.pageX;
 				origin.y = e.pageY;
 				this._tooltipScheduler?.schedule();

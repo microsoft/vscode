@@ -46,7 +46,9 @@ function main(argv: string[]): void {
 	if (askpassType === 'ssh') {
 		if (/passphrase/i.test(request)) {
 			// passphrase
-			file = argv[6].replace(/^["']+|["':]+$/g, '');
+			// Commit signing - Enter passphrase:
+			// Git operation  - Enter passphrase for key '/c/Users/<username>/.ssh/id_ed25519':
+			file = argv[6]?.replace(/^["']+|["':]+$/g, '');
 		} else {
 			// authenticity
 			host = argv[6].replace(/^["']+|["':]+$/g, '');

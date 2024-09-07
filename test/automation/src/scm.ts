@@ -10,10 +10,10 @@ import { findElement, findElements, Code } from './code';
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row .resource`;
-const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
-const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
-const SCM_RESOURCE_CLICK = (name: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .label-name`;
-const SCM_RESOURCE_ACTION_CLICK = (name: string, actionName: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .actions .action-label[title="${actionName}"]`;
+const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[aria-label="Refresh"]`;
+const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[aria-label="Commit"]`;
+const SCM_RESOURCE_CLICK = (name: string) => `${SCM_RESOURCE} .monaco-icon-label[aria-label*="${name}"] .label-name`;
+const SCM_RESOURCE_ACTION_CLICK = (name: string, actionName: string) => `${SCM_RESOURCE} .monaco-icon-label[aria-label*="${name}"] .actions .action-label[aria-label="${actionName}"]`;
 
 interface Change {
 	name: string;

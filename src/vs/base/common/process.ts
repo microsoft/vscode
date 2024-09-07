@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals, INodeProcess, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { INodeProcess, isMacintosh, isWindows } from './platform.js';
 
 let safeProcess: Omit<INodeProcess, 'arch'> & { arch: string | undefined };
 declare const process: INodeProcess;
 
 // Native sandbox environment
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
-	const sandboxProcess: INodeProcess = globals.vscode.process;
+const vscodeGlobal = (globalThis as any).vscode;
+if (typeof vscodeGlobal !== 'undefined' && typeof vscodeGlobal.process !== 'undefined') {
+	const sandboxProcess: INodeProcess = vscodeGlobal.process;
 	safeProcess = {
 		get platform() { return sandboxProcess.platform; },
 		get arch() { return sandboxProcess.arch; },
@@ -20,7 +21,7 @@ if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== '
 }
 
 // Native node.js environment
-else if (typeof process !== 'undefined') {
+else if (typeof process !== 'undefined' && typeof process?.versions?.node === 'string') {
 	safeProcess = {
 		get platform() { return process.platform; },
 		get arch() { return process.arch; },

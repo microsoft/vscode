@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { append, clearNode, $, h } from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { localize } from '../../../../nls.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { append, clearNode, $, h } from '../../../../base/browser/dom.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { editorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+
+registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));
 
 interface WatermarkEntry {
 	readonly text: string;
@@ -28,13 +31,12 @@ const openFileNonMacOnly: WatermarkEntry = { text: localize('watermark.openFile'
 const openFolderNonMacOnly: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder', mac: false };
 const openFileOrFolderMacOnly: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder', mac: true };
 const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFile: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile' };
-const newUntitledFileMacOnly: WatermarkEntry = Object.assign({ mac: true }, newUntitledFile);
+const newUntitledFileMacOnly: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile', mac: true };
 const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
 const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
 const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
-const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
-const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
+const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen' };
+const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings' };
 
 const noFolderEntries = [
 	showCommands,
@@ -60,6 +62,7 @@ export class EditorGroupWatermark extends Disposable {
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private enabled: boolean = false;
 	private workbenchState: WorkbenchState;
+	private keybindingLabels = new Set<KeybindingLabel>();
 
 	constructor(
 		container: HTMLElement,
@@ -129,22 +132,27 @@ export class EditorGroupWatermark extends Disposable {
 		const selected = (folder ? folderEntries : noFolderEntries)
 			.filter(entry => !('when' in entry) || this.contextKeyService.contextMatchesRules(entry.when))
 			.filter(entry => !('mac' in entry) || entry.mac === (isMacintosh && !isWeb))
-			.filter(entry => !!CommandsRegistry.getCommand(entry.id));
+			.filter(entry => !!CommandsRegistry.getCommand(entry.id))
+			.filter(entry => !!this.keybindingService.lookupKeybinding(entry.id));
 
 		const update = () => {
 			clearNode(box);
-			selected.map(entry => {
+			this.keybindingLabels.forEach(label => label.dispose());
+			this.keybindingLabels.clear();
+
+			for (const entry of selected) {
 				const keys = this.keybindingService.lookupKeybinding(entry.id);
 				if (!keys) {
-					return;
+					continue;
 				}
 				const dl = append(box, $('dl'));
 				const dt = append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = append(dl, $('dd'));
-				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
-				keybinding.set(keys);
-			});
+				const label = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
+				label.set(keys);
+				this.keybindingLabels.add(label);
+			}
 		};
 
 		update();
@@ -159,5 +167,6 @@ export class EditorGroupWatermark extends Disposable {
 	override dispose(): void {
 		super.dispose();
 		this.clear();
+		this.keybindingLabels.forEach(label => label.dispose());
 	}
 }

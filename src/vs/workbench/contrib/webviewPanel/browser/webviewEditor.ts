@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as nls from 'vs/nls';
-import { IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import * as DOM from '../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import * as nls from '../../../../nls.js';
+import { IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { IEditorOpenContext } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IOverlayWebview } from '../../webview/browser/webview.js';
+import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
+import { WebviewInput } from './webviewEditorInput.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 
 /**
  * Tracks the id of the actively focused webview.
@@ -52,6 +52,7 @@ export class WebviewEditor extends EditorPane {
 	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -61,14 +62,10 @@ export class WebviewEditor extends EditorPane {
 		@IHostService private readonly _hostService: IHostService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
-		super(WebviewEditor.ID, telemetryService, themeService, storageService);
+		super(WebviewEditor.ID, group, telemetryService, themeService, storageService);
 
-		this._register(Event.any(
-			_editorGroupsService.activePart.onDidScroll,
-			_editorGroupsService.activePart.onDidAddGroup,
-			_editorGroupsService.activePart.onDidRemoveGroup,
-			_editorGroupsService.activePart.onDidMoveGroup,
-		)(() => {
+		const part = _editorGroupsService.getPart(group);
+		this._register(Event.any(part.onDidScroll, part.onDidAddGroup, part.onDidRemoveGroup, part.onDidMoveGroup)(() => {
 			if (this.webview && this._visible) {
 				this.synchronizeWebviewContainerDimensions(this.webview);
 			}
@@ -89,7 +86,7 @@ export class WebviewEditor extends EditorPane {
 		this._element.id = `webview-editor-element-${generateUuid()}`;
 		parent.appendChild(element);
 
-		this._scopedContextKeyService.value = this._contextKeyService.createScoped(element);
+		this._scopedContextKeyService.value = this._register(this._contextKeyService.createScoped(element));
 	}
 
 	public override dispose(): void {
@@ -121,7 +118,7 @@ export class WebviewEditor extends EditorPane {
 		this.webview?.focus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean): void {
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
@@ -130,7 +127,7 @@ export class WebviewEditor extends EditorPane {
 				this.webview.release(this);
 			}
 		}
-		super.setEditorVisible(visible, group);
+		super.setEditorVisible(visible);
 	}
 
 	public override clearInput() {
@@ -153,16 +150,14 @@ export class WebviewEditor extends EditorPane {
 		}
 
 		await super.setInput(input, options, context, token);
-		await input.resolve(options);
+		await input.resolve();
 
 		if (token.isCancellationRequested || this._isDisposed) {
 			return;
 		}
 
 		if (input instanceof WebviewInput) {
-			if (this.group) {
-				input.updateGroup(this.group.id);
-			}
+			input.updateGroup(this.group.id);
 
 			if (!alreadyOwnsWebview) {
 				this.claimWebview(input);
@@ -174,7 +169,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private claimWebview(input: WebviewInput): void {
-		input.webview.claim(this, this.scopedContextKeyService);
+		input.claim(this, this.window, this.scopedContextKeyService);
 
 		if (this._element) {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);
@@ -185,10 +180,10 @@ export class WebviewEditor extends EditorPane {
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
 		this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
-			containsGroup: (group) => this.group?.id === group.id
+			containsGroup: (group) => this.group.id === group.id
 		}));
 
-		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(() => this.webview));
+		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(this.window, () => this.webview));
 
 		this.synchronizeWebviewContainerDimensions(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
@@ -198,7 +193,8 @@ export class WebviewEditor extends EditorPane {
 		if (!this._element?.isConnected) {
 			return;
 		}
-		const rootContainer = this._workbenchLayoutService.getContainer(Parts.EDITOR_PART);
+
+		const rootContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
 	}
 

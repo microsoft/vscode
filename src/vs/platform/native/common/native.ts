@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
+import { ISerializableCommandAction } from '../../action/common/action.js';
+import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IV8Profile } from '../../profiling/common/profiling.js';
+import { AuthInfo, Credentials } from '../../request/common/request.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
 export interface ICPUProperties {
 	model: string;
@@ -33,6 +34,10 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
+export interface INativeHostOptions {
+	readonly targetWindowId?: number;
+}
+
 export interface ICommonNativeHostService {
 
 	readonly _serviceBrand: undefined;
@@ -41,13 +46,18 @@ export interface ICommonNativeHostService {
 	readonly windowId: number;
 
 	// Events
-	readonly onDidOpenWindow: Event<number>;
+	readonly onDidOpenMainWindow: Event<number>;
 
 	readonly onDidMaximizeWindow: Event<number>;
 	readonly onDidUnmaximizeWindow: Event<number>;
 
-	readonly onDidFocusWindow: Event<number>;
-	readonly onDidBlurWindow: Event<number>;
+	readonly onDidFocusMainWindow: Event<number>;
+	readonly onDidBlurMainWindow: Event<number>;
+
+	readonly onDidChangeWindowFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
+
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
 
@@ -55,35 +65,40 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<{ service: string; account: string }>;
+	readonly onDidChangePassword: Event<{ readonly service: string; readonly account: string }>;
 
-	readonly onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ readonly windowId: number; readonly x: number; readonly y: number }>;
 
 	// Window
-	getWindows(): Promise<IOpenedWindow[]>;
+	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
+	getActiveWindowPosition(): Promise<IRectangle | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	toggleFullScreen(): Promise<void>;
+	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
+	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
-	handleTitleDoubleClick(): Promise<void>;
+	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 
-	isMaximized(): Promise<boolean>;
-	maximizeWindow(): Promise<void>;
-	unmaximizeWindow(): Promise<void>;
-	minimizeWindow(): Promise<void>;
-	moveWindowTop(options?: { targetWindowId?: number }): Promise<void>;
-	positionWindow(position: IRectangle, options?: { targetWindowId?: number }): Promise<void>;
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
+
+	isMaximized(options?: INativeHostOptions): Promise<boolean>;
+	maximizeWindow(options?: INativeHostOptions): Promise<void>;
+	unmaximizeWindow(options?: INativeHostOptions): Promise<void>;
+	minimizeWindow(options?: INativeHostOptions): Promise<void>;
+	moveWindowTop(options?: INativeHostOptions): Promise<void>;
+	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
 	 *
 	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
 	 */
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
@@ -97,12 +112,12 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: { targetWindowId?: number; force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
 
 	// Dialogs
-	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
-	showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogReturnValue>;
-	showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogReturnValue>;
+	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
+	showSaveDialog(options: SaveDialogOptions & INativeHostOptions): Promise<SaveDialogReturnValue>;
+	showOpenDialog(options: OpenDialogOptions & INativeHostOptions): Promise<OpenDialogReturnValue>;
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
@@ -111,9 +126,9 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
-	setRepresentedFilename(path: string): Promise<void>;
-	setDocumentEdited(edited: boolean): Promise<void>;
-	openExternal(url: string): Promise<boolean>;
+	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
+	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
+	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
@@ -129,6 +144,7 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Process
+	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard
@@ -157,21 +173,22 @@ export interface ICommonNativeHostService {
 	notifyReady(): Promise<void>;
 	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
-	closeWindow(): Promise<void>;
-	closeWindowById(windowId: number): Promise<void>;
+	closeWindow(options?: INativeHostOptions): Promise<void>;
 	quit(): Promise<void>;
 	exit(code: number): Promise<void>;
 
 	// Development
-	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
-	toggleDevTools(): Promise<void>;
-	sendInputEvent(event: MouseInputEvent): Promise<void>;
+	openDevTools(options?: INativeHostOptions): Promise<void>;
+	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
+	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
 	// Registry (windows only)

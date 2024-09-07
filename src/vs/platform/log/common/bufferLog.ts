@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractMessageLogger, DEFAULT_LOG_LEVEL, ILogger, log, LogLevel } from 'vs/platform/log/common/log';
+import { AbstractMessageLogger, DEFAULT_LOG_LEVEL, ILogger, log, LogLevel } from './log.js';
 
 interface ILog {
 	level: LogLevel;
@@ -44,6 +44,7 @@ export class BufferLogger extends AbstractMessageLogger {
 
 	override dispose(): void {
 		this._logger?.dispose();
+		super.dispose();
 	}
 
 	override flush(): void {

@@ -3,19 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import type { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import type { IChatEditorOptions } from './chatEditor.js';
+import { ChatAgentLocation } from '../common/chatAgents.js';
+import { IChatModel } from '../common/chatModel.js';
+import { IChatService } from '../common/chatService.js';
+
+const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput {
 	static readonly countsInUse = new Set<number>();
@@ -25,7 +30,6 @@ export class ChatEditorInput extends EditorInput {
 
 	private readonly inputCount: number;
 	public sessionId: string | undefined;
-	public providerId: string | undefined;
 
 	private model: IChatModel | undefined;
 
@@ -55,8 +59,9 @@ export class ChatEditorInput extends EditorInput {
 			throw new Error('Invalid chat URI');
 		}
 
-		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
-		this.providerId = 'providerId' in options.target ? options.target.providerId : undefined;
+		this.sessionId = (options.target && 'sessionId' in options.target) ?
+			options.target.sessionId :
+			undefined;
 		this.inputCount = ChatEditorInput.getNextCount();
 		ChatEditorInput.countsInUse.add(this.inputCount);
 		this._register(toDisposable(() => ChatEditorInput.countsInUse.delete(this.inputCount)));
@@ -82,15 +87,15 @@ export class ChatEditorInput extends EditorInput {
 		return this.model?.title || nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 	}
 
-	override getLabelExtraClasses(): string[] {
-		return ['chat-editor-label'];
+	override getIcon(): ThemeIcon {
+		return ChatEditorIcon;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		if (typeof this.sessionId === 'string') {
 			this.model = this.chatService.getOrRestoreSession(this.sessionId);
-		} else if (typeof this.providerId === 'string') {
-			this.model = this.chatService.startSession(this.providerId, CancellationToken.None);
+		} else if (!this.options.target) {
+			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
@@ -100,7 +105,6 @@ export class ChatEditorInput extends EditorInput {
 		}
 
 		this.sessionId = this.model.sessionId;
-		this.providerId = this.model.providerId;
 		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
 
 		return this._register(new ChatEditorModel(this.model));
@@ -114,7 +118,7 @@ export class ChatEditorInput extends EditorInput {
 	}
 }
 
-export class ChatEditorModel extends Disposable implements IEditorModel {
+export class ChatEditorModel extends Disposable {
 	private _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
@@ -179,16 +183,12 @@ interface ISerializedChatEditorInput {
 }
 
 export class ChatEditorInputSerializer implements IEditorSerializer {
-	canSerialize(input: EditorInput): boolean {
-		return input instanceof ChatEditorInput;
+	canSerialize(input: EditorInput): input is ChatEditorInput & { readonly sessionId: string } {
+		return input instanceof ChatEditorInput && typeof input.sessionId === 'string';
 	}
 
 	serialize(input: EditorInput): string | undefined {
-		if (!(input instanceof ChatEditorInput)) {
-			return undefined;
-		}
-
-		if (typeof input.sessionId !== 'string') {
+		if (!this.canSerialize(input)) {
 			return undefined;
 		}
 

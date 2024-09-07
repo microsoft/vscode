@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateUuid } from 'vs/base/common/uuid';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { URI } from 'vs/base/common/uri';
-import { language } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
+import { TokenizationRegistry } from '../../../../editor/common/languages.js';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
+import { URI } from '../../../../base/common/uri.js';
+import { language } from '../../../../base/common/platform.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { asWebviewUri } from '../../webview/common/webview.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 
 export class GettingStartedDetailsRenderer {
@@ -211,7 +211,7 @@ export class GettingStartedDetailsRenderer {
 	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, true, true);
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
 			this.mdCache.set(path, markdownContents);
 		}
 		return assertIsDefined(this.mdCache.get(path));
@@ -221,11 +221,8 @@ export class GettingStartedDetailsRenderer {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
 			if (useModuleId && moduleId) {
-				const contents = await new Promise<string>(c => {
-					require([moduleId], content => {
-						c(content.default());
-					});
-				});
+				const module = await import(moduleId);
+				const contents = module.default();
 				return contents;
 			}
 		} catch { }

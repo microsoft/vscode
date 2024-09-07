@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $ } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import './media/scm.css';
+import { localize } from '../../../../nls.js';
+import { Event } from '../../../../base/common/event.js';
+import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { append, $ } from '../../../../base/browser/dom.js';
+import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from '../../../../base/browser/ui/list/list.js';
+import { ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
+import { collectContextMenuActions, getActionViewItemProvider } from './util.js';
+import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -54,9 +55,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -73,15 +75,13 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		updateProviderCountVisibility();
 
 		const delegate = new ListDelegate();
-		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
+		const renderer = this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService));
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false,
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
-			},
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			accessibilityProvider: {
 				getAriaLabel(r: ISCMRepository) {
 					return r.provider.label;
@@ -146,10 +146,16 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const provider = e.element.provider;
 		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.repositoryMenu;
+		const menu = menus.repositoryContextMenu;
 		const actions = collectContextMenuActions(menu);
 
+		const actionRunner = this._register(new RepositoryActionRunner(() => {
+			return this.list.getSelectedElements();
+		}));
+		actionRunner.onWillRun(() => this.list.domFocus());
+
 		this.contextMenuService.showContextMenu({
+			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => provider

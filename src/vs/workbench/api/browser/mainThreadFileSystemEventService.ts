@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions } from 'vs/platform/files/common/files';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol';
-import { localize } from 'vs/nls';
-import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
-import { GLOBSTAR } from 'vs/base/common/glob';
-import { rtrim } from 'vs/base/common/strings';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { normalizeWatcherPattern } from 'vs/platform/files/common/watcher';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions } from '../../../platform/files/common/files.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol.js';
+import { localize } from '../../../nls.js';
+import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IBulkEditService } from '../../../editor/browser/services/bulkEditService.js';
+import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { raceCancellation } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../base/common/severity.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
+import { GLOBSTAR } from '../../../base/common/glob.js';
+import { rtrim } from '../../../base/common/strings.js';
+import { UriComponents, URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { normalizeWatcherPattern } from '../../../platform/files/common/watcher.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystemEventService)
 export class MainThreadFileSystemEventService implements MainThreadFileSystemEventServiceShape {
@@ -168,7 +168,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 								label: localize('cancel', "Skip Changes"),
 								run: () => Choice.Cancel
 							},
-							checkbox: { label: localize('again', "Don't ask again") }
+							checkbox: { label: localize('again', "Do not ask me again") }
 						});
 						if (result === Choice.Cancel) {
 							// no changes wanted, don't persist cancel option
@@ -230,7 +230,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 					opts.recursive = false;
 				}
 			} catch (error) {
-				this._logService.error(`MainThreadFileSystemEventService#$watch(): failed to stat a resource for file watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}): ${error}`);
+				// ignore
 			}
 		}
 
@@ -254,21 +254,9 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 		// Uncorrelated file watching gets special treatment
 		else {
-
-			// Refuse to watch anything that is already watched via
-			// our workspace watchers in case the request is a
-			// recursive file watcher and does not opt-in to event
-			// correlation via specific exclude rules.
-			// Still allow for non-recursive watch requests as a way
-			// to bypass configured exclude rules though
-			// (see https://github.com/microsoft/vscode/issues/146066)
-			const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
-			if (workspaceFolder && opts.recursive) {
-				this._logService.trace(`MainThreadFileSystemEventService#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
-				return;
-			}
-
 			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching uncorrelated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+
+			const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
 
 			// Automatically add `files.watcherExclude` patterns when watching
 			// recursively to give users a chance to configure exclude rules
@@ -277,7 +265,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							opts.excludes.push(key);
 						}
 					}
@@ -295,11 +283,11 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			// `<workspace path>/bar` but will not work as include for files within
 			// `bar` unless a suffix of `/**` if added.
 			// (https://github.com/microsoft/vscode/issues/148245)
-			else if (workspaceFolder) {
+			else if (!opts.recursive && workspaceFolder) {
 				const config = this._configurationService.getValue<IFilesConfiguration>();
 				if (config.files?.watcherExclude) {
 					for (const key in config.files.watcherExclude) {
-						if (config.files.watcherExclude[key] === true) {
+						if (key && config.files.watcherExclude[key] === true) {
 							if (!opts.includes) {
 								opts.includes = [];
 							}

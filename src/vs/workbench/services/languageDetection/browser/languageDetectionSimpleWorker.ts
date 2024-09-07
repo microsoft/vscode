@@ -4,39 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ModelOperations, ModelResult } from '@vscode/vscode-languagedetection';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { importAMDNodeModule } from '../../../../amdX.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { IRequestHandler, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { LanguageDetectionWorkerHost, ILanguageDetectionWorker } from './languageDetectionWorker.protocol.js';
+import { WorkerTextModelSyncServer } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 
 type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>, supportedLangs?: string[]) => string | undefined };
 
 /**
- * Called on the worker side
- * @internal
+ * Defines the worker entry point. Must be exported and named `create`.
+ * @skipMangle
  */
-export function create(host: IEditorWorkerHost): IRequestHandler {
-	return new LanguageDetectionSimpleWorker(host, null);
+export function create(workerServer: IWorkerServer): IRequestHandler {
+	return new LanguageDetectionSimpleWorker(workerServer);
 }
 
 /**
  * @internal
  */
-export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
+export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
+	_requestHandlerBrand: any;
+
 	private static readonly expectedRelativeConfidence = 0.2;
 	private static readonly positiveConfidenceCorrectionBucket1 = 0.05;
 	private static readonly positiveConfidenceCorrectionBucket2 = 0.025;
 	private static readonly negativeConfidenceCorrection = 0.5;
 
+	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
+
+	private readonly _host: LanguageDetectionWorkerHost;
 	private _regexpModel: RegexpModel | undefined;
 	private _regexpLoadFailed: boolean = false;
 
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
 
-	private modelIdToCoreId = new Map<string, string>();
+	private modelIdToCoreId = new Map<string, string | undefined>();
 
-	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
+	constructor(workerServer: IWorkerServer) {
+		this._host = LanguageDetectionWorkerHost.getChannel(workerServer);
+		this._workerTextModelSyncServer.bindToServer(workerServer);
+	}
+
+	public async $detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch();
@@ -46,7 +57,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		const neuralResolver = async () => {
 			for await (const language of this.detectLanguagesImpl(documentTextSample)) {
 				if (!this.modelIdToCoreId.has(language.languageId)) {
-					this.modelIdToCoreId.set(language.languageId, await this._host.fhr('getLanguageId', [language.languageId]));
+					this.modelIdToCoreId.set(language.languageId, await this._host.$getLanguageId(language.languageId));
 				}
 				const coreId = this.modelIdToCoreId.get(language.languageId);
 				if (coreId && (!supportedLangs?.length || supportedLangs.includes(coreId))) {
@@ -57,7 +68,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			stopWatch.stop();
 
 			if (languages.length) {
-				this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
+				this._host.$sendTelemetryEvent(languages, confidences, stopWatch.elapsed());
 				return languages[0];
 			}
 			return undefined;
@@ -81,7 +92,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	}
 
 	private getTextForDetection(uri: string): string | undefined {
-		const editorModel = this._getModel(uri);
+		const editorModel = this._workerTextModelSyncServer.getModel(uri);
 		if (!editorModel) { return; }
 
 		const end = editorModel.positionAt(10000);
@@ -101,9 +112,9 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		if (this._regexpModel) {
 			return this._regexpModel;
 		}
-		const uri: string = await this._host.fhr('getRegexpModelUri', []);
+		const uri: string = await this._host.$getRegexpModelUri();
 		try {
-			this._regexpModel = await import(uri) as RegexpModel;
+			this._regexpModel = await importAMDNodeModule(uri, '') as RegexpModel;
 			return this._regexpModel;
 		} catch (e) {
 			this._regexpLoadFailed = true;
@@ -136,11 +147,11 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return this._modelOperations;
 		}
 
-		const uri: string = await this._host.fhr('getIndexJsUri', []);
-		const { ModelOperations } = await import(uri) as typeof import('@vscode/vscode-languagedetection');
+		const uri: string = await this._host.$getIndexJsUri();
+		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
 		this._modelOperations = new ModelOperations({
 			modelJsonLoaderFunc: async () => {
-				const response = await fetch(await this._host.fhr('getModelJsonUri', []));
+				const response = await fetch(await this._host.$getModelJsonUri());
 				try {
 					const modelJSON = await response.json();
 					return modelJSON;
@@ -150,13 +161,13 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 				}
 			},
 			weightsLoaderFunc: async () => {
-				const response = await fetch(await this._host.fhr('getWeightsUri', []));
+				const response = await fetch(await this._host.$getWeightsUri());
 				const buffer = await response.arrayBuffer();
 				return buffer;
 			}
 		});
 
-		return this._modelOperations!;
+		return this._modelOperations;
 	}
 
 	// This adjusts the language confidence scores to be more accurate based on:

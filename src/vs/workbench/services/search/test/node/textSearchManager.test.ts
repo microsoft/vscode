@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { ProviderResult, TextSearchComplete, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Progress } from '../../../../../platform/progress/common/progress.js';
+import { ITextQuery, QueryType } from '../../common/search.js';
+import { ProviderResult, TextSearchCompleteNew, TextSearchProviderOptions, TextSearchProviderNew, TextSearchQueryNew, TextSearchResultNew } from '../../common/searchExtTypes.js';
+import { NativeTextSearchManager } from '../../node/textSearchManager.js';
 
 suite('NativeTextSearchManager', () => {
 	test('fixes encoding', async () => {
 		let correctEncoding = false;
-		const provider: TextSearchProvider = {
-			provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete> {
-				correctEncoding = options.encoding === 'windows-1252';
+		const provider: TextSearchProviderNew = {
+			provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
+				correctEncoding = options.folderOptions[0].encoding === 'windows-1252';
 
 				return null;
 			}
@@ -34,8 +35,10 @@ suite('NativeTextSearchManager', () => {
 		};
 
 		const m = new NativeTextSearchManager(query, provider);
-		await m.search(() => { }, new CancellationTokenSource().token);
+		await m.search(() => { }, CancellationToken.None);
 
 		assert.ok(correctEncoding);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

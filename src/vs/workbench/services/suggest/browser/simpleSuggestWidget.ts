@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/suggest';
-import * as dom from 'vs/base/browser/dom';
-import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
-import { SimpleSuggestWidgetItemRenderer } from 'vs/workbench/services/suggest/browser/simpleSuggestWidgetRenderer';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import './media/suggest.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { IListEvent, IListGestureEvent, IListMouseEvent } from '../../../../base/browser/ui/list/list.js';
+import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
+import { SimpleCompletionItem } from './simpleCompletionItem.js';
+import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
+import { SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/suggestWidgetStatus.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 
 const $ = dom.$;
 
@@ -56,28 +56,27 @@ export interface IWorkbenchSuggestWidgetOptions {
 	statusBarMenuId?: MenuId;
 }
 
-export class SimpleSuggestWidget implements IDisposable {
+export class SimpleSuggestWidget extends Disposable {
 
 	private _state: State = State.Hidden;
 	private _completionModel?: SimpleCompletionModel;
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
 	private _preference?: WidgetPositionPreference;
-	private readonly _pendingLayout = new MutableDisposable();
+	private readonly _pendingLayout = this._register(new MutableDisposable());
 
 	readonly element: ResizableHTMLElement;
 	private readonly _listElement: HTMLElement;
 	private readonly _list: List<SimpleCompletionItem>;
 	private readonly _status?: SuggestWidgetStatus;
 
-	private readonly _showTimeout = new TimeoutTimer();
-	private readonly _disposables = new DisposableStore();
+	private readonly _showTimeout = this._register(new TimeoutTimer());
 
-	private readonly _onDidSelect = new Emitter<ISimpleSelectedSuggestion>();
+	private readonly _onDidSelect = this._register(new Emitter<ISimpleSelectedSuggestion>());
 	readonly onDidSelect: Event<ISimpleSelectedSuggestion> = this._onDidSelect.event;
-	private readonly _onDidHide = new Emitter<this>();
+	private readonly _onDidHide = this._register(new Emitter<this>());
 	readonly onDidHide: Event<this> = this._onDidHide.event;
-	private readonly _onDidShow = new Emitter<this>();
+	private readonly _onDidShow = this._register(new Emitter<this>());
 	readonly onDidShow: Event<this> = this._onDidShow.event;
 
 	get list(): List<SimpleCompletionItem> { return this._list; }
@@ -85,10 +84,13 @@ export class SimpleSuggestWidget implements IDisposable {
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _persistedSize: IPersistedWidgetSizeDelegate,
+		private readonly _getFontInfo: () => ISimpleSuggestWidgetFontInfo,
 		options: IWorkbenchSuggestWidgetOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		this.element = new ResizableHTMLElement();
+		super();
+
+		this.element = this._register(new ResizableHTMLElement());
 		this.element.domNode.classList.add('workbench-suggest-widget');
 		this._container.appendChild(this.element.domNode);
 
@@ -102,11 +104,11 @@ export class SimpleSuggestWidget implements IDisposable {
 		}
 
 		let state: ResizeState | undefined;
-		this._disposables.add(this.element.onDidWillResize(() => {
+		this._register(this.element.onDidWillResize(() => {
 			// this._preferenceLocked = true;
 			state = new ResizeState(this._persistedSize.restore(), this.element.size);
 		}));
-		this._disposables.add(this.element.onDidResize(e => {
+		this._register(this.element.onDidResize(e => {
 
 			this._resize(e.dimension.width, e.dimension.height);
 
@@ -139,10 +141,10 @@ export class SimpleSuggestWidget implements IDisposable {
 			state = undefined;
 		}));
 
-		const renderer = new SimpleSuggestWidgetItemRenderer();
-		this._disposables.add(renderer);
+		const renderer = new SimpleSuggestWidgetItemRenderer(_getFontInfo);
+		this._register(renderer);
 		this._listElement = dom.append(this.element.domNode, $('.tree'));
-		this._list = new List('SuggestWidget', this._listElement, {
+		this._list = this._register(new List('SuggestWidget', this._listElement, {
 			getHeight: (_element: SimpleCompletionItem): number => this._getLayoutInfo().itemHeight,
 			getTemplateId: (_element: SimpleCompletionItem): string => 'suggestion'
 		}, [renderer], {
@@ -184,27 +186,29 @@ export class SimpleSuggestWidget implements IDisposable {
 					// return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", label, docs);
 				},
 			}
-		});
+		}));
 
 		if (options.statusBarMenuId) {
-			this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId);
+			this._status = this._register(instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, options.statusBarMenuId));
 			this.element.domNode.classList.toggle('with-status-bar', true);
 		}
 
-		this._disposables.add(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
-		this._disposables.add(this._list.onTap(e => this._onListMouseDownOrTap(e)));
-		this._disposables.add(this._list.onDidChangeSelection(e => this._onListSelection(e)));
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
-		this._status?.dispose();
-		this.element.dispose();
+		this._register(this._list.onMouseDown(e => this._onListMouseDownOrTap(e)));
+		this._register(this._list.onTap(e => this._onListMouseDownOrTap(e)));
+		this._register(this._list.onDidChangeSelection(e => this._onListSelection(e)));
 	}
 
 	private _cursorPosition?: { top: number; left: number; height: number };
 
-	showSuggestions(completionModel: SimpleCompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
+	setCompletionModel(completionModel: SimpleCompletionModel) {
+		this._completionModel = completionModel;
+	}
+
+	hasCompletions(): boolean {
+		return this._completionModel?.items.length !== 0;
+	}
+
+	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
 		this._cursorPosition = cursorPosition;
 
 		// this._contentWidget.setPosition(this.editor.getPosition());
@@ -213,16 +217,12 @@ export class SimpleSuggestWidget implements IDisposable {
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
 
-		if (this._completionModel !== completionModel) {
-			this._completionModel = completionModel;
-		}
-
 		if (isFrozen && this._state !== State.Empty && this._state !== State.Hidden) {
 			this._setState(State.Frozen);
 			return;
 		}
 
-		const visibleCount = this._completionModel.items.length;
+		const visibleCount = this._completionModel?.items.length ?? 0;
 		const isEmpty = visibleCount === 0;
 		// this._ctxSuggestWidgetMultipleSuggestions.set(visibleCount > 1);
 
@@ -241,7 +241,7 @@ export class SimpleSuggestWidget implements IDisposable {
 		// this._onDidFocus.pause();
 		// this._onDidSelect.pause();
 		try {
-			this._list.splice(0, this._list.length, this._completionModel.items);
+			this._list.splice(0, this._list.length, this._completionModel?.items ?? []);
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
 			this._list.setFocus([selectionIndex]);
@@ -251,7 +251,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			// this._onDidSelect.resume();
 		}
 
-		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingLayout.clear();
 			this._layout(this.element.size);
 			// Reset focus border
@@ -504,11 +504,8 @@ export class SimpleSuggestWidget implements IDisposable {
 	}
 
 	private _getLayoutInfo() {
-		const fontInfo = {
-			lineHeight: 20,
-			typicalHalfwidthCharacterWidth: 10
-		}; //this.editor.getOption(EditorOption.fontInfo);
-		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
+		const fontInfo = this._getFontInfo();
+		const itemHeight = clamp(Math.ceil(fontInfo.lineHeight), 8, 1000);
 		const statusBarHeight = 0; //!this.editor.getOption(EditorOption.suggest).showStatusBar || this._state === State.Empty || this._state === State.Loading ? 0 : itemHeight;
 		const borderWidth = 1; //this._details.widget.borderWidth;
 		const borderHeight = 2 * borderWidth;
@@ -518,7 +515,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			statusBarHeight,
 			borderWidth,
 			borderHeight,
-			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
+			typicalHalfwidthCharacterWidth: 10,
 			verticalPadding: 22,
 			horizontalPadding: 14,
 			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight + borderHeight)

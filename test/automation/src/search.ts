@@ -61,6 +61,21 @@ export class Search extends Viewlet {
 		await this.submitSearch();
 	}
 
+	async hasActivityBarMoved() {
+		await this.code.waitForElement('.activitybar');
+
+		const elementBoundingBox = await this.code.driver.getElementXY('.activitybar');
+		return elementBoundingBox !== null && elementBoundingBox.x === 48 && elementBoundingBox.y === 375;
+	}
+
+	async waitForPageUp(): Promise<void> {
+		await this.code.dispatchKeybinding('PageUp');
+	}
+
+	async waitForPageDown(): Promise<void> {
+		await this.code.dispatchKeybinding('PageDown');
+	}
+
 	async submitSearch(): Promise<void> {
 		await this.waitForInputFocus(INPUT);
 
@@ -102,7 +117,7 @@ export class Search extends Viewlet {
 	}
 
 	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[title="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[aria-label="Replace"]`, text);
 	}
 
 	async replaceFileMatch(filename: string, expectedText: string): Promise<void> {

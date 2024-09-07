@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough';
-import { localize } from 'vs/nls';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { localize, localize2 } from '../../../../../nls.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WalkThroughInput, WalkThroughInputOptions } from '../walkThroughInput.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
+import { IEditorSerializer } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
@@ -21,7 +20,7 @@ const inputOptions: WalkThroughInputOptions = {
 	resource: FileAccess.asBrowserUri('vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.md')
 		.with({
 			scheme: Schemas.walkThrough,
-			query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough' })
+			query: JSON.stringify({ moduleId: '../browser/editor/vs_code_editor_walkthrough.js' })
 		}),
 	telemetryFrom: 'walkThrough'
 };
@@ -29,14 +28,17 @@ const inputOptions: WalkThroughInputOptions = {
 export class EditorWalkThroughAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInteractivePlayground';
-	public static readonly LABEL = { value: localize('editorWalkThrough', "Interactive Editor Playground"), original: 'Interactive Editor Playground' };
+	public static readonly LABEL = localize2('editorWalkThrough', 'Interactive Editor Playground');
 
 	constructor() {
 		super({
 			id: EditorWalkThroughAction.ID,
 			title: EditorWalkThroughAction.LABEL,
 			category: Categories.Help,
-			f1: true
+			f1: true,
+			metadata: {
+				description: localize2('editorWalkThroughMetadata', "Opens an interactive playground for learning about the editor.")
+			}
 		});
 	}
 

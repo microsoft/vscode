@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
+import * as nls from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { showWindowLogActionId } from '../../../services/log/common/logConstants.js';
 
 class ToggleKeybindingsLogAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.toggleKeybindingsLog',
-			title: { value: nls.localize('toggleKeybindingsLog', "Toggle Keyboard Shortcuts Troubleshooting"), original: 'Toggle Keyboard Shortcuts Troubleshooting' },
+			title: nls.localize2('toggleKeybindingsLog', "Toggle Keyboard Shortcuts Troubleshooting"),
 			category: Categories.Developer,
 			f1: true
 		});

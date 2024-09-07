@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { env } from 'vs/base/common/process';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import * as path from 'vs/base/common/path';
-import { Codicon } from 'vs/base/common/codicons';
-import { getIconRegistry, IIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { debounce } from 'vs/base/common/decorators';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/arrays';
-import { deepClone } from 'vs/base/common/objects';
-import { terminalProfileArgsMatch, isUriComponents } from 'vs/platform/terminal/common/terminalProfiles';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Schemas } from '../../../../base/common/network.js';
+import { env } from '../../../../base/common/process.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { IProcessEnvironment, OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { IShellLaunchConfig, ITerminalLogService, ITerminalProfile, TerminalIcon, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, ITerminalProfileService } from '../common/terminal.js';
+import * as path from '../../../../base/common/path.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { getIconRegistry, IIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { isUriComponents } from '../../../../platform/terminal/common/terminalProfiles.js';
+import { ITerminalInstanceService } from './terminal.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell(remoteAuthority: string | undefined, os: OperatingSystem): Promise<string>;
@@ -35,7 +35,7 @@ const generatedProfileName = 'Generated';
  * Resolves terminal shell launch config and terminal profiles for the given operating system,
  * environment, and user configuration.
  */
-export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
+export abstract class BaseTerminalProfileResolverService extends Disposable implements ITerminalProfileResolverService {
 	declare _serviceBrand: undefined;
 
 	private _primaryBackendOs: OperatingSystem | undefined;
@@ -55,19 +55,21 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _workspaceContextService: IWorkspaceContextService,
 		private readonly _remoteAgentService: IRemoteAgentService
 	) {
+		super();
+
 		if (this._remoteAgentService.getConnection()) {
 			this._remoteAgentService.getEnvironment().then(env => this._primaryBackendOs = env?.os || OS);
 		} else {
 			this._primaryBackendOs = OS;
 		}
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.DefaultProfileWindows) ||
 				e.affectsConfiguration(TerminalSettingId.DefaultProfileMacOs) ||
 				e.affectsConfiguration(TerminalSettingId.DefaultProfileLinux)) {
 				this._refreshDefaultProfileName();
 			}
-		});
-		this._terminalProfileService.onDidChangeAvailableProfiles(() => this._refreshDefaultProfileName());
+		}));
+		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._refreshDefaultProfileName()));
 	}
 
 	@debounce(200)
@@ -343,48 +345,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			default:
 				return undefined;
 		}
-	}
-
-	private _isValidShellArgs(shellArgs: unknown, os: OperatingSystem): shellArgs is string | string[] | undefined {
-		if (shellArgs === undefined) {
-			return true;
-		}
-		if (os === OperatingSystem.Windows && typeof shellArgs === 'string') {
-			return true;
-		}
-		if (Array.isArray(shellArgs) && shellArgs.every(e => typeof e === 'string')) {
-			return true;
-		}
-		return false;
-	}
-
-	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string> {
-		const detectedProfile = this._terminalProfileService.availableProfiles?.find(p => {
-			if (p.path !== shell) {
-				return false;
-			}
-			if (p.args === undefined || typeof p.args === 'string') {
-				return p.args === shellArgs;
-			}
-			return p.path === shell && equals(p.args, (shellArgs || []) as string[]);
-		});
-		const fallbackProfile = (await this.getDefaultProfile({
-			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
-			os: this._primaryBackendOs!
-		}));
-		fallbackProfile.profileName = `${fallbackProfile.path} (migrated)`;
-		const profile = detectedProfile || fallbackProfile;
-		const args = this._isValidShellArgs(shellArgs, this._primaryBackendOs!) ? shellArgs : profile.args;
-		const createdProfile = {
-			profileName: profile.profileName,
-			path: profile.path,
-			args,
-			isDefault: true
-		};
-		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && terminalProfileArgsMatch(detectedProfile.args, createdProfile.args)) {
-			return detectedProfile.profileName;
-		}
-		return createdProfile;
 	}
 
 	private _isValidAutomationProfile(profile: unknown, os: OperatingSystem): profile is ITerminalProfile {

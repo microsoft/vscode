@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from 'vs/base/browser/browser';
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, trackFocus } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import 'vs/css!./paneview';
-import { localize } from 'vs/nls';
-import { IView, Sizing, SplitView } from './splitview';
+import { isFirefox } from '../../browser.js';
+import { DataTransfers } from '../../dnd.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { Gesture, EventType as TouchEventType } from '../../touch.js';
+import { IBoundarySashes, Orientation } from '../sash/sash.js';
+import { Color, RGBA } from '../../../common/color.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { ScrollEvent } from '../../../common/scrollable.js';
+import './paneview.css';
+import { localize } from '../../../../nls.js';
+import { IView, Sizing, SplitView } from './splitview.js';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -175,11 +175,11 @@ export abstract class Pane extends Disposable implements IView {
 			}
 
 			if (typeof this.animationTimer === 'number') {
-				clearTimeout(this.animationTimer);
+				getWindow(this.element).clearTimeout(this.animationTimer);
 			}
 			append(this.element, this.body);
 		} else {
-			this.animationTimer = window.setTimeout(() => {
+			this.animationTimer = getWindow(this.element).setTimeout(() => {
 				this.body.remove();
 			}, 200);
 		}
@@ -382,7 +382,7 @@ class PaneDraggable extends Disposable {
 
 		const dragImage = append(this.pane.element.ownerDocument.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
-		setTimeout(() => this.pane.element.ownerDocument.body.removeChild(dragImage), 0);
+		setTimeout(() => dragImage.remove(), 0);
 
 		this.context.draggable = this;
 	}
@@ -513,7 +513,7 @@ export class PaneView extends Disposable {
 
 		const eventDisposables = this._register(new DisposableStore());
 		const onKeyDown = this._register(new DomEmitter(this.element, 'keydown'));
-		const onHeaderKeyDown = Event.map(Event.filter(onKeyDown.event, e => e.target instanceof HTMLElement && e.target.classList.contains('pane-header'), eventDisposables), e => new StandardKeyboardEvent(e), eventDisposables);
+		const onHeaderKeyDown = Event.map(Event.filter(onKeyDown.event, e => isHTMLElement(e.target) && e.target.classList.contains('pane-header'), eventDisposables), e => new StandardKeyboardEvent(e), eventDisposables);
 
 		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.UpArrow, eventDisposables)(() => this.focusPrevious()));
 		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.DownArrow, eventDisposables)(() => this.focusNext()));
@@ -636,12 +636,12 @@ export class PaneView extends Disposable {
 
 	private setupAnimation(): void {
 		if (typeof this.animationTimer === 'number') {
-			window.clearTimeout(this.animationTimer);
+			getWindow(this.element).clearTimeout(this.animationTimer);
 		}
 
 		this.element.classList.add('animated');
 
-		this.animationTimer = window.setTimeout(() => {
+		this.animationTimer = getWindow(this.element).setTimeout(() => {
 			this.animationTimer = undefined;
 			this.element.classList.remove('animated');
 		}, 200);

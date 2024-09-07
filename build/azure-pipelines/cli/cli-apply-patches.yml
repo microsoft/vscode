@@ -1,5 +1,5 @@
 steps:
-  - template: ../distro/download-distro.yml
+  - template: ../distro/download-distro.yml@self
 
   - script: node build/azure-pipelines/distro/mixin-quality
     displayName: Mixin distro quality

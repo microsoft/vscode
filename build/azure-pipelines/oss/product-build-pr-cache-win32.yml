@@ -15,12 +15,12 @@ steps:
 
   - pwsh: |
       mkdir .build -ea 0
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/yarnlockhash'
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -32,18 +32,18 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
-      exec { yarn config set registry "$env:NPM_REGISTRY" }
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
@@ -53,7 +53,7 @@ steps:
       $ErrorActionPreference = "Stop"
       $env:npm_config_arch="$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
-      retry { exec { yarn --frozen-lockfile --check-files } }
+      retry { exec { npm ci } }
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1

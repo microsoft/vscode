@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Action, IAction } from 'vs/base/common/actions';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { equals } from 'vs/base/common/arrays';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Command } from 'vs/editor/common/languages';
-import { reset } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
+import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Command } from '../../../../editor/common/languages.js';
+import { reset } from '../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 
-export function isSCMRepositoryArray(element: any): element is ISCMRepository[] {
-	return Array.isArray(element) && element.every(r => isSCMRepository(r));
+export function isSCMViewService(element: any): element is ISCMViewService {
+	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
 }
 
 export function isSCMRepository(element: any): element is ISCMRepository {
@@ -34,14 +36,32 @@ export function isSCMActionButton(element: any): element is ISCMActionButton {
 }
 
 export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {
-	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).elements;
+	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).resources;
 }
 
 export function isSCMResource(element: any): element is ISCMResource {
 	return !!(element as ISCMResource).sourceUri && isSCMResourceGroup((element as ISCMResource).resourceGroup);
 }
 
-const compareActions = (a: IAction, b: IAction) => a.id === b.id && a.enabled === b.enabled;
+export function isSCMResourceNode(element: any): element is IResourceNode<ISCMResource, ISCMResourceGroup> {
+	return ResourceTree.isResourceNode(element) && isSCMResourceGroup(element.context);
+}
+
+export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
+	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
+}
+
+export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {
+	return (element as SCMHistoryItemLoadMoreTreeElement).type === 'historyItemLoadMore';
+}
+
+const compareActions = (a: IAction, b: IAction) => {
+	if (a instanceof MenuItemAction && b instanceof MenuItemAction) {
+		return a.id === b.id && a.enabled === b.enabled && a.hideActions?.isHidden === b.hideActions?.isHidden;
+	}
+
+	return a.id === b.id && a.enabled === b.enabled;
+};
 
 export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], secondary: IAction[]) => void, primaryGroup?: string): IDisposable {
 	let cachedPrimary: IAction[] = [];
@@ -99,8 +119,8 @@ export class StatusBarAction extends Action {
 
 class StatusBarActionViewItem extends ActionViewItem {
 
-	constructor(action: StatusBarAction) {
-		super(null, action, {});
+	constructor(action: StatusBarAction, options: IBaseActionViewItemOptions) {
+		super(null, action, { ...options, icon: false, label: true });
 	}
 
 	protected override updateLabel(): void {
@@ -111,11 +131,19 @@ class StatusBarActionViewItem extends ActionViewItem {
 }
 
 export function getActionViewItemProvider(instaService: IInstantiationService): IActionViewItemProvider {
-	return action => {
+	return (action, options) => {
 		if (action instanceof StatusBarAction) {
-			return new StatusBarActionViewItem(action);
+			return new StatusBarActionViewItem(action, options);
 		}
 
-		return createActionViewItem(instaService, action);
+		return createActionViewItem(instaService, action, options);
 	};
+}
+
+export function getProviderKey(provider: ISCMProvider): string {
+	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+}
+
+export function getRepositoryResourceCount(provider: ISCMProvider): number {
+	return provider.groups.reduce<number>((r, g) => r + g.resources.length, 0);
 }

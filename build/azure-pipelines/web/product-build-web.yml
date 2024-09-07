@@ -5,9 +5,9 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - template: ../distro/download-distro.yml
+  - template: ../distro/download-distro.yml@self
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
@@ -27,12 +27,12 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js web > .build/yarnlockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js web > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/yarnlockhash'
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -43,18 +43,17 @@ steps:
 
   - script: |
       set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      echo "always-auth=true" >> .npmrc
-      yarn config set registry "$NPM_REGISTRY"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
@@ -65,12 +64,12 @@ steps:
   - script: |
       set -e
       for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -94,11 +93,11 @@ steps:
   - script: node build/azure-pipelines/distro/mixin-quality
     displayName: Mixin distro quality
 
-  - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml@self
 
   - script: |
       set -e
-      yarn gulp vscode-web-min-ci
+      npm run gulp vscode-web-min-ci
       ARCHIVE_PATH=".build/web/vscode-web.tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
@@ -128,6 +127,15 @@ steps:
         node build/azure-pipelines/upload-cdn
     displayName: Upload to CDN
 
+  - script: |
+      set -e
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
+      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
+    displayName: Upload sourcemaps (Web)
+
     # upload only the workbench.web.main.js source maps because
     # we just compiled these bits in the previous step and the
     # general task to upload source maps has already been run
@@ -138,11 +146,11 @@ steps:
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
         node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
-    displayName: Upload sourcemaps (Web)
+    displayName: Upload sourcemaps (Deprecated)
 
   - script: |
       set -e
-      AZURE_STORAGE_ACCOUNT="ticino" \
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
@@ -153,17 +161,12 @@ steps:
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
 
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: Generate SBOM
+  - task: 1ES.PublishPipelineArtifact@1
     inputs:
-      BuildDropPath: $(agent.builddirectory)/vscode-web
-      PackageName: Visual Studio Code Web
-
-  - publish: $(agent.builddirectory)/vscode-web/_manifest
-    displayName: Publish SBOM (client)
-    artifact: $(ARTIFACT_PREFIX)sbom_vscode_web
-
-  - publish: $(WEB_PATH)
-    artifact: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+      targetPath: $(WEB_PATH)
+      artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned
+      sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
+      sbomPackageName: "VS Code Web"
+      sbomPackageVersion: $(Build.SourceVersion)
     condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
     displayName: Publish web archive

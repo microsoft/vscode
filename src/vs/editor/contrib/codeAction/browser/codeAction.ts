@@ -3,28 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals, isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
-import { TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import * as nls from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types';
+import { coalesce, equals, isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { illegalArgument, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IModelService } from '../../../common/services/model.js';
+import { TextModelCancellationTokenSource } from '../../editorState/browser/editorState.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgress, Progress } from '../../../../platform/progress/common/progress.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+
+
 
 export const codeActionCommandId = 'editor.action.codeAction';
 export const quickFixCommandId = 'editor.action.quickFix';
@@ -79,7 +82,15 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	}
 
 	public get hasAutoFix() {
-		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new HierarchicalKind(fix.kind)) && !!fix.isPreferred);
+	}
+
+	public get hasAIFix() {
+		return this.validActions.some(({ action: fix }) => !!fix.isAI);
+	}
+
+	public get allAIFixes() {
+		return this.validActions.every(({ action: fix }) => !!fix.isAI);
 	}
 }
 
@@ -170,7 +181,7 @@ function getCodeActionProviders(
 				// We don't know what type of actions this provider will return.
 				return true;
 			}
-			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
+			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new HierarchicalKind(kind)));
 		});
 }
 
@@ -192,16 +203,16 @@ function* getAdditionalDocumentationForShowingActions(
 function getDocumentationFromProvider(
 	provider: languages.CodeActionProvider,
 	providedCodeActions: readonly languages.CodeAction[],
-	only?: CodeActionKind
+	only?: HierarchicalKind
 ): languages.Command | undefined {
 	if (!provider.documentation) {
 		return undefined;
 	}
 
-	const documentation = provider.documentation.map(entry => ({ kind: new CodeActionKind(entry.kind), command: entry.command }));
+	const documentation = provider.documentation.map(entry => ({ kind: new HierarchicalKind(entry.kind), command: entry.command }));
 
 	if (only) {
-		let currentBest: { readonly kind: CodeActionKind; readonly command: languages.Command } | undefined;
+		let currentBest: { readonly kind: HierarchicalKind; readonly command: languages.Command } | undefined;
 		for (const entry of documentation) {
 			if (entry.kind.contains(only)) {
 				if (!currentBest) {
@@ -226,7 +237,7 @@ function getDocumentationFromProvider(
 		}
 
 		for (const entry of documentation) {
-			if (entry.kind.contains(new CodeActionKind(action.kind))) {
+			if (entry.kind.contains(new HierarchicalKind(action.kind))) {
 				return entry.command;
 			}
 		}
@@ -237,7 +248,8 @@ function getDocumentationFromProvider(
 export enum ApplyCodeActionReason {
 	OnSave = 'onSave',
 	FromProblemsView = 'fromProblemsView',
-	FromCodeActions = 'fromCodeActions'
+	FromCodeActions = 'fromCodeActions',
+	FromAILightbulb = 'fromAILightbulb' // direct invocation when clicking on the AI lightbulb
 }
 
 export async function applyCodeAction(
@@ -263,7 +275,7 @@ export async function applyCodeAction(
 		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
 		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
 		reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to trigger apply code action.' };
-		owner: 'mjbvz';
+		owner: 'justschen';
 		comment: 'Event used to gain insights into which code actions are being triggered';
 	};
 
@@ -338,7 +350,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		throw illegalArgument();
 	}
 
-	const include = typeof kind === 'string' ? new CodeActionKind(kind) : undefined;
+	const include = typeof kind === 'string' ? new HierarchicalKind(kind) : undefined;
 	const codeActionSet = await getCodeActions(
 		codeActionProvider,
 		model,

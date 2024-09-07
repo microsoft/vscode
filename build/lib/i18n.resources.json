@@ -63,6 +63,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/markdown",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -72,6 +76,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/dialogs",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/multiDiffEditor",
 			"project": "vscode-workbench"
 		},
 		{
@@ -323,7 +331,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/audioCues",
+			"name": "vs/workbench/contrib/accessibilitySignals",
 			"project": "vscode-workbench"
 		},
 		{
@@ -332,6 +340,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/bracketPairColorizer2Telemetry",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/scrollLocking",
 			"project": "vscode-workbench"
 		},
 		{
@@ -544,6 +556,18 @@
 		},
 		{
 			"name": "vs/workbench/contrib/accountEntitlements",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/authentication",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/replNotebook",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/list",
 			"project": "vscode-workbench"
 		}
 	]

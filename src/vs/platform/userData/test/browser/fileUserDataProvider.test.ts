@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/product/common/product';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
+import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { ReadableStreamEvents } from '../../../../base/common/stream.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { AbstractNativeEnvironmentService } from '../../../environment/common/environmentService.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { FileChangeType, FileSystemProviderCapabilities, FileType, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileService, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { FileUserDataProvider } from '../../common/fileUserDataProvider.js';
+import { IUserDataProfilesService, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -247,8 +247,8 @@ suite('FileUserDataProvider', () => {
 		const result = await testObject.resolve(userDataProfilesService.defaultProfile.snippetsHome);
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
-		assert.strictEqual(result.children!.length, 1);
-		assert.strictEqual(result.children![0].resource.toString(), joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json').toString());
+		assert.strictEqual(result.children.length, 1);
+		assert.strictEqual(result.children[0].resource.toString(), joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'settings.json').toString());
 	});
 
 	test('read backup file', async () => {
@@ -275,8 +275,8 @@ suite('FileUserDataProvider', () => {
 		const result = await testObject.resolve(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }));
 		assert.ok(result.isDirectory);
 		assert.ok(result.children !== undefined);
-		assert.strictEqual(result.children!.length, 1);
-		assert.strictEqual(result.children![0].resource.toString(), joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`).toString());
+		assert.strictEqual(result.children.length, 1);
+		assert.strictEqual(result.children[0].resource.toString(), joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`).toString());
 	});
 });
 
@@ -315,7 +315,7 @@ class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapa
 suite('FileUserDataProvider - Watching', () => {
 
 	let testObject: FileUserDataProvider;
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const rootFileResource = joinPath(ROOT, 'User');
 	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.vscodeUserData });
 
@@ -331,8 +331,6 @@ suite('FileUserDataProvider - Watching', () => {
 		fileEventEmitter = disposables.add(new Emitter<readonly IFileChange[]>());
 		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('file added change event', done => {
 		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
@@ -427,7 +425,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('event is not triggered if not watched', async () => {
 		const target = joinPath(rootFileResource, 'settings.json');
 		let triggered = false;
-		testObject.onDidChangeFile(() => triggered = true);
+		disposables.add(testObject.onDidChangeFile(() => triggered = true));
 		fileEventEmitter.fire([{
 			resource: target,
 			type: FileChangeType.DELETED
@@ -441,7 +439,7 @@ suite('FileUserDataProvider - Watching', () => {
 		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const target = joinPath(dirname(rootFileResource), 'settings.json');
 		let triggered = false;
-		testObject.onDidChangeFile(() => triggered = true);
+		disposables.add(testObject.onDidChangeFile(() => triggered = true));
 		fileEventEmitter.fire([{
 			resource: target,
 			type: FileChangeType.DELETED

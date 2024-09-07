@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 /**
  * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
  * resolves from a file system retrieve content and may allow for saving it back or reverting it.
  * Editor models are typically cached for some while because they are expensive to construct.
  */
-export class EditorModel extends Disposable implements IEditorModel {
+export class EditorModel extends Disposable {
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;

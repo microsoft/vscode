@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEachAdjacent } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { forEachAdjacent } from '../../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { OffsetRange } from '../../../core/offsetRange.js';
 
 /**
  * Represents a synchronous diff algorithm. Should be executed in a worker.
@@ -50,6 +50,18 @@ export class SequenceDiff {
 			new OffsetRange(start.offset1, endExclusive.offset1),
 			new OffsetRange(start.offset2, endExclusive.offset2),
 		);
+	}
+
+	public static assertSorted(sequenceDiffs: SequenceDiff[]): void {
+		let last: SequenceDiff | undefined = undefined;
+		for (const cur of sequenceDiffs) {
+			if (last) {
+				if (!(last.seq1Range.endExclusive <= cur.seq1Range.start && last.seq2Range.endExclusive <= cur.seq2Range.start)) {
+					throw new BugIndicatingError('Sequence diffs must be sorted');
+				}
+			}
+			last = cur;
+		}
 	}
 
 	constructor(
@@ -125,6 +137,17 @@ export class OffsetPair {
 	public toString(): string {
 		return `${this.offset1} <-> ${this.offset2}`;
 	}
+
+	public delta(offset: number): OffsetPair {
+		if (offset === 0) {
+			return this;
+		}
+		return new OffsetPair(this.offset1 + offset, this.offset2 + offset);
+	}
+
+	public equals(other: OffsetPair): boolean {
+		return this.offset1 === other.offset1 && this.offset2 === other.offset2;
+	}
 }
 
 export interface ISequence {
@@ -173,8 +196,6 @@ export class DateTimeout implements ITimeout {
 		const valid = Date.now() - this.startTime < this.timeout;
 		if (!valid && this.valid) {
 			this.valid = false; // timeout reached
-			// eslint-disable-next-line no-debugger
-			debugger; // WARNING: Most likely debugging caused the timeout. Call `this.disable()` to continue without timing out.
 		}
 		return this.valid;
 	}

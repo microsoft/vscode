@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as objects from 'vs/base/common/objects';
+import assert from 'assert';
+import * as objects from '../../common/objects.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 const check = (one: any, other: any, msg: string) => {
 	assert(objects.equals(one, other), msg);
@@ -16,6 +17,8 @@ const checkNot = (one: any, other: any, msg: string) => {
 };
 
 suite('Objects', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('equals', () => {
 		check(null, null, 'null');
@@ -110,7 +113,8 @@ suite('Objects', () => {
 			c: [
 				obj1, obj2
 			],
-			d: null
+			d: null,
+			e: BigInt(42)
 		};
 
 		arr.push(circular);
@@ -132,7 +136,8 @@ suite('Objects', () => {
 				},
 				'[Circular]'
 			],
-			d: [1, '[Circular]', '[Circular]']
+			d: [1, '[Circular]', '[Circular]'],
+			e: '[BigInt 42]'
 		});
 	});
 
@@ -227,84 +232,20 @@ suite('Objects', () => {
 		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
 		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
 	});
+});
 
-	test('ensureOptionalBooleanValue', () => {
-		const obj: any = {
-			a: true,
-			b: false,
-			c: undefined,
-			d: 5,
-			e: 'foo'
-		};
+test('mapValues', () => {
+	const obj = {
+		a: 1,
+		b: 2,
+		c: 3
+	};
 
-		objects.ensureOptionalBooleanValue(obj, 'a', false);
-		assert.strictEqual(obj.a, true);
+	const result = objects.mapValues(obj, (value, key) => `${key}: ${value * 2}`);
 
-		objects.ensureOptionalBooleanValue(obj, 'b', true);
-		assert.strictEqual(obj.b, false);
-
-		objects.ensureOptionalBooleanValue(obj, 'c', true);
-		assert.strictEqual(obj.c, undefined);
-
-		objects.ensureOptionalBooleanValue(obj, 'd', true);
-		assert.strictEqual(obj.d, true);
-
-		objects.ensureOptionalBooleanValue(obj, 'e', true);
-		assert.strictEqual(obj.e, true);
-	});
-
-	test('ensureOptionalNumberValue', () => {
-		const obj: any = {
-			a: 1,
-			b: 0,
-			c: undefined,
-			d: true,
-			e: 'foo'
-		};
-
-		objects.ensureOptionalNumberValue(obj, 'a', 0);
-		assert.strictEqual(obj.a, 1);
-
-		objects.ensureOptionalNumberValue(obj, 'b', 1);
-		assert.strictEqual(obj.b, 0);
-
-		objects.ensureOptionalNumberValue(obj, 'c', 1);
-		assert.strictEqual(obj.c, undefined);
-
-		objects.ensureOptionalNumberValue(obj, 'd', 1);
-		assert.strictEqual(obj.d, 1);
-
-		objects.ensureOptionalNumberValue(obj, 'e', 1);
-		assert.strictEqual(obj.e, 1);
-	});
-
-	test('ensureOptionalStringValue', () => {
-		const obj: any = {
-			a: 'hello',
-			b: 'world',
-			c: undefined,
-			d: 'earth',
-			e: 5,
-			f: true
-		};
-
-		objects.ensureOptionalStringValue(obj, 'a', ['hello', 'world'], 'world');
-		assert.strictEqual(obj.a, 'hello');
-
-		objects.ensureOptionalStringValue(obj, 'b', ['hello', 'world'], 'hello');
-		assert.strictEqual(obj.b, 'world');
-
-		objects.ensureOptionalStringValue(obj, 'c', ['hello', 'world'], 'world');
-		assert.strictEqual(obj.c, undefined);
-
-		objects.ensureOptionalStringValue(obj, 'd', ['hello', 'world'], 'world');
-		assert.strictEqual(obj.d, 'world');
-
-		objects.ensureOptionalStringValue(obj, 'e', ['hello', 'world'], 'world');
-		assert.strictEqual(obj.e, 'world');
-
-		objects.ensureOptionalStringValue(obj, 'f', ['hello', 'world'], 'world');
-		assert.strictEqual(obj.f, 'world');
-
+	assert.deepStrictEqual(result, {
+		a: 'a: 2',
+		b: 'b: 4',
+		c: 'c: 6',
 	});
 });

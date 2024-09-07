@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractPolicyService, IPolicyService, PolicyDefinition } from 'vs/platform/policy/common/policy';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Throttler } from 'vs/base/common/async';
-import { createWatcher, PolicyUpdate, Watcher } from '@vscode/policy-watcher';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../common/policy.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Throttler } from '../../../base/common/async.js';
+import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
+import { MutableDisposable } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
 
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
 
 	private throttler = new Throttler();
-	private watcher = this._register(new MutableDisposable<Watcher>());
+	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -24,6 +24,8 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.trace(`NativePolicyService#_updatePolicyDefinitions - Found ${Object.keys(policyDefinitions).length} policy definitions`);
+
+		const { createWatcher } = await import('@vscode/policy-watcher');
 
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {

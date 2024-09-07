@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Event } from '../../../base/common/event.js';
+import * as types from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IWorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -68,9 +68,12 @@ export interface IConfigurationChangeEvent {
 	readonly change: IConfigurationChange;
 
 	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
+}
 
-	// Following data is used for telemetry
-	readonly sourceConfig: any;
+export interface IInspectValue<T> {
+	readonly value?: T;
+	readonly override?: T;
+	readonly overrides?: { readonly identifiers: string[]; readonly value: T }[];
 }
 
 export interface IConfigurationValue<T> {
@@ -86,14 +89,14 @@ export interface IConfigurationValue<T> {
 	readonly policyValue?: T;
 	readonly value?: T;
 
-	readonly default?: { value?: T; override?: T };
-	readonly application?: { value?: T; override?: T };
-	readonly user?: { value?: T; override?: T };
-	readonly userLocal?: { value?: T; override?: T };
-	readonly userRemote?: { value?: T; override?: T };
-	readonly workspace?: { value?: T; override?: T };
-	readonly workspaceFolder?: { value?: T; override?: T };
-	readonly memory?: { value?: T; override?: T };
+	readonly default?: IInspectValue<T>;
+	readonly application?: IInspectValue<T>;
+	readonly user?: IInspectValue<T>;
+	readonly userLocal?: IInspectValue<T>;
+	readonly userRemote?: IInspectValue<T>;
+	readonly workspace?: IInspectValue<T>;
+	readonly workspaceFolder?: IInspectValue<T>;
+	readonly memory?: IInspectValue<T>;
 	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
@@ -226,6 +229,10 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 				obj = curr[s] = Object.create(null);
 				break;
 			case 'object':
+				if (obj === null) {
+					conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is null`);
+					return;
+				}
 				break;
 			default:
 				conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is ${JSON.stringify(obj)}`);

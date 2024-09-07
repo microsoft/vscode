@@ -2,52 +2,58 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Match, FileMatch, SearchResult, SearchModel, FolderMatch, CellMatch } from 'vs/workbench/contrib/search/browser/searchModel';
-import { URI } from 'vs/base/common/uri';
-import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Range } from 'vs/editor/common/core/range';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
-import { ICellMatch, IFileMatchWithCells } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { addToSearchResult, createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { Match, FileMatch, SearchResult, SearchModel, FolderMatch, CellMatch } from '../../browser/searchModel.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from '../../../../services/search/common/search.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ModelService } from '../../../../../editor/common/services/modelService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IReplaceService } from '../../browser/replace.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { TestEditorGroupsService, TestEditorService } from '../../../../test/browser/workbenchTestServices.js';
+import { NotebookEditorWidgetService } from '../../../notebook/browser/services/notebookEditorServiceImpl.js';
+import { ICellViewModel } from '../../../notebook/browser/notebookBrowser.js';
+import { CellKind } from '../../../notebook/common/notebookCommon.js';
+import { addToSearchResult, createFileUriFromPathFromRoot, getRootName } from './searchTestCommon.js';
+import { INotebookCellMatchWithModel, INotebookFileMatchWithModel } from '../../browser/notebookSearch/searchNotebookHelpers.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
 suite('SearchResult', () => {
 
 	let instantiationService: TestInstantiationService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
+		const fileService = new FileService(new NullLogService());
+		store.add(fileService);
+		const uriIdentityService = new UriIdentityService(fileService);
+		store.add(uriIdentityService);
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		instantiationService.stubPromise(IReplaceService, {});
 		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
 		instantiationService.stub(ILabelService, new MockLabelService());
@@ -60,7 +66,7 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		const fileMatch = aFileMatch('folder/file.txt', null!);
-		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5));
+		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5), false);
 		assert.strictEqual(lineMatch.text(), '0 foo bar');
 		assert.strictEqual(lineMatch.range().startLineNumber, 2);
 		assert.strictEqual(lineMatch.range().endLineNumber, 2);
@@ -164,9 +170,11 @@ suite('SearchResult', () => {
 	test('Match -> FileMatch -> SearchResult hierarchy exists', function () {
 
 		const searchModel = instantiationService.createInstance(SearchModel);
+		store.add(searchModel);
 		const searchResult = instantiationService.createInstance(SearchResult, searchModel);
+		store.add(searchResult);
 		const fileMatch = aFileMatch('far/boo', searchResult);
-		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
+		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3), false);
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult.folderMatches()[0]);
@@ -266,10 +274,10 @@ suite('SearchResult', () => {
 
 		addToSearchResult(testObject, target);
 		assert.strictEqual(6, testObject.count());
-		assert.deepStrictEqual(fileMatch1.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].contentResults);
-		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].webviewResults);
-		assert.deepStrictEqual(fileMatch2.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].contentResults);
-		assert.deepStrictEqual(fileMatch2.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].webviewResults);
+		assert.deepStrictEqual(fileMatch1.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][0] as INotebookFileMatchWithModel).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as INotebookFileMatchWithModel).cellResults[0].webviewResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][1] as INotebookFileMatchWithModel).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][1] as INotebookFileMatchWithModel).cellResults[0].webviewResults);
 	});
 
 	test('Dispose disposes matches', function () {
@@ -283,8 +291,8 @@ suite('SearchResult', () => {
 			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 
-		testObject.matches()[0].onDispose(target1);
-		testObject.matches()[1].onDispose(target2);
+		store.add(testObject.matches()[0].onDispose(target1));
+		store.add(testObject.matches()[1].onDispose(target2));
 
 		testObject.dispose();
 
@@ -300,7 +308,7 @@ suite('SearchResult', () => {
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const objectToRemove = testObject.matches()[0];
-		testObject.onChange(target);
+		store.add(testObject.onChange(target));
 
 		testObject.remove(objectToRemove);
 
@@ -317,7 +325,7 @@ suite('SearchResult', () => {
 			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))]);
 		const arrayToRemove = testObject.matches();
-		testObject.onChange(target);
+		store.add(testObject.onChange(target));
 
 		testObject.remove(arrayToRemove);
 
@@ -362,7 +370,8 @@ suite('SearchResult', () => {
 		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
-		testObject.onChange(target);
+
+		store.add(testObject.onChange(target));
 		const objectToRemove = testObject.matches()[0];
 
 		testObject.replace(objectToRemove);
@@ -399,7 +408,7 @@ suite('SearchResult', () => {
 		const arrayToRemove = [folderMatch, fileMatch, match];
 		const expectedArrayResult = folderMatch.allDownstreamFileMatches().concat([fileMatch, match.parent()]);
 
-		testObject.onChange(target);
+		store.add(testObject.onChange(target));
 		testObject.batchRemove(arrayToRemove);
 
 		assert.ok(target.calledOnce);
@@ -428,7 +437,7 @@ suite('SearchResult', () => {
 
 		const arrayToRemove = [folderMatch, fileMatch, match];
 
-		testObject.onChange(target);
+		store.add(testObject.onChange(target));
 		await testObject.batchReplace(arrayToRemove);
 
 		assert.ok(target.calledOnce);
@@ -491,7 +500,7 @@ suite('SearchResult', () => {
 
 		const expectedArrayResult = folderMatch.allDownstreamFileMatches();
 
-		testObject.onChange(target);
+		store.add(testObject.onChange(target));
 		testObject.remove(folderMatch);
 		assert.ok(target.calledOnce);
 		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false, clearingAll: false }], target.args[0]);
@@ -505,7 +514,7 @@ suite('SearchResult', () => {
 
 		const expectedArrayResult = folderMatch.allDownstreamFileMatches();
 
-		testObject.onChange(target);
+		store.add(testObject.onChange(target));
 		await testObject.batchReplace([folderMatch]);
 		assert.deepStrictEqual([{ elements: expectedArrayResult, removed: true, added: false }], target.args[0]);
 
@@ -520,13 +529,18 @@ suite('SearchResult', () => {
 			results: lineMatches
 		};
 		const root = searchResult?.folderMatches()[0];
-		return instantiationService.createInstance(FileMatch, {
+		const fileMatch = instantiationService.createInstance(FileMatch, {
 			pattern: ''
 		}, undefined, undefined, root, rawMatch, null, '');
+		fileMatch.createMatches(false);
+
+		store.add(fileMatch);
+		return fileMatch;
 	}
 
 	function aSearchResult(): SearchResult {
 		const searchModel = instantiationService.createInstance(SearchModel);
+		store.add(searchModel);
 		searchModel.searchResult.query = {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
@@ -539,7 +553,7 @@ suite('SearchResult', () => {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
 
-	function aRawFileMatchWithCells(resource: string, ...cellMatches: ICellMatch[]): IFileMatchWithCells {
+	function aRawFileMatchWithCells(resource: string, ...cellMatches: INotebookCellMatchWithModel[]): INotebookFileMatchWithModel {
 		return {
 			resource: createFileUriFromPathFromRoot(resource),
 			cellResults: cellMatches
@@ -551,14 +565,18 @@ suite('SearchResult', () => {
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('search', { searchOnType: true });
 		instantiationService.stub(IConfigurationService, config);
-		return instantiationService.createInstance(ModelService);
+		const modelService = instantiationService.createInstance(ModelService);
+		store.add(modelService);
+		return modelService;
 	}
 
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IEditorService, new TestEditorService());
-		return instantiationService.createInstance(NotebookEditorWidgetService);
+		instantiationService.stub(IEditorService, store.add(new TestEditorService()));
+		const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
+		store.add(notebookEditorWidgetService);
+		return notebookEditorWidgetService;
 	}
 
 	function getPopulatedSearchResult() {

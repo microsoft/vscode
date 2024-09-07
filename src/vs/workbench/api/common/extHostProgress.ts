@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressOptions } from 'vscode';
-import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol';
-import { ProgressLocation } from './extHostTypeConverters';
-import { Progress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { localize } from 'vs/nls';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { throttle } from 'vs/base/common/decorators';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { MainThreadProgressShape, ExtHostProgressShape } from './extHost.protocol.js';
+import { ProgressLocation } from './extHostTypeConverters.js';
+import { Progress, IProgressStep } from '../../../platform/progress/common/progress.js';
+import { CancellationTokenSource, CancellationToken } from '../../../base/common/cancellation.js';
+import { throttle } from '../../../base/common/decorators.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 
@@ -26,7 +25,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
-		const source = { label: localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name), id: extension.identifier.value };
+		const source = { label: extension.displayName || extension.name, id: extension.identifier.value };
 
 		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, !extension.isUnderDevelopment ? extension.identifier.value : undefined).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);

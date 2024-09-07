@@ -6,23 +6,30 @@
 //@ts-check
 'use strict';
 
-const performance = require('./vs/base/common/performance');
-performance.mark('code/fork/start');
+// ESM-comment-begin
+// const performance = require('./vs/base/common/performance');
+// const bootstrapNode = require('./bootstrap-node');
+// const bootstrapAmd = require('./bootstrap-amd');
+// ESM-comment-end
+// ESM-uncomment-begin
+import * as performance from './vs/base/common/performance.js';
+import * as bootstrapNode from './bootstrap-node.js';
+import * as bootstrapAmd from './bootstrap-amd.js';
+// ESM-uncomment-end
 
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
+performance.mark('code/fork/start');
 
 // Crash reporter
 configureCrashReporter();
 
-// Remove global paths from the node module lookup
-bootstrapNode.removeGlobalNodeModuleLookupPaths();
+// Remove global paths from the node module lookup (node.js only)
+bootstrapNode.removeGlobalNodeJsModuleLookupPaths();
 
 // Enable ASAR in our forked processes
-bootstrap.enableASARSupport();
+bootstrapNode.enableASARSupport();
 
-if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+if (process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']) {
+	bootstrapNode.devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process
@@ -41,7 +48,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load AMD entry point
-require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
+bootstrapAmd.load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
 
 //#region Helpers
@@ -56,6 +63,9 @@ function pipeLoggingToParent() {
 	 * @param {ArrayLike<unknown>} args
 	 */
 	function safeToArray(args) {
+		/**
+		 * @type {string[]}
+		 */
 		const seen = [];
 		const argsArray = [];
 
@@ -178,7 +188,7 @@ function pipeLoggingToParent() {
 
 		Object.defineProperty(stream, 'write', {
 			set: () => { },
-			get: () => (chunk, encoding, callback) => {
+			get: () => (/** @type {string | Buffer | Uint8Array} */ chunk, /** @type {BufferEncoding | undefined} */ encoding, /** @type {((err?: Error | undefined) => void) | undefined} */ callback) => {
 				buf += chunk.toString(encoding);
 				const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
 				if (eol !== -1) {
@@ -239,7 +249,9 @@ function configureCrashReporter() {
 	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
 	if (crashReporterProcessType) {
 		try {
+			// @ts-ignore
 			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
+				// @ts-ignore
 				process['crashReporter'].addExtraParameter('processType', crashReporterProcessType);
 			}
 		} catch (error) {

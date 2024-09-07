@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity, isResourceMergeEditorInput, isResourceMultiDiffEditorInput } from '../editor.js';
+import { EditorInput, IUntypedEditorOptions } from './editorInput.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
 
 /**
  * Side by side editor inputs that have a primary and secondary side.
@@ -128,11 +128,31 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
+		let title: string;
 		if (this.hasIdenticalSides) {
-			return this.primary.getTitle(verbosity) ?? this.getName();
+			title = this.primary.getTitle(verbosity) ?? this.getName();
+		} else {
+			title = super.getTitle(verbosity);
 		}
 
-		return super.getTitle(verbosity);
+		const preferredTitle = this.getPreferredTitle();
+		if (preferredTitle) {
+			title = `${preferredTitle} (${title})`;
+		}
+
+		return title;
+	}
+
+	protected getPreferredTitle(): string | undefined {
+		if (this.preferredName && this.preferredDescription) {
+			return `${this.preferredName} ${this.preferredDescription}`;
+		}
+
+		if (this.preferredName || this.preferredDescription) {
+			return this.preferredName ?? this.preferredDescription;
+		}
+
+		return undefined;
 	}
 
 	override getLabelExtraClasses(): string[] {
@@ -190,7 +210,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			return new SideBySideEditorInput(this.preferredName, this.preferredDescription, primarySaveResult, primarySaveResult, this.editorService);
 		}
 
-		if (!isResourceDiffEditorInput(primarySaveResult) && !isResourceSideBySideEditorInput(primarySaveResult) && !isResourceMergeEditorInput(primarySaveResult)) {
+		if (!isResourceDiffEditorInput(primarySaveResult) && !isResourceMultiDiffEditorInput(primarySaveResult) && !isResourceSideBySideEditorInput(primarySaveResult) && !isResourceMergeEditorInput(primarySaveResult)) {
 			return {
 				primary: primarySaveResult,
 				secondary: primarySaveResult,
@@ -251,7 +271,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.isReadonly();
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceSideBySideEditorInput | undefined {
+	override toUntyped(options?: IUntypedEditorOptions): IResourceSideBySideEditorInput | undefined {
 		const primaryResourceEditorInput = this.primary.toUntyped(options);
 		const secondaryResourceEditorInput = this.secondary.toUntyped(options);
 
@@ -259,6 +279,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		if (
 			primaryResourceEditorInput && secondaryResourceEditorInput &&
 			!isResourceDiffEditorInput(primaryResourceEditorInput) && !isResourceDiffEditorInput(secondaryResourceEditorInput) &&
+			!isResourceMultiDiffEditorInput(primaryResourceEditorInput) && !isResourceMultiDiffEditorInput(secondaryResourceEditorInput) &&
 			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput) &&
 			!isResourceMergeEditorInput(primaryResourceEditorInput) && !isResourceMergeEditorInput(secondaryResourceEditorInput)
 		) {
@@ -341,8 +362,8 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 					const serializedEditorInput: ISerializedSideBySideEditorInput = {
 						name: input.getPreferredName(),
 						description: input.getPreferredDescription(),
-						primarySerialized: primarySerialized,
-						secondarySerialized: secondarySerialized,
+						primarySerialized,
+						secondarySerialized,
 						primaryTypeId: input.primary.typeId,
 						secondaryTypeId: input.secondary.typeId
 					};

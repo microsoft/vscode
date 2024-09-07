@@ -10,7 +10,7 @@ const path = require('path');
 const glob = require('glob');
 const events = require('events');
 const mocha = require('mocha');
-const createStatsCollector = require('../../../node_modules/mocha/lib/stats-collector');
+const createStatsCollector = require('mocha/lib/stats-collector');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
@@ -21,11 +21,13 @@ const yaserver = require('yaserver');
 const http = require('http');
 const { randomBytes } = require('crypto');
 const minimist = require('minimist');
+const { promisify } = require('node:util');
 
 /**
  * @type {{
  * run: string;
  * grep: string;
+ * runGlob: string;
  * browser: string;
  * reporter: string;
  * 'reporter-options': string;
@@ -38,7 +40,7 @@ const minimist = require('minimist');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'grep', 'browser', 'reporter', 'reporter-options', 'tfs'],
+	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
@@ -47,6 +49,7 @@ const args = minimist(process.argv.slice(2), {
 	},
 	alias: {
 		grep: ['g', 'f'],
+		runGlob: ['glob', 'runGrep'],
 		debug: ['debug-browser'],
 		help: 'h'
 	},
@@ -81,6 +84,8 @@ Options:
 	process.exit(0);
 }
 
+const isDebug = !!args.debug;
+
 const withReporter = (function () {
 	if (args.tfs) {
 		{
@@ -109,7 +114,7 @@ function ensureIsArray(a) {
 
 const testModules = (async function () {
 
-	const excludeGlob = '**/{node,electron-sandbox,electron-main}/**/*.test.js';
+	const excludeGlob = '**/{node,electron-sandbox,electron-main,electron-utility}/**/*.test.js';
 	let isDefaultModules = true;
 	let promise;
 
@@ -125,7 +130,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = args.run || defaultGlob;
+		const pattern = args.runGlob || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
@@ -181,10 +186,14 @@ async function createServer() {
 			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
 			req.on('error', reject);
 		});
-
-		const result = await fn(...params);
-		response.writeHead(200, { 'Content-Type': 'application/json' });
-		response.end(JSON.stringify(result));
+		try {
+			const result = await fn(...params);
+			response.writeHead(200, { 'Content-Type': 'application/json' });
+			response.end(JSON.stringify(result));
+		} catch (err) {
+			response.writeHead(500);
+			response.end(err.message);
+		}
 	};
 
 	const server = http.createServer((request, response) => {
@@ -195,17 +204,24 @@ async function createServer() {
 		// rewrite the URL so the static server can handle the request correctly
 		request.url = request.url.slice(prefix.length);
 
+		function massagePath(p) {
+			// TODO@jrieken FISHY but it enables snapshot
+			// in ESM browser tests
+			p = String(p).replace(/\\/g, '/').replace(prefix, rootDir);
+			return p;
+		}
+
 		switch (request.url) {
 			case '/remoteMethod/__readFileInTests':
-				return remoteMethod(request, response, p => fs.promises.readFile(p, 'utf-8'));
+				return remoteMethod(request, response, p => fs.promises.readFile(massagePath(p), 'utf-8'));
 			case '/remoteMethod/__writeFileInTests':
-				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(p, contents));
+				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(massagePath(p), contents));
 			case '/remoteMethod/__readDirInTests':
-				return remoteMethod(request, response, p => fs.promises.readdir(p));
+				return remoteMethod(request, response, p => fs.promises.readdir(massagePath(p)));
 			case '/remoteMethod/__unlinkInTests':
-				return remoteMethod(request, response, p => fs.promises.unlink(p));
+				return remoteMethod(request, response, p => fs.promises.unlink(massagePath(p)));
 			case '/remoteMethod/__mkdirPInTests':
-				return remoteMethod(request, response, p => fs.promises.mkdir(p, { recursive: true }));
+				return remoteMethod(request, response, p => fs.promises.mkdir(massagePath(p), { recursive: true }));
 			default:
 				return serveStatic.handle(request, response);
 		}
@@ -237,12 +253,29 @@ async function runTestsInBrowser(testModules, browserType) {
 		target.searchParams.set('ci', 'true');
 	}
 
+	// append CSS modules as query-param
+	await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
+		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+		target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
+	});
+
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
 		emitter.emit(type, data1, data2);
 	});
 
 	await page.goto(target.href);
+
+	if (args.build) {
+		const nlsMessages = await fs.promises.readFile(path.join(out, 'nls.messages.json'), 'utf8');
+		await page.evaluate(value => {
+			// when running from `out-build`, ensure to load the default
+			// messages file, because all `nls.localize` calls have their
+			// english values removed and replaced by an index.
+			// @ts-ignore
+			globalThis._VSCODE_NLS_MESSAGES = JSON.parse(value);
+		}, nlsMessages);
+	}
 
 	page.on('console', async msg => {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
@@ -277,8 +310,10 @@ async function runTestsInBrowser(testModules, browserType) {
 	} catch (err) {
 		console.error(err);
 	}
-	server.dispose();
-	await browser.close();
+	if (!isDebug) {
+		server?.dispose();
+		await browser.close();
+	}
 
 	if (failingTests.length > 0) {
 		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
@@ -365,7 +400,9 @@ testModules.then(async modules => {
 		}
 	} catch (err) {
 		console.error(err);
-		process.exit(1);
+		if (!isDebug) {
+			process.exit(1);
+		}
 	}
 
 	// aftermath
@@ -375,7 +412,9 @@ testModules.then(async modules => {
 			console.log(msg);
 		}
 	}
-	process.exit(didFail ? 1 : 0);
+	if (!isDebug) {
+		process.exit(didFail ? 1 : 0);
+	}
 
 }).catch(err => {
 	console.error(err);

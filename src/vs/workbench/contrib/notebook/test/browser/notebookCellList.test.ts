@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { CellKind, NotebookSetting } from '../../common/notebookCommon.js';
+import { createNotebookCellList, setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookCellList', () => {
 	let testDisposables: DisposableStore;
@@ -26,10 +26,7 @@ suite('NotebookCellList', () => {
 	setup(() => {
 		testDisposables = new DisposableStore();
 		instantiationService = setupInstantiationService(testDisposables);
-		config = new TestConfigurationService({
-			[NotebookSetting.anchorToFocusedCell]: 'auto'
-		});
-
+		config = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, config);
 	});
 
@@ -65,17 +62,17 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 1, top 50, bottom 150, which is fully visible in the viewport
-				cellList.revealCellsInView({ start: 1, end: 2 });
+				cellList.revealCells({ start: 1, end: 2 });
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 2, top 150, bottom 200, which is fully visible in the viewport
-				cellList.revealCellsInView({ start: 2, end: 3 });
+				cellList.revealCells({ start: 2, end: 3 });
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealCellsInView({ start: 3, end: 4 });
+				cellList.revealCells({ start: 3, end: 4 });
 				assert.deepStrictEqual(cellList.scrollTop, 90);
 			});
 	});
@@ -110,7 +107,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
 				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealCellsInView({ start: 3, end: 4 });
+				cellList.revealCells({ start: 3, end: 4 });
 				assert.deepStrictEqual(cellList.scrollTop, 90);
 
 				// scroll to 5
@@ -119,7 +116,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 0, top 0, bottom 50
-				cellList.revealCellsInView({ start: 0, end: 1 });
+				cellList.revealCells({ start: 0, end: 1 });
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 			});
 	});
@@ -155,7 +152,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
-				cellList.revealCellsInView({ start: 4, end: 5 });
+				cellList.revealCells({ start: 4, end: 5 });
 				assert.deepStrictEqual(cellList.scrollTop, 140);
 				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 330);
 			});

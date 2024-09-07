@@ -4,27 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, WebContents } from 'electron';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicMenuLabel } from 'vs/base/common/labels';
-import { isMacintosh, language } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStateService } from 'vs/platform/state/node/state';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { mnemonicMenuLabel } from '../../../base/common/labels.js';
+import { isMacintosh, language } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
+import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem } from '../common/menubar.js';
+import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IStateService } from '../../state/node/state.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUpdateService, StateType } from '../../update/common/update.js';
+import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeTitlebar } from '../../window/common/window.js';
+import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 const telemetryFrom = 'menu';
 
@@ -42,14 +43,14 @@ interface IMenuItemWithKeybinding {
 	userSettingsLabel?: string;
 }
 
-export class Menubar {
+export class Menubar extends Disposable {
 
 	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
 	private willShutdown: boolean | undefined;
 	private appMenuInstalled: boolean | undefined;
 	private closedLastWindow: boolean;
-	private noActiveWindow: boolean;
+	private noActiveMainWindow: boolean;
 
 	private menuUpdater: RunOnceScheduler;
 	private menuGC: RunOnceScheduler;
@@ -78,6 +79,8 @@ export class Menubar {
 		@IProductService private readonly productService: IProductService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
+		super();
+
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
 		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
@@ -85,14 +88,14 @@ export class Menubar {
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
 
-		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
+		if (isMacintosh || hasNativeTitlebar(configurationService)) {
 			this.restoreCachedMenubarData();
 		}
 
 		this.addFallbackHandlers();
 
 		this.closedLastWindow = false;
-		this.noActiveWindow = false;
+		this.noActiveMainWindow = false;
 
 		this.oldMenus = [];
 
@@ -117,14 +120,18 @@ export class Menubar {
 	private addFallbackHandlers(): void {
 
 		// File Menu Items
-		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
+		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => {
+			if (!this.runActionInRenderer({ type: 'commandId', commandId: 'workbench.action.files.newUntitledFile' })) { // this is one of the few supported actions when aux window has focus
+				this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
+			}
+		};
 		this.fallbackMenuHandlers['workbench.action.newWindow'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
 		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = (menuItem, win, event) => this.nativeHostMainService.pickFileFolderAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 		this.fallbackMenuHandlers['workbench.action.files.openFolder'] = (menuItem, win, event) => this.nativeHostMainService.pickFolderAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 		this.fallbackMenuHandlers['workbench.action.openWorkspace'] = (menuItem, win, event) => this.nativeHostMainService.pickWorkspaceAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 
 		// Recent Menu Items
-		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.workspacesHistoryMainService.clearRecentlyOpened();
+		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.workspacesHistoryMainService.clearRecentlyOpened({ confirm: true /* ask for confirmation */ });
 
 		// Help Menu Items
 		const youTubeUrl = this.productService.youTubeUrl;
@@ -165,12 +172,12 @@ export class Menubar {
 	private registerListeners(): void {
 
 		// Keep flag when app quits
-		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
+		this._register(this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true));
 
 		// Listen to some events from window service to update menu
-		this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e));
-		this.nativeHostMainService.onDidBlurWindow(() => this.onDidChangeWindowFocus());
-		this.nativeHostMainService.onDidFocusWindow(() => this.onDidChangeWindowFocus());
+		this._register(this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e)));
+		this._register(this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus()));
+		this._register(this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus()));
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -242,7 +249,8 @@ export class Menubar {
 			return;
 		}
 
-		this.noActiveWindow = !BrowserWindow.getFocusedWindow();
+		const focusedWindow = BrowserWindow.getFocusedWindow();
+		this.noActiveMainWindow = !focusedWindow || !!this.auxiliaryWindowsMainService.getWindowByWebContents(focusedWindow.webContents);
 		this.scheduleUpdateMenu();
 	}
 
@@ -374,11 +382,20 @@ export class Menubar {
 		// Setting the application menu sets it to all opened windows,
 		// but we currently do not support a menu in auxiliary windows,
 		// so we need to unset it there.
+		//
+		// This is a bit ugly but `setApplicationMenu()` has some nice
+		// behaviour we want:
+		// - on macOS it is required because menus are application set
+		// - we use `getApplicationMenu()` to access the current state
+		// - new windows immediately get the same menu when opening
+		//   reducing overall flicker for these
 
 		Menu.setApplicationMenu(menu);
 
-		for (const window of this.auxiliaryWindowsMainService.getWindows()) {
-			window.win?.setMenu(null);
+		if (menu) {
+			for (const window of this.auxiliaryWindowsMainService.getWindows()) {
+				window.win?.setMenu(null);
+			}
 		}
 	}
 
@@ -404,7 +421,7 @@ export class Menubar {
 				if (
 					this.windowsMainService.getWindowCount() === 0 || 	// allow to quit when no more windows are open
 					!!BrowserWindow.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/microsoft/vscode/issues/39191)
-					lastActiveWindow?.isMinimized()						// allow to quit when window has no focus but is minimized (https://github.com/microsoft/vscode/issues/63000)
+					lastActiveWindow?.win?.isMinimized()				// allow to quit when window has no focus but is minimized (https://github.com/microsoft/vscode/issues/63000)
 				) {
 					const confirmed = await this.confirmBeforeQuit(event);
 					if (confirmed) {
@@ -462,7 +479,7 @@ export class Menubar {
 
 	private shouldDrawMenu(menuId: string): boolean {
 		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
+		if (!isMacintosh && !hasNativeTitlebar(this.configurationService)) {
 			return false;
 		}
 
@@ -470,12 +487,12 @@ export class Menubar {
 			case 'File':
 			case 'Help':
 				if (isMacintosh) {
-					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveMainWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
 				}
 
 			case 'Window':
 				if (isMacintosh) {
-					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow) || !!this.menubarMenus;
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveMainWindow) || !!this.menubarMenus;
 				}
 
 			default:
@@ -502,7 +519,7 @@ export class Menubar {
 
 				if (isMacintosh) {
 					if ((this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) ||
-						(this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow)) {
+						(this.windowsMainService.getWindowCount() > 0 && this.noActiveMainWindow)) {
 						// In the fallback scenario, we are either disabled or using a fallback handler
 						if (this.fallbackMenuHandlers[item.id]) {
 							menu.append(new MenuItem(this.likeAction(item.id, { label: this.mnemonicLabel(item.label), click: this.fallbackMenuHandlers[item.id] })));
@@ -633,7 +650,7 @@ export class Menubar {
 				return [new MenuItem({ label: nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
 
 			case StateType.Downloaded:
-				return [new MenuItem({
+				return isMacintosh ? [] : [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miInstallUpdate', "Install &&Update...")), click: () => {
 						this.reportMenuActionTelemetry('InstallUpdate');
 						this.updateService.applyUpdate();
@@ -747,16 +764,27 @@ export class Menubar {
 		};
 	}
 
-	private runActionInRenderer(invocation: IMenuItemInvocation): void {
+	private runActionInRenderer(invocation: IMenuItemInvocation): boolean {
+
+		// We want to support auxililary windows that may have focus by
+		// returning their parent windows as target to support running
+		// actions via the main window.
+		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
+		if (activeBrowserWindow) {
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowByWebContents(activeBrowserWindow.webContents);
+			if (auxiliaryWindowCandidate) {
+				activeBrowserWindow = this.windowsMainService.getWindowById(auxiliaryWindowCandidate.parentId)?.win ?? null;
+			}
+		}
+
 		// We make sure to not run actions when the window has no focus, this helps
 		// for https://github.com/microsoft/vscode/issues/25907 and specifically for
 		// https://github.com/microsoft/vscode/issues/11928
 		// Still allow to run when the last active window is minimized though for
 		// https://github.com/microsoft/vscode/issues/63000
-		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
 		if (!activeBrowserWindow) {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
-			if (lastActiveWindow?.isMinimized()) {
+			if (lastActiveWindow?.win?.isMinimized()) {
 				activeBrowserWindow = lastActiveWindow.win;
 			}
 		}
@@ -770,7 +798,7 @@ export class Menubar {
 					// prevent this action from running twice on macOS (https://github.com/microsoft/vscode/issues/62719)
 					// we already register a keybinding in bootstrap-window.js for opening developer tools in case something
 					// goes wrong and that keybinding is only removed when the application has loaded (= window ready).
-					return;
+					return false;
 				}
 			}
 
@@ -781,8 +809,12 @@ export class Menubar {
 				const runKeybindingPayload: INativeRunKeybindingInWindowRequest = { userSettingsLabel: invocation.userSettingsLabel };
 				activeWindow.sendWhenReady('vscode:runKeybinding', CancellationToken.None, runKeybindingPayload);
 			}
+
+			return true;
 		} else {
 			this.logService.trace('menubar#runActionInRenderer: no active window found', invocation);
+
+			return false;
 		}
 	}
 

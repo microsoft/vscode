@@ -6,7 +6,8 @@
 extern crate dirs;
 
 use std::{
-	fs::{create_dir_all, read_to_string, remove_dir_all, write},
+	fs::{self, create_dir_all, read_to_string, remove_dir_all},
+	io::Write,
 	path::{Path, PathBuf},
 	sync::{Arc, Mutex},
 };
@@ -34,6 +35,8 @@ where
 {
 	path: PathBuf,
 	state: Option<T>,
+	#[allow(dead_code)]
+	mode: u32,
 }
 
 impl<T> PersistedStateContainer<T>
@@ -58,12 +61,27 @@ where
 	fn save(&mut self, state: T) -> Result<(), WrappedError> {
 		let s = serde_json::to_string(&state).unwrap();
 		self.state = Some(state);
-		write(&self.path, s).map_err(|e| {
+		self.write_state(s).map_err(|e| {
 			wrap(
 				e,
 				format!("error saving launcher state into {}", self.path.display()),
 			)
 		})
+	}
+
+	fn write_state(&mut self, s: String) -> std::io::Result<()> {
+		#[cfg(not(windows))]
+		use std::os::unix::fs::OpenOptionsExt;
+
+		let mut f = fs::OpenOptions::new();
+		f.create(true);
+		f.write(true);
+		f.truncate(true);
+		#[cfg(not(windows))]
+		f.mode(self.mode);
+
+		let mut f = f.open(&self.path)?;
+		f.write_all(s.as_bytes())
 	}
 }
 
@@ -82,8 +100,17 @@ where
 {
 	/// Creates a new state container that persists to the given path.
 	pub fn new(path: PathBuf) -> PersistedState<T> {
+		Self::new_with_mode(path, 0o644)
+	}
+
+	/// Creates a new state container that persists to the given path.
+	pub fn new_with_mode(path: PathBuf, mode: u32) -> PersistedState<T> {
 		PersistedState {
-			container: Arc::new(Mutex::new(PersistedStateContainer { path, state: None })),
+			container: Arc::new(Mutex::new(PersistedStateContainer {
+				path,
+				state: None,
+				mode,
+			})),
 		}
 	}
 
@@ -217,5 +244,4 @@ impl LauncherPaths {
 	pub fn web_server_storage(&self) -> PathBuf {
 		self.root.join("serve-web")
 	}
-
 }

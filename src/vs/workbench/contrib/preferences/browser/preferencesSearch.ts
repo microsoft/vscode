@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch } from 'vs/workbench/services/preferences/common/preferences';
-import { IRange } from 'vs/editor/common/core/range';
-import { distinct } from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import { IMatch, matchesContiguousSubString, matchesWords } from 'vs/base/common/filters';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
-import { TfIdfCalculator, TfIdfDocument } from 'vs/base/common/tfIdf';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch } from '../../../services/preferences/common/preferences.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import * as strings from '../../../../base/common/strings.js';
+import { IMatch, matchesContiguousSubString, matchesWords } from '../../../../base/common/filters.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
+import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
+import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -56,7 +57,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		return workbenchSettings.enableNaturalLanguageSearch;
 	}
 
-	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): IRemoteSearchProvider | undefined {
+	getRemoteSearchProvider(filter: string): IRemoteSearchProvider | undefined {
 		if (!this.remoteSearchAllowed) {
 			return undefined;
 		}
@@ -113,9 +114,10 @@ export class LocalSearchProvider implements ISearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
+		const exactMatch = filterMatches.find(m => m.score === LocalSearchProvider.EXACT_MATCH_SCORE);
+		if (exactMatch) {
 			return Promise.resolve({
-				filterMatches: filterMatches.slice(0, 1),
+				filterMatches: [exactMatch],
 				exactMatch: true
 			});
 		} else {
@@ -207,7 +209,7 @@ export class SettingMatches {
 			for (const word of words) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+					const descriptionMatches = matchesContiguousSubString(word, setting.description[lineIndex]);
 					if (descriptionMatches?.length) {
 						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
@@ -282,11 +284,17 @@ export class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		const descriptionRange = setting.descriptionRanges[lineIndex];
+		if (!descriptionRange) {
+			// This case occurs with added settings such as the
+			// manage extension setting.
+			return nullRange;
+		}
 		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
-			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].endLineNumber,
-			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
+			startLineNumber: descriptionRange.startLineNumber,
+			startColumn: descriptionRange.startColumn + match.start,
+			endLineNumber: descriptionRange.endLineNumber,
+			endColumn: descriptionRange.startColumn + match.end
 		};
 	}
 
@@ -515,9 +523,8 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 	private initializeSearchProviders() {
 		if (this.aiRelatedInformationService.isEnabled()) {
 			this.adaSearchProvider ??= new AiRelatedInformationSearchProvider(this.aiRelatedInformationService);
-		} else {
-			this.tfIdfSearchProvider ??= new TfIdfSearchProvider();
 		}
+		this.tfIdfSearchProvider ??= new TfIdfSearchProvider();
 	}
 
 	setFilter(filter: string): void {
@@ -525,9 +532,8 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 		this.filter = filter;
 		if (this.adaSearchProvider) {
 			this.adaSearchProvider.setFilter(filter);
-		} else {
-			this.tfIdfSearchProvider!.setFilter(filter);
 		}
+		this.tfIdfSearchProvider!.setFilter(filter);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
@@ -535,11 +541,14 @@ class RemoteSearchProvider implements IRemoteSearchProvider {
 			return Promise.resolve(null);
 		}
 
-		if (this.adaSearchProvider) {
-			return this.adaSearchProvider.searchModel(preferencesModel, token);
-		} else {
+		if (!this.adaSearchProvider) {
 			return this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
 		}
+
+		// Use TF-IDF search as a fallback, ref https://github.com/microsoft/vscode/issues/224946
+		return this.adaSearchProvider.searchModel(preferencesModel, token).then((results) => {
+			return results?.filterMatches.length ? results : this.tfIdfSearchProvider!.searchModel(preferencesModel, token);
+		});
 	}
 }
 

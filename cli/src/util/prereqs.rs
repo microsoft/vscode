@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 use std::cmp::Ordering;
 
-use super::command::capture_command;
 use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
 use lazy_static::lazy_static;
@@ -20,8 +19,20 @@ lazy_static! {
 	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 18);
-	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
+	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
+	static ref MIN_LEGACY_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
+}
+
+#[cfg(target_arch = "arm")]
+lazy_static! {
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 26);
+	static ref MIN_LEGACY_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 22);
+}
+
+#[cfg(not(target_arch = "arm"))]
+lazy_static! {
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
+	static ref MIN_LEGACY_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 19);
 }
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
@@ -52,22 +63,42 @@ impl PreReqChecker {
 
 	#[cfg(target_os = "linux")]
 	pub async fn verify(&self) -> Result<Platform, CodeError> {
-		let (is_nixos, gnu_a, gnu_b, or_musl) = tokio::join!(
+		let (is_nixos, skip_glibc_checks, or_musl) = tokio::join!(
 			check_is_nixos(),
-			check_glibc_version(),
-			check_glibcxx_version(),
+			skip_requirements_check(),
 			check_musl_interpreter()
 		);
 
-		if (gnu_a.is_ok() && gnu_b.is_ok()) || is_nixos {
-			return Ok(if cfg!(target_arch = "x86_64") {
-				Platform::LinuxX64
-			} else if cfg!(target_arch = "arm") {
-				Platform::LinuxARM32
-			} else {
-				Platform::LinuxARM64
-			});
-		}
+		let (gnu_a, gnu_b) = if !skip_glibc_checks {
+			tokio::join!(check_glibc_version(), check_glibcxx_version())
+		} else {
+			println!("!!! WARNING: Skipping server pre-requisite check !!!");
+			println!("!!! Server stability is not guaranteed. Proceed at your own risk. !!!");
+			// Use the legacy server for #210029
+			(Ok(true), Ok(true))
+		};
+
+		match (&gnu_a, &gnu_b, is_nixos) {
+			(Ok(false), Ok(false), _) | (_, _, true) => {
+				return Ok(if cfg!(target_arch = "x86_64") {
+					Platform::LinuxX64
+				} else if cfg!(target_arch = "arm") {
+					Platform::LinuxARM32
+				} else {
+					Platform::LinuxARM64
+				});
+			}
+			(Ok(_), Ok(_), _) => {
+				return Ok(if cfg!(target_arch = "x86_64") {
+					Platform::LinuxX64Legacy
+				} else if cfg!(target_arch = "arm") {
+					Platform::LinuxARM32Legacy
+				} else {
+					Platform::LinuxARM64Legacy
+				});
+			}
+			_ => {}
+		};
 
 		if or_musl.is_ok() {
 			return Ok(if cfg!(target_arch = "x86_64") {
@@ -119,8 +150,9 @@ async fn check_musl_interpreter() -> Result<(), String> {
 	Ok(())
 }
 
-#[allow(dead_code)]
-async fn check_glibc_version() -> Result<(), String> {
+/// Checks the glibc version, returns "true" if the legacy server is required.
+#[cfg(target_os = "linux")]
+async fn check_glibc_version() -> Result<bool, String> {
 	#[cfg(target_env = "gnu")]
 	let version = {
 		let v = unsafe { libc::gnu_get_libc_version() };
@@ -130,7 +162,7 @@ async fn check_glibc_version() -> Result<(), String> {
 	};
 	#[cfg(not(target_env = "gnu"))]
 	let version = {
-		capture_command("ldd", ["--version"])
+		super::command::capture_command("ldd", ["--version"])
 			.await
 			.ok()
 			.and_then(|o| extract_ldd_version(&o.stdout))
@@ -138,16 +170,18 @@ async fn check_glibc_version() -> Result<(), String> {
 
 	if let Some(v) = version {
 		return if v >= *MIN_LDD_VERSION {
-			Ok(())
+			Ok(false)
+		} else if v >= *MIN_LEGACY_LDD_VERSION {
+			Ok(true)
 		} else {
 			Err(format!(
-				"find GLIBC >= 2.17 (but found {} instead) for GNU environments",
-				v
+				"find GLIBC >= {} (but found {} instead) for GNU environments",
+				*MIN_LDD_VERSION, v
 			))
 		};
 	}
 
-	Ok(())
+	Ok(false)
 }
 
 /// Check for nixos to avoid mandating glibc versions. See:
@@ -157,8 +191,25 @@ async fn check_is_nixos() -> bool {
 	fs::metadata(NIXOS_TEST_PATH).await.is_ok()
 }
 
-#[allow(dead_code)]
-async fn check_glibcxx_version() -> Result<(), String> {
+/// Do not remove this check.
+/// Provides a way to skip the server glibc requirements check from
+/// outside the install flow. A system process can create this
+/// file before the server is downloaded and installed.
+#[cfg(not(windows))]
+pub async fn skip_requirements_check() -> bool {
+	fs::metadata("/tmp/vscode-skip-server-requirements-check")
+		.await
+		.is_ok()
+}
+
+#[cfg(windows)]
+pub async fn skip_requirements_check() -> bool {
+	false
+}
+
+/// Checks the glibc++ version, returns "true" if the legacy server is required.
+#[cfg(target_os = "linux")]
+async fn check_glibcxx_version() -> Result<bool, String> {
 	let mut libstdc_path: Option<String> = None;
 
 	#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -170,7 +221,7 @@ async fn check_glibcxx_version() -> Result<(), String> {
 	if fs::metadata(DEFAULT_LIB_PATH).await.is_ok() {
 		libstdc_path = Some(DEFAULT_LIB_PATH.to_owned());
 	} else if fs::metadata(LDCONFIG_PATH).await.is_ok() {
-		libstdc_path = capture_command(LDCONFIG_PATH, ["-p"])
+		libstdc_path = super::command::capture_command(LDCONFIG_PATH, ["-p"])
 			.await
 			.ok()
 			.and_then(|o| extract_libstd_from_ldconfig(&o.stdout));
@@ -188,29 +239,35 @@ async fn check_glibcxx_version() -> Result<(), String> {
 	}
 }
 
-#[allow(dead_code)]
-fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<(), String> {
-	let all_versions: Vec<SimpleSemver> = LIBSTD_CXX_VERSION_RE
+#[cfg(target_os = "linux")]
+fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<bool, String> {
+	let max_version = LIBSTD_CXX_VERSION_RE
 		.captures_iter(&contents)
 		.map(|m| SimpleSemver {
 			major: m.get(1).map_or(0, |s| u32_from_bytes(s.as_bytes())),
 			minor: m.get(2).map_or(0, |s| u32_from_bytes(s.as_bytes())),
 			patch: m.get(3).map_or(0, |s| u32_from_bytes(s.as_bytes())),
 		})
-		.collect();
+		.max();
 
-	if !all_versions.iter().any(|v| &*MIN_CXX_VERSION >= v) {
-		return Err(format!(
-			"find GLIBCXX >= 3.4.18 (but found {} instead) for GNU environments",
-			all_versions
-				.iter()
-				.map(String::from)
-				.collect::<Vec<String>>()
-				.join(", ")
-		));
+	if let Some(max_version) = &max_version {
+		if max_version >= &*MIN_CXX_VERSION {
+			return Ok(false);
+		}
+
+		if max_version >= &*MIN_LEGACY_CXX_VERSION {
+			return Ok(true);
+		}
 	}
 
-	Ok(())
+	Err(format!(
+		"find GLIBCXX >= {} (but found {} instead) for GNU environments",
+		*MIN_CXX_VERSION,
+		max_version
+			.as_ref()
+			.map(String::from)
+			.unwrap_or("none".to_string())
+	))
 }
 
 #[allow(dead_code)]
@@ -231,6 +288,7 @@ fn extract_generic_version(output: &str) -> Option<SimpleSemver> {
 	})
 }
 
+#[allow(dead_code)]
 fn extract_libstd_from_ldconfig(output: &[u8]) -> Option<String> {
 	String::from_utf8_lossy(output)
 		.lines()
@@ -302,12 +360,12 @@ mod tests {
 	#[test]
 	fn test_extract_libstd_from_ldconfig() {
 		let actual = "
-            libstoken.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libstoken.so.1
-            libstemmer.so.0d (libc6,x86-64) => /lib/x86_64-linux-gnu/libstemmer.so.0d
-            libstdc++.so.6 (libc6,x86-64) => /lib/x86_64-linux-gnu/libstdc++.so.6
-            libstartup-notification-1.so.0 (libc6,x86-64) => /lib/x86_64-linux-gnu/libstartup-notification-1.so.0
-            libssl3.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libssl3.so
-        ".to_owned().into_bytes();
+							libstoken.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libstoken.so.1
+							libstemmer.so.0d (libc6,x86-64) => /lib/x86_64-linux-gnu/libstemmer.so.0d
+							libstdc++.so.6 (libc6,x86-64) => /lib/x86_64-linux-gnu/libstdc++.so.6
+							libstartup-notification-1.so.0 (libc6,x86-64) => /lib/x86_64-linux-gnu/libstartup-notification-1.so.0
+							libssl3.so (libc6,x86-64) => /lib/x86_64-linux-gnu/libssl3.so
+					".to_owned().into_bytes();
 
 		assert_eq!(
 			extract_libstd_from_ldconfig(&actual),
@@ -334,10 +392,10 @@ mod tests {
 	#[test]
 	fn check_for_sufficient_glibcxx_versions() {
 		let actual = "ldd (Ubuntu GLIBC 2.31-0ubuntu9.7) 2.31
-        Copyright (C) 2020 Free Software Foundation, Inc.
-        This is free software; see the source for copying conditions.  There is NO
-        warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-        Written by Roland McGrath and Ulrich Drepper."
+					Copyright (C) 2020 Free Software Foundation, Inc.
+					This is free software; see the source for copying conditions.  There is NO
+					warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+					Written by Roland McGrath and Ulrich Drepper."
 			.to_owned()
 			.into_bytes();
 

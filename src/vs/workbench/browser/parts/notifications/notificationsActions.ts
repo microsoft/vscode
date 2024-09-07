@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsActions';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
-import { localize } from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
+import './media/notificationsActions.css';
+import { INotificationViewItem } from '../../../common/notifications.js';
+import { localize } from '../../../../nls.js';
+import { Action } from '../../../../base/common/actions.js';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE, TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE } from './notificationsCommands.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
@@ -73,6 +73,37 @@ export class ToggleDoNotDisturbAction extends Action {
 
 	override async run(): Promise<void> {
 		this.commandService.executeCommand(TOGGLE_DO_NOT_DISTURB_MODE);
+	}
+}
+
+export class ToggleDoNotDisturbBySourceAction extends Action {
+
+	static readonly ID = TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE;
+	static readonly LABEL = localize('toggleDoNotDisturbModeBySource', "Toggle Do Not Disturb Mode By Source...");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		this.commandService.executeCommand(TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE);
+	}
+}
+
+export class ConfigureDoNotDisturbAction extends Action {
+
+	static readonly ID = 'workbench.action.configureDoNotDisturbMode';
+	static readonly LABEL = localize('configureDoNotDisturbMode', "Configure Do Not Disturb...");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
 	}
 }
 
@@ -138,7 +169,7 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		readonly configurationActions: readonly IAction[]
+		readonly notification: INotificationViewItem
 	) {
 		super(id, label, ThemeIcon.asClassName(configureIcon));
 	}

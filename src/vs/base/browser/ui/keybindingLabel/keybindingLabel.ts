@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
-import { equals } from 'vs/base/common/objects';
-import { OperatingSystem } from 'vs/base/common/platform';
-import 'vs/css!./keybindingLabel';
-import { localize } from 'vs/nls';
+import * as dom from '../../dom.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { UILabelProvider } from '../../../common/keybindingLabels.js';
+import { ResolvedKeybinding, ResolvedChord } from '../../../common/keybindings.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import { equals } from '../../../common/objects.js';
+import { OperatingSystem } from '../../../common/platform.js';
+import './keybindingLabel.css';
+import { localize } from '../../../../nls.js';
 
 const $ = dom.$;
 
@@ -50,18 +54,21 @@ export const unthemedKeybindingLabelOptions: KeybindingLabelOptions = {
 	keybindingLabelShadow: undefined
 };
 
-export class KeybindingLabel {
+export class KeybindingLabel extends Disposable {
 
 	private domNode: HTMLElement;
 	private options: KeybindingLabelOptions;
 
 	private readonly keyElements = new Set<HTMLSpanElement>();
 
+	private hover: IManagedHover;
 	private keybinding: ResolvedKeybinding | undefined;
 	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
 	constructor(container: HTMLElement, private os: OperatingSystem, options?: KeybindingLabelOptions) {
+		super();
+
 		this.options = options || Object.create(null);
 
 		const labelForeground = this.options.keybindingLabelForeground;
@@ -70,6 +77,8 @@ export class KeybindingLabel {
 		if (labelForeground) {
 			this.domNode.style.color = labelForeground;
 		}
+
+		this.hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.domNode, ''));
 
 		this.didEverRender = false;
 		container.appendChild(this.domNode);
@@ -102,11 +111,8 @@ export class KeybindingLabel {
 				this.renderChord(this.domNode, chords[i], this.matches ? this.matches.chordPart : null);
 			}
 			const title = (this.options.disableTitle ?? false) ? undefined : this.keybinding.getAriaLabel() || undefined;
-			if (title !== undefined) {
-				this.domNode.title = title;
-			} else {
-				this.domNode.removeAttribute('title');
-			}
+			this.hover.update(title);
+			this.domNode.setAttribute('aria-label', title || '');
 		} else if (this.options && this.options.renderUnboundKeybindings) {
 			this.renderUnbound(this.domNode);
 		}

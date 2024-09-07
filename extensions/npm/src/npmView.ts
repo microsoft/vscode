@@ -16,7 +16,8 @@ import {
 	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, INpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
-	ITaskWithLocation
+	ITaskWithLocation,
+	INSTALL_SCRIPT
 } from './tasks';
 
 
@@ -82,7 +83,7 @@ class NpmScript extends TreeItem {
 			: task.task.name;
 		super(name, TreeItemCollapsibleState.None);
 		this.taskLocation = task.location;
-		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
+		const command: ExplorerCommands = name === `${INSTALL_SCRIPT} ` ? 'run' : workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
 
 		const commandList = {
 			'open': {

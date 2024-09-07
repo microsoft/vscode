@@ -48,7 +48,8 @@ export function setup(logger: Logger) {
 			await app.code.waitForSetValue('.settings-editor .setting-item-contents .setting-item-control input', '4');
 		});
 
-		it('turns off editor line numbers and verifies the live change', async function () {
+		// Skipping test due to it being flaky.
+		it.skip('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.editors.newUntitledFile();

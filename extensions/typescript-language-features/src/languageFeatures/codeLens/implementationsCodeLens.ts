@@ -13,16 +13,35 @@ import * as typeConverters from '../../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
 import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../util/dependentRegistration';
 import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
+import { ExecutionTarget } from '../../tsServer/server';
 
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public constructor(
+		client: ITypeScriptServiceClient,
+		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+		private readonly language: LanguageDescription
+	) {
+		super(client, _cachedResponse);
+		this._register(
+			vscode.workspace.onDidChangeConfiguration(evt => {
+				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`)) {
+					this.changeEmitter.fire();
+				}
+			})
+		);
+	}
 
 	public async resolveCodeLens(
 		codeLens: ReferencesCodeLens,
 		token: vscode.CancellationToken,
 	): Promise<vscode.CodeLens> {
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
-		const response = await this.client.execute('implementation', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
+		const response = await this.client.execute('implementation', args, token, {
+			lowPriority: true,
+			executionTarget: ExecutionTarget.Semantic,
+			cancelOnResourceChange: codeLens.document,
+		});
 		if (response.type !== 'response' || !response.body) {
 			codeLens.command = response.type === 'cancelled'
 				? TypeScriptBaseCodeLensProvider.cancelledCommand
@@ -66,8 +85,11 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	protected extractSymbol(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | undefined
+		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
+		if (item.kind === PConst.Kind.method && parent && parent.kind === PConst.Kind.interface && vscode.workspace.getConfiguration(this.language.id).get<boolean>('implementationsCodeLens.showOnInterfaceMethods')) {
+			return getSymbolRange(document, item);
+		}
 		switch (item.kind) {
 			case PConst.Kind.interface:
 				return getSymbolRange(document, item);
@@ -97,6 +119,6 @@ export function register(
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,
-			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse));
+			new TypeScriptImplementationsCodeLensProvider(client, cachedResponse, language));
 	});
 }

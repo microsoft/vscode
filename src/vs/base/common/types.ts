@@ -190,6 +190,16 @@ export function validateConstraint(arg: unknown, constraint: TypeConstraint | un
 	}
 }
 
+/**
+ * Helper type assertion that safely upcasts a type to a supertype.
+ *
+ * This can be used to make sure the argument correctly conforms to the subtype while still being able to pass it
+ * to contexts that expects the supertype.
+ */
+export function upcast<Base, Sub extends Base>(x: Sub): Base {
+	return x;
+}
+
 type AddFirstParameterToFunction<T, TargetFunctionsReturnType, FirstParameter> = T extends (...args: any[]) => TargetFunctionsReturnType ?
 	// Function: add param to function
 	(firstArg: FirstParameter, ...args: Parameters<T>) => ReturnType<T> :
@@ -228,14 +238,23 @@ export type Mutable<T> = {
  */
 export type SingleOrMany<T> = T | T[];
 
-export type OptionalBooleanKey<T> = {
-	[K in keyof T]: T[K] extends boolean | undefined ? K : never;
-}[keyof T];
 
-export type OptionalNumberKey<T> = {
-	[K in keyof T]: T[K] extends number | undefined ? K : never;
-}[keyof T];
+/**
+ * A type that recursively makes all properties of `T` required
+ */
+export type DeepRequiredNonNullable<T> = {
+	[P in keyof T]-?: T[P] extends object ? DeepRequiredNonNullable<T[P]> : Required<NonNullable<T[P]>>;
+};
 
-export type OptionalStringKey<T> = {
-	[K in keyof T]: T[K] extends string | undefined ? K : never;
-}[keyof T];
+
+/**
+ * Represents a type that is a partial version of a given type `T`, where all properties are optional and can be deeply nested.
+ */
+export type DeepPartial<T> = {
+	[P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : Partial<T[P]>;
+};
+
+/**
+ * Represents a type that is a partial version of a given type `T`, except a subset.
+ */
+export type PartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, K>;

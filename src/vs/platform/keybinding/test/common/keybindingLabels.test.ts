@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
+import assert from 'assert';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { createUSLayoutResolvedKeybinding } from './keybindingsTestUtils.js';
 
 suite('KeybindingLabels', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertUSLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
 		const usResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
