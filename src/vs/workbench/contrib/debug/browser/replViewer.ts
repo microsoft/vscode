@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
-import severity from 'vs/base/common/severity';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { debugConsoleEvaluationInput } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, INestingReplElement, IReplElement, IReplElementSource, IReplOptions } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from 'vs/workbench/contrib/debug/common/replModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import * as dom from '../../../../base/browser/dom.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { HighlightedLabel, IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { CachedListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { createMatches, FuzzyScore } from '../../../../base/common/filters.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/path.js';
+import severity from '../../../../base/common/severity.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable } from './baseDebugView.js';
+import { handleANSIOutput } from './debugANSIHandling.js';
+import { debugConsoleEvaluationInput } from './debugIcons.js';
+import { ILinkDetector, LinkDetector } from './linkDetector.js';
+import { IDebugConfiguration, IDebugService, IDebugSession, IExpression, IExpressionContainer, INestingReplElement, IReplElement, IReplElementSource, IReplOptions } from '../common/debug.js';
+import { Variable } from '../common/debugModel.js';
+import { RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup, ReplOutputElement, ReplVariableElement } from '../common/replModel.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const $ = dom.$;
 
@@ -47,6 +47,7 @@ interface IReplGroupTemplateData {
 
 interface IReplEvaluationResultTemplateData {
 	value: HTMLElement;
+	elementStore: DisposableStore;
 }
 
 interface IOutputReplElementTemplateData {
@@ -65,6 +66,7 @@ interface IRawObjectReplTemplateData {
 	name: HTMLElement;
 	value: HTMLElement;
 	label: HighlightedLabel;
+	elementStore: DisposableStore;
 }
 
 export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluationInput, FuzzyScore, IReplEvaluationInputTemplateData> {
@@ -141,19 +143,21 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 		const output = dom.append(container, $('.evaluation-result.expression'));
 		const value = dom.append(output, $('span.value'));
 
-		return { value };
+		return { value, elementStore: new DisposableStore() };
 	}
 
 	renderElement(element: ITreeNode<ReplEvaluationResult | Variable, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
+		templateData.elementStore.clear();
 		const expression = element.element;
-		renderExpressionValue(expression, templateData.value, {
+		renderExpressionValue(templateData.elementStore, expression, templateData.value, {
 			colorize: true,
-			linkDetector: this.linkDetector
+			hover: false,
+			linkDetector: this.linkDetector,
 		}, this.hoverService);
 	}
 
 	disposeTemplate(templateData: IReplEvaluationResultTemplateData): void {
-		// noop
+		templateData.elementStore.dispose();
 	}
 }
 
@@ -192,7 +196,9 @@ export class ReplOutputElementRenderer implements ITreeRenderer<ReplOutputElemen
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
 
-		templateData.value.appendChild(handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session.root));
+		const locationReference = element.expression?.valueLocationReference;
+		const detector: ILinkDetector = locationReference !== undefined ? this.linkDetector.makeReferencedLinkDetector(locationReference, element.session) : this.linkDetector;
+		templateData.value.appendChild(handleANSIOutput(element.value, detector, this.themeService, element.session.root));
 
 		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.setSource(element.sourceData);
@@ -245,7 +251,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 		const isReplVariable = expression instanceof ReplVariableElement;
 		if (isReplVariable || !expression.name) {
 			data.label.set('');
-			renderExpressionValue(isReplVariable ? expression.expression : expression, data.value, { colorize: true, linkDetector: this.linkDetector }, this.hoverService);
+			renderExpressionValue(data.elementDisposable, isReplVariable ? expression.expression : expression, data.value, { colorize: true, linkDetector: this.linkDetector, hover: false }, this.hoverService);
 			data.expression.classList.remove('nested-variable');
 		} else {
 			renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector);
@@ -278,10 +284,12 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 		const label = new HighlightedLabel(name);
 		const value = dom.append(expression, $('span.value'));
 
-		return { container, expression, name, label, value };
+		return { container, expression, name, label, value, elementStore: new DisposableStore() };
 	}
 
 	renderElement(node: ITreeNode<RawObjectReplElement, FuzzyScore>, index: number, templateData: IRawObjectReplTemplateData): void {
+		templateData.elementStore.clear();
+
 		// key
 		const element = node.element;
 		templateData.label.set(element.name ? `${element.name}:` : '', createMatches(node.filterData));
@@ -292,12 +300,14 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 		}
 
 		// value
-		renderExpressionValue(element.value, templateData.value, {
-			linkDetector: this.linkDetector
+		renderExpressionValue(templateData.elementStore, element.value, templateData.value, {
+			linkDetector: this.linkDetector,
+			hover: false,
 		}, this.hoverService);
 	}
 
 	disposeTemplate(templateData: IRawObjectReplTemplateData): void {
+		templateData.elementStore.dispose();
 		templateData.label.dispose();
 	}
 }

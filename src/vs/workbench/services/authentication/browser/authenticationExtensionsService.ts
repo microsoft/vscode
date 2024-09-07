@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { IAuthenticationUsageService } from 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount } from 'vs/workbench/services/authentication/common/authentication';
+import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import * as nls from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Severity } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IActivityService, NumberBadge } from '../../activity/common/activity.js';
+import { IAuthenticationAccessService } from './authenticationAccessService.js';
+import { IAuthenticationUsageService } from './authenticationUsageService.js';
+import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount } from '../common/authentication.js';
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';
@@ -143,7 +143,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		// * Extension id: The extension that has a preference
 		// * Provider id: The provider that the preference is for
 		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${extensionId}-${providerId}-${session.scopes.join(' ')}`;
+		const key = `${extensionId}-${providerId}-${session.scopes.join(SCOPESLIST_SEPARATOR)}`;
 
 		// Store the preference in the workspace and application storage. This allows new workspaces to
 		// have a preference set already to limit the number of prompts that are shown... but also allows
@@ -157,7 +157,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		// * Extension id: The extension that has a preference
 		// * Provider id: The provider that the preference is for
 		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${extensionId}-${providerId}-${scopes.join(' ')}`;
+		const key = `${extensionId}-${providerId}-${scopes.join(SCOPESLIST_SEPARATOR)}`;
 
 		// If a preference is set in the workspace, use that. Otherwise, use the global preference.
 		return this.storageService.get(key, StorageScope.WORKSPACE) ?? this.storageService.get(key, StorageScope.APPLICATION);
@@ -168,7 +168,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		// * Extension id: The extension that has a preference
 		// * Provider id: The provider that the preference is for
 		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${extensionId}-${providerId}-${scopes.join(' ')}`;
+		const key = `${extensionId}-${providerId}-${scopes.join(SCOPESLIST_SEPARATOR)}`;
 
 		// This won't affect any other workspaces that have a preference set, but it will remove the preference
 		// for this workspace and the global preference. This is only paired with a call to updateSessionPreference...
@@ -220,18 +220,22 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		if (!allAccounts.length) {
 			throw new Error('No accounts available');
 		}
-		const quickPick = this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }>();
+		const disposables = new DisposableStore();
+		const quickPick = disposables.add(this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }>());
 		quickPick.ignoreFocusOut = true;
-		const items: { label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }[] = availableSessions.map(session => {
-			return {
-				label: session.account.label,
-				session: session
-			};
-		});
+		const accountsWithSessions = new Set<string>();
+		const items: { label: string; session?: AuthenticationSession; account?: AuthenticationSessionAccount }[] = availableSessions
+			// Only grab the first account
+			.filter(session => !accountsWithSessions.has(session.account.label) && accountsWithSessions.add(session.account.label))
+			.map(session => {
+				return {
+					label: session.account.label,
+					session: session
+				};
+			});
 
 		// Add the additional accounts that have been logged into the provider but are
 		// don't have a session yet.
-		const accountsWithSessions = new Set(availableSessions.map(session => session.account.label));
 		allAccounts.forEach(account => {
 			if (!accountsWithSessions.has(account.label)) {
 				items.push({ label: account.label, account });
@@ -251,7 +255,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
 
 		return await new Promise((resolve, reject) => {
-			quickPick.onDidAccept(async _ => {
+			disposables.add(quickPick.onDidAccept(async _ => {
 				quickPick.dispose();
 				let session = quickPick.selectedItems[0].session;
 				if (!session) {
@@ -270,14 +274,14 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 				this.removeAccessRequest(providerId, extensionId);
 
 				resolve(session);
-			});
+			}));
 
-			quickPick.onDidHide(_ => {
-				quickPick.dispose();
+			disposables.add(quickPick.onDidHide(_ => {
 				if (!quickPick.selectedItems[0]) {
 					reject('User did not consent to account access');
 				}
-			});
+				disposables.dispose();
+			}));
 
 			quickPick.show();
 		});

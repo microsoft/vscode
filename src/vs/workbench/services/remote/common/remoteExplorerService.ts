@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITunnelService, RemoteTunnel, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditableData } from 'vs/workbench/common/views';
-import { TunnelInformation, TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { URI } from 'vs/base/common/uri';
-import { Attributes, CandidatePort, TunnelCloseReason, TunnelModel, TunnelProperties, TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
-import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as nls from '../../../../nls.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITunnelService, RemoteTunnel, TunnelProtocol } from '../../../../platform/tunnel/common/tunnel.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IEditableData } from '../../../common/views.js';
+import { TunnelInformation, TunnelPrivacy } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Attributes, CandidatePort, TunnelCloseReason, TunnelModel, TunnelProperties, TunnelSource } from './tunnelModel.js';
+import { ExtensionsRegistry, IExtensionPointUser } from '../../extensions/common/extensionsRegistry.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';

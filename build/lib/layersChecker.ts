@@ -73,6 +73,7 @@ const CORE_TYPES = [
 	'__global',
 	'PerformanceMark',
 	'PerformanceObserver',
+	'ImportMeta'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -253,6 +254,24 @@ const RULES: IRule[] = [
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
+		]
+	},
+
+	// Electron (utility)
+	{
+		target: '**/vs/**/electron-utility/**',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// --> types from electron.d.ts that duplicate from lib.dom.d.ts
+			'Event',
+			'Request'
+		],
+		disallowedTypes: [
+			'ipcMain' // not allowed, use validatedIpcMain instead
+		],
+		disallowedDefinitions: [
+			'lib.dom.d.ts'	// no DOM
 		]
 	},
 

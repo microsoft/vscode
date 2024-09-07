@@ -3,53 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Action } from 'vs/base/common/actions';
-import { mapFindFirst } from 'vs/base/common/arraysFind';
-import { assert, assertNever } from 'vs/base/common/assert';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isUriComponents, URI } from 'vs/base/common/uri';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, InjectedTextCursorStops, InjectedTextOptions, ITextModel } from 'vs/editor/common/model';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import * as coverUtils from 'vs/workbench/contrib/testing/browser/codeCoverageDisplayUtils';
-import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { ManagedTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
-import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
-import { FileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import * as dom from '../../../../base/browser/dom.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action } from '../../../../base/common/actions.js';
+import { mapFindFirst } from '../../../../base/common/arraysFind.js';
+import { assert, assertNever } from '../../../../base/common/assert.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isUriComponents, URI } from '../../../../base/common/uri.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { IModelDecorationOptions, InjectedTextCursorStops, InjectedTextOptions, ITextModel } from '../../../../editor/common/model.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
+import { ManagedTestCoverageBars } from './testCoverageBars.js';
+import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
+import { TestCommandId } from '../common/constants.js';
+import { FileCoverage } from '../common/testCoverage.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
+import { TestId } from '../common/testId.js';
+import { ITestService } from '../common/testService.js';
+import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from '../common/testTypes.js';
+import { TestingContextKeys } from '../common/testingContextKeys.js';
 
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
@@ -136,7 +136,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this._register(editor.onMouseMove(e => {
 			const model = editor.getModel();
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS && model) {
-				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
+				this.hoverLineNumber(editor.getModel()!);
 			} else if (coverage.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT && model) {
 				this.hoverInlineDecoration(model, e.target.position);
 			} else {
@@ -195,50 +195,22 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 	}
 
-	private hoverLineNumber(model: ITextModel, lineNumber: number) {
-		if (lineNumber === this.hoveredSubject || !this.details) {
+	private hoverLineNumber(model: ITextModel) {
+		if (this.hoveredSubject === 'lineNo' || !this.details || this.coverage.showInline.get()) {
 			return;
 		}
 
 		this.hoveredStore.clear();
-		this.hoveredSubject = lineNumber;
+		this.hoveredSubject = 'lineNo';
 
-		const todo = [{ line: lineNumber, dir: 0 }];
-		const toEnable = new Set<string>();
-		const ranges = this.editor.getVisibleRanges();
-		if (!this.coverage.showInline.get()) {
-			for (let i = 0; i < todo.length; i++) {
-				const { line, dir } = todo[i];
-				if (!ranges.some(r => r.startLineNumber <= line && r.endLineNumber >= line)) {
-					continue; // stop once outside the viewport
-				}
-
-				let found = false;
-				for (const decoration of model.getLineDecorations(line)) {
-					if (this.decorationIds.has(decoration.id)) {
-						toEnable.add(decoration.id);
-						found = true;
-					}
-				}
-				if (found) {
-					if (dir <= 0) {
-						todo.push({ line: line - 1, dir: -1 });
-					}
-					if (dir >= 0) {
-						todo.push({ line: line + 1, dir: 1 });
-					}
-				}
+		model.changeDecorations(e => {
+			for (const [id, decoration] of this.decorationIds) {
+				const { applyHoverOptions, options } = decoration;
+				const dup = { ...options };
+				applyHoverOptions(dup);
+				e.changeDecorationOptions(id, dup);
 			}
-
-			model.changeDecorations(e => {
-				for (const id of toEnable) {
-					const { applyHoverOptions, options } = this.decorationIds.get(id)!;
-					const dup = { ...options };
-					applyHoverOptions(dup);
-					e.changeDecorationOptions(id, dup);
-				}
-			});
-		}
+		});
 
 		this.hoveredStore.add(this.editor.onMouseLeave(() => {
 			this.hoveredStore.clear();
@@ -248,11 +220,8 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			this.hoveredSubject = undefined;
 
 			model.changeDecorations(e => {
-				for (const id of toEnable) {
-					const deco = this.decorationIds.get(id);
-					if (deco) {
-						e.changeDecorationOptions(id, deco.options);
-					}
+				for (const [id, decoration] of this.decorationIds) {
+					e.changeDecorationOptions(id, decoration.options);
 				}
 			});
 		}));

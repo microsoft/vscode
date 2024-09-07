@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { BreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { FileKind } from 'vs/platform/files/common/files';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { mock } from 'vs/base/test/common/mock';
-import { IOutlineService } from 'vs/workbench/services/outline/browser/outline';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri.js';
+import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { BreadcrumbsModel, FileElement } from '../../../../browser/parts/editor/breadcrumbsModel.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { TestContextService } from '../../../common/workbenchTestServices.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IOutlineService } from '../../../../services/outline/browser/outline.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Breadcrumb Model', function () {
 

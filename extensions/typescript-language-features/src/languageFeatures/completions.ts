@@ -504,9 +504,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 	private static getCommitCharacters(
 		context: CompletionContext,
 		entry: Proto.CompletionEntry,
-		defaultCommitCharacters: readonly string[] | undefined): string[] | undefined {
+		defaultCommitCharacters: readonly string[] | undefined,
+	): string[] | undefined {
 		// @ts-expect-error until TS 5.6
-		let commitCharacters = entry.commitCharacters ?? defaultCommitCharacters;
+		let commitCharacters = (entry.commitCharacters as string[] | undefined) ?? (defaultCommitCharacters ? Array.from(defaultCommitCharacters) : undefined);
 		if (commitCharacters) {
 			if (context.enableCallCompletions
 				&& !context.isNewIdentifierLocation
@@ -751,55 +752,40 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			triggerKind: typeConverters.CompletionTriggerKind.toProtocolCompletionTriggerKind(context.triggerKind),
 		};
 
-		let isNewIdentifierLocation = true;
-		let isIncomplete = false;
-		let isMemberCompletion = false;
 		let dotAccessorContext: DotAccessorContext | undefined;
-		let entries: ReadonlyArray<Proto.CompletionEntry>;
-		let metadata: any | undefined;
 		let response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined;
 		let duration: number | undefined;
 		let optionalReplacementRange: vscode.Range | undefined;
-		let defaultCommitCharacters: string[] | undefined;
-		if (this.client.apiVersion.gte(API.v300)) {
-			const startTime = Date.now();
-			try {
-				response = await this.client.interruptGetErr(() => this.client.execute('completionInfo', args, token));
-			} finally {
-				duration = Date.now() - startTime;
-			}
 
-			if (response.type !== 'response' || !response.body) {
-				this.logCompletionsTelemetry(duration, response);
-				return undefined;
-			}
-			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
-			isMemberCompletion = response.body.isMemberCompletion;
-			if (isMemberCompletion) {
-				const dotMatch = line.text.slice(0, position.character).match(/\??\.\s*$/) || undefined;
-				if (dotMatch) {
-					const range = new vscode.Range(position.translate({ characterDelta: -dotMatch[0].length }), position);
-					const text = document.getText(range);
-					dotAccessorContext = { range, text };
-				}
-			}
-			isIncomplete = !!response.body.isIncomplete || (response.metadata as any)?.isIncomplete;
-			entries = response.body.entries;
-			metadata = response.metadata;
-			// @ts-expect-error until TS 5.6
-			defaultCommitCharacters = response.body.defaultCommitCharacters;
+		const startTime = Date.now();
+		try {
+			response = await this.client.interruptGetErr(() => this.client.execute('completionInfo', args, token));
+		} finally {
+			duration = Date.now() - startTime;
+		}
 
-			if (response.body.optionalReplacementSpan) {
-				optionalReplacementRange = typeConverters.Range.fromTextSpan(response.body.optionalReplacementSpan);
+		if (response.type !== 'response' || !response.body) {
+			this.logCompletionsTelemetry(duration, response);
+			return undefined;
+		}
+		const isNewIdentifierLocation = response.body.isNewIdentifierLocation;
+		const isMemberCompletion = response.body.isMemberCompletion;
+		if (isMemberCompletion) {
+			const dotMatch = line.text.slice(0, position.character).match(/\??\.\s*$/) || undefined;
+			if (dotMatch) {
+				const range = new vscode.Range(position.translate({ characterDelta: -dotMatch[0].length }), position);
+				const text = document.getText(range);
+				dotAccessorContext = { range, text };
 			}
-		} else {
-			const response = await this.client.interruptGetErr(() => this.client.execute('completions', args, token));
-			if (response.type !== 'response' || !response.body) {
-				return undefined;
-			}
+		}
+		const isIncomplete = !!response.body.isIncomplete || (response.metadata as any)?.isIncomplete;
+		const entries = response.body.entries;
+		const metadata = response.metadata;
+		// @ts-expect-error until TS 5.6
+		const defaultCommitCharacters: readonly string[] | undefined = Object.freeze(response.body.defaultCommitCharacters);
 
-			entries = response.body;
-			metadata = response.metadata;
+		if (response.body.optionalReplacementSpan) {
+			optionalReplacementRange = typeConverters.Range.fromTextSpan(response.body.optionalReplacementSpan);
 		}
 
 		const completionContext: CompletionContext = {
@@ -882,11 +868,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
 		switch (context.triggerCharacter) {
-			case '@': { // Workaround for https://github.com/microsoft/TypeScript/issues/27321
-				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
+			case '@': {
+				return '@';
 			}
-			case '#': { // Workaround for https://github.com/microsoft/TypeScript/issues/36367
-				return this.client.apiVersion.lt(API.v381) ? undefined : '#';
+			case '#': {
+				return '#';
 			}
 			case ' ': {
 				return this.client.apiVersion.gte(API.v430) ? ' ' : undefined;

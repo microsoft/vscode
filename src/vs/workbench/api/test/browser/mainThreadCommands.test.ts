@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { MainThreadCommands } from '../../browser/mainThreadCommands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('MainThreadCommands', function () {
 

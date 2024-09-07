@@ -5,12 +5,12 @@
 
 import * as cp from 'child_process';
 import { Stats, promises } from 'fs';
-import * as path from 'vs/base/common/path';
-import * as Platform from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
-import { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
-import * as Types from 'vs/base/common/types';
-import * as pfs from 'vs/base/node/pfs';
+import * as path from '../common/path.js';
+import * as Platform from '../common/platform.js';
+import * as process from '../common/process.js';
+import { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from '../common/processes.js';
+import * as Types from '../common/types.js';
+import * as pfs from './pfs.js';
 export { type CommandOptions, type ForkOptions, type SuccessData, Source, type TerminateResponse, TerminateResponseCode };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;

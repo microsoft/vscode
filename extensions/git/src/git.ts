@@ -491,7 +491,6 @@ export class Git {
 			const repoUri = Uri.file(repositoryRootPath);
 			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
@@ -1170,7 +1169,14 @@ export class Repository {
 			args.push(`--max-parents=${options.maxParents}`);
 		}
 
+		if (typeof options?.skip === 'number') {
+			args.push(`--skip=${options.skip}`);
+		}
+
 		if (options?.refNames) {
+			if (options.refNames.length === 0) {
+				args.push('--all');
+			}
 			args.push('--topo-order');
 			args.push('--decorate=full');
 			args.push(...options.refNames);
@@ -2643,7 +2649,7 @@ export class Repository {
 
 	async getDefaultBranch(): Promise<Branch> {
 		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-		if (!result.stdout) {
+		if (!result.stdout || result.stderr) {
 			throw new Error('No default branch');
 		}
 
@@ -2708,24 +2714,6 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
-	}
-
-	async getCommitFiles(ref: string): Promise<string[]> {
-		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
-		return result.stdout.split('\n').filter(l => !!l);
-	}
-
-	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const args = ['rev-list', '--count', '--left-right', range];
-
-		if (isWindows) {
-			args.splice(0, 0, '-c', 'core.longpaths=true');
-		}
-
-		const result = await this.exec(args);
-		const [ahead, behind] = result.stdout.trim().split('\t');
-
-		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

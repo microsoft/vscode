@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorPaneSelectionChangeEvent, isEditorPaneWithSelection } from 'vs/workbench/common/editor';
-import { DeferredPromise } from 'vs/base/common/async';
-import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestTextFileEditor } from '../../workbenchTestServices.js';
+import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorPaneSelectionChangeEvent, isEditorPaneWithSelection } from '../../../../common/editor.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 
 suite('TextEditorPane', () => {
 

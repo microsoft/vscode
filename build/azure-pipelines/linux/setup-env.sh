@@ -8,7 +8,12 @@ if [ "$SYSROOT_ARCH" == "x64" ]; then
 fi
 
 export VSCODE_SYSROOT_DIR=$PWD/.build/sysroots
-SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+if [ -d "$VSCODE_SYSROOT_DIR" ]; then
+  echo "Using cached sysroot"
+else
+  echo "Downloading sysroot"
+  SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+fi
 
 if [ "$npm_config_arch" == "x64" ]; then
   if [ "$(echo "$@" | grep -c -- "--only-remote")" -eq 0 ]; then
