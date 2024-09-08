@@ -98,7 +98,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						description: ref.commit ? l10n.t('Remote branch at {0}', ref.commit.substring(0, 8)) : undefined,
 						revision: ref.commit,
 						icon: new ThemeIcon('cloud'),
-						category: 'remote branches'
+						category: l10n.t('remote branches')
 					});
 					break;
 				case RefType.Tag:
@@ -108,7 +108,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						description: ref.commit ? l10n.t('Tag at {0}', ref.commit.substring(0, 8)) : undefined,
 						revision: ref.commit,
 						icon: new ThemeIcon('tag'),
-						category: 'tags'
+						category: l10n.t('tags')
 					});
 					break;
 				default:
@@ -118,7 +118,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						description: ref.commit ? ref.commit.substring(0, 8) : undefined,
 						revision: ref.commit,
 						icon: new ThemeIcon('git-branch'),
-						category: 'branches'
+						category: l10n.t('branches')
 					});
 					break;
 			}

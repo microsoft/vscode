@@ -34,7 +34,7 @@ import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground } from './scmHistory.js';
 import { isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
-import { ISCMHistoryItem, ISCMHistoryItemRef, ISCMHistoryItemViewModel, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -45,7 +45,7 @@ import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
-import { delta, tail } from '../../../../base/common/arrays.js';
+import { delta, groupBy, tail } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { constObservable, derivedConstOnceDefined, latestChangedValue, observableFromEvent } from '../../../../base/common/observableInternal/utils.js';
@@ -709,17 +709,8 @@ class SCMHistoryViewModel extends Disposable {
 		this._selectedRepository.set(repository, undefined);
 	}
 
-	setHistoryItemsFilter(filter: ('all' | 'auto' | ISCMHistoryItemRef)[]): void {
-		if (filter.length === 1 && filter[0] === 'all') {
-			this.historyItemsFilter.set('all', undefined);
-			return;
-		} else if (filter.length === 1 && filter[0] === 'auto') {
-			this.historyItemsFilter.set('auto', undefined);
-			return;
-		} else {
-			this.historyItemsFilter.set(filter as ISCMHistoryItemRef[], undefined);
-			return;
-		}
+	setHistoryItemsFilter(filter: 'all' | 'auto' | ISCMHistoryItemRef[]): void {
+		this.historyItemsFilter.set(filter, undefined);
 	}
 
 	private _getGraphColorMap(historyItemRefs: ISCMHistoryItemRef[]): Map<string, ColorIdentifier | 'inherit'> {
@@ -753,6 +744,132 @@ class SCMHistoryViewModel extends Disposable {
 	}
 }
 
+type HistoryItemRefQuickPickItem = IQuickPickItem & { historyItemRef: 'all' | 'auto' | ISCMHistoryItemRef };
+
+class HistoryItemRefPicker extends Disposable {
+	private readonly _allQuickPickItem: HistoryItemRefQuickPickItem = {
+		id: 'all',
+		label: localize('all', "All"),
+		description: localize('allHistoryItemRefs', "Show all history item references"),
+		historyItemRef: 'all'
+	};
+
+	private readonly _autoQuickPickItem: HistoryItemRefQuickPickItem = {
+		id: 'auto',
+		label: localize('auto', "Auto"),
+		description: localize('currentHistoryItemRef', "Show the current history item reference"),
+		historyItemRef: 'auto'
+	};
+
+	constructor(
+		private readonly _historyProvider: ISCMHistoryProvider,
+		private readonly _historyItemsFilter: 'all' | 'auto' | ISCMHistoryItemRef[],
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+	) {
+		super();
+	}
+
+	async pickHistoryItemRef(): Promise<'all' | 'auto' | ISCMHistoryItemRef[] | undefined> {
+		const quickPick = this._quickInputService.createQuickPick<HistoryItemRefQuickPickItem>({ useSeparators: true });
+		this._store.add(quickPick);
+
+		quickPick.placeholder = localize('scmGraphHistoryItemRef', "Select one/more history item references to view, type to filter");
+		quickPick.canSelectMany = true;
+		quickPick.hideCheckAll = true;
+		quickPick.busy = true;
+		quickPick.show();
+
+		quickPick.items = await this._createQuickPickItems();
+		quickPick.busy = false;
+
+		// Set initial selection
+		let selectedItems: HistoryItemRefQuickPickItem[] = [];
+		if (this._historyItemsFilter === 'all') {
+			selectedItems.push(this._allQuickPickItem);
+			quickPick.selectedItems = [this._allQuickPickItem];
+		} else if (this._historyItemsFilter === 'auto') {
+			selectedItems.push(this._autoQuickPickItem);
+			quickPick.selectedItems = [this._autoQuickPickItem];
+		} else {
+			for (const item of quickPick.items) {
+				if (item.type === 'separator') {
+					continue;
+				}
+
+				if (this._historyItemsFilter.some(ref => ref.id === item.id)) {
+					selectedItems.push(item);
+				}
+			}
+
+			quickPick.selectedItems = selectedItems;
+		}
+
+		return new Promise<'all' | 'auto' | ISCMHistoryItemRef[] | undefined>(resolve => {
+			this._store.add(quickPick.onDidChangeSelection(items => {
+				const { added } = delta(selectedItems, items, (a, b) => compare(a.id ?? '', b.id ?? ''));
+				if (added.length > 0) {
+					if (added[0].historyItemRef === 'all' || added[0].historyItemRef === 'auto') {
+						quickPick.selectedItems = [added[0]];
+					} else {
+						// Remove 'all' and 'auto' items if present
+						quickPick.selectedItems = [...quickPick.selectedItems
+							.filter(i => i.historyItemRef !== 'all' && i.historyItemRef !== 'auto')];
+					}
+				}
+
+				selectedItems = [...quickPick.selectedItems];
+			}));
+
+			this._store.add(quickPick.onDidAccept(() => {
+				if (selectedItems.length === 1 && selectedItems[0].historyItemRef === 'all') {
+					resolve('all');
+				} else if (selectedItems.length === 1 && selectedItems[0].historyItemRef === 'auto') {
+					resolve('auto');
+				} else {
+					resolve(selectedItems.map(item => item.historyItemRef) as ISCMHistoryItemRef[]);
+				}
+
+				quickPick.hide();
+			}));
+
+			this._store.add(quickPick.onDidHide(() => {
+				resolve(undefined);
+				this.dispose();
+			}));
+		});
+	}
+
+	private async _createQuickPickItems(): Promise<(HistoryItemRefQuickPickItem | IQuickPickSeparator)[]> {
+		const picks: (HistoryItemRefQuickPickItem | IQuickPickSeparator)[] = [
+			this._allQuickPickItem, this._autoQuickPickItem
+		];
+
+		const historyItemRefs = await this._historyProvider.provideHistoryItemRefs() ?? [];
+		const historyItemRefsByCategory = groupBy(historyItemRefs, (a, b) => compare(a.category ?? '', b.category ?? ''));
+
+		for (const refs of historyItemRefsByCategory) {
+			if (refs.length === 0) {
+				continue;
+			}
+
+			picks.push({ type: 'separator', label: refs[0].category });
+
+			picks.push(...refs.map(ref => {
+				return {
+					id: ref.id,
+					label: ref.name,
+					description: ref.description,
+					iconClass: ThemeIcon.isThemeIcon(ref.icon) ?
+						ThemeIcon.asClassName(ref.icon) : undefined,
+					historyItemRef: ref
+				};
+			}));
+		}
+
+		return picks;
+	}
+}
+
 export class SCMHistoryViewPane extends ViewPane {
 
 	private _treeContainer!: HTMLElement;
@@ -774,6 +891,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	constructor(
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -978,105 +1096,18 @@ export class SCMHistoryViewPane extends ViewPane {
 	async pickHistoryItemRef(): Promise<void> {
 		const repository = this._treeViewModel.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
+		const historyItemsFilter = this._treeViewModel.historyItemsFilter.get();
+
 		if (!historyProvider) {
 			return;
 		}
 
-		const allQuickPickItem: IQuickPickItem & { historyItemRef: 'all' | 'auto' | ISCMHistoryItemRef } = {
-			id: 'all',
-			label: localize('all', "All"),
-			description: localize('allHistoryItemRefs', "Show all history item references"),
-			historyItemRef: 'all'
-		};
+		const picker = this._instantiationService.createInstance(HistoryItemRefPicker, historyProvider, historyItemsFilter);
+		const result = await picker.pickHistoryItemRef();
 
-		const autoQuickPickItem: IQuickPickItem & { historyItemRef: 'all' | 'auto' | ISCMHistoryItemRef } = {
-			id: 'auto',
-			label: localize('auto', "Auto"),
-			description: localize('currentHistoryItemRef', "Show the current history item reference"),
-			historyItemRef: 'auto'
-		};
-
-		const createQuickPickItems = async () => {
-			const picks: (IQuickPickItem & { historyItemRef: 'all' | 'auto' | ISCMHistoryItemRef } | IQuickPickSeparator)[] = [
-				allQuickPickItem, autoQuickPickItem, { type: 'separator' },
-			];
-
-			const historyItemRefs = await historyProvider.provideHistoryItemRefs() ?? [];
-
-			picks.push(...historyItemRefs.map(ref => {
-				return {
-					id: ref.id,
-					label: ref.name,
-					description: ref.description,
-					iconClass: ThemeIcon.isThemeIcon(ref.icon) ?
-						ThemeIcon.asClassName(ref.icon) : undefined,
-					historyItemRef: ref
-				};
-			}));
-
-			return picks;
-		};
-
-		const disposables = new DisposableStore();
-		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem & { historyItemRef: 'all' | 'auto' | ISCMHistoryItemRef }>({ useSeparators: true });
-		disposables.add(quickPick);
-
-		quickPick.placeholder = localize('scmGraphHistoryItemRef', "Select one/more history item references to view, type to filter");
-		quickPick.canSelectMany = true;
-		quickPick.hideCheckAll = true;
-		quickPick.busy = true;
-		quickPick.show();
-
-		quickPick.items = await createQuickPickItems();
-		quickPick.busy = false;
-
-		let selectedItems: (IQuickPickItem & { historyItemRef: 'all' | 'auto' | ISCMHistoryItemRef })[] = [];
-		const historyItemsFilter = this._treeViewModel.historyItemsFilter.get();
-		if (historyItemsFilter === 'all') {
-			selectedItems.push(allQuickPickItem);
-			quickPick.selectedItems = [allQuickPickItem];
-		} else if (historyItemsFilter === 'auto') {
-			selectedItems.push(autoQuickPickItem);
-			quickPick.selectedItems = [autoQuickPickItem];
-		} else {
-			for (const item of quickPick.items) {
-				if (item.type === 'separator') {
-					continue;
-				}
-
-				if (historyItemsFilter.some(ref => ref.id === item.id)) {
-					selectedItems.push(item);
-				}
-			}
-
-			quickPick.selectedItems = selectedItems;
+		if (result) {
+			this._treeViewModel.setHistoryItemsFilter(result);
 		}
-
-		disposables.add(quickPick.onDidChangeSelection(items => {
-			const { added } = delta(selectedItems, items, (a, b) => compare(a.id ?? '', b.id ?? ''));
-			if (added.length > 0) {
-				if (added[0].historyItemRef === 'all' || added[0].historyItemRef === 'auto') {
-					quickPick.selectedItems = [added[0]];
-				} else {
-					// Remove 'all' and 'auto' items if present
-					quickPick.selectedItems = [...quickPick.selectedItems
-						.filter(i => i.historyItemRef !== 'all' && i.historyItemRef !== 'auto')];
-				}
-			}
-
-			selectedItems = [...quickPick.selectedItems];
-		}));
-		disposables.add(quickPick.onDidAccept(() => {
-			disposables.dispose();
-			quickPick.hide();
-			quickPick.dispose();
-
-			this._treeViewModel.setHistoryItemsFilter(selectedItems.map(i => i.historyItemRef));
-		}));
-		disposables.add(quickPick.onDidHide(() => {
-			disposables.dispose();
-			quickPick.dispose();
-		}));
 	}
 
 	private _createTree(container: HTMLElement): void {

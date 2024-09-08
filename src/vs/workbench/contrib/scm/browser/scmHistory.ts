@@ -46,7 +46,7 @@ export const colorRegistry: ColorIdentifier[] = [
 function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier>): ColorIdentifier | undefined {
 	for (const ref of historyItem.references ?? []) {
 		const colorIndex = colorMap.get(ref.id);
-		if (colorIndex !== undefined) {
+		if (colorIndex !== undefined && colorIndex !== 'inherit') {
 			return colorIndex;
 		}
 	}

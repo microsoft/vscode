@@ -6,7 +6,7 @@
 import { Barrier } from '../../../base/common/async.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
-import { derived, observableValue, observableValueOpts } from '../../../base/common/observable.js';
+import { derivedOpts, observableValue, observableValueOpts } from '../../../base/common/observable.js';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from '../../contrib/scm/common/scm.js';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol.js';
@@ -173,7 +173,10 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}, undefined);
 	get currentHistoryItemGroup() { return this._currentHistoryItemGroup; }
 
-	readonly currentHistoryItemRef = derived<ISCMHistoryItemRef | undefined>(reader => {
+	readonly currentHistoryItemRef = derivedOpts<ISCMHistoryItemRef | undefined>({
+		owner: this,
+		equalsFn: structuralEquals
+	}, reader => {
 		const currentHistoryItemGroup = this._currentHistoryItemGroup.read(reader);
 
 		return currentHistoryItemGroup ? {
@@ -185,7 +188,10 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		} : undefined;
 	});
 
-	readonly currentHistoryItemRemoteRef = derived<ISCMHistoryItemRef | undefined>(reader => {
+	readonly currentHistoryItemRemoteRef = derivedOpts<ISCMHistoryItemRef | undefined>({
+		owner: this,
+		equalsFn: structuralEquals
+	}, reader => {
 		const currentHistoryItemGroup = this._currentHistoryItemGroup.read(reader);
 
 		return currentHistoryItemGroup?.remote ? {
@@ -197,7 +203,10 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		} : undefined;
 	});
 
-	readonly currentHistoryItemBaseRef = derived<ISCMHistoryItemRef | undefined>(reader => {
+	readonly currentHistoryItemBaseRef = derivedOpts<ISCMHistoryItemRef | undefined>({
+		owner: this,
+		equalsFn: structuralEquals
+	}, reader => {
 		const currentHistoryItemGroup = this._currentHistoryItemGroup.read(reader);
 
 		return currentHistoryItemGroup?.base ? {
