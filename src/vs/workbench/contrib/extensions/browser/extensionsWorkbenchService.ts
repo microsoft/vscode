@@ -1435,7 +1435,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (extension.isUnderDevelopment) {
 				continue;
 			}
-			if (extensionsToCheck.some(e => areSameExtensions({ id: extension.identifier.value, uuid: extension.uuid }, e.identifier))) {
+			if (extensionsToCheck.some(e => areSameExtensions({ id: extension.identifier.value, uuid: extension.uuid }, e.local?.identifier ?? e.identifier))) {
 				continue;
 			}
 			// Extension is running but doesn't exist locally. Remove it from running extensions.

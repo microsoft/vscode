@@ -1650,7 +1650,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
-			...properties
+			...properties,
+			isValid: properties.isValid ?? true,
 		};
 		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
