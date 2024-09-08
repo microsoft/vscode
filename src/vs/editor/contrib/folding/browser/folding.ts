@@ -1246,7 +1246,7 @@ class ToggleImportFoldAction extends FoldingAction<void> {
 		});
 	}
 
-	async invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: void, languageConfigurationService: ILanguageConfigurationService): Promise<void> {
+	async invoke(foldingController: FoldingController, foldingModel: FoldingModel): Promise<void> {
 		const regionsToToggle: FoldingRegion[] = [];
 		const regions = foldingModel.regions;
 		for (let i = regions.length - 1; i >= 0; i--) {
@@ -1254,7 +1254,7 @@ class ToggleImportFoldAction extends FoldingAction<void> {
 				regionsToToggle.push(regions.toRegion(i));
 			}
 		}
-		foldingModel.toggleCollapseState(Array.from(regionsToToggle.values()));
+		foldingModel.toggleCollapseState(regionsToToggle);
 		foldingController.triggerFoldingModelChanged();
 	}
 }
