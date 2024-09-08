@@ -44,8 +44,8 @@ export const colorRegistry: ColorIdentifier[] = [
 ];
 
 function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier>): ColorIdentifier | undefined {
-	for (const label of historyItem.labels ?? []) {
-		const colorIndex = colorMap.get(label.title);
+	for (const ref of historyItem.references ?? []) {
+		const colorIndex = colorMap.get(ref.id);
 		if (colorIndex !== undefined) {
 			return colorIndex;
 		}
@@ -215,7 +215,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	} else {
 		// HEAD
 		// TODO@lszomoru - implement a better way to determine if the commit is HEAD
-		if (historyItem.labels?.some(l => ThemeIcon.isThemeIcon(l.icon) && l.icon.id === 'target')) {
+		if (historyItem.references?.some(ref => ThemeIcon.isThemeIcon(ref.icon) && ref.icon.id === 'target')) {
 			const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 2, circleColor);
 			svg.append(outerCircle);
 		}
@@ -246,7 +246,7 @@ export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNo
 	return elements.root;
 }
 
-export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, string>()): ISCMHistoryItemViewModel[] {
+export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, ColorIdentifier | 'inherit'>()): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
 
@@ -302,11 +302,11 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 			});
 		}
 
-		// Add colors to labels
-		const labels = (historyItem.labels ?? [])
-			.map(label => {
-				let color = colorMap.get(label.title);
-				if (!color && colorMap.has('*')) {
+		// Add colors to references
+		const references = (historyItem.references ?? [])
+			.map(ref => {
+				let color = colorMap.get(ref.id);
+				if (color === 'inherit') {
 					// Find the history item in the input swimlanes
 					const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
 
@@ -318,13 +318,13 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 						circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemGroupLocal;
 				}
 
-				return { ...label, color };
+				return { ...ref, color };
 			});
 
 		viewModels.push({
 			historyItem: {
 				...historyItem,
-				labels
+				references
 			},
 			inputSwimlanes,
 			outputSwimlanes,
