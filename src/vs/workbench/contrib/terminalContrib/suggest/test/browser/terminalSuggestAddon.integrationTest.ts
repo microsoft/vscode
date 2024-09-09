@@ -63,7 +63,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite('Terminal Contrib Suggest Recordings', () => {
+suite.only('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
@@ -114,6 +114,8 @@ suite('Terminal Contrib Suggest Recordings', () => {
 
 		xterm.loadAddon(shellIntegrationAddon);
 		xterm.loadAddon(suggestAddon);
+
+		xterm.focus();
 	});
 
 	for (const testCase of recordedTestCases) {
