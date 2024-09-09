@@ -97,7 +97,7 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 		}
 
 		if (this.experimentalSave && !this.isBrowser) {
-			return this.serializeViaWorker2(data);
+			return this.serializeViaWorker(data);
 		}
 		const serialized = serializeNotebookToString(data);
 		return new TextEncoder().encode(serialized);
@@ -133,16 +133,11 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 		});
 		return this.worker;
 	}
-	private async serializeViaWorker2(data: vscode.NotebookData): Promise<Uint8Array> {
+	private async serializeViaWorker(data: vscode.NotebookData): Promise<Uint8Array> {
 		const worker = await this.startWorker();
 		const id = generateUuid();
-		const start1 = performance.now();
 
 		const deferred = new DeferredPromise<Uint8Array>();
-		deferred.p.finally(() => {
-			const time0 = performance.now() - start1;
-			console.log(`Got Ba	ck Buffers`, time0);
-		});
 		this.tasks.set(id, deferred);
 		worker.postMessage({ data, id });
 
