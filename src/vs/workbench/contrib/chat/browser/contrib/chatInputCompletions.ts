@@ -382,11 +382,12 @@ class BuiltinDynamicCompletions extends Disposable {
 			const insertText = `${chatVariableLeader}file:${basename} `;
 
 			return {
-				label: { label: `${chatVariableLeader}file:${basename}`, description: this.labelService.getUriLabel(resource) },
+				label: { label: basename, description: this.labelService.getUriLabel(resource) },
+				filterText: info.varWord?.word,
 				insertText,
 				range: info,
 				kind: CompletionItemKind.File,
-				sortText: 'zz',
+				sortText: '{', // after `z`
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.file',
@@ -433,7 +434,8 @@ class BuiltinDynamicCompletions extends Disposable {
 		if (pattern) {
 			const query = this.queryBuilder.file(this.workspaceContextService.getWorkspace().folders, {
 				filePattern: pattern,
-				maxResults: 25
+				sortByScore: true,
+				maxResults: 100,
 			});
 
 			const data = await this.searchService.fileSearch(query, token);
@@ -444,11 +446,11 @@ class BuiltinDynamicCompletions extends Disposable {
 				}
 				result.suggestions.push(makeFileCompletionItem(match.resource));
 			}
-
-			if (!data.limitHit) {
-				result.incomplete = true;
-			}
 		}
+
+		// mark results as incomplete because further typing might yield
+		// in more search results
+		result.incomplete = true;
 	}
 
 	private cmdAddReference(arg: ReferenceArgument) {
