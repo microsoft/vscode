@@ -44,6 +44,12 @@
         "path": "./themes/dark_vs.json"
       },
       {
+        "id": "Hacker",
+        "label": "Hacker",
+        "uiTheme": "vs-dark",
+        "path": "./themes/hacker.json"
+      },
+      {
         "id": "Visual Studio Light",
         "label": "%lightColorThemeLabel%",
         "uiTheme": "vs",
