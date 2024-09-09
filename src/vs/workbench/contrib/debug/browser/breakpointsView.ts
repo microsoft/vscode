@@ -515,8 +515,9 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 
 	renderTemplate(container: HTMLElement): IBreakpointTemplateData {
 		const data: IBreakpointTemplateData = Object.create(null);
-		data.templateDisposables = new DisposableStore();
 		data.elementDisposables = new DisposableStore();
+		data.templateDisposables = new DisposableStore();
+		data.templateDisposables.add(data.elementDisposables);
 
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
@@ -584,9 +585,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 	}
 
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
-
 	}
 }
 
@@ -611,8 +610,9 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 
 	renderTemplate(container: HTMLElement): IExceptionBreakpointTemplateData {
 		const data: IExceptionBreakpointTemplateData = Object.create(null);
-		data.templateDisposables = new DisposableStore();
 		data.elementDisposables = new DisposableStore();
+		data.templateDisposables = new DisposableStore();
+		data.templateDisposables.add(data.elementDisposables);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
 		data.checkbox = createCheckbox(data.templateDisposables);
@@ -666,7 +666,6 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 	}
 
 	disposeTemplate(templateData: IExceptionBreakpointTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
@@ -692,8 +691,9 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 
 	renderTemplate(container: HTMLElement): IFunctionBreakpointTemplateData {
 		const data: IFunctionBreakpointTemplateData = Object.create(null);
-		data.templateDisposables = new DisposableStore();
 		data.elementDisposables = new DisposableStore();
+		data.templateDisposables = new DisposableStore();
+		data.templateDisposables.add(data.elementDisposables);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
 		data.icon = $('.icon');
@@ -758,7 +758,6 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 	}
 
 	disposeTemplate(templateData: IFunctionBreakpointTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
@@ -787,8 +786,9 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 	renderTemplate(container: HTMLElement): IDataBreakpointTemplateData {
 		const data: IDataBreakpointTemplateData = Object.create(null);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
-		data.templateDisposables = new DisposableStore();
 		data.elementDisposables = new DisposableStore();
+		data.templateDisposables = new DisposableStore();
+		data.templateDisposables.add(data.elementDisposables);
 
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox(data.templateDisposables);
@@ -862,7 +862,6 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointWithIconTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
@@ -885,8 +884,9 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 
 	renderTemplate(container: HTMLElement): IInstructionBreakpointTemplateData {
 		const data: IInstructionBreakpointTemplateData = Object.create(null);
-		data.templateDisposables = new DisposableStore();
 		data.elementDisposables = new DisposableStore();
+		data.templateDisposables = new DisposableStore();
+		data.templateDisposables.add(data.elementDisposables);
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
 		data.icon = $('.icon');
@@ -940,7 +940,6 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 	}
 
 	disposeTemplate(templateData: IInstructionBreakpointTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
