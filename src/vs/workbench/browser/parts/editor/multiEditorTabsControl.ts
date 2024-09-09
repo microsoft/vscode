@@ -64,7 +64,6 @@ import { IHoverDelegate, IHoverDelegateOptions } from '../../../../base/browser/
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -101,7 +100,6 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 		private readonly tabsModel: IReadonlyEditorGroupModel,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		@IOpenerService private readonly openerService: IOpenerService,
 
 	) {
 		super(
@@ -113,7 +111,6 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 			configurationService,
 			hoverService
 		);
-		this.openerService = openerService;
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
@@ -124,10 +121,6 @@ class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 		}
 		return {
 			content: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).appendText(editor.getTitle(Verbosity.LONG)).appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))'),
-			linkHandler: (url) => {
-				// TODO Find a way to hide the hover at this point, else it continues to display after Settings Editor has become the active tab
-				this.openerService.open(url, { allowCommands: true });
-			},
 		};
 	}
 }
@@ -201,7 +194,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IHostService hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
@@ -855,7 +847,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const index = this.tabsModel.indexOf(editor);
 		let hoverDelegate = this.mapTabHoverDelegates.get(index);
 		if (!hoverDelegate) {
-			hoverDelegate = new MultiEditorTabHoverDelegate(index, this.tabsModel, this.configurationService, this.hoverService, this.openerService);
+			hoverDelegate = new MultiEditorTabHoverDelegate(index, this.tabsModel, this.configurationService, this.hoverService);
 			this.mapTabHoverDelegates.set(index, hoverDelegate);
 		}
 		return hoverDelegate;
