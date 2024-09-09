@@ -295,7 +295,7 @@ export class TextSearchMatchNew {
 	 */
 	constructor(
 		public uri: URI,
-		public ranges: { sourceRange: Range; previewRange: Range }[],
+		public ranges: { sourceRange: Range; previewRange: Range },
 		public previewText: string) { }
 
 }
