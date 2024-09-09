@@ -14,6 +14,11 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { COMMENTS_VIEW_ID, CommentsMenus } from './commentsTreeViewer.js';
 import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from './commentsView.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ICommentService } from './commentService.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { revealCommentThread } from './commentsController.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;
@@ -26,6 +31,7 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 		const menuService = accessor.get(IMenuService);
 		const commentsView = viewsService.getActiveViewWithId<CommentsPanel>(COMMENTS_VIEW_ID);
 		const focusedCommentNode = commentsView?.focusedCommentNode;
+
 		if (!commentsView || !focusedCommentNode) {
 			return;
 		}
@@ -38,6 +44,28 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 		super();
 	}
 }
+
+
+export class CommentThreadAccessibleView extends Disposable implements IAccessibleViewImplentation {
+	readonly priority = 85;
+	readonly name = 'commentThread';
+	readonly when = CommentContextKeys.commentFocused;
+	readonly type = AccessibleViewType.View;
+	getProvider(accessor: ServicesAccessor) {
+		const commentService = accessor.get(ICommentService);
+		const editorService = accessor.get(IEditorService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+		const threads = commentService.commentsModel.hasCommentThreads();
+		if (!threads) {
+			return;
+		}
+		return new CommentsThreadWidgetAccessibleContentProvider(commentService, editorService, uriIdentityService);
+	}
+	constructor() {
+		super();
+	}
+}
+
 
 class CommentsAccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
 	constructor(
@@ -81,6 +109,65 @@ class CommentsAccessibleContentProvider extends Disposable implements IAccessibl
 	}
 	providePreviousContent(): string | undefined {
 		this._commentsView.focusPreviousNode();
+		return this.provideContent();
+	}
+}
+
+class CommentsThreadWidgetAccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
+	readonly id = AccessibleViewProviderId.Comments;
+	readonly verbositySettingKey = AccessibilityVerbositySettingId.Comments;
+	readonly options = { type: AccessibleViewType.View };
+	constructor(@ICommentService private readonly _commentService: ICommentService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+	) {
+		super();
+	}
+	provideContent(): string {
+		if (!this._commentService.activeCommentInfo) {
+			throw new Error('No current comment thread');
+		}
+		const value = this._commentService.activeCommentInfo.comment?.body;
+		return typeof value === 'string' ? value : value?.value ?? '';
+	}
+	onClose(): void {
+		const commentInfo = this._commentService.activeCommentInfo;
+		if (!commentInfo) {
+			return;
+		}
+		this._commentService.setActiveCommentAndThread(commentInfo.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
+		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, commentInfo.thread, commentInfo.comment);
+	}
+	provideNextContent(): string | undefined {
+		const commentInfo = this._commentService.activeCommentInfo;
+		if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
+			return;
+		}
+		const currentIndex = this._commentService.activeCommentInfo?.thread.comments?.indexOf(commentInfo.comment);
+		if (currentIndex === undefined || currentIndex < 0 || currentIndex === commentInfo.thread.comments.length - 1) {
+			return;
+		}
+		const nextComment = this._commentService.activeCommentInfo?.thread.comments?.[currentIndex + 1];
+		if (!nextComment) {
+			return;
+		}
+		this._commentService.setActiveCommentAndThread(this._commentService.activeCommentInfo.owner, { comment: nextComment, thread: commentInfo.thread });
+		return this.provideContent();
+	}
+	providePreviousContent(): string | undefined {
+		const commentInfo = this._commentService.activeCommentInfo;
+		if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
+			return;
+		}
+		const currentIndex = this._commentService.activeCommentInfo?.thread.comments?.indexOf(commentInfo.comment);
+		if (currentIndex === undefined || currentIndex <= 0) {
+			return;
+		}
+		const nextComment = this._commentService.activeCommentInfo?.thread.comments?.[currentIndex - 1];
+		if (!nextComment) {
+			return;
+		}
+		this._commentService.setActiveCommentAndThread(this._commentService.activeCommentInfo.owner, { comment: nextComment, thread: commentInfo.thread });
 		return this.provideContent();
 	}
 }

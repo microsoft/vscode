@@ -91,6 +91,7 @@ export interface ICommentService {
 	readonly onDidChangeCommentingEnabled: Event<boolean>;
 	readonly isCommentingEnabled: boolean;
 	readonly commentsModel: ICommentsModel;
+	readonly activeCommentInfo: { thread: CommentThread<IRange>; comment?: Comment; owner: string } | undefined;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(uniqueOwner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(uniqueOwner: string): void;
@@ -174,6 +175,11 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private _commentingRangeResources = new Set<string>(); // URIs
 	private _commentingRangeResourceHintSchemes = new Set<string>(); // schemes
+
+	private _activeCommentInfo: { owner: string; thread: CommentThread<IRange>; comment?: Comment } | undefined;
+	get activeCommentInfo() {
+		return this._activeCommentInfo;
+	}
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -307,6 +313,11 @@ export class CommentService extends Disposable implements ICommentService {
 			await this._lastActiveCommentController?.setActiveCommentAndThread(undefined);
 		}
 		this._lastActiveCommentController = commentController;
+		if (commentInfo) {
+			this._activeCommentInfo = { owner: uniqueOwner, thread: commentInfo.thread, comment: commentInfo?.comment };
+		} else {
+			this._activeCommentInfo = undefined;
+		}
 		return commentController.setActiveCommentAndThread(commentInfo);
 	}
 
