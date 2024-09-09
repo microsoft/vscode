@@ -61,39 +61,83 @@ import { clamp } from '../../../../base/common/numbers.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compare } from '../../../../base/common/strings.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
 class SCMRepositoryActionViewItem extends ActionViewItem {
 	constructor(private readonly _repository: ISCMRepository, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
-		super(null, action, { ...options, icon: false, label: true });
+		super(null, action, { ...options, icon: false, label: true, hoverDelegate: createInstantHoverDelegate() });
 	}
 
 	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.classList.add('scm-graph-repository-picker');
-			reset(this.label, ...renderLabelWithIcons(`$(repo) ${this._repository.provider.name}`));
+
+			const icon = $('.icon');
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.repo));
+
+			const name = $('.name');
+			name.textContent = this._repository.provider.name;
+
+
+			reset(this.label, icon, name);
 		}
+	}
+
+	protected override getTooltip(): string | undefined {
+		return this._repository.provider.name;
 	}
 }
 
 class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
-	constructor(private readonly _historyItemsFilter: HistoryItemRefsFilter, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
-		super(null, action, { ...options, icon: false, label: true });
+	constructor(
+		private readonly _repository: ISCMRepository,
+		private readonly _historyItemsFilter: HistoryItemRefsFilter,
+		action: IAction,
+		options?: IDropdownMenuActionViewItemOptions
+	) {
+		super(null, action, { ...options, icon: false, label: true, hoverDelegate: createInstantHoverDelegate() });
 	}
 
 	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.classList.add('scm-graph-history-item-picker');
+
+			const icon = $('.icon');
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.gitBranch));
+
+			const name = $('.name');
 			if (this._historyItemsFilter === 'all') {
-				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${localize('all', "All")}`));
+				name.textContent = localize('all', "All");
 			} else if (this._historyItemsFilter === 'auto') {
-				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${localize('auto', "Auto")}`));
+				name.textContent = localize('auto', "Auto");
 			} else if (this._historyItemsFilter.length === 1) {
+				name.textContent = this._historyItemsFilter[0].name;
 				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${this._historyItemsFilter[0].name}`));
 			} else {
-				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${this._historyItemsFilter.length} ${localize('items', "Items")}`));
+				name.textContent = localize('items', "{0} Items", this._historyItemsFilter.length);
 			}
+
+			reset(this.label, icon, name);
+		}
+	}
+
+	protected override getTooltip(): string | undefined {
+		if (this._historyItemsFilter === 'all') {
+			return localize('allHistoryItemRefs', "All history item references");
+		} else if (this._historyItemsFilter === 'auto') {
+			const historyProvider = this._repository.provider.historyProvider.get();
+
+			return [
+				historyProvider?.currentHistoryItemRef.get()?.name,
+				historyProvider?.currentHistoryItemRemoteRef.get()?.name,
+				historyProvider?.currentHistoryItemBaseRef.get()?.name
+			].filter(ref => !!ref).join(', ');
+		} else if (this._historyItemsFilter.length === 1) {
+			return this._historyItemsFilter[0].name;
+		} else {
+			return this._historyItemsFilter.map(ref => ref.name).join(', ');
 		}
 	}
 }
@@ -810,14 +854,14 @@ class HistoryItemRefPicker extends Disposable {
 	private readonly _allQuickPickItem: HistoryItemRefQuickPickItem = {
 		id: 'all',
 		label: localize('all', "All"),
-		description: localize('allHistoryItemRefs', "Show all history item references"),
+		description: localize('allHistoryItemRefs', "All history item references"),
 		historyItemRef: 'all'
 	};
 
 	private readonly _autoQuickPickItem: HistoryItemRefQuickPickItem = {
 		id: 'auto',
 		label: localize('auto', "Auto"),
-		description: localize('currentHistoryItemRef', "Show the current history item reference"),
+		description: localize('currentHistoryItemRef', "Current history item reference(s)"),
 		historyItemRef: 'auto'
 	};
 
@@ -1116,9 +1160,10 @@ export class SCMHistoryViewPane extends ViewPane {
 				return new SCMRepositoryActionViewItem(repository, action, options);
 			}
 		} else if (action.id === 'workbench.scm.graph.action.pickHistoryItemRefs') {
+			const repository = this._treeViewModel?.repository.get();
 			const historyItemsFilter = this._treeViewModel?.historyItemsFilter.get();
-			if (historyItemsFilter) {
-				return new SCMHistoryItemRefsActionViewItem(historyItemsFilter, action, options);
+			if (repository && historyItemsFilter) {
+				return new SCMHistoryItemRefsActionViewItem(repository, historyItemsFilter, action, options);
 			}
 		}
 
