@@ -536,17 +536,20 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
 
 /**
  * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
- * provide @param withCodeBlocks to retain code blocks
+ * provide @param accessibleView to return the markdown for the accessible view, which retains code blocks and doesn't sanitize the output
  */
-export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlocks?: boolean) {
+export function renderMarkdownAsPlaintext(markdown: IMarkdownString, accessibleView?: boolean) {
 	// values that are too long will freeze the UI
 	let value = markdown.value ?? '';
 	if (value.length > 100_000) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	const html = marked.parse(value, { async: false, renderer: accessibleView ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
+	if (accessibleView) {
+		return html;
+	}
 	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
 }
 
