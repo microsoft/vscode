@@ -124,6 +124,7 @@ export class DebugEditContext extends EditContext {
 			this._disposables.push(createRect(this._controlBounds, COLOR_FOR_CONTROL_BOUNDS));
 		}
 		if (this._selectionBounds) {
+			// 
 			this._disposables.push(createRect(this._selectionBounds, COLOR_FOR_SELECTION_BOUNDS));
 		}
 		if (this._characterBounds) {
