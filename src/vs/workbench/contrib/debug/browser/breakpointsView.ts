@@ -583,6 +583,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 	}
 
 	disposeTemplate(templateData: IBreakpointTemplateData): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 
 	}
