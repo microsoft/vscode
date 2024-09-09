@@ -323,7 +323,7 @@ export class BulkFileOperations {
 
 				for (const edit of file.originalEdits.values()) {
 					if (edit instanceof ResourceFileEdit) {
-						result.push(this.getFileEditOperation(edit)));
+						result.push(this.getFileEditOperation(edit));
 					} else if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
 							result.push(Promise.resolve(EditOperation.replaceMove(Range.lift(edit.textEdit.range), !edit.textEdit.insertAsSnippet ? edit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.text))));
