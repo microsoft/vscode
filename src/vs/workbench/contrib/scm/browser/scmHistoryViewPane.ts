@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, autorunWithStoreHandleChanges, derived, derivedOpts, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStoreHandleChanges, derived, derivedOpts, IObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -48,7 +48,7 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/ac
 import { delta, groupBy, tail } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { constObservable, derivedConstOnceDefined, latestChangedValue, observableFromEvent, runOnChange } from '../../../../base/common/observableInternal/utils.js';
+import { constObservable, latestChangedValue, observableFromEvent, runOnChange } from '../../../../base/common/observableInternal/utils.js';
 import { ContextKeys } from './scmViewPane.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
@@ -61,13 +61,12 @@ import { clamp } from '../../../../base/common/numbers.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compare } from '../../../../base/common/strings.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
 class SCMRepositoryActionViewItem extends ActionViewItem {
 	constructor(private readonly _repository: ISCMRepository, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
-		super(null, action, { ...options, icon: false, label: true, hoverDelegate: createInstantHoverDelegate() });
+		super(null, action, { ...options, icon: false, label: true });
 	}
 
 	protected override updateLabel(): void {
@@ -97,7 +96,7 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 		action: IAction,
 		options?: IDropdownMenuActionViewItemOptions
 	) {
-		super(null, action, { ...options, icon: false, label: true, hoverDelegate: createInstantHoverDelegate() });
+		super(null, action, { ...options, icon: false, label: true });
 	}
 
 	protected override updateLabel(): void {
@@ -981,7 +980,9 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _treeViewModel!: SCMHistoryViewModel;
 	private _treeDataSource!: SCMHistoryTreeDataSource;
 	private _treeIdentityProvider!: SCMHistoryTreeIdentityProvider;
-	private _repositoryLoadMore = observableValue(this, false);
+
+	private readonly _repositoryLoadMore = observableValue(this, false);
+	private readonly _repositoryOutdated = observableValue(this, false);
 
 	private readonly _actionRunner: IActionRunner;
 	private readonly _visibilityDisposables = new DisposableStore();
@@ -1022,9 +1023,20 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._register(this._updateChildrenThrottler);
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this._tree.layout(height, width);
+	protected override renderHeaderTitle(container: HTMLElement): void {
+		super.renderHeaderTitle(container, this.title);
+
+		const element = h('div.scm-graph-view-badge-container', [
+			h('div.scm-graph-view-badge.monaco-count-badge.long@badge')
+		]);
+
+		element.badge.textContent = 'Outdated';
+		container.appendChild(element.root);
+
+		this._register(autorun(reader => {
+			const outdated = this._repositoryOutdated.read(reader);
+			element.root.style.display = outdated ? '' : 'none';
+		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -1035,12 +1047,12 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this._createTree(this._treeContainer);
 
-		this.onDidChangeBodyVisibility(visible => {
+		this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
 				this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
 				this._visibilityDisposables.add(this._treeViewModel);
 
-				const firstRepository = derivedConstOnceDefined(this, reader => {
+				const firstRepositoryInitialized = derived(this, reader => {
 					const repository = this._treeViewModel.repository.read(reader);
 					const historyProvider = repository?.provider.historyProvider.read(reader);
 					const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
@@ -1048,101 +1060,105 @@ export class SCMHistoryViewPane extends ViewPane {
 					return currentHistoryItemGroup !== undefined ? repository : undefined;
 				});
 
-				this._visibilityDisposables.add(autorunWithStore(async (reader, store) => {
-					const repository = firstRepository.read(reader);
-					if (!repository) {
-						return;
-					}
+				// Wait for first repository to be initialized
+				await waitForState(firstRepositoryInitialized);
 
-					this._treeOperationSequencer.queue(async () => {
-						await this._tree.setInput(this._treeViewModel);
-						this._tree.scrollTop = 0;
-					});
+				this._treeOperationSequencer.queue(async () => {
+					await this._tree.setInput(this._treeViewModel);
+					this._tree.scrollTop = 0;
+				});
 
-					// Repository change
-					store.add(
-						autorunWithStoreHandleChanges<{ refresh: boolean }>({
+				// Repository change
+				this._visibilityDisposables.add(
+					autorunWithStoreHandleChanges<{ refresh: boolean }>({
+						owner: this,
+						createEmptyChangeSummary: () => ({ refresh: false }),
+						handleChange(_, changeSummary) {
+							changeSummary.refresh = true;
+							return true;
+						},
+					}, (reader, changeSummary, store) => {
+						const repository = this._treeViewModel.repository.read(reader);
+						const historyProvider = repository?.provider.historyProvider.read(reader);
+						if (!repository || !historyProvider) {
+							return;
+						}
+
+						// Update context
+						this._scmProviderCtx.set(repository.provider.contextValue);
+
+						// Checkout, Commit, and Publish
+						const historyItemGroup = derivedOpts<{ id: string; revision?: string; remoteId?: string } | undefined>({
 							owner: this,
-							createEmptyChangeSummary: () => ({ refresh: false }),
-							handleChange(_, changeSummary) {
-								changeSummary.refresh = true;
-								return true;
-							},
-						}, (reader, changeSummary, store) => {
-							const repository = this._treeViewModel.repository.read(reader);
-							const historyProvider = repository?.provider.historyProvider.read(reader);
-							if (!repository || !historyProvider) {
-								return;
-							}
+							equalsFn: structuralEquals
+						}, reader => {
+							const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup.read(reader);
+							return currentHistoryItemGroup ? {
+								id: currentHistoryItemGroup.id,
+								revision: currentHistoryItemGroup.revision,
+								remoteId: currentHistoryItemGroup.remote?.id
+							} : undefined;
+						});
 
-							// Update context
-							this._scmProviderCtx.set(repository.provider.contextValue);
+						// Fetch, Push
+						const historyItemRemoteRevision = derived(reader => {
+							return historyProvider.currentHistoryItemGroup.read(reader)?.remote?.revision;
+						});
 
-							// Checkout, Commit, and Publish
-							const historyItemGroup = derivedOpts<{ id: string; revision?: string; remoteId?: string } | undefined>({
+						// HistoryItemGroup change
+						store.add(
+							autorunWithStoreHandleChanges<{ refresh: boolean | 'ifScrollTop' }>({
 								owner: this,
-								equalsFn: structuralEquals
-							}, reader => {
-								const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup.read(reader);
-								return currentHistoryItemGroup ? {
-									id: currentHistoryItemGroup.id,
-									revision: currentHistoryItemGroup.revision,
-									remoteId: currentHistoryItemGroup.remote?.id
-								} : undefined;
-							});
+								createEmptyChangeSummary: () => ({ refresh: false }),
+								handleChange(context, changeSummary) {
+									changeSummary.refresh = context.didChange(historyItemRemoteRevision) ? 'ifScrollTop' : true;
+									return true;
+								},
+							}, (reader, changeSummary) => {
+								const historyItemGroupValue = historyItemGroup.read(reader);
+								const historyItemRemoteRevisionValue = historyItemRemoteRevision.read(reader);
 
-							// Fetch, Push
-							const historyItemRemoteRevision = derived(reader => {
-								return historyProvider.currentHistoryItemGroup.read(reader)?.remote?.revision;
-							});
+								if ((!historyItemGroupValue && !historyItemRemoteRevisionValue) || changeSummary.refresh === false) {
+									return;
+								}
 
-							// HistoryItemGroup change
-							store.add(
-								autorunWithStoreHandleChanges<{ refresh: boolean | 'ifScrollTop' }>({
-									owner: this,
-									createEmptyChangeSummary: () => ({ refresh: false }),
-									handleChange(context, changeSummary) {
-										changeSummary.refresh = context.didChange(historyItemRemoteRevision) ? 'ifScrollTop' : true;
-										return true;
-									},
-								}, (reader, changeSummary) => {
-									if ((!historyItemGroup.read(reader) && !historyItemRemoteRevision.read(reader)) || changeSummary.refresh === false) {
-										return;
-									}
+								if (changeSummary.refresh === true) {
+									this.refresh();
+									return;
+								}
 
-									if (changeSummary.refresh === true) {
+								if (changeSummary.refresh === 'ifScrollTop') {
+									// Remote revision changes can occur as a result of a user action (Fetch, Push) but
+									// it can also occur as a result of background action (Auto Fetch). If the tree is
+									// scrolled to the top, we can safely refresh the tree.
+									if (this._tree.scrollTop === 0) {
 										this.refresh();
 										return;
 									}
 
-									if (changeSummary.refresh === 'ifScrollTop') {
-										// Remote revision changes can occur as a result of a user action (Fetch, Push) but
-										// it can also occur as a result of background action (Auto Fetch). If the tree is
-										// scrolled to the top, we can safely refresh the tree.
-										if (this._tree.scrollTop === 0) {
-											this.refresh();
-											return;
-										}
-
-										// Set the "OUTDATED" description
-										this.updateTitleDescription(localize('outdated', "OUTDATED"));
-									}
-								}));
-
-							// HistoryItemRefs filter changed
-							store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {
-								this.refresh();
+									// Show the "Outdated" badge on the view
+									this._repositoryOutdated.set(true, undefined);
+								}
 							}));
 
-							if (changeSummary.refresh) {
-								this.refresh();
-							}
+						// HistoryItemRefs filter changed
+						store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {
+							this.refresh();
 						}));
-				}));
+
+						if (changeSummary.refresh) {
+							this.refresh();
+						}
+					}));
 			} else {
 				this._visibilityDisposables.clear();
 			}
 		});
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this._tree.layout(height, width);
 	}
 
 	override getActionRunner(): IActionRunner | undefined {
@@ -1174,7 +1190,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		await this._updateChildren(true);
 
 		this.updateActions();
-		this.updateTitleDescription(undefined);
+		this._repositoryOutdated.set(false, undefined);
 		this._tree.scrollTop = 0;
 	}
 

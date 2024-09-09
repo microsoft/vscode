@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.94.0",
-  "distro": "36c6d77f96e54b1ad2233cd24fed8e8f08d5a388",
+  "distro": "fcaeb73de7ac6ff11a3e732c63987e01b88341e7",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -218,7 +218,6 @@
     "tslib": "^2.6.3",
     "typescript": "^5.7.0-dev.20240903",
     "util": "^0.12.4",
-    "vscode-nls-dev": "^3.3.1",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",
