@@ -13,6 +13,10 @@
 	border-radius: 4px;
 }
 
+.chat-inline-anchor-widget:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 .chat-inline-anchor-widget .monaco-icon-label {
 	display: inline-flex;
 	margin: 0 1px;
@@ -29,10 +33,6 @@
 .chat-inline-anchor-widget .codicon {
 	vertical-align: text-bottom;
 	color: reset-layer !important;
-}
-
-.chat-inline-anchor-widget:hover .monaco-icon-label {
-	background-color: var(--vscode-list-hoverBackground);
 }
 
 .chat-inline-anchor-widget .monaco-icon-label::before {

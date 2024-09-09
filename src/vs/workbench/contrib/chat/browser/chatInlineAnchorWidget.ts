@@ -57,9 +57,11 @@ export class InlineAnchorWidget extends Disposable {
 
 		let location: { readonly uri: URI; readonly range?: IRange };
 		let contextMenuId: MenuId;
+		let contextMenuArg: URI | { readonly uri: URI; readonly range?: IRange };
 		if (data.kind === 'symbol') {
 			location = data.symbol.location;
 			contextMenuId = MenuId.ChatInlineSymbolAnchorContext;
+			contextMenuArg = location;
 
 			const icon = SymbolKinds.toIcon(data.symbol.kind);
 			resourceLabel.setLabel(`$(${icon.id}) ${data.symbol.name}`, undefined, {});
@@ -83,6 +85,7 @@ export class InlineAnchorWidget extends Disposable {
 		} else {
 			location = data;
 			contextMenuId = MenuId.ChatInlineResourceAnchorContext;
+			contextMenuArg = location.uri;
 
 			const label = labelService.getUriBasenameLabel(location.uri);
 			const title = location.range && data.kind !== 'symbol' ?
@@ -106,7 +109,7 @@ export class InlineAnchorWidget extends Disposable {
 				contextKeyService,
 				getAnchor: () => event,
 				getActions: () => {
-					const menu = menuService.getMenuActions(contextMenuId, contextKeyService, { arg: location });
+					const menu = menuService.getMenuActions(contextMenuId, contextKeyService, { arg: contextMenuArg });
 					const primary: IAction[] = [];
 					createAndFillInContextMenuActions(menu, primary);
 					return primary;
