@@ -466,6 +466,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 		return title;
 	}
+
 	protected getHoverDelegate(): IHoverDelegate {
 		return this.tabsHoverDelegate;
 	}
