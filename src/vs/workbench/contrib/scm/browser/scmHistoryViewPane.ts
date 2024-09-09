@@ -61,13 +61,12 @@ import { clamp } from '../../../../base/common/numbers.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compare } from '../../../../base/common/strings.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
 class SCMRepositoryActionViewItem extends ActionViewItem {
 	constructor(private readonly _repository: ISCMRepository, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
-		super(null, action, { ...options, icon: false, label: true, hoverDelegate: createInstantHoverDelegate() });
+		super(null, action, { ...options, icon: false, label: true });
 	}
 
 	protected override updateLabel(): void {
@@ -97,7 +96,7 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 		action: IAction,
 		options?: IDropdownMenuActionViewItemOptions
 	) {
-		super(null, action, { ...options, icon: false, label: true, hoverDelegate: createInstantHoverDelegate() });
+		super(null, action, { ...options, icon: false, label: true });
 	}
 
 	protected override updateLabel(): void {
