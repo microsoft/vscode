@@ -822,8 +822,8 @@ class RepositoryPicker extends Disposable {
 	};
 
 	constructor(
-		private readonly _scmViewService: ISCMViewService,
-		private readonly _quickInputService: IQuickInputService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) {
 		super();
 	}
