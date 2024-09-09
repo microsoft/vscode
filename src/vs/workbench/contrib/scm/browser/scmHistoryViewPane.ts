@@ -48,7 +48,7 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/ac
 import { delta, groupBy, tail } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { constObservable, derivedConstOnceDefined, latestChangedValue, observableFromEvent } from '../../../../base/common/observableInternal/utils.js';
+import { constObservable, derivedConstOnceDefined, latestChangedValue, observableFromEvent, runOnChange } from '../../../../base/common/observableInternal/utils.js';
 import { ContextKeys } from './scmViewPane.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
@@ -1084,6 +1084,11 @@ export class SCMHistoryViewPane extends ViewPane {
 										this.updateTitleDescription(localize('outdated', "OUTDATED"));
 									}
 								}));
+
+							// HistoryItemRefs filter changed
+							store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {
+								this.refresh();
+							}));
 
 							if (changeSummary.refresh) {
 								this.refresh();
