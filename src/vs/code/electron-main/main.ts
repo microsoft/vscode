@@ -8,6 +8,7 @@ import '../../platform/update/common/update.config.contribution.js';
 import { app, dialog } from 'electron';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
+Edited by subash
 import { coalesce, distinct } from '../../base/common/arrays.js';
 import { Promises } from '../../base/common/async.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
