@@ -1039,22 +1039,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private initializeAutoUpdate(): void {
-		// Initialise Auto Update Value
-		let autoUpdateValue = this.getAutoUpdateValue();
-
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				const wasAutoUpdateEnabled = autoUpdateValue !== false;
-				autoUpdateValue = this.getAutoUpdateValue();
-				const isAutoUpdateEnabled = this.isAutoUpdateEnabled();
-				if (wasAutoUpdateEnabled !== isAutoUpdateEnabled) {
-					this.setEnabledAutoUpdateExtensions([]);
-					this.setDisabledAutoUpdateExtensions([]);
-					this._onChange.fire(undefined);
-					this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
-				}
-				if (isAutoUpdateEnabled) {
+				if (this.isAutoUpdateEnabled()) {
 					this.eventuallyAutoUpdateExtensions();
 				}
 			}
@@ -1116,22 +1104,31 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
 	}
 
-	async updateAutoUpdateValue(value: AutoUpdateConfigurationValue): Promise<void> {
-		const wasEnabled = this.isAutoUpdateEnabled();
-		const isEnabled = value !== false;
-		if (wasEnabled !== isEnabled) {
-			const result = await this.dialogService.confirm({
-				title: nls.localize('confirmEnableDisableAutoUpdate', "Auto Update Extensions"),
-				message: isEnabled
-					? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for all extensions?")
-					: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for all extensions?"),
-				detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset any auto update settings you have set for individual extensions."),
-			});
-			if (!result.confirmed) {
-				return;
-			}
+	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
+		const wasAutoUpdateEnabled = this.isAutoUpdateEnabled();
+		if (wasAutoUpdateEnabled === isAutoUpdateEnabled) {
+			return;
 		}
-		await this.configurationService.updateValue(AutoUpdateConfigurationKey, value);
+
+		const result = await this.dialogService.confirm({
+			title: nls.localize('confirmEnableDisableAutoUpdate', "Auto Update Extensions"),
+			message: isAutoUpdateEnabled
+				? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for all extensions?")
+				: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for all extensions?"),
+			detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset any auto update settings you have set for individual extensions."),
+		});
+		if (!result.confirmed) {
+			return;
+		}
+
+		// Reset extensions enabled for auto update first to prevent them from being updated
+		this.setEnabledAutoUpdateExtensions([]);
+
+		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled);
+
+		this.setDisabledAutoUpdateExtensions([]);
+		await this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
+		this._onChange.fire(undefined);
 	}
 
 	private readonly autoRestartListenerDisposable = this._register(new MutableDisposable());
