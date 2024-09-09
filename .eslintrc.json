@@ -92,14 +92,14 @@
 					"common",
 					"browser"
 				],
-				"electron-node": [
+				"electron-utility": [
 					"common",
 					"node"
 				],
 				"electron-main": [
 					"common",
 					"node",
-					"electron-node"
+					"electron-utility"
 				]
 			}
 		],
@@ -618,6 +618,59 @@
 		},
 		{
 			"files": [
+				"src/**/electron-utility/**/*.ts"
+			],
+			"rules": {
+				"no-restricted-imports": [
+					"warn",
+					{
+						"paths": [
+							{
+								"name": "electron",
+								"importNames": [
+									"app",
+									"autoUpdater",
+									"BaseWindow",
+									"BrowserWindow",
+									"contentTracing",
+									"desktopCapturer",
+									"dialog",
+									"globalShortcut",
+									"inAppPurchase",
+									"ipcMain",
+									"Menu",
+									"MenuItem",
+									"MessageChannelMain",
+									"MessagePortMain",
+									"nativeTheme",
+									"netLog",
+									"Notification",
+									"powerMonitor",
+									"powerSaveBlocker",
+									"protocol",
+									"pushNotifications",
+									"safeStorage",
+									"screen",
+									"session",
+									"ShareMenu",
+									"TouchBar",
+									"Tray",
+									"utilityProcess",
+									"View",
+									"webContents",
+									"webFrameMain",
+									"webContentsView",
+									"default"
+								],
+								"message": "Only net and system-preferences are allowed to be imported from electron"
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
 				"src/**/*.ts"
 			],
 			"rules": {
@@ -635,7 +688,7 @@
 					{
 						// imports that are allowed in all files of layers:
 						// - node
-						// - electron-node
+						// - electron-utility
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
@@ -694,7 +747,7 @@
 					},
 					{
 						// imports that are allowed in all files of layers:
-						// - electron-node
+						// - electron-utility
 						// - electron-main
 						"when": "hasElectron",
 						"allow": [
@@ -761,7 +814,8 @@
 							"vs/platform/*/~",
 							"tas-client-umd", // node module allowed even in /common/
 							"@microsoft/1ds-core-js", // node module allowed even in /common/
-							"@microsoft/1ds-post-js" // node module allowed even in /common/
+							"@microsoft/1ds-post-js", // node module allowed even in /common/
+							"@xterm/headless" // node module allowed even in /common/
 						]
 					},
 					{
@@ -792,7 +846,8 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/standalone/~"
+							"vs/editor/standalone/~",
+							"@vscode/tree-sitter-wasm" // type import
 						]
 					},
 					{
@@ -878,6 +933,7 @@
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
 							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							"@vscode/tree-sitter-wasm", // type import
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/xterm"
@@ -895,6 +951,7 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -924,6 +981,7 @@
 							// Only allow terminalContrib to import from itself, this works because
 							// terminalContrib is one extra folder deep
 							"vs/workbench/contrib/terminalContrib/*/~",
+							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -936,7 +994,8 @@
 							{
 								"when": "hasBrowser",
 								"pattern": "vscode-textmate"
-							} // node module allowed even in /browser/
+							}, // node module allowed even in /browser/
+							"@xterm/headless" // node module allowed even in /common/ and /browser/
 						]
 					},
 					{
@@ -992,6 +1051,13 @@
 						"layer": "browser",
 						"restrictions": [
 							"vs/workbench/contrib/**"
+						]
+					},
+					{
+						"target": "src/vs/workbench/contrib/terminal/terminalContribExports.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
 					{

@@ -220,7 +220,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
-				return getDataToCopy(this._context.viewModel, this._selections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
+				return getDataToCopy(this._context.viewModel, this._modelSelections, this._emptySelectionClipboard, this._copyWithSyntaxHighlighting);
 			},
 			getScreenReaderContent: (): TextAreaState => {
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {

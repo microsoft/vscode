@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Event } from '../../../base/common/event.js';
 import { ITextModel } from '../../common/model.js';

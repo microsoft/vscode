@@ -411,7 +411,8 @@ function createDiffViewModels(configurationService: IConfigurationService, model
 					'delete',
 					eventDispatcher,
 					initData,
-					notebookService
+					notebookService,
+					configurationService
 				);
 			}
 			case 'insert': {
@@ -423,7 +424,8 @@ function createDiffViewModels(configurationService: IConfigurationService, model
 					'insert',
 					eventDispatcher,
 					initData,
-					notebookService
+					notebookService,
+					configurationService
 				);
 			}
 			case 'modified': {
@@ -435,7 +437,8 @@ function createDiffViewModels(configurationService: IConfigurationService, model
 					'modified',
 					eventDispatcher,
 					initData,
-					notebookService
+					notebookService,
+					configurationService
 				);
 			}
 			case 'unchanged': {
@@ -446,7 +449,8 @@ function createDiffViewModels(configurationService: IConfigurationService, model
 					modifiedModel.cells[diff.modifiedCellIndex],
 					'unchanged', eventDispatcher,
 					initData,
-					notebookService
+					notebookService,
+					configurationService
 				);
 			}
 		}

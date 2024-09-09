@@ -671,6 +671,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			throw new Error('Call render() before setModel()');
 		}
 
+		if (model.sessionId === this.viewModel?.sessionId) {
+			return;
+		}
+
 		this._codeBlockModelCollection.clear();
 
 		this.container.setAttribute('data-session-id', model.sessionId);

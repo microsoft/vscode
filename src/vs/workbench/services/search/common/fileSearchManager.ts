@@ -12,9 +12,8 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
 import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 
 interface IInternalFileMatch {
 	base: URI;
@@ -126,7 +125,7 @@ class FileSearchEngine {
 		};
 
 
-		const folderMappings = new ResourceMap<FolderQueryInfo>();
+		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
 		fqs.forEach(fq => {
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
@@ -153,9 +152,9 @@ class FileSearchEngine {
 
 
 			if (results) {
-				results.forEach(resultInfo => {
-					const result = resultInfo.result;
-					const fqFolderInfo = folderMappings.get(resultInfo.folder)!;
+				results.forEach(result => {
+
+					const fqFolderInfo = folderMappings.findSubstr(result)!;
 					const relativePath = path.posix.relative(fqFolderInfo.folder.path, result.path);
 
 					if (fqFolderInfo.noSiblingsClauses) {
@@ -307,19 +306,26 @@ interface IInternalSearchComplete {
 /**
  * For backwards compatibility, store both a cancellation token and a session object. The session object is the new implementation, where
  */
-class SessionLifecycle extends Disposable {
-	public readonly obj: object;
+class SessionLifecycle {
+	private _obj: object | undefined;
 	public readonly tokenSource: CancellationTokenSource;
 
 	constructor() {
-		super();
-		this.obj = new Object();
+		this._obj = new Object();
 		this.tokenSource = new CancellationTokenSource();
 	}
 
-	public override dispose(): void {
+	public get obj() {
+		if (this._obj) {
+			return this._obj;
+		}
+
+		throw new Error('Session object has been dereferenced.');
+	}
+
+	cancel() {
 		this.tokenSource.cancel();
-		super.dispose();
+		this._obj = undefined; // dereference
 	}
 }
 
@@ -356,7 +362,7 @@ export class FileSearchManager {
 
 	clearCache(cacheKey: string): void {
 		// cancel the token
-		this.sessions.get(cacheKey)?.dispose();
+		this.sessions.get(cacheKey)?.cancel();
 		// with no reference to this, it will be removed from WeakMaps
 		this.sessions.delete(cacheKey);
 	}

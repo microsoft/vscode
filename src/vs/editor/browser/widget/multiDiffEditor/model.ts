@@ -10,7 +10,7 @@ import { ITextModel } from '../../../common/model.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
 
 export interface IMultiDiffEditorModel {
-	readonly documents: IValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>;
+	readonly documents: IValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
 }
 
