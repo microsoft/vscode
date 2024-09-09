@@ -28,14 +28,13 @@ declare module 'vscode' {
 		provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
-		resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[], token: CancellationToken): ProviderResult<string>;
+		resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[], token: CancellationToken): ProviderResult<string>;
 	}
 
 	export interface SourceControlHistoryOptions {
-		readonly cursor?: string;
 		readonly skip?: number;
 		readonly limit?: number | { id?: string };
-		readonly historyItemGroupIds?: readonly string[];
+		readonly historyItemRefs?: readonly string[];
 	}
 
 	export interface SourceControlHistoryItemGroup {

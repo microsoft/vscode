@@ -128,12 +128,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItems(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds) {
+		if (!this.currentHistoryItemGroup || !options.historyItemRefs) {
 			return [];
 		}
 
 		// Deduplicate refNames
-		const refNames = Array.from(new Set<string>(options.historyItemGroupIds));
+		const refNames = Array.from(new Set<string>(options.historyItemRefs));
 
 		let logOptions: LogOptions = { refNames, shortStats: true };
 
@@ -211,21 +211,21 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
-	async resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined> {
+	async resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined> {
 		try {
-			if (historyItemGroupIds.length === 0) {
+			if (historyItemRefs.length === 0) {
 				// TODO@lszomoru - log
 				return undefined;
-			} else if (historyItemGroupIds.length === 1 && historyItemGroupIds[0] === this.currentHistoryItemGroup?.id) {
+			} else if (historyItemRefs.length === 1 && historyItemRefs[0] === this.currentHistoryItemGroup?.id) {
 				// Remote
 				if (this.currentHistoryItemGroup.remote) {
-					const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], this.currentHistoryItemGroup.remote.id);
+					const ancestor = await this.repository.getMergeBase(historyItemRefs[0], this.currentHistoryItemGroup.remote.id);
 					return ancestor;
 				}
 
 				// Base
 				if (this.currentHistoryItemGroup.base) {
-					const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], this.currentHistoryItemGroup.base.id);
+					const ancestor = await this.repository.getMergeBase(historyItemRefs[0], this.currentHistoryItemGroup.base.id);
 					return ancestor;
 				}
 
@@ -234,13 +234,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				if (commits.length > 0) {
 					return commits[0].hash;
 				}
-			} else if (historyItemGroupIds.length > 1) {
-				const ancestor = await this.repository.getMergeBase(historyItemGroupIds[0], historyItemGroupIds[1], ...historyItemGroupIds.slice(2));
+			} else if (historyItemRefs.length > 1) {
+				const ancestor = await this.repository.getMergeBase(historyItemRefs[0], historyItemRefs[1], ...historyItemRefs.slice(2));
 				return ancestor;
 			}
 		}
 		catch (err) {
-			this.logger.error(`[GitHistoryProvider][resolveHistoryItemGroupCommonAncestor] Failed to resolve common ancestor for ${historyItemGroupIds.join(',')}: ${err}`);
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemRefsCommonAncestor] Failed to resolve common ancestor for ${historyItemRefs.join(',')}: ${err}`);
 		}
 
 		return undefined;

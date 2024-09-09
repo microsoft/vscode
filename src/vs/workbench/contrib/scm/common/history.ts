@@ -24,14 +24,13 @@ export interface ISCMHistoryProvider {
 	provideHistoryItemRefs(): Promise<ISCMHistoryItemRef[] | undefined>;
 	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined>;
+	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
 }
 
 export interface ISCMHistoryOptions {
-	readonly cursor?: string;
 	readonly skip?: number;
 	readonly limit?: number | { id?: string };
-	readonly historyItemGroupIds?: readonly string[];
+	readonly historyItemRefs?: readonly string[];
 }
 
 export interface ISCMHistoryItemGroup {
