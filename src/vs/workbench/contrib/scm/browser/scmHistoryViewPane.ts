@@ -744,6 +744,40 @@ class SCMHistoryViewModel extends Disposable {
 	}
 }
 
+type RepositoryQuickPickItem = IQuickPickItem & { repository: 'auto' | ISCMRepository };
+
+class RepositoryPicker extends Disposable {
+	private readonly _autoQuickPickItem: RepositoryQuickPickItem = {
+		label: localize('auto', "Auto"),
+		description: localize('activeRepository', "Show the source control graph for the active repository"),
+		repository: 'auto'
+	};
+
+	constructor(
+		private readonly _scmViewService: ISCMViewService,
+		private readonly _quickInputService: IQuickInputService,
+	) {
+		super();
+	}
+
+	async pickRepository(): Promise<RepositoryQuickPickItem | undefined> {
+		const picks: (RepositoryQuickPickItem | IQuickPickSeparator)[] = [
+			this._autoQuickPickItem,
+			{ type: 'separator' }];
+
+		picks.push(...this._scmViewService.repositories.map(r => ({
+			label: r.provider.name,
+			description: r.provider.rootUri?.fsPath,
+			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			repository: r
+		})));
+
+		return this._quickInputService.pick(picks, {
+			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories")
+		});
+	}
+}
+
 type HistoryItemRefQuickPickItem = IQuickPickItem & { historyItemRef: 'all' | 'auto' | ISCMHistoryItemRef };
 
 class HistoryItemRefPicker extends Disposable {
@@ -892,9 +926,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ISCMViewService private readonly _scmViewService: ISCMViewService,
 		@IProgressService private readonly _progressService: IProgressService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -1066,27 +1098,8 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	async pickRepository(): Promise<void> {
-		const picks: (IQuickPickItem & { repository: 'auto' | ISCMRepository } | IQuickPickSeparator)[] = [
-			{
-				label: localize('auto', "Auto"),
-				description: localize('activeRepository', "Show the source control graph for the active repository"),
-				repository: 'auto'
-			},
-			{
-				type: 'separator'
-			},
-		];
-
-		picks.push(...this._scmViewService.repositories.map(r => ({
-			label: r.provider.name,
-			description: r.provider.rootUri?.fsPath,
-			iconClass: ThemeIcon.asClassName(Codicon.repo),
-			repository: r
-		})));
-
-		const result = await this._quickInputService.pick(picks, {
-			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories")
-		});
+		const picker = this._instantiationService.createInstance(RepositoryPicker);
+		const result = await picker.pickRepository();
 
 		if (result) {
 			this._treeViewModel.setRepository(result.repository);
