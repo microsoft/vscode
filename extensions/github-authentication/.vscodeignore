@@ -6,5 +6,4 @@ build/**
 extension.webpack.config.js
 extension-browser.webpack.config.js
 tsconfig.json
-yarn.lock
 package-lock.json

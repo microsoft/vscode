@@ -8,8 +8,6 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { SearchExtensionsAction } from './extensionsActions.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -24,7 +22,6 @@ export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenc
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.checkForDeprecatedExtensions();
@@ -56,12 +53,7 @@ export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenc
 					label: localize('showDeprecated', "Show Deprecated Extensions"),
 					run: async () => {
 						this.setNotifiedDeprecatedExtensions(toNotify.map(e => e.identifier.id.toLowerCase()));
-						const action = this.instantiationService.createInstance(SearchExtensionsAction, toNotify.map(extension => `@id:${extension.identifier.id}`).join(' '));
-						try {
-							await action.run();
-						} finally {
-							action.dispose();
-						}
+						await this.extensionsWorkbenchService.openSearch(toNotify.map(extension => `@id:${extension.identifier.id}`).join(' '));
 					}
 				}, {
 					label: localize('neverShowAgain', "Don't Show Again"),

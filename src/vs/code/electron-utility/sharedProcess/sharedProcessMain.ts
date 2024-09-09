@@ -270,11 +270,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		]);
 
 		// Request
-		const networkLogger = loggerService.createLogger('network-shared', {
-			name: localize('network-shared', "Network (Shared)"),
-			hidden: true,
-		});
-		const requestService = new RequestService(networkLogger, configurationService, environmentService, logService);
+		const requestService = new RequestService(configurationService, environmentService, logService);
 		services.set(IRequestService, requestService);
 
 		// Checksum

@@ -17,16 +17,20 @@ export interface ISCMHistoryProviderMenus {
 export interface ISCMHistoryProvider {
 	readonly currentHistoryItemGroup: IObservable<ISCMHistoryItemGroup | undefined>;
 
+	readonly currentHistoryItemRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly currentHistoryItemRemoteRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly currentHistoryItemBaseRef: IObservable<ISCMHistoryItemRef | undefined>;
+
+	provideHistoryItemRefs(): Promise<ISCMHistoryItemRef[] | undefined>;
 	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined>;
+	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
 }
 
 export interface ISCMHistoryOptions {
-	readonly cursor?: string;
 	readonly skip?: number;
 	readonly limit?: number | { id?: string };
-	readonly historyItemGroupIds?: readonly string[];
+	readonly historyItemRefs?: readonly string[];
 }
 
 export interface ISCMHistoryItemGroup {
@@ -43,10 +47,14 @@ export interface ISCMHistoryItemStatistics {
 	readonly deletions: number;
 }
 
-export interface ISCMHistoryItemLabel {
-	readonly title: string;
-	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+export interface ISCMHistoryItemRef {
+	readonly id: string;
+	readonly name: string;
+	readonly revision?: string;
+	readonly category?: string;
+	readonly description?: string;
 	readonly color?: ColorIdentifier;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 }
 
 export interface ISCMHistoryItem {
@@ -58,7 +66,7 @@ export interface ISCMHistoryItem {
 	readonly author?: string;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
-	readonly labels?: ISCMHistoryItemLabel[];
+	readonly references?: ISCMHistoryItemRef[];
 }
 
 export interface ISCMHistoryItemGraphNode {

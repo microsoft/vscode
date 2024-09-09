@@ -46,6 +46,18 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			return originalLookup.call(this, applyAlternatives(request), parent);
 		};
 
+		const originalResolveFilename = node_module._resolveFilename;
+		node_module._resolveFilename = function resolveFilename(request: string, parent: unknown, isMain: boolean, options?: { paths?: string[] }) {
+			if (request === 'vsda' && Array.isArray(options?.paths) && options.paths.length === 0) {
+				// ESM: ever since we moved to ESM, `require.main` will be `undefined` for extensions
+				// Some extensions have been using `require.resolve('vsda', { paths: require.main.paths })`
+				// to find the `vsda` module in our app root. To be backwards compatible with this pattern,
+				// we help by filling in the `paths` array with the node modules paths of the current module.
+				options.paths = node_module._nodeModulePaths(import.meta.dirname);
+			}
+			return originalResolveFilename.call(this, request, parent, isMain, options);
+		};
+
 		const applyAlternatives = (request: string) => {
 			for (const alternativeModuleName of that._alternatives) {
 				const alternative = alternativeModuleName(request);

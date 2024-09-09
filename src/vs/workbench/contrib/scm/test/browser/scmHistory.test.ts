@@ -7,10 +7,10 @@ import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ColorIdentifier } from '../../../../../platform/theme/common/colorUtils.js';
 import { colorRegistry, historyItemGroupBase, historyItemGroupLocal, historyItemGroupRemote, toISCMHistoryItemViewModelArray } from '../../browser/scmHistory.js';
-import { ISCMHistoryItem, ISCMHistoryItemLabel } from '../../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemRef } from '../../common/history.js';
 
-function toSCMHistoryItem(id: string, parentIds: string[], labels?: ISCMHistoryItemLabel[]): ISCMHistoryItem {
-	return { id, parentIds, subject: '', message: '', labels } satisfies ISCMHistoryItem;
+function toSCMHistoryItem(id: string, parentIds: string[], references?: ISCMHistoryItemRef[]): ISCMHistoryItem {
+	return { id, parentIds, subject: '', message: '', references } satisfies ISCMHistoryItem;
 }
 
 suite('toISCMHistoryItemViewModelArray', () => {
@@ -517,12 +517,12 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 */
 	test('graph with color map', () => {
 		const models = [
-			toSCMHistoryItem('a', ['b'], [{ title: 'topic' }]),
+			toSCMHistoryItem('a', ['b'], [{ id: 'topic', name: 'topic' }]),
 			toSCMHistoryItem('b', ['c']),
-			toSCMHistoryItem('c', ['d'], [{ title: 'origin/topic' }]),
+			toSCMHistoryItem('c', ['d'], [{ id: 'origin/topic', name: 'origin/topic' }]),
 			toSCMHistoryItem('d', ['e']),
 			toSCMHistoryItem('e', ['f', 'g']),
-			toSCMHistoryItem('g', ['h'], [{ title: 'origin/main' }])
+			toSCMHistoryItem('g', ['h'], [{ id: 'origin/main', name: 'origin/main' }])
 		];
 
 		const colorMap = new Map<string, ColorIdentifier>([

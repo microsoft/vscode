@@ -14,7 +14,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, IExtension, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType } from '../common/extensions.js';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
+import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionEditor } from './extensionEditor.js';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext } from './extensionsViewlet.js';
@@ -68,7 +68,6 @@ import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from '../../../services/workspaces/
 import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsProvider.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Event } from '../../../../base/common/event.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { UnsupportedExtensionsMigrationContrib } from './unsupportedExtensionsMigrationContribution.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
@@ -433,15 +432,7 @@ CommandsRegistry.registerCommand({
 		]
 	},
 	handler: async (accessor, query: string = '') => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-
-		if (!viewlet) {
-			return;
-		}
-
-		(viewlet.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-		viewlet.focus();
+		return accessor.get(IExtensionsWorkbenchService).openSearch(query);
 	}
 });
 
@@ -489,7 +480,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -561,7 +552,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			run: async (accessor: ServicesAccessor) => {
-				await accessor.get(IPaneCompositePartService).openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+				await accessor.get(IExtensionsWorkbenchService).openSearch('');
 			}
 		});
 
@@ -593,7 +584,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[MenuId.EditorTitle.id]: localize('importKeyboardShortcutsFroms', "Migrate Keyboard Shortcuts from...")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:keymaps '))
+			run: () => this.extensionsWorkbenchService.openSearch('@recommended:keymaps ')
 		});
 
 		this.registerExtensionAction({
@@ -604,7 +595,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 				when: CONTEXT_HAS_GALLERY
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:languages '))
+			run: () => this.extensionsWorkbenchService.openSearch('@recommended:languages ')
 		});
 
 		this.registerExtensionAction({
@@ -624,7 +615,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				await this.extensionsWorkbenchService.checkForUpdates();
 				const outdated = this.extensionsWorkbenchService.outdated;
 				if (outdated.length) {
-					return runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '));
+					return this.extensionsWorkbenchService.openSearch('@outdated ');
 				} else {
 					return this.dialogService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
 				}
@@ -645,7 +636,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: MenuId.CommandPalette,
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateValue(true)
+			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateForAllExtensions(true)
 		});
 
 		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, false);
@@ -662,7 +653,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}, {
 				id: MenuId.CommandPalette,
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateValue(false)
+			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateForAllExtensions(false)
 		});
 
 		this.registerExtensionAction({
@@ -937,7 +928,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('featured filter', "Featured")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@featured '))
+			run: () => this.extensionsWorkbenchService.openSearch('@featured ')
 		});
 
 		this.registerExtensionAction({
@@ -956,7 +947,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('most popular filter', "Most Popular")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@popular '))
+			run: () => this.extensionsWorkbenchService.openSearch('@popular ')
 		});
 
 		this.registerExtensionAction({
@@ -975,7 +966,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('most popular recommended', "Recommended")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended '))
+			run: () => this.extensionsWorkbenchService.openSearch('@recommended ')
 		});
 
 		this.registerExtensionAction({
@@ -994,7 +985,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('recently published filter', "Recently Published")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recentlyPublished '))
+			run: () => this.extensionsWorkbenchService.openSearch('@recentlyPublished ')
 		});
 
 		const extensionsCategoryFilterSubMenu = new MenuId('extensionsCategoryFilterSubMenu');
@@ -1015,7 +1006,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					when: CONTEXT_HAS_GALLERY,
 					order: index,
 				}],
-				run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, `@category:"${category.toLowerCase()}"`))
+				run: () => this.extensionsWorkbenchService.openSearch(`@category:"${category.toLowerCase()}"`)
 			});
 		});
 
@@ -1034,7 +1025,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@builtin '))
+			run: () => this.extensionsWorkbenchService.openSearch('@builtin ')
 		});
 
 		this.registerExtensionAction({
@@ -1052,7 +1043,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('extension updates filter', "Updates")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@updates'))
+			run: () => this.extensionsWorkbenchService.openSearch('@updates')
 		});
 
 		this.registerExtensionAction({
@@ -1071,7 +1062,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@workspaceUnsupported'))
+			run: () => this.extensionsWorkbenchService.openSearch('@workspaceUnsupported')
 		});
 
 		this.registerExtensionAction({
@@ -1089,7 +1080,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('enabled filter', "Enabled")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@enabled '))
+			run: () => this.extensionsWorkbenchService.openSearch('@enabled ')
 		});
 
 		this.registerExtensionAction({
@@ -1107,7 +1098,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menuTitles: {
 				[extensionsFilterSubMenu.id]: localize('disabled filter', "Disabled")
 			},
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@disabled '))
+			run: () => this.extensionsWorkbenchService.openSearch('@disabled ')
 		});
 
 		const extensionsSortSubMenu = new MenuId('extensionsSortSubMenu');
@@ -1137,11 +1128,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}],
 				toggled: ExtensionsSortByContext.isEqualTo(id),
 				run: async () => {
-					const viewlet = await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-					const extensionsViewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-					const currentQuery = Query.parse(extensionsViewPaneContainer.searchValue || '');
-					extensionsViewPaneContainer.search(new Query(currentQuery.value, id).toString());
-					extensionsViewPaneContainer.focus();
+					const extensionsViewPaneContainer = ((await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer()) as IExtensionsViewPaneContainer | undefined;
+					const currentQuery = Query.parse(extensionsViewPaneContainer?.searchValue ?? '');
+					extensionsViewPaneContainer?.search(new Query(currentQuery.value, id).toString());
+					extensionsViewPaneContainer?.focus();
 				}
 			});
 		});
