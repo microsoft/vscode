@@ -110,7 +110,7 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 		if (this.worker) {
 			return this.worker;
 		}
-		const { Worker } = await import('worker_threads');
+		const { Worker } = await import('node:worker_threads');
 		const outputDir = getOutputDir(this.context);
 		this.worker = new Worker(vscode.Uri.joinPath(this.context.extensionUri, outputDir, 'notebookSerializerWorker.js').fsPath, {});
 		this.worker.on('exit', (exitCode) => {
