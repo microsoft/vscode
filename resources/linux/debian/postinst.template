@@ -43,54 +43,54 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	fi
 
 	# Determine whether to write the Microsoft repository source list
-	# 0 means do not write
-	# 1 means ask and then write if Yes
-	# 2 means write without asking
-	WRITE_SOURCE=0
+	WRITE_SOURCE='no'
 	if [ "$CODE_INSTALL_WITH_REPO" = false ]; then
 		# The user does not want to add the Microsoft repository
-		WRITE_SOURCE=0
+		WRITE_SOURCE='no'
 	elif [ "$RET" = false ]; then
 		# The user does not want to add the Microsoft repository
-		WRITE_SOURCE=0
+		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
 		# The user has migrated themselves to the DEB822 format
-		WRITE_SOURCE=0
+		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/vscode" $CODE_SOURCE_PART); then
 		# Migrate from old repository
-		WRITE_SOURCE=2
+		WRITE_SOURCE='yes'
 	elif [ -f "$CODE_SOURCE_PART" ] && (grep -q "http://packages.microsoft.com/repos/code" $CODE_SOURCE_PART); then
 		# Migrate from old repository
-		WRITE_SOURCE=2
+		WRITE_SOURCE='yes'
 	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
 		# The user is already on the new repository
-		WRITE_SOURCE=0
+		WRITE_SOURCE='no'
 	elif [ "$RET" = true ]; then
 		# User explicitly wants to add the Microsoft repository
-		WRITE_SOURCE=2
+		WRITE_SOURCE='yes'
 	elif [ "$CODE_INSTALL_WITH_REPO" = true ]; then
 		# User explicitly wants to add the Microsoft repository
-		WRITE_SOURCE=2
+		WRITE_SOURCE='yes'
 	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
 		# Source list does not exist and we're not running on Raspberry Pi OS
-		WRITE_SOURCE=1
+		WRITE_SOURCE='ask'
 	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
 		# Source list was disabled by OS upgrade
-		WRITE_SOURCE=1
+		WRITE_SOURCE='ask'
 	fi
 
-	if [ "$WRITE_SOURCE" -eq "1" ] && [ -e '/usr/share/debconf/confmodule' ]; then
+	if [ "$WRITE_SOURCE" = 'ask' ] && ! [ -t 1 ]; then
+		# By default, write sources in a non-interactive terminal
+		WRITE_SOURCE='yes'
+	elif [ "$WRITE_SOURCE" = 'ask' ] && [ -e '/usr/share/debconf/confmodule' ]; then
 		# Ask the user whether to actually write the source list
 		db_input high @@NAME@@/add-microsoft-repo || true
 		db_go || true
 
 		db_get @@NAME@@/add-microsoft-repo
 		if [ "$RET" = false ]; then
-			WRITE_SOURCE=0
+			WRITE_SOURCE='no'
 		fi
 	fi
 
-	if [ "$WRITE_SOURCE" -ne "0" ]; then
+	if [ "$WRITE_SOURCE" != 'no' ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
 deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
