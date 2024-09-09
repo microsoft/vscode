@@ -11,7 +11,7 @@ import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { ILogger } from '../../log/common/log.js';
+import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
@@ -70,19 +70,19 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	private counter = 0;
 
-	constructor(protected readonly logger: ILogger) {
+	constructor(protected readonly logService: ILogService) {
 		super();
 	}
 
 	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
-		const prefix = `#${++this.counter}: ${options.url}`;
-		this.logger.info(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
+		const prefix = `[network] #${++this.counter}: ${options.url}`;
+		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		try {
 			const result = await request();
-			this.logger.info(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
+			this.logService.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
 			return result;
 		} catch (error) {
-			this.logger.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
 			throw error;
 		}
 	}
