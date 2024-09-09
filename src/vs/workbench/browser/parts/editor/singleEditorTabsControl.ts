@@ -11,7 +11,7 @@ import { ResourceLabel, IResourceLabel } from '../../labels.js';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
 import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver, isHTMLElement } from '../../../../base/browser/dom.js';
-import { CLOSE_EDITOR_COMMAND_ID, KEEP_EDITOR_COMMAND_ID, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
+import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
 import { Color } from '../../../../base/common/color.js';
 import { assertIsDefined, assertAllDefined } from '../../../../base/common/types.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -21,8 +21,6 @@ import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegateOptions } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { WorkbenchHoverDelegate, IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -36,6 +34,7 @@ import { IEditorPartsView, IEditorGroupsView, IEditorGroupView } from '../../../
 import { IReadonlyEditorGroupModel } from '../../../../workbench/common/editor/editorGroupModel.js';
 import { IEditorResolverService } from '../../../../workbench/services/editor/common/editorResolverService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
@@ -48,13 +47,14 @@ class SingleEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 		private readonly control: SingleEditorTabsControl,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
-		@ICommandService private readonly commandService: ICommandService,
 
 	) {
 		super(
-			'mouse',
+			'element',
 			true,
-			(options) => this.getOverrideOptions(options),
+			(options) => {
+				return { ...this.getOverrideOptions(options), appearance: { showPointer: true } };
+			},
 			configurationService,
 			hoverService
 		);
@@ -62,27 +62,11 @@ class SingleEditorTabHoverDelegate extends WorkbenchHoverDelegate {
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
 		const activeLabel = this.control.activeLabel;
-		if (!activeLabel || activeLabel.pinned) {
-			return { actions: [] };
+		if (!activeLabel?.editor || activeLabel.pinned) {
+			return {};
 		}
 		return {
-			actions:
-				[
-					{
-						commandId: KEEP_EDITOR_COMMAND_ID,
-						label: localize('keepEditor', "Keep Editor"),
-						run: () => {
-							this.commandService.executeCommand(KEEP_EDITOR_COMMAND_ID, activeLabel.editor?.resource);
-						}
-					},
-					{
-						commandId: TOGGLE_KEEP_EDITORS_COMMAND_ID,
-						label: localize('disablePreviewEditors', "Disable Preview Editors"),
-						run: () => {
-							this.commandService.executeCommand(TOGGLE_KEEP_EDITORS_COMMAND_ID);
-						}
-					},
-				]
+			content: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).appendText(activeLabel.editor.getTitle(Verbosity.LONG)).appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))'),
 		};
 	}
 }
@@ -117,7 +101,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		@IHostService hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
@@ -126,7 +109,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		const labelContainer = this.labelContainer ?? document.createElement('div');
 
 		// Editor Label
-		const hoverDelegate = this.hoverDelegate = new SingleEditorTabHoverDelegate(this, this.configurationService, this.hoverService, this.commandService);
+		const hoverDelegate = this.hoverDelegate = new SingleEditorTabHoverDelegate(this, this.configurationService, this.hoverService);
 		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, { hoverDelegate: hoverDelegate })).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
