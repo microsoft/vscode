@@ -1139,8 +1139,9 @@ class DataBreakpointInputRenderer implements IListRenderer<IDataBreakpoint, IDat
 		}));
 
 		template.inputBox = inputBox;
-		template.templateDisposables = toDispose;
 		template.elementDisposables = new DisposableStore();
+		template.templateDisposables = toDispose;
+		template.templateDisposables.add(template.elementDisposables);
 		return template;
 	}
 
@@ -1179,7 +1180,6 @@ class DataBreakpointInputRenderer implements IListRenderer<IDataBreakpoint, IDat
 	}
 
 	disposeTemplate(templateData: IDataBreakpointInputTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
@@ -1244,8 +1244,9 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		}));
 
 		template.inputBox = inputBox;
-		template.templateDisposables = toDispose;
 		template.elementDisposables = new DisposableStore();
+		template.templateDisposables = toDispose;
+		template.templateDisposables.add(template.elementDisposables);
 		return template;
 	}
 
@@ -1267,7 +1268,6 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 	}
 
 	disposeTemplate(templateData: IExceptionBreakpointInputTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
