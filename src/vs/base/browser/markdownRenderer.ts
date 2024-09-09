@@ -547,7 +547,13 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlo
 
 	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+	let sanitized = sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+	if (sanitized.includes('&lt;-')) {
+		// Preserve the <- characters
+		sanitized = sanitized.replaceAll('&lt;-', '<-');
+	}
+	return sanitized;
+
 }
 
 const unescapeInfo = new Map<string, string>([
