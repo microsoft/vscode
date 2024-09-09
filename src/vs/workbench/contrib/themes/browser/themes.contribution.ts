@@ -10,7 +10,7 @@ import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from '../../../services/themes/common/workbenchThemeService.js';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from '../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -20,8 +20,6 @@ import { colorThemeSchemaId } from '../../../services/themes/common/colorThemeSc
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { IQuickInputButton, IQuickInputService, IQuickInputToggle, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { DEFAULT_PRODUCT_ICON_THEME_ID, ProductIconThemeData } from '../../../services/themes/browser/productIconThemeData.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -81,7 +79,7 @@ class MarketplaceThemesPicker {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		this._installedExtensions = extensionManagementService.getInstalled().then(installed => {
@@ -197,9 +195,9 @@ class MarketplaceThemesPicker {
 				if (isItem(e.item)) {
 					const extensionId = e.item.theme?.extensionData?.extensionId;
 					if (extensionId) {
-						openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
+						this.extensionsWorkbenchService.openSearch(`@id:${extensionId}`);
 					} else {
-						openExtensionViewlet(this.paneCompositeService, `${this.marketplaceQuery} ${quickpick.value}`);
+						this.extensionsWorkbenchService.openSearch(`${this.marketplaceQuery} ${quickpick.value}`);
 					}
 				}
 			}));
@@ -248,7 +246,7 @@ class MarketplaceThemesPicker {
 	}
 
 	private async installExtension(galleryExtension: IGalleryExtension) {
-		openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
+		this.extensionsWorkbenchService.openSearch(`@id:${galleryExtension.identifier.id}`);
 		const result = await this.dialogService.confirm({
 			message: localize('installExtension.confirm', "This will install extension '{0}' published by '{1}'. Do you want to continue?", galleryExtension.displayName, galleryExtension.publisherDisplayName),
 			primaryButton: localize('installExtension.button.ok', "OK")
@@ -303,7 +301,7 @@ class InstalledThemesPicker {
 		private readonly getMarketplaceColorThemes: (publisher: string, name: string, version: string) => Promise<IWorkbenchTheme[]>,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -361,7 +359,7 @@ class InstalledThemesPicker {
 					const theme = quickpick.selectedItems[0];
 					if (!theme || theme.configureItem) { // 'pick in marketplace' entry
 						if (!theme || theme.configureItem === ConfigureItem.EXTENSIONS_VIEW) {
-							openExtensionViewlet(this.paneCompositeService, `${this.options.marketplaceTag} ${quickpick.value}`);
+							this.extensionsWorkbenchService.openSearch(`${this.options.marketplaceTag} ${quickpick.value}`);
 						} else if (theme.configureItem === ConfigureItem.BROWSE_GALLERY) {
 							if (marketplaceThemePicker) {
 								const res = await marketplaceThemePicker.openQuickPick(quickpick.value, currentTheme, selectTheme);
@@ -389,9 +387,9 @@ class InstalledThemesPicker {
 					if (isItem(e.item)) {
 						const extensionId = e.item.theme?.extensionData?.extensionId;
 						if (extensionId) {
-							openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
+							this.extensionsWorkbenchService.openSearch(`@id:${extensionId}`);
 						} else {
-							openExtensionViewlet(this.paneCompositeService, `${this.options.marketplaceTag} ${quickpick.value}`);
+							this.extensionsWorkbenchService.openSearch(`${this.options.marketplaceTag} ${quickpick.value}`);
 						}
 					}
 				}));
@@ -606,14 +604,6 @@ function configurationEntry(label: string, configureItem: ConfigureItem): QuickP
 	};
 }
 
-function openExtensionViewlet(paneCompositeService: IPaneCompositePartService, query: string) {
-	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
-		if (viewlet) {
-			(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-			viewlet.focus();
-		}
-	});
-}
 interface ThemeItem extends IQuickPickItem {
 	readonly id: string | undefined;
 	readonly theme?: IWorkbenchTheme;

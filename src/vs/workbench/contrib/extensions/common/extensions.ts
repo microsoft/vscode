@@ -141,6 +141,7 @@ export interface IExtensionsWorkbenchService {
 	shouldRequireConsentToUpdate(extension: IExtension): Promise<string | undefined>;
 	updateAutoUpdateForAllExtensions(value: boolean): Promise<void>;
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
+	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
