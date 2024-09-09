@@ -81,5 +81,4 @@ codegen-units = 1
 
 [features]
 default = []
-vsda = []
 vscode-encrypt = []
