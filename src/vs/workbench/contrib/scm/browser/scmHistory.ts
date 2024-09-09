@@ -306,7 +306,7 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 		const references = (historyItem.references ?? [])
 			.map(ref => {
 				let color = colorMap.get(ref.id);
-				if (color === 'inherit') {
+				if (colorMap.has(ref.id) && color === undefined) {
 					// Find the history item in the input swimlanes
 					const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
 
