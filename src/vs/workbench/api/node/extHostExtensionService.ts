@@ -46,6 +46,14 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			return originalLookup.call(this, applyAlternatives(request), parent);
 		};
 
+		const originalResolveFilename = node_module._resolveFilename;
+		node_module._resolveFilename = function resolveFilename(request: string, parent: unknown, isMain: boolean, options?: { paths?: string[] }) {
+			if (request === 'vsda' && Array.isArray(options?.paths) && options.paths.length === 0) {
+				options.paths = undefined; // TODO what to fill in here?
+			}
+			return originalResolveFilename.call(this, request, parent, isMain, options);
+		};
+
 		const applyAlternatives = (request: string) => {
 			for (const alternativeModuleName of that._alternatives) {
 				const alternative = alternativeModuleName(request);
