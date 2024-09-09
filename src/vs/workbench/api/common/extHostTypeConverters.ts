@@ -2505,7 +2505,7 @@ export namespace ChatResponseAnchorPart {
 			URI.isUri(value.inlineReference)
 				? value.inlineReference
 				: 'location' in value.inlineReference
-					? WorkspaceSymbol.to(value.inlineReference)
+					? WorkspaceSymbol.to(value.inlineReference) as vscode.SymbolInformation
 					: Location.to(value.inlineReference),
 			part.name
 		);

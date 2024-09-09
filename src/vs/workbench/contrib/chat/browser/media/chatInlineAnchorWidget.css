@@ -9,8 +9,7 @@
 }
 
 .chat-inline-anchor-widget {
-	outline: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	outline-offset: -1px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 }
 
