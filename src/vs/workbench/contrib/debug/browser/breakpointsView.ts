@@ -516,6 +516,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 	renderTemplate(container: HTMLElement): IBreakpointTemplateData {
 		const data: IBreakpointTemplateData = Object.create(null);
 		data.templateDisposables = new DisposableStore();
+		data.elementDisposables = new DisposableStore();
 
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
@@ -1022,8 +1023,9 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		}));
 
 		template.inputBox = inputBox;
-		template.templateDisposables = toDispose;
 		template.elementDisposables = new DisposableStore();
+		template.templateDisposables = toDispose;
+		template.templateDisposables.add(template.elementDisposables)
 		return template;
 	}
 
@@ -1063,7 +1065,6 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 	}
 
 	disposeTemplate(templateData: IFunctionBreakpointInputTemplateData): void {
-		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
