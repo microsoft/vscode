@@ -19,98 +19,39 @@ import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { BreadcrumbsControlFactory } from './breadcrumbsControl.js';
-import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
-import { IHoverDelegateOptions } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { WorkbenchHoverDelegate, IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IEditorPartsView, IEditorGroupsView, IEditorGroupView } from '../../../../workbench/browser/parts/editor/editor.js';
-import { IReadonlyEditorGroupModel } from '../../../../workbench/common/editor/editorGroupModel.js';
-import { IEditorResolverService } from '../../../../workbench/services/editor/common/editorResolverService.js';
-import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
 	readonly pinned: boolean;
 }
 
-class SingleEditorTabHoverDelegate extends WorkbenchHoverDelegate {
-
-	constructor(
-		private readonly control: SingleEditorTabsControl,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHoverService hoverService: IHoverService,
-
-	) {
-		super(
-			'element',
-			true,
-			(options) => {
-				return { ...this.getOverrideOptions(options), appearance: { showPointer: true } };
-			},
-			configurationService,
-			hoverService
-		);
-	}
-
-	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
-		const activeLabel = this.control.activeLabel;
-		if (!activeLabel?.editor || activeLabel.pinned) {
-			return {};
-		}
-		return {
-			content: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).appendText(activeLabel.editor.getTitle(Verbosity.LONG)).appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))'),
-		};
-	}
-}
-
 export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private titleContainer: HTMLElement | undefined;
-	private labelContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
-	private hoverDelegate: SingleEditorTabHoverDelegate | undefined;
-	public _activeLabel: IRenderedEditorLabel = Object.create(null);
-
-	public get activeLabel(): IRenderedEditorLabel { return this._activeLabel; }
+	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
-	constructor(
-		parent: HTMLElement,
-		editorPartsView: IEditorPartsView,
-		groupsView: IEditorGroupsView,
-		groupView: IEditorGroupView,
-		tabsModel: IReadonlyEditorGroupModel,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IThemeService themeService: IThemeService,
-		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IHostService hostService: IHostService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService,
-	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
+	protected override create(parent: HTMLElement): void {
+		super.create(parent);
 
-		// create() will have initialized these, but these lines are necessary to satisfy TS compiler
-		const titleContainer = this.titleContainer ?? document.createElement('div');
-		const labelContainer = this.labelContainer ?? document.createElement('div');
+		const titleContainer = this.titleContainer = parent;
+		titleContainer.draggable = true;
+
+		// Container listeners
+		this.registerContainerListeners(titleContainer);
+
+		// Gesture Support
+		this._register(Gesture.addTarget(titleContainer));
+
+		const labelContainer = document.createElement('div');
+		labelContainer.classList.add('label-container');
+		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
-		const hoverDelegate = this.hoverDelegate = new SingleEditorTabHoverDelegate(this, this.configurationService, this.hoverService);
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, { hoverDelegate: hoverDelegate })).element;
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, { hoverDelegate: this.getHoverDelegate() })).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
@@ -127,23 +68,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 		// Create editor actions toolbar
 		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
-	}
-
-	protected override create(parent: HTMLElement): void {
-		super.create(parent);
-
-		const titleContainer = this.titleContainer = parent;
-		titleContainer.draggable = true;
-
-		// Container listeners
-		this.registerContainerListeners(titleContainer);
-
-		// Gesture Support
-		this._register(Gesture.addTarget(titleContainer));
-
-		const labelContainer = this.labelContainer = document.createElement('div');
-		labelContainer.classList.add('label-container');
-		titleContainer.appendChild(labelContainer);
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
@@ -297,13 +221,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.redraw();
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this.hoverDelegate?.dispose();
-		this.breadcrumbsControlFactory?.dispose();
-
-	}
-
 	protected handleBreadcrumbsEnablementChange(): void {
 		const titleContainer = assertIsDefined(this.titleContainer);
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
@@ -313,9 +230,9 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private ifActiveEditorChanged(fn: () => void): boolean {
 		if (
-			!this._activeLabel.editor && this.tabsModel.activeEditor || 						// active editor changed from null => editor
-			this._activeLabel.editor && !this.tabsModel.activeEditor || 						// active editor changed from editor => null
-			(!this._activeLabel.editor || !this.tabsModel.isActive(this._activeLabel.editor))	// active editor changed from editorA => editorB
+			!this.activeLabel.editor && this.tabsModel.activeEditor || 						// active editor changed from null => editor
+			this.activeLabel.editor && !this.tabsModel.activeEditor || 						// active editor changed from editor => null
+			(!this.activeLabel.editor || !this.tabsModel.isActive(this.activeLabel.editor))	// active editor changed from editorA => editorB
 		) {
 			fn();
 
@@ -326,11 +243,11 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	private ifActiveEditorPropertiesChanged(fn: () => void): void {
-		if (!this._activeLabel.editor || !this.tabsModel.activeEditor) {
+		if (!this.activeLabel.editor || !this.tabsModel.activeEditor) {
 			return; // need an active editor to check for properties changed
 		}
 
-		if (this._activeLabel.pinned !== this.tabsModel.isPinned(this.tabsModel.activeEditor)) {
+		if (this.activeLabel.pinned !== this.tabsModel.isPinned(this.tabsModel.activeEditor)) {
 			fn(); // only run if pinned state has changed
 		}
 	}
@@ -348,7 +265,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		const isEditorPinned = editor ? this.tabsModel.isPinned(editor) : false;
 		const isGroupActive = this.groupsView.activeGroup === this.groupView;
 
-		this._activeLabel = { editor, pinned: isEditorPinned };
+		this.activeLabel = { editor, pinned: isEditorPinned };
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {

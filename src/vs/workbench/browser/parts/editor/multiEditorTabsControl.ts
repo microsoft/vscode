@@ -58,12 +58,6 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/dnd.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { IHoverDelegate, IHoverDelegateOptions } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -91,38 +85,6 @@ interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 	 * Associated options with the layout call.
 	 */
 	options?: IMultiEditorTabsControlLayoutOptions;
-}
-
-class MultiEditorTabHoverDelegate extends WorkbenchHoverDelegate {
-
-	constructor(
-		private readonly index: number,
-		private readonly tabsModel: IReadonlyEditorGroupModel,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHoverService hoverService: IHoverService,
-
-	) {
-		super(
-			'element',
-			true,
-			(options) => {
-				return { ...this.getOverrideOptions(options), appearance: { showPointer: true } };
-			},
-			configurationService,
-			hoverService
-		);
-	}
-
-	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
-		const editor = this.tabsModel.getEditorByIndex(this.index);
-		const isPinned = this.tabsModel.isPinned(this.index);
-		if (!editor || isPinned) {
-			return {};
-		}
-		return {
-			content: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).appendText(editor.getTitle(Verbosity.LONG)).appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))'),
-		};
-	}
 }
 
 export class MultiEditorTabsControl extends EditorTabsControl {
@@ -159,8 +121,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private mapTabHoverDelegates = new Map<number, MultiEditorTabHoverDelegate>();
-
 	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
 		available: Dimension.None
@@ -192,8 +152,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IHostService hostService: IHostService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
@@ -840,19 +798,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private getHoverDelegate(editor?: EditorInput): IHoverDelegate {
-		if (!editor) {
-			return getDefaultHoverDelegate('mouse');
-		}
-		const index = this.tabsModel.indexOf(editor);
-		let hoverDelegate = this.mapTabHoverDelegates.get(index);
-		if (!hoverDelegate) {
-			hoverDelegate = new MultiEditorTabHoverDelegate(index, this.tabsModel, this.configurationService, this.hoverService);
-			this.mapTabHoverDelegates.set(index, hoverDelegate);
-		}
-		return hoverDelegate;
-	}
-
 	private createTab(tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): HTMLElement {
 
 		// Tab Container
@@ -870,8 +815,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabContainer.appendChild(tabBorderTopContainer);
 
 		// Tab Editor Label
-		const editor = this.tabsModel.getEditorByIndex(tabIndex);
-		const editorLabel = this.tabResourceLabels.create(tabContainer, { hoverDelegate: this.getHoverDelegate(editor) });
+		const editorLabel = this.tabResourceLabels.create(tabContainer, { hoverDelegate: this.getHoverDelegate() });
 
 		// Tab Actions
 		const tabActionsContainer = document.createElement('div');
@@ -2337,9 +2281,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		super.dispose();
 
 		this.tabDisposables = dispose(this.tabDisposables);
-
-		this.mapTabHoverDelegates.forEach(delegate => delegate.dispose());
-		this.mapTabHoverDelegates.clear();
 	}
 }
 
