@@ -15,7 +15,7 @@ const builtInExtensions = productjson.builtInExtensions || [];
 const webBuiltInExtensions = productjson.webBuiltInExtensions || [];
 const token = process.env['GITHUB_TOKEN'];
 const contentBasePath = 'raw.githubusercontent.com';
-const contentFileNames = ['package.json', 'package-lock.json', 'yarn.lock'];
+const contentFileNames = ['package.json', 'package-lock.json'];
 async function downloadExtensionDetails(extension) {
     const extensionLabel = `${extension.name}@${extension.version}`;
     const repository = url.parse(extension.repo).path.substr(1);
@@ -58,9 +58,8 @@ async function downloadExtensionDetails(extension) {
     if (!results.find(r => r.fileName === 'package.json')?.body) {
         // throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
     }
-    if (!results.find(r => r.fileName === 'package-lock.json')?.body &&
-        !results.find(r => r.fileName === 'yarn.lock')?.body) {
-        // throw new Error(`The "package-lock.json"/"yarn.lock" could not be found for the built-in extension - ${extensionLabel}`);
+    if (!results.find(r => r.fileName === 'package-lock.json')?.body) {
+        // throw new Error(`The "package-lock.json" could not be found for the built-in extension - ${extensionLabel}`);
     }
 }
 async function main() {

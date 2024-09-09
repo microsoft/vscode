@@ -182,63 +182,9 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlHistoryTitleMenu'
 	},
 	{
-		key: 'scm/historyItemChanges/title',
-		id: MenuId.SCMChangesSeparator,
-		description: localize('menus.historyItemChanges', "The Source Control incoming/outgoing changes title menu"),
-		proposed: 'contribSourceControlHistoryItemChangesMenu'
-	},
-	{
 		key: 'scm/historyItem/context',
 		id: MenuId.SCMChangesContext,
 		description: localize('menus.historyItemContext', "The Source Control history item context menu"),
-		proposed: 'contribSourceControlHistoryItemChangesMenu'
-	},
-	{
-		key: 'scm/incomingChanges',
-		id: MenuId.SCMIncomingChanges,
-		description: localize('menus.incomingChanges', "The Source Control incoming changes menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/incomingChanges/context',
-		id: MenuId.SCMIncomingChangesContext,
-		description: localize('menus.incomingChangesContext', "The Source Control incoming changes context menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/outgoingChanges',
-		id: MenuId.SCMOutgoingChanges,
-		description: localize('menus.outgoingChanges', "The Source Control outgoing changes menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/outgoingChanges/context',
-		id: MenuId.SCMOutgoingChangesContext,
-		description: localize('menus.outgoingChangesContext', "The Source Control outgoing changes context menu"),
-		proposed: 'contribSourceControlHistoryItemGroupMenu'
-	},
-	{
-		key: 'scm/incomingChanges/allChanges/context',
-		id: MenuId.SCMIncomingChangesAllChangesContext,
-		description: localize('menus.incomingChangesAllChangesContext', "The Source Control all incoming changes context menu"),
-		proposed: 'contribSourceControlHistoryItemMenu'
-	},
-	{
-		key: 'scm/incomingChanges/historyItem/context',
-		id: MenuId.SCMIncomingChangesHistoryItemContext,
-		description: localize('menus.incomingChangesHistoryItemContext', "The Source Control incoming changes history item context menu"),
-		proposed: 'contribSourceControlHistoryItemMenu'
-	},
-	{
-		key: 'scm/outgoingChanges/allChanges/context',
-		id: MenuId.SCMOutgoingChangesAllChangesContext,
-		description: localize('menus.outgoingChangesAllChangesContext', "The Source Control all outgoing changes context menu"),
-		proposed: 'contribSourceControlHistoryItemMenu'
-	},
-	{
-		key: 'scm/outgoingChanges/historyItem/context',
-		id: MenuId.SCMOutgoingChangesHistoryItemContext,
-		description: localize('menus.outgoingChangesHistoryItemContext', "The Source Control outgoing changes history item context menu"),
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{

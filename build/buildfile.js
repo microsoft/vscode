@@ -95,7 +95,7 @@ exports.workbenchWeb = function () {
 	] : [
 		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
 		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
-		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
+		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main.internal'])
 	];
 };
 
@@ -109,7 +109,7 @@ exports.code = [
 	createModuleDescription('vs/code/electron-main/main'),
 	createModuleDescription('vs/code/node/cli'),
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-	createModuleDescription('vs/code/node/sharedProcess/sharedProcessMain'),
+	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 

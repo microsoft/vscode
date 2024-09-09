@@ -525,9 +525,15 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 				// Button(s)
 				if (item.refRemote) {
 					const matchingRemote = this.repository.remotes.find((remote) => remote.name === item.refRemote);
-					const remoteUrl = matchingRemote?.pushUrl ?? matchingRemote?.fetchUrl;
-					if (remoteUrl) {
-						item.buttons = this.buttons.get(item.refRemote);
+					const buttons = [];
+					if (matchingRemote?.pushUrl) {
+						buttons.push(...this.buttons.get(matchingRemote.pushUrl) ?? []);
+					}
+					if (matchingRemote?.fetchUrl && matchingRemote.fetchUrl !== matchingRemote.pushUrl) {
+						buttons.push(...this.buttons.get(matchingRemote.fetchUrl) ?? []);
+					}
+					if (buttons.length) {
+						item.buttons = buttons;
 					}
 				} else {
 					item.buttons = this.defaultButtons;

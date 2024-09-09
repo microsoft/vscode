@@ -82,6 +82,7 @@ export class MenuId {
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
+	static readonly ExtensionEditorContextMenu = new MenuId('ExtensionEditorContextMenu');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly CommandCenter = new MenuId('CommandCenter');
 	static readonly CommandCenterCenter = new MenuId('CommandCenterCenter');
@@ -113,18 +114,7 @@ export class MenuId {
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
-	static readonly SCMChangesSeparator = new MenuId('SCMChangesSeparator');
 	static readonly SCMChangesContext = new MenuId('SCMChangesContext');
-	static readonly SCMIncomingChanges = new MenuId('SCMIncomingChanges');
-	static readonly SCMIncomingChangesContext = new MenuId('SCMIncomingChangesContext');
-	static readonly SCMIncomingChangesSetting = new MenuId('SCMIncomingChangesSetting');
-	static readonly SCMOutgoingChanges = new MenuId('SCMOutgoingChanges');
-	static readonly SCMOutgoingChangesContext = new MenuId('SCMOutgoingChangesContext');
-	static readonly SCMOutgoingChangesSetting = new MenuId('SCMOutgoingChangesSetting');
-	static readonly SCMIncomingChangesAllChangesContext = new MenuId('SCMIncomingChangesAllChangesContext');
-	static readonly SCMIncomingChangesHistoryItemContext = new MenuId('SCMIncomingChangesHistoryItemContext');
-	static readonly SCMOutgoingChangesAllChangesContext = new MenuId('SCMOutgoingChangesAllChangesContext');
-	static readonly SCMOutgoingChangesHistoryItemContext = new MenuId('SCMOutgoingChangesHistoryItemContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
 	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');

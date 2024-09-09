@@ -15,6 +15,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { ISCMRepository, ISCMResourceGroup, ISCMService } from '../../scm/common/scm.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 
 export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 	private static readonly _scheme = 'scm-multi-diff-source';
@@ -52,6 +53,7 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	constructor(
 		@ISCMService private readonly _scmService: ISCMService,
+		@IActivityService private readonly _activityService: IActivityService,
 	) {
 	}
 
@@ -61,6 +63,7 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const { repositoryUri, groupId } = ScmMultiDiffSourceResolver.parseUri(uri)!;
+
 		const repository = await waitForState(observableFromEvent(this,
 			this._scmService.onDidAddRepository,
 			() => [...this._scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryUri.toString()))
@@ -69,6 +72,14 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 			repository.provider.onDidChangeResourceGroups,
 			() => repository.provider.groups.find(g => g.id === groupId)
 		));
+
+		const scmActivities = observableFromEvent(
+			this._activityService.onDidChangeActivity,
+			() => [...this._activityService.getViewContainerActivities('workbench.view.scm')],
+		);
+		const scmViewHasNoProgressBadge = scmActivities.map(activities => !activities.some(a => a.badge instanceof ProgressBadge));
+		await waitForState(scmViewHasNoProgressBadge, v => v);
+
 		return new ScmResolvedMultiDiffSource(group, repository);
 	}
 }

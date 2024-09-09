@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app } from 'electron';
-import { coalesce, firstOrDefault } from '../../../base/common/arrays.js';
+import { coalesce } from '../../../base/common/arrays.js';
 import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { whenDeleted } from '../../../base/node/pfs.js';
@@ -70,7 +70,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Create a window if there is none
 			if (this.windowsMainService.getWindowCount() === 0) {
-				const window = firstOrDefault(await this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP }));
+				const window = (await this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP })).at(0);
 				if (window) {
 					whenWindowReady = window.ready();
 				}

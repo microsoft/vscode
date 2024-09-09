@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -67,6 +66,10 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 				this._tokenizersRegistrations.set(languageId, disposableStore);
 				TreeSitterTokenizationRegistry.getOrCreate(languageId);
 			}
+		}
+		const languagesToUnregister = [...this._tokenizersRegistrations.keys()].filter(languageId => !setting.includes(languageId));
+		for (const languageId of languagesToUnregister) {
+			this._tokenizersRegistrations.deleteAndDispose(languageId);
 		}
 	}
 

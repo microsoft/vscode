@@ -18,7 +18,6 @@ import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemo
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NativeWorkingCopyHistoryService } from '../../common/workingCopyHistoryService.js';
 import { joinPath, dirname, basename } from '../../../../../base/common/resources.js';
-import { firstOrDefault } from '../../../../../base/common/arrays.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { join } from '../../../../../base/common/path.js';
@@ -251,7 +250,7 @@ suite('WorkingCopyHistoryService', () => {
 	test('removeEntry - deletes history entries folder when last entry removed', async () => {
 		const workingCopy1 = disposables.add(new TestWorkingCopy(testFile1Path));
 
-		let entry = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
+		let entry: IWorkingCopyHistoryEntry | undefined = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 
 		// Simulate shutdown
 		let event = new TestWillShutdownEvent();
@@ -265,7 +264,7 @@ suite('WorkingCopyHistoryService', () => {
 
 		assert.strictEqual((await fileService.exists(dirname(entry.location))), true);
 
-		entry = firstOrDefault(await service.getEntries(workingCopy1.resource, CancellationToken.None))!;
+		entry = (await service.getEntries(workingCopy1.resource, CancellationToken.None)).at(0);
 		assert.ok(entry);
 
 		await service.removeEntry(entry, CancellationToken.None);

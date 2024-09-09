@@ -5,10 +5,10 @@
 
 import { isHTMLElement, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { IRange } from '../../../../base/common/range.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -35,6 +35,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import * as colors from '../../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { Position } from '../../../common/core/position.js';
 
 // --- hint caching service (per session)
 
@@ -100,7 +101,7 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
-	private static readonly _MAX_LABEL_LEN = 43;
+	private static readonly _whitespaceData = {};
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
 		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
@@ -112,6 +113,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _decorationsMetadata = new Map<string, InlayHintDecorationRenderInfo>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
+	private _cursorInfo?: { position: Position; notEarlierThan: number };
 	private _activeRenderMode = RenderMode.Normal;
 	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
@@ -257,12 +259,23 @@ export class InlayHintsController implements IEditorContribution {
 				scheduler.schedule();
 			}
 		}));
+
+		const cursor = this._sessionDisposables.add(new MutableDisposable());
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
 			cts?.cancel();
 
-			// update less aggressive when typing
-			const delay = Math.max(scheduler.delay, 1250);
-			scheduler.schedule(delay);
+			// mark current cursor position and time after which the whole can be updated/redrawn
+			const delay = Math.max(scheduler.delay, 800);
+			this._cursorInfo = { position: this._editor.getPosition()!, notEarlierThan: Date.now() + delay };
+			cursor.value = disposableTimeout(() => scheduler.schedule(0), delay);
+
+			scheduler.schedule();
+		}));
+
+		this._sessionDisposables.add(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.inlayHints)) {
+				scheduler.schedule();
+			}
 		}));
 
 		// mouse gestures
@@ -435,9 +448,65 @@ export class InlayHintsController implements IEditorContribution {
 
 	private _updateHintsDecorators(ranges: readonly Range[], items: readonly InlayHintItem[]): void {
 
+		const itemFixedLengths = new Map<InlayHintItem, number>();
+
+		if (this._cursorInfo
+			&& this._cursorInfo.notEarlierThan > Date.now()
+			&& ranges.some(range => range.containsPosition(this._cursorInfo!.position))
+		) {
+			// collect inlay hints that are on the same line and before the cursor. Those "old" hints
+			// define fixed lengths so that the cursor does not jump back and worth while typing.
+			const { position } = this._cursorInfo;
+			this._cursorInfo = undefined;
+
+			const lengths = new Map<InlayHintItem, number>();
+
+			for (const deco of this._editor.getLineDecorations(position.lineNumber) ?? []) {
+
+				const data = this._decorationsMetadata.get(deco.id);
+				if (deco.range.startColumn > position.column) {
+					continue;
+				}
+				const opts = data?.decoration.options[data.item.anchor.direction];
+				if (opts && opts.attachedData !== InlayHintsController._whitespaceData) {
+					const len = lengths.get(data.item) ?? 0;
+					lengths.set(data.item, len + opts.content.length);
+				}
+			}
+
+
+			// on the cursor line and before the cursor-column
+			const newItemsWithFixedLength = items.filter(item => item.anchor.range.startLineNumber === position.lineNumber && item.anchor.range.endColumn <= position.column);
+			const fixedLengths = Array.from(lengths.values());
+
+			// match up fixed lengths with items and distribute the remaining lengths to the last item
+			let lastItem: InlayHintItem | undefined;
+			while (true) {
+				const targetItem = newItemsWithFixedLength.shift();
+				const fixedLength = fixedLengths.shift();
+
+				if (!fixedLength && !targetItem) {
+					break; // DONE
+				}
+
+				if (targetItem) {
+					itemFixedLengths.set(targetItem, fixedLength ?? 0);
+					lastItem = targetItem;
+
+				} else if (lastItem && fixedLength) {
+					// still lengths but no more item. give it all to the last
+					let len = itemFixedLengths.get(lastItem)!;
+					len += fixedLength;
+					len += fixedLengths.reduce((p, c) => p + c, 0);
+					fixedLengths.length = 0;
+					break; // DONE
+				}
+			}
+		}
+
 		// utils to collect/create injected text decorations
 		const newDecorationsData: InlayHintDecorationRenderInfo[] = [];
-		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart): void => {
+		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart | object): void => {
 			const opts: InjectedTextOptions = {
 				content,
 				inlineClassNameAffectsLetterSpacing: true,
@@ -467,12 +536,13 @@ export class InlayHintsController implements IEditorContribution {
 				width: `${(fontSize / 3) | 0}px`,
 				display: 'inline-block'
 			});
-			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None);
+			addInjectedText(item, marginRule, '\u200a', isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None, InlayHintsController._whitespaceData);
 		};
 
 
 		//
 		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
+		const maxLength = this._editor.getOption(EditorOption.inlayHints).maximumLength;
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -480,13 +550,14 @@ export class InlayHintsController implements IEditorContribution {
 		type ILineInfo = { line: number; totalLen: number };
 		let currentLineInfo: ILineInfo = { line: 0, totalLen: 0 };
 
-		for (const item of items) {
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
 
 			if (currentLineInfo.line !== item.anchor.range.startLineNumber) {
 				currentLineInfo = { line: item.anchor.range.startLineNumber, totalLen: 0 };
 			}
 
-			if (currentLineInfo.totalLen > InlayHintsController._MAX_LABEL_LEN) {
+			if (maxLength && currentLineInfo.totalLen > maxLength) {
 				continue;
 			}
 
@@ -499,6 +570,9 @@ export class InlayHintsController implements IEditorContribution {
 			const parts: languages.InlayHintLabelPart[] = typeof item.hint.label === 'string'
 				? [{ label: item.hint.label }]
 				: item.hint.label;
+
+			const itemFixedLength = itemFixedLengths.get(item);
+			let itemActualLength = 0;
 
 			for (let i = 0; i < parts.length; i++) {
 				const part = parts[i];
@@ -528,8 +602,27 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 
+				let textlabel = part.label;
+				currentLineInfo.totalLen += textlabel.length;
+				let tooLong = false;
+				const over = maxLength !== 0 ? (currentLineInfo.totalLen - maxLength) : 0;
+				if (over > 0) {
+					textlabel = textlabel.slice(0, -over) + '…';
+					tooLong = true;
+				}
+
+				itemActualLength += textlabel.length;
+
+				const overFixedLength = itemFixedLength !== undefined ? (itemActualLength - itemFixedLength) : 0;
+				if (overFixedLength > 0) {
+					// longer than fixed length, trim
+					itemActualLength -= overFixedLength;
+					textlabel = textlabel.slice(0, -(1 + overFixedLength)) + '…';
+					tooLong = true;
+				}
+
 				if (padding) {
-					if (isFirst && isLast) {
+					if (isFirst && (isLast || tooLong)) {
 						// only element
 						cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px`;
 						cssProperties.borderRadius = `${(fontSize / 4) | 0}px`;
@@ -537,22 +630,13 @@ export class InlayHintsController implements IEditorContribution {
 						// first element
 						cssProperties.padding = `1px 0 1px ${Math.max(1, fontSize / 4) | 0}px`;
 						cssProperties.borderRadius = `${(fontSize / 4) | 0}px 0 0 ${(fontSize / 4) | 0}px`;
-					} else if (isLast) {
+					} else if ((isLast || tooLong)) {
 						// last element
 						cssProperties.padding = `1px ${Math.max(1, fontSize / 4) | 0}px 1px 0`;
 						cssProperties.borderRadius = `0 ${(fontSize / 4) | 0}px ${(fontSize / 4) | 0}px 0`;
 					} else {
 						cssProperties.padding = `1px 0 1px 0`;
 					}
-				}
-
-				let textlabel = part.label;
-				currentLineInfo.totalLen += textlabel.length;
-				let tooLong = false;
-				const over = currentLineInfo.totalLen - InlayHintsController._MAX_LABEL_LEN;
-				if (over > 0) {
-					textlabel = textlabel.slice(0, -over) + '…';
-					tooLong = true;
 				}
 
 				addInjectedText(
@@ -566,6 +650,17 @@ export class InlayHintsController implements IEditorContribution {
 				if (tooLong) {
 					break;
 				}
+			}
+
+			if (itemFixedLength !== undefined && itemActualLength < itemFixedLength) {
+				// shorter than fixed length, pad
+				const pad = (itemFixedLength - itemActualLength);
+				addInjectedText(
+					item,
+					this._ruleFactory.createClassNameRef({}),
+					'\u200a'.repeat(pad),
+					InjectedTextCursorStops.None
+				);
 			}
 
 			// whitespace trailing the actual label

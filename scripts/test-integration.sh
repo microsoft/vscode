@@ -67,7 +67,7 @@ kill_app
 echo
 echo "### Colorize tests"
 echo
-yarn test-extension -l vscode-colorize-tests
+npm run test-extension -l vscode-colorize-tests
 kill_app
 
 echo
@@ -79,7 +79,7 @@ kill_app
 echo
 echo "### Markdown tests"
 echo
-yarn test-extension -l markdown-language-features
+npm run test-extension -l markdown-language-features
 kill_app
 
 echo
@@ -97,25 +97,25 @@ kill_app
 echo
 echo "### Ipynb tests"
 echo
-yarn test-extension -l ipynb
+npm run test-extension -l ipynb
 kill_app
 
 echo
 echo "### Notebook Output tests"
 echo
-yarn test-extension -l notebook-renderers
+npm run test-extension -l notebook-renderers
 kill_app
 
 echo
 echo "### Configuration editing tests"
 echo
-yarn test-extension -l configuration-editing
+npm run test-extension -l configuration-editing
 kill_app
 
 echo
 echo "### GitHub Authentication tests"
 echo
-yarn test-extension -l github-authentication
+npm run test-extension -l github-authentication
 kill_app
 
 # Tests standalone (CommonJS)

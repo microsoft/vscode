@@ -148,7 +148,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
 
 	// Request
-	const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+	const requestService = new RequestService(configurationService, environmentService, logService);
 	services.set(IRequestService, requestService);
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;

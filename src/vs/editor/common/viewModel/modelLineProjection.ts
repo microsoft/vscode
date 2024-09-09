@@ -213,11 +213,29 @@ class ModelLineProjection implements IModelLineProjection {
 
 		let lineWithInjections: LineTokens;
 		if (injectionOffsets) {
-			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
-				offset,
-				text: injectionOptions![idx].content,
-				tokenMetadata: LineTokens.defaultTokenMetadata
-			})));
+			const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+
+			for (let idx = 0; idx < injectionOffsets.length; idx++) {
+				const offset = injectionOffsets[idx];
+				const tokens = injectionOptions![idx].tokens;
+				if (tokens) {
+					tokens.forEach((range, info) => {
+						tokensToInsert.push({
+							offset,
+							text: range.substring(injectionOptions![idx].content),
+							tokenMetadata: info.metadata,
+						});
+					});
+				} else {
+					tokensToInsert.push({
+						offset,
+						text: injectionOptions![idx].content,
+						tokenMetadata: LineTokens.defaultTokenMetadata,
+					});
+				}
+			}
+
+			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber).withInserted(tokensToInsert);
 		} else {
 			lineWithInjections = model.tokenization.getLineTokens(modelLineNumber);
 		}

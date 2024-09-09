@@ -14,6 +14,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
@@ -35,8 +36,8 @@ import { BracketMatchingController } from '../../../../editor/contrib/bracketMat
 import { ColorDetector } from '../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { GotoDefinitionAtPositionEditorContribution } from '../../../../editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
 import { ViewportSemanticTokensContribution } from '../../../../editor/contrib/semanticTokens/browser/viewportSemanticTokens.js';
@@ -57,17 +58,17 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ResourceLabel } from '../../../browser/labels.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { ChatTreeItem } from './chat.js';
-import { IChatRendererDelegate } from './chatListRenderer.js';
-import { ChatEditorOptions } from './chatOptions.js';
-import { CONTEXT_CHAT_EDIT_APPLIED } from '../common/chatContextKeys.js';
-import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
-import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
+import { InspectEditorTokensController } from '../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
 import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IMarkdownVulnerability } from '../common/annotations.js';
-import { assertType } from '../../../../base/common/types.js';
+import { CONTEXT_CHAT_EDIT_APPLIED } from '../common/chatContextKeys.js';
+import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
+import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
+import { ChatTreeItem } from './chat.js';
+import { IChatRendererDelegate } from './chatListRenderer.js';
+import { ChatEditorOptions } from './chatOptions.js';
 
 const $ = dom.$;
 
@@ -294,11 +295,13 @@ export class CodeBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 				ColorDetector.ID,
 				LinkDetector.ID,
+
+				InspectEditorTokensController.ID,
 			])
 		}));
 	}
@@ -406,7 +409,7 @@ export class CodeBlockPart extends Disposable {
 
 	private clearWidgets() {
 		ContentHoverController.get(this.editor)?.hideContentHover();
-		MarginHoverController.get(this.editor)?.hideContentHover();
+		GlyphHoverController.get(this.editor)?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
@@ -615,7 +618,7 @@ export class CodeCompareBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		};
@@ -729,8 +732,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private clearWidgets() {
 		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
 		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
-		MarginHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		MarginHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
