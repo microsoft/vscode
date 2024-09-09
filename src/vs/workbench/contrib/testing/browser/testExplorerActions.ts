@@ -38,8 +38,7 @@ import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ViewAction } from '../../../browser/parts/views/viewPane.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
-import { ViewContainerLocation } from '../../../common/views.js';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from '../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TestExplorerTreeElement, TestItemTreeElement } from './explorerProjections/index.js';
 import * as icons from './icons.js';
 import { TestingExplorerView } from './testingExplorerView.js';
@@ -58,7 +57,6 @@ import { ITestingContinuousRunService } from '../common/testingContinuousRunServ
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { isFailedState } from '../common/testingStates.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 const category = Categories.Test;
@@ -1556,10 +1554,7 @@ export class SearchForTestExtension extends Action2 {
 	}
 
 	public async run(accessor: ServicesAccessor) {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = (await paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewlet.search('@category:"testing"');
-		viewlet.focus();
+		accessor.get(IExtensionsWorkbenchService).openSearch('@category:"testing"');
 	}
 }
 

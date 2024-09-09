@@ -15,6 +15,8 @@
 
 ; Keywords
 
+("typeof") @keyword.operator.expression.typeof
+
 [
   "delete"
   "in"
@@ -22,7 +24,6 @@
   "instanceof"
   "keyof"
   "of"
-  "typeof"
 ] @keyword.operator.expression
 
 [
@@ -91,7 +92,7 @@
 
 [
   "void"
-] @support.type
+] @support.type.primitive
 
 [
   "new"
@@ -109,55 +110,78 @@
 ] @punctuation.delimiter
 
 [
+  "!"
+  "~"
+  "==="
+  "!=="
+  "&&"
+  "||"
+  "??"
+] @keyword.operator.logical
+
+[
   "-"
-  "--"
-  "-="
   "+"
-  "++"
-  "+="
   "*"
-  "*="
-  "**"
-  "**="
   "/"
-  "/="
   "%"
-  "%="
+  "^"
+] @keyword.operator.arithmetic
+
+(binary_expression ([
   "<"
   "<="
-  "<<"
-  "<<="
-  "="
-  "=="
-  "==="
-  "!"
-  "!="
-  "!=="
-  "=>"
   ">"
   ">="
+]) @keyword.operator.relational)
+
+[
+  "="
+] @keyword.operator.assignment
+
+(augmented_assignment_expression ([
+  "-="
+  "+="
+  "*="
+  "/="
+  "%="
+  "^="
+  "&="
+  "|="
+  "&&="
+  "||="
+  "??="
+]) @keyword.operator.assignment.compound)
+
+[
+  "++"
+] @keyword.operator.increment
+
+[
+  "--"
+] @keyword.operator.decrement
+
+[
+  "**"
+  "**="
+  "<<"
+  "<<="
+  "=="
+  "!="
+  "=>"
   ">>"
   ">>="
   ">>>"
   ">>>="
   "~"
-  "^"
   "&"
   "|"
-  "^="
-  "&="
-  "|="
-  "&&"
-  "||"
-  "??"
-  "&&="
-  "||="
-  "??="
 ] @keyword.operator
 
 ; Special identifiers
 
 (type_identifier) @entity.name.type
+(predefined_type (["string" "boolean" "number"])) @support.type.primitive
 (predefined_type) @support.type
 
 (("const")

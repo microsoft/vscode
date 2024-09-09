@@ -77,7 +77,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			extrausages
 		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
-		importIgnorePattern: /(^vs\/css!)/,
+		importIgnorePattern: /\.css$/,
 		destRoot: path.join(root, 'out-editor-src'),
 		redirects: {
 			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/tree-sitter-web',
@@ -200,44 +200,6 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 			console.log(`Open in VS Code the folder at '${destPath}' and you can analyze the compilation error`);
 			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `npm run gulp editor-distro` on your machine to further analyze the compilation problem.');
 		});
-	}
-});
-
-/**
- * Go over all .js files in `/out-monaco-editor-core/esm/` and make sure that all imports
- * use `.js` at the end in order to be ESM compliant.
- */
-const appendJSToESMImportsTask = task.define('append-js-to-esm-imports', () => {
-	const SRC_DIR = path.join(__dirname, '../out-monaco-editor-core/esm');
-	const files = util.rreddir(SRC_DIR);
-	for (const file of files) {
-		const filePath = path.join(SRC_DIR, file);
-		if (!/\.js$/.test(filePath)) {
-			continue;
-		}
-
-		const contents = fs.readFileSync(filePath).toString();
-		const lines = contents.split(/\r\n|\r|\n/g);
-		const /** @type {string[]} */result = [];
-		for (const line of lines) {
-			if (!/^import/.test(line) && !/^export \* from/.test(line)) {
-				// not an import
-				result.push(line);
-				continue;
-			}
-			if (/^import '[^']+\.css';/.test(line)) {
-				// CSS import
-				result.push(line);
-				continue;
-			}
-			const modifiedLine = (
-				line
-					.replace(/^import(.*)\'([^']+)\'/, `import$1'$2.js'`)
-					.replace(/^export \* from \'([^']+)\'/, `export * from '$1.js'`)
-			);
-			result.push(modifiedLine);
-		}
-		fs.writeFileSync(filePath, result.join('\n'));
 	}
 });
 
@@ -413,7 +375,6 @@ gulp.task('editor-distro',
 			task.series(
 				createESMSourcesAndResourcesTask,
 				compileEditorESMTask,
-				appendJSToESMImportsTask
 			)
 		),
 		finalEditorResourcesTask
@@ -430,7 +391,6 @@ gulp.task('editor-esm',
 		extractEditorSrcTask,
 		createESMSourcesAndResourcesTask,
 		compileEditorESMTask,
-		appendJSToESMImportsTask,
 	)
 );
 

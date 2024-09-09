@@ -48,15 +48,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		private readonly _env: Environment = Environment.AzureCloud
 	) {
 		this._disposables = context.subscriptions;
-		this._publicClientManager = new CachedPublicClientApplicationManager(
-			context.globalState,
-			context.secrets,
-			this._logger,
-			(e) => this._handleAccountChange(e)
+		this._publicClientManager = new CachedPublicClientApplicationManager(context.globalState, context.secrets, this._logger);
+		this._disposables.push(
+			this._onDidChangeSessionsEmitter,
+			this._publicClientManager,
+			this._publicClientManager.onDidAccountsChange(e => this._handleAccountChange(e))
 		);
-		this._disposables.push(this._publicClientManager);
-		this._disposables.push(this._onDidChangeSessionsEmitter);
-
 	}
 
 	async initialize(): Promise<void> {
@@ -79,40 +76,43 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	 * See {@link onDidChangeSessions} for more information on how this is used.
 	 * @param param0 Event that contains the added and removed accounts
 	 */
-	private _handleAccountChange({ added, deleted }: { added: AccountInfo[]; deleted: AccountInfo[] }) {
-		const process = (a: AccountInfo) => ({
-			// This shouldn't be needed
-			accessToken: '1234',
-			id: a.homeAccountId,
-			scopes: [],
-			account: {
-				id: a.homeAccountId,
-				label: a.username
-			},
-			idToken: a.idToken,
+	private _handleAccountChange({ added, changed, deleted }: { added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }) {
+		this._onDidChangeSessionsEmitter.fire({
+			added: added.map(this.sessionFromAccountInfo),
+			changed: changed.map(this.sessionFromAccountInfo),
+			removed: deleted.map(this.sessionFromAccountInfo)
 		});
-		this._onDidChangeSessionsEmitter.fire({ added: added.map(process), changed: [], removed: deleted.map(process) });
 	}
 
 	//#region AuthenticationProvider methods
 
 	async getSessions(scopes: string[] | undefined, options?: AuthenticationGetSessionOptions): Promise<AuthenticationSession[]> {
+		const askingForAll = scopes === undefined;
 		const scopeData = new ScopeData(scopes);
-		this._logger.info('[getSessions]', scopes ? scopeData.scopeStr : 'all', 'starting');
-		if (!scopes) {
-			// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
+		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
+		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
-			const allSessions: AuthenticationSession[] = [];
+		// This branch only gets called by Core for sign out purposes and initial population of the account menu. Since we are
+		// living in a world where a "session" from Core's perspective is an account, we return 1 session per account.
+		// See the large comment on `onDidChangeSessions` for more information.
+		if (askingForAll) {
+			const allSessionsForAccounts = new Map<string, AuthenticationSession>();
 			for (const cachedPca of this._publicClientManager.getAll()) {
-				const sessions = await this.getAllSessionsForPca(cachedPca, scopeData.originalScopes, scopeData.scopesToSend, options?.account);
-				allSessions.push(...sessions);
+				for (const account of cachedPca.accounts) {
+					if (allSessionsForAccounts.has(account.homeAccountId)) {
+						continue;
+					}
+					allSessionsForAccounts.set(account.homeAccountId, this.sessionFromAccountInfo(account));
+				}
 			}
+			const allSessions = Array.from(allSessionsForAccounts.values());
+			this._logger.info('[getSessions] [all]', `returned ${allSessions.length} session(s)`);
 			return allSessions;
 		}
 
 		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
 		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData.originalScopes, scopeData.scopesToSend, options?.account);
-		this._logger.info(`[getSessions] returned ${sessions.length} sessions`);
+		this._logger.info(`[getSessions] [${scopeData.scopeStr}] returned ${sessions.length} session(s)`);
 		return sessions;
 
 	}
@@ -121,7 +121,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		const scopeData = new ScopeData(scopes);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
-		this._logger.info('[createSession]', scopeData.scopeStr, 'starting');
+		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
 		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
 		let result: AuthenticationResult;
 		try {
@@ -169,32 +169,43 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			}
 		}
 
-		const session = this.toAuthenticationSession(result, scopeData.originalScopes);
+		const session = this.sessionFromAuthenticationResult(result, scopeData.originalScopes);
 		this._telemetryReporter.sendLoginEvent(session.scopes);
-		this._logger.info('[createSession]', scopeData.scopeStr, 'returned session');
+		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'returned session');
+		// This is the only scenario in which we need to fire the _onDidChangeSessionsEmitter out of band...
+		// the badge flow (when the client passes no options in to getSession) will only remove a badge if a session
+		// was created that _matches the scopes_ that that badge requests. See `onDidChangeSessions` for more info.
+		// TODO: This should really be fixed in Core.
 		this._onDidChangeSessionsEmitter.fire({ added: [session], changed: [], removed: [] });
 		return session;
 	}
 
 	async removeSession(sessionId: string): Promise<void> {
 		this._logger.info('[removeSession]', sessionId, 'starting');
+		const promises = new Array<Promise<void>>();
 		for (const cachedPca of this._publicClientManager.getAll()) {
 			const accounts = cachedPca.accounts;
 			for (const account of accounts) {
 				if (account.homeAccountId === sessionId) {
 					this._telemetryReporter.sendLogoutEvent();
-					try {
-						await cachedPca.removeAccount(account);
-					} catch (e) {
-						this._telemetryReporter.sendLogoutFailedEvent();
-						throw e;
-					}
-					this._logger.info('[removeSession]', sessionId, 'removed session');
-					return;
+					promises.push(cachedPca.removeAccount(account));
+					this._logger.info(`[removeSession] [${sessionId}] [${cachedPca.clientId}] [${cachedPca.authority}] removing session...`);
 				}
 			}
 		}
-		this._logger.info('[removeSession]', sessionId, 'session not found');
+		if (!promises.length) {
+			this._logger.info('[removeSession]', sessionId, 'session not found');
+			return;
+		}
+		const results = await Promise.allSettled(promises);
+		for (const result of results) {
+			if (result.status === 'rejected') {
+				this._telemetryReporter.sendLogoutFailedEvent();
+				this._logger.error('[removeSession]', sessionId, 'error removing session', result.reason);
+			}
+		}
+
+		this._logger.info('[removeSession]', sessionId, `attempted to remove ${promises.length} sessions`);
 	}
 
 	//#endregion
@@ -217,7 +228,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		for (const account of accounts) {
 			try {
 				const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
-				sessions.push(this.toAuthenticationSession(result, originalScopes));
+				sessions.push(this.sessionFromAuthenticationResult(result, originalScopes));
 			} catch (e) {
 				// If we can't get a token silently, the account is probably in a bad state so we should skip it
 				// MSAL will log this already, so we don't need to log it again
@@ -227,7 +238,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		return sessions;
 	}
 
-	private toAuthenticationSession(result: AuthenticationResult, scopes: readonly string[]): AuthenticationSession & { idToken: string } {
+	private sessionFromAuthenticationResult(result: AuthenticationResult, scopes: readonly string[]): AuthenticationSession & { idToken: string } {
 		return {
 			accessToken: result.accessToken,
 			idToken: result.idToken,
@@ -237,6 +248,19 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				label: result.account?.username ?? 'Unknown',
 			},
 			scopes
+		};
+	}
+
+	private sessionFromAccountInfo(account: AccountInfo): AuthenticationSession {
+		return {
+			accessToken: '1234',
+			id: account.homeAccountId,
+			scopes: [],
+			account: {
+				id: account.homeAccountId,
+				label: account.username
+			},
+			idToken: account.idToken,
 		};
 	}
 }
