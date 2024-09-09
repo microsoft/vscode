@@ -444,6 +444,10 @@ class BuiltinDynamicCompletions extends Disposable {
 				}
 				result.suggestions.push(makeFileCompletionItem(match.resource));
 			}
+
+			if (!data.limitHit) {
+				result.incomplete = true;
+			}
 		}
 	}
 
