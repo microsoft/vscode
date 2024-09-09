@@ -112,6 +112,7 @@ export interface ICommentService {
 	setActiveEditingCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 	setActiveCommentAndThread(uniqueOwner: string, commentInfo: { thread: CommentThread<IRange | ICellRange>; comment?: Comment } | undefined): Promise<void>;
+	navigateToCommentAndThread(type: 'next' | 'previous'): void;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
 	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; uniqueOwner: string; isReply?: boolean }): PendingCommentThread | undefined;
@@ -319,6 +320,32 @@ export class CommentService extends Disposable implements ICommentService {
 			this._activeCommentInfo = undefined;
 		}
 		return commentController.setActiveCommentAndThread(commentInfo);
+	}
+
+	/**
+	 * Navigate to the next or previous comment thread
+	 * @param type
+	 */
+	navigateToCommentAndThread(type: 'next' | 'previous') {
+		const commentInfo = this.activeCommentInfo;
+		if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
+			return;
+		}
+		const currentIndex = this.activeCommentInfo?.thread.comments?.indexOf(commentInfo.comment);
+		if (currentIndex === undefined || currentIndex < 0) {
+			return;
+		}
+		if (type === 'previous' && currentIndex === 0) {
+			return;
+		}
+		if (type === 'next' && currentIndex === commentInfo.thread.comments.length - 1) {
+			return;
+		}
+		const comment = this.activeCommentInfo?.thread.comments?.[type === 'previous' ? currentIndex - 1 : currentIndex + 1];
+		if (!comment) {
+			return;
+		}
+		this.setActiveCommentAndThread(this.activeCommentInfo.owner, { comment, thread: commentInfo.thread });
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {

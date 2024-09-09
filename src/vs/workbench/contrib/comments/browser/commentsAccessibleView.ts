@@ -114,7 +114,7 @@ class CommentsAccessibleContentProvider extends Disposable implements IAccessibl
 }
 
 class CommentsThreadWidgetAccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
-	readonly id = AccessibleViewProviderId.Comments;
+	readonly id = AccessibleViewProviderId.CommentThread;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Comments;
 	readonly options = { type: AccessibleViewType.View };
 	constructor(@ICommentService private readonly _commentService: ICommentService,
@@ -123,6 +123,8 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 	) {
 		super();
 	}
+	// TODO: actions
+	public actions = [];
 	provideContent(): string {
 		if (!this._commentService.activeCommentInfo) {
 			throw new Error('No current comment thread');
@@ -135,39 +137,16 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		if (!commentInfo) {
 			return;
 		}
+		// TODO: is there a way to focus the comment not the thread?
 		this._commentService.setActiveCommentAndThread(commentInfo.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
 		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, commentInfo.thread, commentInfo.comment);
 	}
 	provideNextContent(): string | undefined {
-		const commentInfo = this._commentService.activeCommentInfo;
-		if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
-			return;
-		}
-		const currentIndex = this._commentService.activeCommentInfo?.thread.comments?.indexOf(commentInfo.comment);
-		if (currentIndex === undefined || currentIndex < 0 || currentIndex === commentInfo.thread.comments.length - 1) {
-			return;
-		}
-		const nextComment = this._commentService.activeCommentInfo?.thread.comments?.[currentIndex + 1];
-		if (!nextComment) {
-			return;
-		}
-		this._commentService.setActiveCommentAndThread(this._commentService.activeCommentInfo.owner, { comment: nextComment, thread: commentInfo.thread });
+		this._commentService.navigateToCommentAndThread('next');
 		return this.provideContent();
 	}
 	providePreviousContent(): string | undefined {
-		const commentInfo = this._commentService.activeCommentInfo;
-		if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
-			return;
-		}
-		const currentIndex = this._commentService.activeCommentInfo?.thread.comments?.indexOf(commentInfo.comment);
-		if (currentIndex === undefined || currentIndex <= 0) {
-			return;
-		}
-		const nextComment = this._commentService.activeCommentInfo?.thread.comments?.[currentIndex - 1];
-		if (!nextComment) {
-			return;
-		}
-		this._commentService.setActiveCommentAndThread(this._commentService.activeCommentInfo.owner, { comment: nextComment, thread: commentInfo.thread });
+		this._commentService.navigateToCommentAndThread('previous');
 		return this.provideContent();
 	}
 }
