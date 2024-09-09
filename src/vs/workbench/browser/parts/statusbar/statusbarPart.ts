@@ -712,7 +712,6 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		statusbarPartContainer.style.position = 'relative';
 		statusbarPartContainer.setAttribute('aria-live', 'off');
 		statusbarPartContainer.setAttribute('tabindex', '0');
-		statusbarPartContainer.setAttribute('aria-label', localize('statusBar', 'Status Bar'));
 		container.appendChild(statusbarPartContainer);
 
 		// Statusbar Part
