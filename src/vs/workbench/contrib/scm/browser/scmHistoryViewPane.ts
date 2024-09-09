@@ -77,10 +77,31 @@ class SCMRepositoryActionViewItem extends ActionViewItem {
 	}
 }
 
+class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
+	constructor(private readonly _historyItemsFilter: HistoryItemRefsFilter, action: IAction, options?: IDropdownMenuActionViewItemOptions) {
+		super(null, action, { ...options, icon: false, label: true });
+	}
+
+	protected override updateLabel(): void {
+		if (this.options.label && this.label) {
+			this.label.classList.add('scm-graph-history-item-picker');
+			if (this._historyItemsFilter === 'all') {
+				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${localize('all', "All")}`));
+			} else if (this._historyItemsFilter === 'auto') {
+				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${localize('auto', "Auto")}`));
+			} else if (this._historyItemsFilter.length === 1) {
+				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${this._historyItemsFilter[0].name}`));
+			} else {
+				reset(this.label, ...renderLabelWithIcons(`$(git-branch) ${this._historyItemsFilter.length} ${localize('items', "Items")}`));
+			}
+		}
+	}
+}
+
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
-			id: 'workbench.scm.action.repository',
+			id: 'workbench.scm.graph.action.pickRepository',
 			title: '',
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
@@ -101,7 +122,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
-			id: 'workbench.scm.action.historyItemRef',
+			id: 'workbench.scm.graph.action.pickHistoryItemRefs',
 			title: '',
 			icon: Codicon.gitBranch,
 			viewId: HISTORY_VIEW_PANE_ID,
@@ -264,10 +285,10 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
-		this._renderLabels(historyItem, templateData);
+		this._renderBadges(historyItem, templateData);
 	}
 
-	private _renderLabels(historyItem: ISCMHistoryItem, templateData: HistoryItemTemplate): void {
+	private _renderBadges(historyItem: ISCMHistoryItem, templateData: HistoryItemTemplate): void {
 		templateData.elementDisposables.add(autorun(reader => {
 			const labelConfig = this._badgesConfig.read(reader);
 
@@ -564,6 +585,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 	}
 }
 
+type HistoryItemRefsFilter = 'all' | 'auto' | ISCMHistoryItemRef[];
 type HistoryItemState = { historyItemRefs: ISCMHistoryItemRef[]; items: ISCMHistoryItem[]; loadMore: boolean };
 
 class SCMHistoryViewModel extends Disposable {
@@ -597,7 +619,7 @@ class SCMHistoryViewModel extends Disposable {
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
 	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
-	readonly historyItemsFilter = observableValue<'all' | 'auto' | ISCMHistoryItemRef[]>(this, 'auto');
+	readonly historyItemsFilter = observableValue<HistoryItemRefsFilter>(this, 'auto');
 
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
 
@@ -1079,10 +1101,15 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	override getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === 'workbench.scm.action.repository') {
+		if (action.id === 'workbench.scm.graph.action.pickRepository') {
 			const repository = this._treeViewModel?.repository.get();
 			if (repository) {
 				return new SCMRepositoryActionViewItem(repository, action, options);
+			}
+		} else if (action.id === 'workbench.scm.graph.action.pickHistoryItemRefs') {
+			const historyItemsFilter = this._treeViewModel?.historyItemsFilter.get();
+			if (historyItemsFilter) {
+				return new SCMHistoryItemRefsActionViewItem(historyItemsFilter, action, options);
 			}
 		}
 
