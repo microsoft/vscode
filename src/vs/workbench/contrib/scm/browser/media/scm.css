@@ -491,6 +491,20 @@
 
 /* Graph */
 
+.pane-header .scm-graph-view-badge-container {
+	display: flex;
+	align-items: center;
+	min-width: fit-content;
+}
+
+.pane-header .scm-graph-view-badge-container > .scm-graph-view-badge.monaco-count-badge.long {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border: 1px solid var(--vscode-contrastBorder);
+	margin-left: 6px;
+	padding: 2px 4px;
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker {
 	display: flex;
 }
