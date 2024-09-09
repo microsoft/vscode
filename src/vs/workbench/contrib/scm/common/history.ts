@@ -21,6 +21,8 @@ export interface ISCMHistoryProvider {
 	readonly currentHistoryItemRemoteRef: IObservable<ISCMHistoryItemRef | undefined>;
 	readonly currentHistoryItemBaseRef: IObservable<ISCMHistoryItemRef | undefined>;
 
+	readonly historyItemRefChanges: IObservable<ISCMHistoryItemRefsChangeEvent>;
+
 	provideHistoryItemRefs(): Promise<ISCMHistoryItemRef[] | undefined>;
 	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
@@ -55,6 +57,12 @@ export interface ISCMHistoryItemRef {
 	readonly description?: string;
 	readonly color?: ColorIdentifier;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+}
+
+export interface ISCMHistoryItemRefsChangeEvent {
+	readonly added: readonly ISCMHistoryItemRef[];
+	readonly removed: readonly ISCMHistoryItemRef[];
+	readonly modified: readonly ISCMHistoryItemRef[];
 }
 
 export interface ISCMHistoryItem {
