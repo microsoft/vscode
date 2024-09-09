@@ -1024,7 +1024,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		template.inputBox = inputBox;
 		template.elementDisposables = new DisposableStore();
 		template.templateDisposables = toDispose;
-		template.templateDisposables.add(template.elementDisposables)
+		template.templateDisposables.add(template.elementDisposables);
 		return template;
 	}
 
