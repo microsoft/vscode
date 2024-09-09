@@ -26,6 +26,10 @@ import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
+import { DebugEditContext } from './debugEditContext.js';
+
+// Boolean indicating whether we use the edit context or the debug edit context with the colored control, selection and character bounds
+const useDebugEditContext = false;
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -58,7 +62,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
-		this._editContext = new EditContext();
+		this._editContext = useDebugEditContext ? new DebugEditContext() : new EditContext();
 		this.domNode.domNode.editContext = this._editContext;
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
