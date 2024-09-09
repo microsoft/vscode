@@ -13,10 +13,8 @@ server/test/**
 server/bin/**
 server/build/**
 server/lib/cgmanifest.json
-server/yarn.lock
 server/package-lock.json
 server/.npmignore
-yarn.lock
 package-lock.json
 server/extension.webpack.config.js
 extension.webpack.config.js

@@ -11,7 +11,7 @@ import { debounce } from '../../../base/common/decorators.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { asPromise } from '../../../base/common/async.js';
 import { ExtHostCommands } from './extHostCommands.js';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto } from './extHost.protocol.js';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto } from './extHost.protocol.js';
 import { sortedDiff, equals } from '../../../base/common/arrays.js';
 import { comparePaths } from '../../../base/common/comparers.js';
 import type * as vscode from 'vscode';
@@ -72,11 +72,11 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 }
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
-	const labels = historyItem.labels?.map(l => ({
-		title: l.title, icon: getHistoryItemIconDto(l.icon)
+	const references = historyItem.references?.map(r => ({
+		...r, icon: getHistoryItemIconDto(r.icon)
 	}));
 
-	return { ...historyItem, labels };
+	return { ...historyItem, references };
 }
 
 function compareResourceThemableDecorations(a: vscode.SourceControlResourceThemableDecorations, b: vscode.SourceControlResourceThemableDecorations): number {
@@ -977,9 +977,16 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
-	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupIds: string[], token: CancellationToken): Promise<string | undefined> {
+	async $resolveHistoryItemRefsCommonAncestor(sourceControlHandle: number, historyItemRefs: string[], token: CancellationToken): Promise<string | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		return await historyProvider?.resolveHistoryItemGroupCommonAncestor(historyItemGroupIds, token) ?? undefined;
+		return await historyProvider?.resolveHistoryItemRefsCommonAncestor(historyItemRefs, token) ?? undefined;
+	}
+
+	async $provideHistoryItemRefs(sourceControlHandle: number, token: CancellationToken): Promise<SCMHistoryItemRefDto[] | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		const historyItemRefs = await historyProvider?.provideHistoryItemRefs(token);
+
+		return historyItemRefs?.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) })) ?? undefined;
 	}
 
 	async $provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
