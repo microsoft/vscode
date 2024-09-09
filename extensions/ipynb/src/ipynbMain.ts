@@ -8,6 +8,7 @@ import { NotebookSerializer } from './notebookSerializer';
 import { activate as keepNotebookModelStoreInSync } from './notebookModelStoreSync';
 import { notebookImagePasteSetup } from './notebookImagePaste';
 import { AttachmentCleaner } from './notebookAttachmentCleaner';
+import { serializeNotebookToString } from './serializers';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
 type NotebookMetadata = {
@@ -106,7 +107,7 @@ export function activate(context: vscode.ExtensionContext) {
 			return true;
 		},
 		exportNotebook: (notebook: vscode.NotebookData): Promise<string> => {
-			return exportNotebook(notebook, serializer);
+			return Promise.resolve(serializeNotebookToString(notebook));
 		},
 		setNotebookMetadata: async (resource: vscode.Uri, metadata: Partial<NotebookMetadata>): Promise<boolean> => {
 			const document = vscode.workspace.notebookDocuments.find(doc => doc.uri.toString() === resource.toString());
@@ -125,10 +126,6 @@ export function activate(context: vscode.ExtensionContext) {
 			return vscode.workspace.applyEdit(edit);
 		},
 	};
-}
-
-function exportNotebook(notebook: vscode.NotebookData, serializer: NotebookSerializer): Promise<string> {
-	return serializer.serializeNotebookToString(notebook);
 }
 
 export function deactivate() { }
