@@ -54,9 +54,10 @@ declare module 'vscode' {
 
 		/**
 		 * An object with a lifespan that matches the session's lifespan. If the provider chooses to, this object can be used as the key for a cache,
-		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+		 * and searches with the same session object can search the same cache. When the object is garbage-collected, the session is complete and the cache can be cleared.
+		 * Please do not store any references to the session object, except via a weak reference (e.g. `WeakRef` or `WeakMap`).
 		 */
-		session: unknown;
+		session: object;
 
 		/**
 		 * The maximum number of results to be returned.

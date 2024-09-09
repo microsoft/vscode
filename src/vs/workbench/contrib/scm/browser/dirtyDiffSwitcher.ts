@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import * as nls from '../../../../nls.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { peekViewTitleBackground } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 
 export interface IQuickDiffSelectItem extends ISelectOptionItem {
 	provider: string;

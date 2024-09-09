@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { getLineRangeMapping } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
-import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
-import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from '../../../common/core/range.js';
+import { RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { getLineRangeMapping } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { LinesSliceCharSequence } from '../../../common/diff/defaultLinesDiffComputer/linesSliceCharSequence.js';
+import { MyersDiffAlgorithm } from '../../../common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.js';
+import { DynamicProgrammingDiffing } from '../../../common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('myers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

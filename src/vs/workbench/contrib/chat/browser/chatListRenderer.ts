@@ -3,69 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { FileAccess } from 'vs/base/common/network';
-import { clamp } from 'vs/base/common/numbers';
-import { autorun } from 'vs/base/common/observable';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { localize } from 'vs/nls';
-import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
-import { ChatAttachmentsContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart';
-import { ChatCodeCitationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCodeCitationContentPart';
-import { ChatCommandButtonContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCommandContentPart';
-import { ChatConfirmationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationContentPart';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { ChatMarkdownContentPart, EditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatMarkdownContentPart';
-import { ChatProgressContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatProgressContentPart';
-import { ChatCollapsibleListContentPart, CollapsibleListPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart';
-import { ChatTaskContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTaskContentPart';
-import { ChatTextEditContentPart, DiffEditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTextEditContentPart';
-import { ChatTreeContentPart, TreePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTreeContentPart';
-import { ChatWarningContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatWarningContentPart';
-import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
-import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { ChatCodeBlockContentProvider, CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatRequestVariableEntry, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatConfirmation, IChatContentReference, IChatFollowup, IChatTask, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { annotateSpecialMarkdownContent } from '../common/annotations';
-import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
+import * as dom from '../../../../base/browser/dom.js';
+import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../nls.js';
+import { IMenuEntryActionViewItemOptions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IWorkbenchIssueService } from '../../issue/common/issue.js';
+import { annotateSpecialMarkdownContent } from '../common/annotations.js';
+import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../common/chatContextKeys.js';
+import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
+import { chatSubcommandLeader } from '../common/chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatTask, IChatTreeData } from '../common/chatService.js';
+import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from '../common/chatViewModel.js';
+import { getNWords } from '../common/chatWordCounter.js';
+import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
+import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
+import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from './chat.js';
+import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
+import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
+import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
+import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
+import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
+import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
+import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
+import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
+import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
+import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
+import { ChatWarningContentPart } from './chatContentParts/chatWarningContentPart.js';
+import { ChatFollowups } from './chatFollowups.js';
+import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
+import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
+import { ChatEditorOptions } from './chatOptions.js';
+import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
 
 const $ = dom.$;
 
@@ -276,6 +280,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.rendererOptions.noHeader) {
 			header.classList.add('hidden');
@@ -288,8 +293,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					shouldInlineSubmenu: submenu => submenu.actions.length <= 1
 				},
 				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-					if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
-						return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
+					if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
+						return scopedInstantiationService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
 					}
 					return createActionViewItem(scopedInstantiationService, action, options);
 				}
@@ -318,7 +323,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { avatarContainer, username, detail, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover };
+		const template: IChatListItemTemplate = { avatarContainer, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar };
 		return template;
 	}
 
@@ -347,13 +352,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = element;
 		}
 
+		CONTEXT_RESPONSE_ERROR.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		CONTEXT_RESPONSE_FILTERED.bindTo(templateData.contextKeyService).set(isFiltered);
 
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
-		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length);
 		templateData.username.textContent = element.username;
 		if (!this.rendererOptions.noHeader) {
@@ -484,30 +489,37 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
+		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
+
 		const parts: IChatContentPart[] = [];
-		value.forEach((data, index) => {
-			const context: IChatContentPartRenderContext = {
-				element,
-				index,
-				content: value,
-				preceedingContentParts: parts,
-			};
-			const newPart = this.renderChatContentPart(data, templateData, context);
-			if (newPart) {
-				templateData.value.appendChild(newPart.domNode);
-				parts.push(newPart);
-			}
-		});
+		if (!isFiltered) {
+			value.forEach((data, index) => {
+				const context: IChatContentPartRenderContext = {
+					element,
+					index,
+					content: value,
+					preceedingContentParts: parts,
+				};
+				const newPart = this.renderChatContentPart(data, templateData, context);
+				if (newPart) {
+					templateData.value.appendChild(newPart.domNode);
+					parts.push(newPart);
+				}
+			});
+		}
+
 		if (templateData.renderedParts) {
 			dispose(templateData.renderedParts);
 		}
 		templateData.renderedParts = parts;
 
-		if (isRequestVM(element) && element.variables.length) {
-			const newPart = this.renderAttachments(element.variables, element.contentReferences, templateData);
-			if (newPart) {
-				templateData.value.appendChild(newPart.domNode);
-				templateData.elementDisposables.add(newPart);
+		if (!isFiltered) {
+			if (isRequestVM(element) && element.variables.length) {
+				const newPart = this.renderAttachments(element.variables, element.contentReferences, templateData);
+				if (newPart) {
+					templateData.value.appendChild(newPart.domNode);
+					templateData.elementDisposables.add(newPart);
+				}
 			}
 		}
 
@@ -942,9 +954,88 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 	}
 }
 
-class ChatVoteButton extends MenuEntryActionViewItem {
+const voteDownDetailLabels: Record<ChatAgentVoteDownReason, string> = {
+	[ChatAgentVoteDownReason.IncorrectCode]: localize('incorrectCode', "Suggested incorrect code"),
+	[ChatAgentVoteDownReason.DidNotFollowInstructions]: localize('didNotFollowInstructions', "Didn't follow instructions"),
+	[ChatAgentVoteDownReason.MissingContext]: localize('missingContext', "Missing context"),
+	[ChatAgentVoteDownReason.OffensiveOrUnsafe]: localize('offensiveOrUnsafe', "Offensive or unsafe"),
+	[ChatAgentVoteDownReason.PoorlyWrittenOrFormatted]: localize('poorlyWrittenOrFormatted', "Poorly written or formatted"),
+	[ChatAgentVoteDownReason.RefusedAValidRequest]: localize('refusedAValidRequest', "Refused a valid request"),
+	[ChatAgentVoteDownReason.IncompleteCode]: localize('incompleteCode', "Incomplete code"),
+	[ChatAgentVoteDownReason.WillReportIssue]: localize('reportIssue', "Report an issue"),
+	[ChatAgentVoteDownReason.Other]: localize('other', "Other"),
+};
+
+export class ChatVoteDownButton extends DropdownMenuActionViewItem {
+	constructor(
+		action: IAction,
+		options: IDropdownMenuActionViewItemOptions | undefined,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchIssueService private readonly issueService: IWorkbenchIssueService,
+		@ILogService private readonly logService: ILogService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+	) {
+		super(action,
+			{ getActions: () => this.getActions(), },
+			contextMenuService,
+			{
+				...options,
+				classNames: ThemeIcon.asClassNameArray(Codicon.thumbsdown),
+			});
+	}
+
+	getActions(): readonly IAction[] {
+		return [
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.IncorrectCode),
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.DidNotFollowInstructions),
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.IncompleteCode),
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.MissingContext),
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.PoorlyWrittenOrFormatted),
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.RefusedAValidRequest),
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.OffensiveOrUnsafe),
+			this.getVoteDownDetailAction(ChatAgentVoteDownReason.Other),
+			{
+				id: 'reportIssue',
+				label: voteDownDetailLabels[ChatAgentVoteDownReason.WillReportIssue],
+				tooltip: '',
+				enabled: true,
+				class: undefined,
+				run: async (context: IChatResponseViewModel) => {
+					if (!isResponseVM(context)) {
+						this.logService.error('ChatVoteDownButton#run: invalid context');
+						return;
+					}
+
+					await this.commandService.executeCommand(MarkUnhelpfulActionId, context, ChatAgentVoteDownReason.WillReportIssue);
+					await this.issueService.openReporter({ extensionId: context.agent?.extensionId.value });
+				}
+			}
+		];
+	}
+
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.toggle('checked', this.action.checked);
+
+		this.element?.classList.toggle('checked', this.action.checked);
+	}
+
+	private getVoteDownDetailAction(reason: ChatAgentVoteDownReason): IAction {
+		const label = voteDownDetailLabels[reason];
+		return {
+			id: MarkUnhelpfulActionId,
+			label,
+			tooltip: '',
+			enabled: true,
+			checked: (this._context as IChatResponseViewModel).voteDownReason === reason,
+			class: undefined,
+			run: async (context: IChatResponseViewModel) => {
+				if (!isResponseVM(context)) {
+					this.logService.error('ChatVoteDownButton#getVoteDownDetailAction: invalid context');
+					return;
+				}
+
+				await this.commandService.executeCommand(MarkUnhelpfulActionId, context, reason);
+			}
+		};
 	}
 }

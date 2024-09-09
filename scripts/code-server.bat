@@ -19,7 +19,7 @@ FOR /F "tokens=*" %%g IN ('node build/lib/node.js') do (SET NODE=%%g)
 
 if not exist "%NODE%" (
 	:: Download nodejs executable for remote
-	call yarn gulp node
+	call npm run gulp node
 )
 
 popd

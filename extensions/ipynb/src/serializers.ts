@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata, useCustomPropertyInMetadata, type CellMetadata } from './common';
+import { CellOutputMetadata, type CellMetadata } from './common';
 import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
@@ -57,18 +57,6 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData } | { metadata?: { [key: string]: any } }): CellMetadata {
 	if ('cell' in options) {
 		const cell = options.cell;
-		if (useCustomPropertyInMetadata()) {
-			const metadata: CellMetadata = {
-				// it contains the cell id, and the cell metadata, along with other nb cell metadata
-				...(cell.metadata?.custom ?? {})
-			};
-			// promote the cell attachments to the top level
-			const attachments = cell.metadata?.custom?.attachments ?? cell.metadata?.attachments;
-			if (attachments) {
-				metadata.attachments = attachments;
-			}
-			return metadata;
-		}
 		const metadata = {
 			// it contains the cell id, and the cell metadata, along with other nb cell metadata
 			...(cell.metadata ?? {})
@@ -77,18 +65,6 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 		return metadata;
 	} else {
 		const cell = options;
-		if (useCustomPropertyInMetadata()) {
-			const metadata: CellMetadata = {
-				// it contains the cell id, and the cell metadata, along with other nb cell metadata
-				...(cell.metadata?.custom ?? {})
-			};
-			// promote the cell attachments to the top level
-			const attachments = cell.metadata?.custom?.attachments ?? cell.metadata?.attachments;
-			if (attachments) {
-				metadata.attachments = attachments;
-			}
-			return metadata;
-		}
 		const metadata = {
 			// it contains the cell id, and the cell metadata, along with other nb cell metadata
 			...(cell.metadata ?? {})
@@ -123,7 +99,13 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 
 	const codeCell: any = {
 		cell_type: 'code',
-		execution_count: cell.executionSummary?.executionOrder ?? null,
+		// Metadata should always contain the execution_count.
+		// When ever execution summary data changes we will update the metadata to contain the execution count.
+		// Failing to do so means we have a problem.
+		// Also do not read the value of executionSummary here, as its possible user reverted changes to metadata
+		// & in that case execution summary could contain the data, but metadata will not.
+		// In such cases we do not want to re-set the metadata with the value from execution summary (remember, user reverted that).
+		execution_count: cellMetadata.execution_count ?? null,
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
 		metadata: cellMetadata.metadata

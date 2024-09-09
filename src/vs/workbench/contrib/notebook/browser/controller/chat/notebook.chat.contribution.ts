@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import 'vs/workbench/contrib/notebook/browser/controller/chat/cellChatActions';
-import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
+import { ChatAgentLocation, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import './cellChatActions.js';
+import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 
 class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
 

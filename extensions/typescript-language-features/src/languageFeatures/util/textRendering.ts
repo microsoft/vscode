@@ -15,24 +15,6 @@ export interface IFilePathToResourceConverter {
 	toResource(filepath: string): vscode.Uri;
 }
 
-function replaceLinks(text: string): string {
-	return text
-		// Http(s) links
-		.replace(/\{@(link|linkplain|linkcode) (https?:\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi, (_, tag: string, link: string, text?: string) => {
-			switch (tag) {
-				case 'linkcode':
-					return `[\`${text ? text.trim() : link}\`](${link})`;
-
-				default:
-					return `[${text ? text.trim() : link}](${link})`;
-			}
-		});
-}
-
-function processInlineTags(text: string): string {
-	return replaceLinks(text);
-}
-
 function getTagBodyText(
 	tag: Proto.JSDocTagInfo,
 	filePathConverter: IFilePathToResourceConverter,
@@ -67,18 +49,19 @@ function getTagBodyText(
 		case 'author': {
 			// fix obsucated email address, #80898
 			const emailMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
-
 			if (emailMatch === null) {
 				return text;
 			} else {
 				return `${emailMatch[1]} ${emailMatch[2]}`;
 			}
 		}
-		case 'default':
+		case 'default': {
 			return makeCodeblock(text);
+		}
+		default: {
+			return text;
+		}
 	}
-
-	return processInlineTags(text);
 }
 
 function getTagDocumentation(
@@ -98,11 +81,10 @@ function getTagDocumentation(
 				if (!doc) {
 					return label;
 				}
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` \u2014 ${processInlineTags(doc)}`);
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` \u2014 ${doc}`);
 			}
 			break;
 		}
-
 		case 'return':
 		case 'returns': {
 			// For return(s), we require a non-empty body
@@ -147,7 +129,7 @@ export function asPlainTextWithLinks(
 	parts: readonly Proto.SymbolDisplayPart[] | string,
 	filePathConverter: IFilePathToResourceConverter,
 ): string {
-	return processInlineTags(convertLinkTags(parts, filePathConverter));
+	return convertLinkTags(parts, filePathConverter);
 }
 
 /**
@@ -187,10 +169,10 @@ function convertLinkTags(
 						if (text) {
 							if (/^https?:/.test(text)) {
 								const parts = text.split(' ');
-								if (parts.length === 1) {
+								if (parts.length === 1 && !currentLink.linkcode) {
 									out.push(`<${parts[0]}>`);
-								} else if (parts.length > 1) {
-									const linkText = parts.slice(1).join(' ');
+								} else {
+									const linkText = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
 									out.push(`[${currentLink.linkcode ? '`' + escapeMarkdownSyntaxTokensForCode(linkText) + '`' : linkText}](${parts[0]})`);
 								}
 							} else {
@@ -224,7 +206,7 @@ function convertLinkTags(
 				break;
 		}
 	}
-	return processInlineTags(out.join(''));
+	return out.join('');
 }
 
 function escapeMarkdownSyntaxTokensForCode(text: string): string {

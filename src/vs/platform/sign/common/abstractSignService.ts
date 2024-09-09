@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMessage, ISignService } from 'vs/platform/sign/common/sign';
+import { IMessage, ISignService } from './sign.js';
 
 export interface IVsdaSigner {
 	sign(arg: string): string;
@@ -36,7 +36,7 @@ export abstract class AbstractSignService implements ISignService {
 				};
 			}
 		} catch (e) {
-			console.error(e);
+			// ignore errors silently
 		}
 		return { id: '', data: value };
 	}
@@ -54,7 +54,7 @@ export abstract class AbstractSignService implements ISignService {
 		try {
 			return (validator.validate(value) === 'ok');
 		} catch (e) {
-			console.error(e);
+			// ignore errors silently
 			return false;
 		} finally {
 			validator.dispose?.();
@@ -65,7 +65,7 @@ export abstract class AbstractSignService implements ISignService {
 		try {
 			return await this.signValue(value);
 		} catch (e) {
-			console.error(e);
+			// ignore errors silently
 		}
 		return value;
 	}

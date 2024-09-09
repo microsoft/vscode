@@ -7465,9 +7465,10 @@ declare module 'vscode' {
 		 *   if (terminal === myTerm) {
 		 *     const execution = shellIntegration.executeCommand('echo "Hello world"');
 		 *     window.onDidEndTerminalShellExecution(event => {
-		 *     if (event.execution === execution) {
-		 *       console.log(`Command exited with code ${event.exitCode}`);
-		 *     }
+		 *       if (event.execution === execution) {
+		 *         console.log(`Command exited with code ${event.exitCode}`);
+		 *       }
+		 *     });
 		 *   }
 		 * }));
 		 * // Fallback to sendText if there is no shell integration within 3 seconds of launching
@@ -7485,9 +7486,10 @@ declare module 'vscode' {
 		 * if (term.shellIntegration) {
 		 *   const execution = shellIntegration.executeCommand({ commandLine });
 		 *   window.onDidEndTerminalShellExecution(event => {
-		 *   if (event.execution === execution) {
-		 *     console.log(`Command exited with code ${event.exitCode}`);
-		 *   }
+		 *     if (event.execution === execution) {
+		 *       console.log(`Command exited with code ${event.exitCode}`);
+		 *     }
+		 *   });
 		 * } else {
 		 *   term.sendText(commandLine);
 		 *   // Without shell integration, we can't know when the command has finished or what the
@@ -7510,7 +7512,7 @@ declare module 'vscode' {
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
 		 * const myTerm = window.createTerminal();
-		 * window.onDidActivateTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
+		 * window.onDidChangeTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
 		 *   if (terminal === myTerm) {
 		 *     const command = shellIntegration.executeCommand({
 		 *       command: 'echo',
@@ -18099,6 +18101,34 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A stack frame found in the {@link TestMessage.stackTrace}.
+	 */
+	export class TestMessageStackFrame {
+		/**
+		 * The location of this stack frame. This should be provided as a URI if the
+		 * location of the call frame can be accessed by the editor.
+		 */
+		uri?: Uri;
+
+		/**
+		 * Position of the stack frame within the file.
+		 */
+		position?: Position;
+
+		/**
+		 * The name of the stack frame, typically a method or function name.
+		 */
+		label: string;
+
+		/**
+		 * @param label The name of the stack frame
+		 * @param file The file URI of the stack frame
+		 * @param position The position of the stack frame within the file
+		 */
+		constructor(label: string, uri?: Uri, position?: Position);
+	}
+
+	/**
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
 	 */
@@ -18153,6 +18183,11 @@ declare module 'vscode' {
 		 * - `message`: the {@link TestMessage} instance.
 		 */
 		contextValue?: string;
+
+		/**
+		 * The stack trace associated with the message or failure.
+		 */
+		stackTrace?: TestMessageStackFrame[];
 
 		/**
 		 * Creates a new TestMessage that will present as a diff in the editor.
