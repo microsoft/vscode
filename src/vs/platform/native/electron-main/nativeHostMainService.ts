@@ -32,7 +32,7 @@ import { ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatist
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { ICodeWindow } from '../../window/electron-main/window.js';
+import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, useWindowControlsOverlay } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -55,8 +55,6 @@ export const INativeHostMainService = createDecorator<INativeHostMainService>('n
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
-
-	private gpuInfoWindowId: number | undefined;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -858,6 +856,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Development
 
+	private gpuInfoWindowId: number | undefined;
+
 	async openDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 
@@ -883,40 +883,38 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
-		if (!this.gpuInfoWindowId) {
-			const gpuInfoParentWindow = this.codeWindowById(windowId);
-			if (gpuInfoParentWindow) {
-				const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, gpuInfoParentWindow.serializeWindowState());
-				options.backgroundColor = undefined;
-				options.titleBarStyle = 'default';
-				const gpuInfoWindow = new BrowserWindow(options);
-				this.gpuInfoWindowId = gpuInfoWindow.id;
-				gpuInfoWindow.setMenuBarVisibility(false);
-				gpuInfoWindow.loadURL('chrome://gpu');
-				gpuInfoWindow.once('ready-to-show', () => {
-					gpuInfoWindow.show();
-				});
-				gpuInfoWindow.on('close', () => {
-					this.gpuInfoWindowId = undefined;
-				});
-				gpuInfoParentWindow.win?.on('close', () => {
-					if (this.gpuInfoWindowId) {
-						BrowserWindow.fromId(this.gpuInfoWindowId)?.close();
-						this.gpuInfoWindowId = undefined;
-					}
-				});
-			}
-
+		const parentWindow = this.codeWindowById(windowId);
+		if (!parentWindow) {
+			return;
 		}
-		if (this.gpuInfoWindowId) {
+
+		if (typeof this.gpuInfoWindowId !== 'number') {
+			const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
+			options.backgroundColor = undefined;
+
+			const gpuInfoWindow = new BrowserWindow(options);
+			gpuInfoWindow.setMenuBarVisibility(false);
+			gpuInfoWindow.loadURL('chrome://gpu');
+
+			gpuInfoWindow.once('ready-to-show', () => gpuInfoWindow.show());
+			gpuInfoWindow.once('close', () => this.gpuInfoWindowId = undefined);
+
+			parentWindow.win?.on('close', () => {
+				if (this.gpuInfoWindowId) {
+					BrowserWindow.fromId(this.gpuInfoWindowId)?.close();
+					this.gpuInfoWindowId = undefined;
+				}
+			});
+
+			this.gpuInfoWindowId = gpuInfoWindow.id;
+		}
+
+		if (typeof this.gpuInfoWindowId === 'number') {
 			const window = BrowserWindow.fromId(this.gpuInfoWindowId);
-			if (!window) {
-				return;
+			if (window?.isMinimized()) {
+				window?.restore();
 			}
-			if (window.isMinimized()) {
-				window.restore();
-			}
-			window.focus();
+			window?.focus();
 		}
 	}
 
