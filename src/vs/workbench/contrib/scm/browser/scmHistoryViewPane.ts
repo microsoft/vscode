@@ -717,7 +717,7 @@ class SCMHistoryViewModel extends Disposable {
 		}
 
 		// Create the color map
-		const colorMap = this._getGraphColorMap(this._state.get(repository)?.historyItemRefs ?? []);
+		const colorMap = this._getGraphColorMap(state.historyItemRefs);
 
 		return toISCMHistoryItemViewModelArray(state.items, colorMap)
 			.map(historyItemViewModel => ({
@@ -735,12 +735,12 @@ class SCMHistoryViewModel extends Disposable {
 		this.historyItemsFilter.set(filter, undefined);
 	}
 
-	private _getGraphColorMap(historyItemRefs: ISCMHistoryItemRef[]): Map<string, ColorIdentifier | 'inherit'> {
+	private _getGraphColorMap(historyItemRefs: ISCMHistoryItemRef[]): Map<string, ColorIdentifier | undefined> {
 		const repository = this.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
 
-		const colorMap = new Map<string, ColorIdentifier | 'inherit'>();
+		const colorMap = new Map<string, ColorIdentifier | undefined>();
 		if (currentHistoryItemGroup) {
 			colorMap.set(currentHistoryItemGroup.id, historyItemGroupLocal);
 			if (currentHistoryItemGroup.remote) {
@@ -751,9 +751,13 @@ class SCMHistoryViewModel extends Disposable {
 			}
 		}
 
+		// Add the remaining history item references to the color map
+		// if not already present. These history item references will
+		// be colored using the color of the history item to which they
+		// point to.
 		for (const ref of historyItemRefs) {
 			if (!colorMap.has(ref.id)) {
-				colorMap.set(ref.id, 'inherit');
+				colorMap.set(ref.id, undefined);
 			}
 		}
 

@@ -43,11 +43,11 @@ export const colorRegistry: ColorIdentifier[] = [
 	registerColor('scmGraph.foreground3', chartsYellow, localize('scmGraphForeground3', "Source control graph foreground color (3).")),
 ];
 
-function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier>): ColorIdentifier | undefined {
+function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier | undefined>): ColorIdentifier | undefined {
 	for (const ref of historyItem.references ?? []) {
-		const colorIndex = colorMap.get(ref.id);
-		if (colorIndex !== undefined && colorIndex !== 'inherit') {
-			return colorIndex;
+		const colorIdentifier = colorMap.get(ref.id);
+		if (colorIdentifier !== undefined) {
+			return colorIdentifier;
 		}
 	}
 
@@ -246,7 +246,7 @@ export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNo
 	return elements.root;
 }
 
-export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, ColorIdentifier | 'inherit'>()): ISCMHistoryItemViewModel[] {
+export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, ColorIdentifier | undefined>()): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
 
