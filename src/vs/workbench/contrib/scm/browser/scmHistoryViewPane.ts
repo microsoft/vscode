@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStoreHandleChanges, derived, derivedOpts, IObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, autorunWithStoreHandleChanges, derived, IObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -48,7 +48,7 @@ import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/ac
 import { delta, groupBy, tail } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { constObservable, latestChangedValue, observableFromEvent, runOnChange } from '../../../../base/common/observableInternal/utils.js';
+import { constObservable, latestChangedValue, observableFromEvent, runOnChange, signalFromObservable } from '../../../../base/common/observableInternal/utils.js';
 import { ContextKeys } from './scmViewPane.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
@@ -59,7 +59,6 @@ import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
 import { compare } from '../../../../base/common/strings.js';
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
@@ -823,8 +822,8 @@ class RepositoryPicker extends Disposable {
 	};
 
 	constructor(
-		private readonly _scmViewService: ISCMViewService,
-		private readonly _quickInputService: IQuickInputService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) {
 		super();
 	}
@@ -1063,93 +1062,83 @@ export class SCMHistoryViewPane extends ViewPane {
 				// Wait for first repository to be initialized
 				await waitForState(firstRepositoryInitialized);
 
+				// Set tree input
 				this._treeOperationSequencer.queue(async () => {
 					await this._tree.setInput(this._treeViewModel);
 					this._tree.scrollTop = 0;
 				});
 
 				// Repository change
-				this._visibilityDisposables.add(
-					autorunWithStoreHandleChanges<{ refresh: boolean }>({
-						owner: this,
-						createEmptyChangeSummary: () => ({ refresh: false }),
-						handleChange(_, changeSummary) {
-							changeSummary.refresh = true;
-							return true;
-						},
-					}, (reader, changeSummary, store) => {
-						const repository = this._treeViewModel.repository.read(reader);
-						const historyProvider = repository?.provider.historyProvider.read(reader);
-						if (!repository || !historyProvider) {
-							return;
-						}
+				let isFirstRun = true;
+				this._visibilityDisposables.add(autorunWithStore((reader, store) => {
+					const repository = this._treeViewModel.repository.read(reader);
+					const historyProvider = repository?.provider.historyProvider.read(reader);
+					if (!repository || !historyProvider) {
+						return;
+					}
 
-						// Update context
-						this._scmProviderCtx.set(repository.provider.contextValue);
+					// Update context
+					this._scmProviderCtx.set(repository.provider.contextValue);
 
-						// Checkout, Commit, and Publish
-						const historyItemGroup = derivedOpts<{ id: string; revision?: string; remoteId?: string } | undefined>({
+					// Commit, Checkout
+					const historyItemRefSignal = signalFromObservable(this, historyProvider.currentHistoryItemRef);
+
+					// Publish
+					const historyItemRefRemoteIdSignal = signalFromObservable(this, derived(reader => {
+						return historyProvider.currentHistoryItemRemoteRef.read(reader)?.id;
+					}));
+
+					// Fetch, Push
+					const historyItemRefRemoteRevisionSignal = signalFromObservable(this, derived(reader => {
+						return historyProvider.currentHistoryItemRemoteRef.read(reader)?.revision;
+					}));
+
+					// HistoryItemRefs changed
+					store.add(
+						autorunWithStoreHandleChanges<{ refresh: boolean | 'ifScrollTop' }>({
 							owner: this,
-							equalsFn: structuralEquals
-						}, reader => {
-							const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup.read(reader);
-							return currentHistoryItemGroup ? {
-								id: currentHistoryItemGroup.id,
-								revision: currentHistoryItemGroup.revision,
-								remoteId: currentHistoryItemGroup.remote?.id
-							} : undefined;
-						});
+							createEmptyChangeSummary: () => ({ refresh: false }),
+							handleChange(context, changeSummary) {
+								changeSummary.refresh = context.didChange(historyItemRefRemoteRevisionSignal) ? 'ifScrollTop' : true;
+								return true;
+							},
+						}, (reader, changeSummary) => {
+							historyItemRefSignal.read(reader);
+							historyItemRefRemoteIdSignal.read(reader);
+							historyItemRefRemoteRevisionSignal.read(reader);
 
-						// Fetch, Push
-						const historyItemRemoteRevision = derived(reader => {
-							return historyProvider.currentHistoryItemGroup.read(reader)?.remote?.revision;
-						});
+							if (changeSummary.refresh === true) {
+								this.refresh();
+								return;
+							}
 
-						// HistoryItemGroup change
-						store.add(
-							autorunWithStoreHandleChanges<{ refresh: boolean | 'ifScrollTop' }>({
-								owner: this,
-								createEmptyChangeSummary: () => ({ refresh: false }),
-								handleChange(context, changeSummary) {
-									changeSummary.refresh = context.didChange(historyItemRemoteRevision) ? 'ifScrollTop' : true;
-									return true;
-								},
-							}, (reader, changeSummary) => {
-								const historyItemGroupValue = historyItemGroup.read(reader);
-								const historyItemRemoteRevisionValue = historyItemRemoteRevision.read(reader);
-
-								if ((!historyItemGroupValue && !historyItemRemoteRevisionValue) || changeSummary.refresh === false) {
-									return;
-								}
-
-								if (changeSummary.refresh === true) {
+							if (changeSummary.refresh === 'ifScrollTop') {
+								// Remote revision changes can occur as a result of a user action (Fetch, Push) but
+								// it can also occur as a result of background action (Auto Fetch). If the tree is
+								// scrolled to the top, we can safely refresh the tree.
+								if (this._tree.scrollTop === 0) {
 									this.refresh();
 									return;
 								}
 
-								if (changeSummary.refresh === 'ifScrollTop') {
-									// Remote revision changes can occur as a result of a user action (Fetch, Push) but
-									// it can also occur as a result of background action (Auto Fetch). If the tree is
-									// scrolled to the top, we can safely refresh the tree.
-									if (this._tree.scrollTop === 0) {
-										this.refresh();
-										return;
-									}
-
-									// Show the "Outdated" badge on the view
-									this._repositoryOutdated.set(true, undefined);
-								}
-							}));
-
-						// HistoryItemRefs filter changed
-						store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {
-							this.refresh();
+								// Show the "Outdated" badge on the view
+								this._repositoryOutdated.set(true, undefined);
+							}
 						}));
 
-						if (changeSummary.refresh) {
-							this.refresh();
-						}
+					// HistoryItemRefs filter changed
+					store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {
+						this.refresh();
 					}));
+
+					// We skip refreshing the graph on the first execution of the autorun
+					// since the graph for the first repository is rendered when the tree
+					// input is set.
+					if (!isFirstRun) {
+						this.refresh();
+					}
+					isFirstRun = false;
+				}));
 			} else {
 				this._visibilityDisposables.clear();
 			}
