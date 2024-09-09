@@ -17,7 +17,7 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 	private worker?: import('node:worker_threads').Worker;
 	private tasks = new Map<string, DeferredPromise<Uint8Array>>();
 
-	constructor(readonly context: vscode.ExtensionContext) {
+	constructor(readonly context: vscode.ExtensionContext, private readonly isBrowser: boolean) {
 		super(() => { });
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('ipynb.experimental.serialization')) {
@@ -96,7 +96,7 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 			return new Uint8Array(0);
 		}
 
-		if (this.experimentalSave) {
+		if (this.experimentalSave && !this.isBrowser) {
 			return this.serializeViaWorker2(data);
 		}
 		const serialized = serializeNotebookToString(data);

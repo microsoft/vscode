@@ -29,8 +29,8 @@ type NotebookMetadata = {
 	[propName: string]: unknown;
 };
 
-export function activate(context: vscode.ExtensionContext) {
-	const serializer = new NotebookSerializer(context);
+export function activate(context: vscode.ExtensionContext, isBrowser: boolean) {
+	const serializer = new NotebookSerializer(context, isBrowser);
 	keepNotebookModelStoreInSync(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,

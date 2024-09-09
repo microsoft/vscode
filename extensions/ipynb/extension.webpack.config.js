@@ -13,11 +13,10 @@ const path = require('path');
 module.exports = withDefaults({
 	context: __dirname,
 	entry: {
-		ipynbMain: './src/ipynbMain.ts',
+		['ipynbMain.node']: './src/ipynbMain.node.ts',
 		notebookSerializerWorker: './src/notebookSerializerWorker.ts',
 	},
 	output: {
-		// filename: 'ipynbMain.js'
 		path: path.resolve(__dirname, 'dist'),
 		filename: '[name].js'
 	},

@@ -3,20 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+import * as vscode from 'vscode';
+import * as main from './ipynbMain';
 
-'use strict';
+export function activate(context: vscode.ExtensionContext) {
+	return main.activate(context, true);
+}
 
-const withBrowserDefaults = require('../shared.webpack.config').browser;
-
-const config = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/ipynbMain.browser.ts'
-	},
-	output: {
-		filename: 'ipynbMain.browser.js'
-	}
-});
-
-module.exports = config;
+export function deactivate() {
+	return main.deactivate();
+}
