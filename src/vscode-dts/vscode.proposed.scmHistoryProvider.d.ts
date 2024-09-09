@@ -20,21 +20,21 @@ declare module 'vscode' {
 		onDidChangeCurrentHistoryItemGroup: Event<void>;
 
 		/**
-		 * Fires when the history item groups change (ex: commit, push, fetch)
+		 * Fires when history item refs change
 		 */
-		// onDidChangeHistoryItemGroups: Event<SourceControlHistoryChangeEvent>;
+		onDidChangeHistory: Event<SourceControlHistoryChangeEvent>;
 
+		provideHistoryItemRefs(token: CancellationToken): ProviderResult<SourceControlHistoryItemRef[]>;
 		provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
-		resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[], token: CancellationToken): ProviderResult<string>;
+		resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[], token: CancellationToken): ProviderResult<string>;
 	}
 
 	export interface SourceControlHistoryOptions {
-		readonly cursor?: string;
 		readonly skip?: number;
 		readonly limit?: number | { id?: string };
-		readonly historyItemGroupIds?: readonly string[];
+		readonly historyItemRefs?: readonly string[];
 	}
 
 	export interface SourceControlHistoryItemGroup {
@@ -51,11 +51,6 @@ declare module 'vscode' {
 		readonly deletions: number;
 	}
 
-	export interface SourceControlHistoryItemLabel {
-		readonly title: string;
-		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
 	export interface SourceControlHistoryItem {
 		readonly id: string;
 		readonly parentIds: string[];
@@ -64,7 +59,16 @@ declare module 'vscode' {
 		readonly author?: string;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
-		readonly labels?: SourceControlHistoryItemLabel[];
+		readonly references?: SourceControlHistoryItemRef[];
+	}
+
+	export interface SourceControlHistoryItemRef {
+		readonly id: string;
+		readonly name: string;
+		readonly description?: string;
+		readonly revision?: string;
+		readonly category?: string;
+		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	export interface SourceControlHistoryItemChange {
@@ -74,10 +78,9 @@ declare module 'vscode' {
 		readonly renameUri: Uri | undefined;
 	}
 
-	// export interface SourceControlHistoryChangeEvent {
-	// 	readonly added: Iterable<SourceControlHistoryItemGroup>;
-	// 	readonly removed: Iterable<SourceControlHistoryItemGroup>;
-	// 	readonly modified: Iterable<SourceControlHistoryItemGroup>;
-	// }
-
+	export interface SourceControlHistoryChangeEvent {
+		readonly added: Iterable<SourceControlHistoryItemRef>;
+		readonly removed: Iterable<SourceControlHistoryItemRef>;
+		readonly modified: Iterable<SourceControlHistoryItemRef>;
+	}
 }
