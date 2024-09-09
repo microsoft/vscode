@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
 import { ExtensionEnablementService } from '../../browser/extensionEnablementService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -979,6 +979,53 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementStates(installed), [EnablementState.DisabledGlobally, EnablementState.DisabledByExtensionDependency]);
 	});
 
+	test('test extension is disabled by dependency when it has a missing dependency', async () => {
+		const target = aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] });
+		installed.push(target);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test extension is disabled by invalidity', async () => {
+		const target = aLocalExtension2('pub.b', {}, { isValid: false });
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByInvalidExtension);
+	});
+
+	test('test extension is disabled by dependency when it has a dependency that is invalid', async () => {
+		const target = aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] });
+		installed.push(...[target, aLocalExtension2('pub.a', {}, { isValid: false })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test extension is enabled when its dependency becomes valid', async () => {
+		const extension = aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] });
+		installed.push(...[extension, aLocalExtension2('pub.a', {}, { isValid: false })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByExtensionDependency);
+
+		const target = sinon.spy();
+		disposableStore.add(testObject.onEnablementChanged(target));
+
+		const validExtension = aLocalExtension2('pub.a');
+		didInstallEvent.fire([{
+			identifier: validExtension.identifier,
+			operation: InstallOperation.Install,
+			source: validExtension.location,
+			profileLocation: validExtension.location,
+			local: validExtension,
+		}]);
+
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.b' });
+	});
+
 	test('test override workspace to trusted when getting extensions enablements', async () => {
 		const extension = aLocalExtension2('pub.a', { main: 'main.js', capabilities: { untrustedWorkspaces: { supported: false, description: 'hello' } } });
 		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
@@ -1080,7 +1127,8 @@ function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}
 		location: URI.file(`pub.${name}`),
 		galleryIdentifier: { id, uuid: undefined },
 		type: ExtensionType.User,
-		...properties
+		...properties,
+		isValid: properties.isValid ?? true,
 	};
 	properties.isBuiltin = properties.type === ExtensionType.System;
 	return <ILocalExtension>Object.create({ manifest, ...properties });

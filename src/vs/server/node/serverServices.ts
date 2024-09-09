@@ -148,11 +148,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IExtensionHostStatusService, extensionHostStatusService);
 
 	// Request
-	const networkLogger = loggerService.createLogger('network-server', {
-		name: localize('network-server', "Network (Server)"),
-		hidden: true
-	});
-	const requestService = new RequestService(networkLogger, configurationService, environmentService, logService);
+	const requestService = new RequestService(configurationService, environmentService, logService);
 	services.set(IRequestService, requestService);
 
 	let oneDsAppender: ITelemetryAppender = NullAppender;
