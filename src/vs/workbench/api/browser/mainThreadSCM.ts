@@ -220,8 +220,8 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroupCommonAncestor(historyItemGroupIds: string[]): Promise<string | undefined> {
-		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupIds, CancellationToken.None);
+	async resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined> {
+		return this.proxy.$resolveHistoryItemRefsCommonAncestor(this.handle, historyItemRefs, CancellationToken.None);
 	}
 
 	async provideHistoryItemRefs(): Promise<ISCMHistoryItemRef[] | undefined> {
