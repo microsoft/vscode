@@ -22,7 +22,7 @@ import { CommandExecutor, CursorsController } from '../../../../../../editor/com
 import { DeleteOperations } from '../../../../../../editor/common/cursor/cursorDeleteOperations.js';
 import { CursorConfiguration, ICursorSimpleModel } from '../../../../../../editor/common/cursorCommon.js';
 import { CursorChangeReason } from '../../../../../../editor/common/cursorEvents.js';
-import * as editorCommon from '../../../../../../editor/common/editorCommon.js';
+import { Handler, ReplacePreviousCharPayload, CompositionTypePayload } from '../../../../../../editor/common/editorCommon.js';
 import { ILanguageConfigurationService } from '../../../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { IModelDeltaDecoration, ITextModel, PositionAffinity } from '../../../../../../editor/common/model.js';
 import { indentOfLine } from '../../../../../../editor/common/model/textModel.js';
@@ -280,23 +280,23 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					return;
 				}
 				switch (e.handlerId) {
-					case editorCommon.Handler.CompositionStart:
+					case Handler.CompositionStart:
 						controller.startComposition(eventsCollector);
 						return;
-					case editorCommon.Handler.CompositionEnd:
+					case Handler.CompositionEnd:
 						controller.endComposition(eventsCollector, e.source);
 						return;
-					case editorCommon.Handler.ReplacePreviousChar: {
-						const args = <Partial<editorCommon.ReplacePreviousCharPayload>>e.payload;
+					case Handler.ReplacePreviousChar: {
+						const args = <Partial<ReplacePreviousCharPayload>>e.payload;
 						controller.compositionType(eventsCollector, args.text || '', args.replaceCharCnt || 0, 0, 0, e.source);
 						return;
 					}
-					case editorCommon.Handler.CompositionType: {
-						const args = <Partial<editorCommon.CompositionTypePayload>>e.payload;
+					case Handler.CompositionType: {
+						const args = <Partial<CompositionTypePayload>>e.payload;
 						controller.compositionType(eventsCollector, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0, e.source);
 						return;
 					}
-					case editorCommon.Handler.Paste: {
+					case Handler.Paste: {
 						const args = <Partial<PastePayload>>e.payload;
 						controller.paste(eventsCollector, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, e.source);
 						return;
@@ -312,7 +312,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 						// 	});
 						// }
 					}
-					case editorCommon.Handler.Cut:
+					case Handler.Cut:
 						controller.cut(eventsCollector, e.source);
 						return;
 				}
