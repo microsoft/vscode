@@ -980,7 +980,9 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _treeViewModel!: SCMHistoryViewModel;
 	private _treeDataSource!: SCMHistoryTreeDataSource;
 	private _treeIdentityProvider!: SCMHistoryTreeIdentityProvider;
-	private _repositoryLoadMore = observableValue(this, false);
+
+	private readonly _repositoryLoadMore = observableValue(this, false);
+	private readonly _repositoryOutdated = observableValue(this, false);
 
 	private readonly _actionRunner: IActionRunner;
 	private readonly _visibilityDisposables = new DisposableStore();
@@ -1021,9 +1023,20 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._register(this._updateChildrenThrottler);
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this._tree.layout(height, width);
+	protected override renderHeaderTitle(container: HTMLElement): void {
+		super.renderHeaderTitle(container, this.title);
+
+		const element = h('div.scm-graph-view-badge-container', [
+			h('div.scm-graph-view-badge.monaco-count-badge.long@badge')
+		]);
+
+		element.badge.textContent = 'Outdated';
+		container.appendChild(element.root);
+
+		this._register(autorun(reader => {
+			const outdated = this._repositoryOutdated.read(reader);
+			element.root.style.display = outdated ? '' : 'none';
+		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -1105,7 +1118,10 @@ export class SCMHistoryViewPane extends ViewPane {
 										return true;
 									},
 								}, (reader, changeSummary) => {
-									if ((!historyItemGroup.read(reader) && !historyItemRemoteRevision.read(reader)) || changeSummary.refresh === false) {
+									const historyItemGroupValue = historyItemGroup.read(reader);
+									const historyItemRemoteRevisionValue = historyItemRemoteRevision.read(reader);
+
+									if ((!historyItemGroupValue && !historyItemRemoteRevisionValue) || changeSummary.refresh === false) {
 										return;
 									}
 
@@ -1123,8 +1139,8 @@ export class SCMHistoryViewPane extends ViewPane {
 											return;
 										}
 
-										// Set the "OUTDATED" description
-										this.updateTitleDescription(localize('outdated', "OUTDATED"));
+										// Show the "Outdated" badge on the view
+										this._repositoryOutdated.set(true, undefined);
 									}
 								}));
 
@@ -1142,6 +1158,11 @@ export class SCMHistoryViewPane extends ViewPane {
 				this._visibilityDisposables.clear();
 			}
 		});
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this._tree.layout(height, width);
 	}
 
 	override getActionRunner(): IActionRunner | undefined {
@@ -1173,7 +1194,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		await this._updateChildren(true);
 
 		this.updateActions();
-		this.updateTitleDescription(undefined);
+		this._repositoryOutdated.set(false, undefined);
 		this._tree.scrollTop = 0;
 	}
 
