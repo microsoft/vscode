@@ -1581,7 +1581,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), ['pub.a']);
 
-		await testObject.updateAutoUpdateValue(false);
+		await testObject.updateAutoUpdateForAllExtensions(false);
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
@@ -1607,7 +1607,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), ['pub.a']);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 
-		await testObject.updateAutoUpdateValue(true);
+		await testObject.updateAutoUpdateForAllExtensions(true);
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
