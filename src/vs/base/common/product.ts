@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PlatformName } from 'vs/base/common/platform';
+import { IStringDictionary } from './collections.js';
+import { PlatformName } from './platform.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -191,6 +191,8 @@ export interface IProductConfiguration {
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 	readonly gitHubEntitlement?: IGitHubEntitlement;
 	readonly chatParticipantRegistry?: string;
+
+	readonly emergencyAlertUrl?: string;
 }
 
 export interface ITunnelApplicationConfig {

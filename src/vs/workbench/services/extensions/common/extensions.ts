@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionDescriptionDelta, IExtensionDescriptionSnapshot } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Event } from '../../../../base/common/event.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc.js';
+import { getExtensionId, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { ImplicitActivationEvents } from '../../../../platform/extensionManagement/common/implicitActivationEvents.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { ApiProposalName } from '../../../../platform/extensions/common/extensionsApiProposals.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IV8Profile } from '../../../../platform/profiling/common/profiling.js';
+import { ExtensionHostKind } from './extensionHostKind.js';
+import { IExtensionDescriptionDelta, IExtensionDescriptionSnapshot } from './extensionHostProtocol.js';
+import { ExtensionRunningLocation } from './extensionRunningLocation.js';
+import { IExtensionPoint } from './extensionsRegistry.js';
 
 export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),

@@ -191,6 +191,8 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
+			// @ts-expect-error until 5.6
+			autoImportSpecifierExcludeRegexes: preferencesConfig.get<string[]>('autoImportSpecifierExcludeRegexes'),
 			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
@@ -199,7 +201,7 @@ export default class FileConfigurationManager extends Disposable {
 			interactiveInlayHints: true,
 			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
 			...getInlayHintsPreferences(config),
-			...this.getOrganizeImportsPreferences(config),
+			...this.getOrganizeImportsPreferences(preferencesConfig),
 		};
 
 		return preferences;

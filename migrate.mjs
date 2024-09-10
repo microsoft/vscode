@@ -59,9 +59,9 @@ function migrate() {
 	}
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
-	console.log(`COMPLETED ${amdToEsm ? 'AMD->ESM' : 'ESM->AMD'} MIGRATION of ${enableInPlace ? 'src in-place' : 'src to src2'}. You can now launch yarn watch-esm or yarn watch-client-esm`);
-	if (amdToEsm) {
-		console.log(`Make sure to set the environment variable VSCODE_BUILD_ESM to a string of value 'true' if you want to build VS Code`);
+	console.log(`COMPLETED ${amdToEsm ? 'AMD->ESM' : 'ESM->AMD'} MIGRATION of ${enableInPlace ? 'src in-place' : 'src to src2'}. You can now launch npm run watch-amd or npm run watch-client-amd`);
+	if (esmToAmd) {
+		console.log(`Make sure to set the environment variable VSCODE_BUILD_AMD to a string of value 'true' if you want to build VS Code as AMD`);
 	}
 
 	if (watchSrc) {

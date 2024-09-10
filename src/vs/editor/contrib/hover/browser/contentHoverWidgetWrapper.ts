@@ -3,34 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { HoverOperation, HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
-import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
-import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
-import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
-import { Emitter } from 'vs/base/common/event';
-import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
-import { isMousePositionWithinElement } from 'vs/editor/contrib/hover/browser/hoverUtils';
+import * as dom from '../../../../base/browser/dom.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { TokenizationRegistry } from '../../../common/languages.js';
+import { HoverOperation, HoverResult, HoverStartMode, HoverStartSource } from './hoverOperation.js';
+import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from './hoverTypes.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { HoverVerbosityAction } from '../../../common/standalone/standaloneEnums.js';
+import { ContentHoverWidget } from './contentHoverWidget.js';
+import { ContentHoverComputer, ContentHoverComputerOptions } from './contentHoverComputer.js';
+import { ContentHoverResult } from './contentHoverTypes.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RenderedContentHover } from './contentHoverRendered.js';
+import { isMousePositionWithinElement } from './hoverUtils.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
-	private _currentResult: HoverResult | null = null;
+	private _currentResult: ContentHoverResult | null = null;
 	private _renderedContentHover: RenderedContentHover | undefined;
 
-	private readonly _computer: ContentHoverComputer;
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+	private readonly _hoverOperation: HoverOperation<ContentHoverComputerOptions, IHoverPart>;
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
 	public readonly onContentsChanged = this._onContentsChanged.event;
@@ -43,8 +42,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		super();
 		this._contentHoverWidget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 		this._participants = this._initializeHoverParticipants();
-		this._computer = new ContentHoverComputer(this._editor, this._participants);
-		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
+		this._hoverOperation = this._register(new HoverOperation(this._editor, new ContentHoverComputer(this._editor, this._participants)));
 		this._registerListeners();
 	}
 
@@ -63,12 +61,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _registerListeners(): void {
 		this._register(this._hoverOperation.onResult((result) => {
-			if (!this._computer.anchor) {
-				// invalid state, ignore result
-				return;
-			}
-			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
-			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
+			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result) : result.value);
+			this._withResult(new ContentHoverResult(messages, result.isComplete, result.options));
 		}));
 		const contentHoverWidgetNode = this._contentHoverWidget.getDomNode();
 		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'keydown', (e) => {
@@ -121,12 +115,12 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			return false;
 		}
 		// If mouse if not getting closer and anchor is defined, and the new anchor is the same as the previous anchor
-		const currentAnchorEqualsPreviousAnchor = this._currentResult!.anchor.equals(anchor);
+		const currentAnchorEqualsPreviousAnchor = this._currentResult && this._currentResult.options.anchor.equals(anchor);
 		if (currentAnchorEqualsPreviousAnchor) {
 			return true;
 		}
 		// If mouse if not getting closer and anchor is defined, and the new anchor is not compatible with the previous anchor
-		const currentAnchorCompatibleWithPreviousAnchor = anchor.canAdoptVisibleHover(this._currentResult!.anchor, this._contentHoverWidget.position);
+		const currentAnchorCompatibleWithPreviousAnchor = this._currentResult && anchor.canAdoptVisibleHover(this._currentResult.options.anchor, this._contentHoverWidget.position);
 		if (!currentAnchorCompatibleWithPreviousAnchor) {
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
@@ -134,25 +128,29 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 		// We aren't getting any closer to the hover, so we will filter existing results
 		// and keep those which also apply to the new anchor.
-		this._setCurrentResult(this._currentResult!.filter(anchor));
+		if (this._currentResult) {
+			this._setCurrentResult(this._currentResult.filter(anchor));
+		}
 		this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
 		return true;
 	}
 
-	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean): void {
-		const currentAnchorEqualToPreviousHover = this._computer.anchor && this._computer.anchor.equals(anchor);
+	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, shouldFocus: boolean, insistOnKeepingHoverVisible: boolean): void {
+		const currentAnchorEqualToPreviousHover = this._hoverOperation.options && this._hoverOperation.options.anchor.equals(anchor);
 		if (currentAnchorEqualToPreviousHover) {
 			return;
 		}
 		this._hoverOperation.cancel();
-		this._computer.anchor = anchor;
-		this._computer.shouldFocus = focus;
-		this._computer.source = source;
-		this._computer.insistOnKeepingHoverVisible = insistOnKeepingHoverVisible;
-		this._hoverOperation.start(mode);
+		const contentHoverComputerOptions: ContentHoverComputerOptions = {
+			anchor,
+			source,
+			shouldFocus,
+			insistOnKeepingHoverVisible
+		};
+		this._hoverOperation.start(mode, contentHoverComputerOptions);
 	}
 
-	private _setCurrentResult(hoverResult: HoverResult | null): void {
+	private _setCurrentResult(hoverResult: ContentHoverResult | null): void {
 		let currentHoverResult = hoverResult;
 		const currentResultEqualToPreviousResult = this._currentResult === currentHoverResult;
 		if (currentResultEqualToPreviousResult) {
@@ -170,24 +168,21 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}
 	}
 
-	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
-		if (!this._computer.anchor) {
-			return result;
-		}
+	private _addLoadingMessage(hoverResult: HoverResult<ContentHoverComputerOptions, IHoverPart>): IHoverPart[] {
 		for (const participant of this._participants) {
 			if (!participant.createLoadingMessage) {
 				continue;
 			}
-			const loadingMessage = participant.createLoadingMessage(this._computer.anchor);
+			const loadingMessage = participant.createLoadingMessage(hoverResult.options.anchor);
 			if (!loadingMessage) {
 				continue;
 			}
-			return result.slice(0).concat([loadingMessage]);
+			return hoverResult.value.slice(0).concat([loadingMessage]);
 		}
-		return result;
+		return hoverResult.value;
 	}
 
-	private _withResult(hoverResult: HoverResult): void {
+	private _withResult(hoverResult: ContentHoverResult): void {
 		const previousHoverIsVisibleWithCompleteResult = this._contentHoverWidget.position && this._currentResult && this._currentResult.isComplete;
 		if (!previousHoverIsVisibleWithCompleteResult) {
 			this._setCurrentResult(hoverResult);
@@ -199,7 +194,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			return;
 		}
 		const currentHoverResultIsEmpty = hoverResult.hoverParts.length === 0;
-		const insistOnKeepingPreviousHoverVisible = this._computer.insistOnKeepingHoverVisible;
+		const insistOnKeepingPreviousHoverVisible = hoverResult.options.insistOnKeepingHoverVisible;
 		const shouldKeepPreviousHoverVisible = currentHoverResultIsEmpty && insistOnKeepingPreviousHoverVisible;
 		if (shouldKeepPreviousHoverVisible) {
 			// The hover would now hide normally, so we'll keep the previous messages
@@ -208,9 +203,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _showHover(hoverResult: HoverResult): void {
+	private _showHover(hoverResult: ContentHoverResult): void {
 		const context = this._getHoverContext();
-		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
+		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService);
 		if (this._renderedContentHover.domNodeHasChildren) {
 			this._contentHoverWidget.show(this._renderedContentHover);
 		} else {
@@ -371,7 +366,6 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public hide(): void {
-		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
 	}

@@ -4,28 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { basename } from 'vs/base/common/path';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
-import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
-import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from 'vs/workbench/api/common/extHost.protocol';
-import { RelativePattern } from 'vs/workbench/api/common/extHostTypes';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { mock } from 'vs/base/test/common/mock';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo } from 'vs/workbench/services/search/common/search';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { nullExtensionDescription as extensionDescriptor } from 'vs/workbench/services/extensions/common/extensions';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { basename } from '../../../../base/common/path.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
+import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
+import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete } from '../../common/extHost.protocol.js';
+import { RelativePattern } from '../../common/extHostTypes.js';
+import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { ExtHostRpcService } from '../../common/extHostRpcService.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../../services/search/common/queryBuilder.js';
+import { IPatternInfo } from '../../../services/search/common/search.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
+import { FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
+import { nullExtensionDescription as extensionDescriptor } from '../../../services/extensions/common/extensions.js';
+import { IURITransformerService } from '../../common/extHostUriTransformerService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExcludeSettingOptions } from '../../../services/search/common/searchExtTypes.js';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
@@ -577,380 +578,658 @@ suite('ExtHostWorkspace', function () {
 		return { uri, name };
 	}
 
-	test('findFiles - string include', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
+	suite('findFiles -', function () {
+		test('string include', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.includePattern, 'foo');
-				assert.strictEqual(_includeFolder, null);
-				assert.strictEqual(options.excludePattern, undefined);
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				assert.strictEqual(options.maxResults, 10);
-				return Promise.resolve(null);
-			}
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.includePattern, 'foo');
+					assert.strictEqual(_includeFolder, null);
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.maxResults, 10);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles('foo', undefined, 10, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
 		});
 
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles('foo', undefined, 10, new ExtensionIdentifier('test')).then(() => {
+		function testFindFilesInclude(pattern: RelativePattern) {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.includePattern, 'glob/**');
+					assert.deepStrictEqual(_includeFolder ? URI.from(_includeFolder).toJSON() : null, URI.file('/other/folder').toJSON());
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles(pattern, undefined, 10, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		}
+
+		test('RelativePattern include (string)', () => {
+			return testFindFilesInclude(new RelativePattern('/other/folder', 'glob/**'));
+		});
+
+		test('RelativePattern include (URI)', () => {
+			return testFindFilesInclude(new RelativePattern(URI.file('/other/folder'), 'glob/**'));
+		});
+
+		test('no excludes', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.includePattern, 'glob/**');
+					assert.deepStrictEqual(URI.revive(_includeFolder!).toString(), URI.file('/other/folder').toString());
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, true);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null, 10, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		test('with cancelled token', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+
+			const token = CancellationToken.Cancelled;
+			return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null, 10, new ExtensionIdentifier('test'), token).then(() => {
+				assert(!mainThreadCalled, '!mainThreadCalled');
+			});
+		});
+
+		test('RelativePattern exclude', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.excludePattern?.length, 1);
+					assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // Note that the base portion is ignored, see #52651
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles('', new RelativePattern(root, 'glob/**'), 10, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+	});
+
+	suite('findFiles2 -', function () {
+		test('string include', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.filePattern, 'foo');
+					assert.strictEqual(options.includePattern, undefined);
+					assert.strictEqual(_includeFolder, null);
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.maxResults, 10);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2('foo', { maxResults: 10, useDefaultExcludes: true }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		function testFindFiles2Include(pattern: RelativePattern) {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.filePattern, 'glob/**');
+					assert.strictEqual(options.includePattern, undefined);
+					assert.deepStrictEqual(_includeFolder ? URI.from(_includeFolder).toJSON() : null, URI.file('/other/folder').toJSON());
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2(pattern, { maxResults: 10 }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		}
+
+		test('RelativePattern include (string)', () => {
+			return testFindFiles2Include(new RelativePattern('/other/folder', 'glob/**'));
+		});
+
+		test('RelativePattern include (URI)', () => {
+			return testFindFiles2Include(new RelativePattern(URI.file('/other/folder'), 'glob/**'));
+		});
+
+		test('no excludes', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.filePattern, 'glob/**');
+					assert.strictEqual(options.includePattern, undefined);
+					assert.deepStrictEqual(URI.revive(_includeFolder!).toString(), URI.file('/other/folder').toString());
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2(new RelativePattern('/other/folder', 'glob/**'), {}, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		test('with cancelled token', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+
+			const token = CancellationToken.Cancelled;
+			return ws.findFiles2(new RelativePattern('/other/folder', 'glob/**'), {}, new ExtensionIdentifier('test'), token).then(() => {
+				assert(!mainThreadCalled, '!mainThreadCalled');
+			});
+		});
+
+		test('RelativePattern exclude', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.excludePattern?.length, 1);
+					assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // Note that the base portion is ignored, see #52651
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2('', { exclude: new RelativePattern(root, 'glob/**') }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+		test('useIgnoreFiles', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.disregardIgnoreFiles, false);
+					assert.strictEqual(options.disregardGlobalIgnoreFiles, false);
+					assert.strictEqual(options.disregardParentIgnoreFiles, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2('', { useIgnoreFiles: true, useParentIgnoreFiles: true, useGlobalIgnoreFiles: true }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		test('use symlinks', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.ignoreSymlinks, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2('', { followSymlinks: true }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+	});
+
+	suite('findFiles2New -', function () {
+		test('string include', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.filePattern, 'foo');
+					assert.strictEqual(options.includePattern, undefined);
+					assert.strictEqual(_includeFolder, null);
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.maxResults, 10);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2New(['foo'], { maxResults: 10, useExcludeSettings: ExcludeSettingOptions.FilesExclude }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		function testFindFiles2NewInclude(pattern: RelativePattern[]) {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.filePattern, 'glob/**');
+					assert.strictEqual(options.includePattern, undefined);
+					assert.deepStrictEqual(_includeFolder ? URI.from(_includeFolder).toJSON() : null, URI.file('/other/folder').toJSON());
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2New(pattern, { maxResults: 10 }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		}
+
+		test('RelativePattern include (string)', () => {
+			return testFindFiles2NewInclude([new RelativePattern('/other/folder', 'glob/**')]);
+		});
+
+		test('RelativePattern include (URI)', () => {
+			return testFindFiles2NewInclude([new RelativePattern(URI.file('/other/folder'), 'glob/**')]);
+		});
+
+		test('no excludes', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.filePattern, 'glob/**');
+					assert.strictEqual(options.includePattern, undefined);
+					assert.deepStrictEqual(URI.revive(_includeFolder!).toString(), URI.file('/other/folder').toString());
+					assert.strictEqual(options.excludePattern, undefined);
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2New([new RelativePattern('/other/folder', 'glob/**')], {}, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		test('with cancelled token', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+
+			const token = CancellationToken.Cancelled;
+			return ws.findFiles2New([new RelativePattern('/other/folder', 'glob/**')], {}, new ExtensionIdentifier('test'), token).then(() => {
+				assert(!mainThreadCalled, '!mainThreadCalled');
+			});
+		});
+
+		test('RelativePattern exclude', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.excludePattern?.length, 1);
+					assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // Note that the base portion is ignored, see #52651
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2New([''], { exclude: [new RelativePattern(root, 'glob/**')] }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+		test('useIgnoreFiles', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.disregardExcludeSettings, false);
+					assert.strictEqual(options.disregardIgnoreFiles, false);
+					assert.strictEqual(options.disregardGlobalIgnoreFiles, false);
+					assert.strictEqual(options.disregardParentIgnoreFiles, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2New([''], { useIgnoreFiles: { local: true, parent: true, global: true } }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		test('use symlinks', () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(options.ignoreSymlinks, false);
+					return Promise.resolve(null);
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			return ws.findFiles2New([''], { followSymlinks: true }, new ExtensionIdentifier('test')).then(() => {
+				assert(mainThreadCalled, 'mainThreadCalled');
+			});
+		});
+
+		// todo: add tests with multiple filePatterns and excludes
+
+	});
+
+	suite('findTextInFiles -', function () {
+		test('no include', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
+
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.strictEqual(folder, null);
+					assert.strictEqual(options.includePattern, undefined);
+					assert.strictEqual(options.excludePattern, undefined);
+					return null;
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await ws.findTextInFiles({ pattern: 'foo' }, {}, () => { }, new ExtensionIdentifier('test'));
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
-	});
 
-	function testFindFilesInclude(pattern: RelativePattern) {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
+		test('string include', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.includePattern, 'glob/**');
-				assert.deepStrictEqual(_includeFolder ? URI.from(_includeFolder).toJSON() : null, URI.file('/other/folder').toJSON());
-				assert.strictEqual(options.excludePattern, undefined);
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				return Promise.resolve(null);
-			}
-		});
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.strictEqual(folder, null);
+					assert.strictEqual(options.includePattern, '**/files');
+					assert.strictEqual(options.excludePattern, undefined);
+					return null;
+				}
+			});
 
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles(pattern, undefined, 10, new ExtensionIdentifier('test')).then(() => {
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await ws.findTextInFiles({ pattern: 'foo' }, { include: '**/files' }, () => { }, new ExtensionIdentifier('test'));
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
-	}
 
-	test('findFiles - RelativePattern include (string)', () => {
-		return testFindFilesInclude(new RelativePattern('/other/folder', 'glob/**'));
-	});
+		test('RelativePattern include', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-	test('findFiles - RelativePattern include (URI)', () => {
-		return testFindFilesInclude(new RelativePattern(URI.file('/other/folder'), 'glob/**'));
-	});
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.deepStrictEqual(URI.revive(folder!).toString(), URI.file('/other/folder').toString());
+					assert.strictEqual(options.includePattern, 'glob/**');
+					assert.strictEqual(options.excludePattern, undefined);
+					return null;
+				}
+			});
 
-	test('findFiles - no excludes', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.includePattern, 'glob/**');
-				assert.deepStrictEqual(URI.revive(_includeFolder!).toString(), URI.file('/other/folder').toString());
-				assert.strictEqual(options.excludePattern, undefined);
-				assert.strictEqual(options.disregardExcludeSettings, true);
-				return Promise.resolve(null);
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null, 10, new ExtensionIdentifier('test')).then(() => {
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await ws.findTextInFiles({ pattern: 'foo' }, { include: new RelativePattern('/other/folder', 'glob/**') }, () => { }, new ExtensionIdentifier('test'));
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
-	});
 
-	test('findFiles - with cancelled token', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
+		test('with cancelled token', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				return Promise.resolve(null);
-			}
-		});
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					return null;
+				}
+			});
 
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-
-		const token = CancellationToken.Cancelled;
-		return ws.findFiles(new RelativePattern('/other/folder', 'glob/**'), null, 10, new ExtensionIdentifier('test'), token).then(() => {
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			const token = CancellationToken.Cancelled;
+			await ws.findTextInFiles({ pattern: 'foo' }, {}, () => { }, new ExtensionIdentifier('test'), token);
 			assert(!mainThreadCalled, '!mainThreadCalled');
 		});
-	});
 
-	test('findFiles - RelativePattern exclude', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
+		test('RelativePattern exclude', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				assert.strictEqual(options.excludePattern?.length, 1);
-				assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // Note that the base portion is ignored, see #52651
-				return Promise.resolve(null);
-			}
-		});
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.deepStrictEqual(folder, null);
+					assert.strictEqual(options.includePattern, undefined);
+					assert.strictEqual(options.excludePattern?.length, 1);
+					assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // exclude folder is ignored...
+					return null;
+				}
+			});
 
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles('', new RelativePattern(root, 'glob/**'), 10, new ExtensionIdentifier('test')).then(() => {
-			assert(mainThreadCalled, 'mainThreadCalled');
-		});
-	});
-	test('findFiles2 - string include', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.filePattern, 'foo');
-				assert.strictEqual(options.includePattern, undefined);
-				assert.strictEqual(_includeFolder, null);
-				assert.strictEqual(options.excludePattern, undefined);
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				assert.strictEqual(options.maxResults, 10);
-				return Promise.resolve(null);
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2('foo', { maxResults: 10, useDefaultExcludes: true }, new ExtensionIdentifier('test')).then(() => {
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await ws.findTextInFiles({ pattern: 'foo' }, { exclude: new RelativePattern('/other/folder', 'glob/**') }, () => { }, new ExtensionIdentifier('test'));
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 	});
 
-	function testFindFiles2Include(pattern: RelativePattern) {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
+	suite('findTextInFilesNew -', function () {
+		test('no include', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.filePattern, 'glob/**');
-				assert.strictEqual(options.includePattern, undefined);
-				assert.deepStrictEqual(_includeFolder ? URI.from(_includeFolder).toJSON() : null, URI.file('/other/folder').toJSON());
-				assert.strictEqual(options.excludePattern, undefined);
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				return Promise.resolve(null);
-			}
-		});
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.strictEqual(folder, null);
+					assert.strictEqual(options.includePattern, undefined);
+					assert.strictEqual(options.excludePattern, undefined);
+					return null;
+				}
+			});
 
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2(pattern, { maxResults: 10 }, new ExtensionIdentifier('test')).then(() => {
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await (ws.findTextInFilesNew({ pattern: 'foo' }, {}, new ExtensionIdentifier('test'))).complete;
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
-	}
 
-	test('findFiles2 - RelativePattern include (string)', () => {
-		return testFindFiles2Include(new RelativePattern('/other/folder', 'glob/**'));
-	});
+		test('string include', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-	test('findFiles2 - RelativePattern include (URI)', () => {
-		return testFindFiles2Include(new RelativePattern(URI.file('/other/folder'), 'glob/**'));
-	});
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.strictEqual(folder, null);
+					assert.strictEqual(options.includePattern, '**/files');
+					assert.strictEqual(options.excludePattern, undefined);
+					return null;
+				}
+			});
 
-	test('findFiles2 - no excludes', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.filePattern, 'glob/**');
-				assert.strictEqual(options.includePattern, undefined);
-				assert.deepStrictEqual(URI.revive(_includeFolder!).toString(), URI.file('/other/folder').toString());
-				assert.strictEqual(options.excludePattern, undefined);
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				return Promise.resolve(null);
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2(new RelativePattern('/other/folder', 'glob/**'), {}, new ExtensionIdentifier('test')).then(() => {
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await (ws.findTextInFilesNew({ pattern: 'foo' }, { include: ['**/files'] }, new ExtensionIdentifier('test'))).complete;
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
-	});
 
-	test('findFiles2 - with cancelled token', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
+		test('RelativePattern include', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				return Promise.resolve(null);
-			}
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.deepStrictEqual(URI.revive(folder!).toString(), URI.file('/other/folder').toString());
+					assert.strictEqual(options.includePattern, 'glob/**');
+					assert.strictEqual(options.excludePattern, undefined);
+					return null;
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await (ws.findTextInFilesNew({ pattern: 'foo' }, { include: [new RelativePattern('/other/folder', 'glob/**')] }, new ExtensionIdentifier('test'))).complete;
+			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+		test('with cancelled token', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		const token = CancellationToken.Cancelled;
-		return ws.findFiles2(new RelativePattern('/other/folder', 'glob/**'), {}, new ExtensionIdentifier('test'), token).then(() => {
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					return null;
+				}
+			});
+
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			const token = CancellationToken.Cancelled;
+			await (ws.findTextInFilesNew({ pattern: 'foo' }, undefined, new ExtensionIdentifier('test'), token)).complete;
 			assert(!mainThreadCalled, '!mainThreadCalled');
 		});
-	});
 
-	test('findFiles2 - RelativePattern exclude', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
+		test('RelativePattern exclude', async () => {
+			const root = '/project/foo';
+			const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				assert.strictEqual(options.excludePattern?.length, 1);
-				assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // Note that the base portion is ignored, see #52651
-				return Promise.resolve(null);
-			}
-		});
+			let mainThreadCalled = false;
+			rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
+				override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
+					mainThreadCalled = true;
+					assert.strictEqual(query.pattern, 'foo');
+					assert.deepStrictEqual(folder, null);
+					assert.strictEqual(options.includePattern, undefined);
+					assert.strictEqual(options.excludePattern?.length, 1);
+					assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // exclude folder is ignored...
+					return null;
+				}
+			});
 
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2('', { exclude: new RelativePattern(root, 'glob/**') }, new ExtensionIdentifier('test')).then(() => {
+			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
+			await (ws.findTextInFilesNew({ pattern: 'foo' }, { exclude: [new RelativePattern('/other/folder', 'glob/**')] }, new ExtensionIdentifier('test'))).complete;
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
-	});
-	test('findFiles2 - useIgnoreFiles', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
 
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.disregardExcludeSettings, false);
-				assert.strictEqual(options.disregardIgnoreFiles, false);
-				assert.strictEqual(options.disregardGlobalIgnoreFiles, false);
-				assert.strictEqual(options.disregardParentIgnoreFiles, false);
-				return Promise.resolve(null);
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2('', { useIgnoreFiles: true, useParentIgnoreFiles: true, useGlobalIgnoreFiles: true }, new ExtensionIdentifier('test')).then(() => {
-			assert(mainThreadCalled, 'mainThreadCalled');
-		});
-	});
-
-	test('findFiles2 - use symlinks', () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override $startFileSearch(_includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<URI[] | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(options.ignoreSymlinks, false);
-				return Promise.resolve(null);
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		return ws.findFiles2('', { followSymlinks: true }, new ExtensionIdentifier('test')).then(() => {
-			assert(mainThreadCalled, 'mainThreadCalled');
-		});
-	});
-
-	test('findTextInFiles - no include', async () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(query.pattern, 'foo');
-				assert.strictEqual(folder, null);
-				assert.strictEqual(options.includePattern, undefined);
-				assert.strictEqual(options.excludePattern, undefined);
-				return null;
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		await ws.findTextInFiles({ pattern: 'foo' }, {}, () => { }, new ExtensionIdentifier('test'));
-		assert(mainThreadCalled, 'mainThreadCalled');
-	});
-
-	test('findTextInFiles - string include', async () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(query.pattern, 'foo');
-				assert.strictEqual(folder, null);
-				assert.strictEqual(options.includePattern, '**/files');
-				assert.strictEqual(options.excludePattern, undefined);
-				return null;
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		await ws.findTextInFiles({ pattern: 'foo' }, { include: '**/files' }, () => { }, new ExtensionIdentifier('test'));
-		assert(mainThreadCalled, 'mainThreadCalled');
-	});
-
-	test('findTextInFiles - RelativePattern include', async () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(query.pattern, 'foo');
-				assert.deepStrictEqual(URI.revive(folder!).toString(), URI.file('/other/folder').toString());
-				assert.strictEqual(options.includePattern, 'glob/**');
-				assert.strictEqual(options.excludePattern, undefined);
-				return null;
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		await ws.findTextInFiles({ pattern: 'foo' }, { include: new RelativePattern('/other/folder', 'glob/**') }, () => { }, new ExtensionIdentifier('test'));
-		assert(mainThreadCalled, 'mainThreadCalled');
-	});
-
-	test('findTextInFiles - with cancelled token', async () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
-				mainThreadCalled = true;
-				return null;
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		const token = CancellationToken.Cancelled;
-		await ws.findTextInFiles({ pattern: 'foo' }, {}, () => { }, new ExtensionIdentifier('test'), token);
-		assert(!mainThreadCalled, '!mainThreadCalled');
-	});
-
-	test('findTextInFiles - RelativePattern exclude', async () => {
-		const root = '/project/foo';
-		const rpcProtocol = new TestRPCProtocol();
-
-		let mainThreadCalled = false;
-		rpcProtocol.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspace>() {
-			override async $startTextSearch(query: IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
-				mainThreadCalled = true;
-				assert.strictEqual(query.pattern, 'foo');
-				assert.deepStrictEqual(folder, null);
-				assert.strictEqual(options.includePattern, undefined);
-				assert.strictEqual(options.excludePattern?.length, 1);
-				assert.strictEqual(options.excludePattern[0].pattern, 'glob/**'); // exclude folder is ignored...
-				return null;
-			}
-		});
-
-		const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-		await ws.findTextInFiles({ pattern: 'foo' }, { exclude: new RelativePattern('/other/folder', 'glob/**') }, () => { }, new ExtensionIdentifier('test'));
-		assert(mainThreadCalled, 'mainThreadCalled');
+		// TODO: test multiple includes/excludess
 	});
 });

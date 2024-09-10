@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LRUCachedFunction } from 'vs/base/common/cache';
-import { CharCode } from 'vs/base/common/charCode';
-import { Lazy } from 'vs/base/common/lazy';
-import { Constants } from 'vs/base/common/uint';
+import { LRUCachedFunction } from './cache.js';
+import { CharCode } from './charCode.js';
+import { Lazy } from './lazy.js';
+import { Constants } from './uint.js';
 
 export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	if (!str || typeof str !== 'string') {

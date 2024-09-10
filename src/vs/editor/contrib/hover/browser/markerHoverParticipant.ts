@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { getCodeActions, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
-import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import * as nls from 'vs/nls';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Progress } from 'vs/platform/progress/common/progress';
+import * as dom from '../../../../base/browser/dom.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancelablePromise, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { CodeActionTriggerType } from '../../../common/languages.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IMarkerDecorationsService } from '../../../common/services/markerDecorations.js';
+import { getCodeActions, quickFixCommandId } from '../../codeAction/browser/codeAction.js';
+import { CodeActionController } from '../../codeAction/browser/codeActionController.js';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../../codeAction/common/types.js';
+import { MarkerController, NextMarkerAction } from '../../gotoError/browser/gotoError.js';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
+import * as nls from '../../../../nls.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
 
 const $ = dom.$;
 
@@ -130,7 +130,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					sourceElement.innerText = source;
 				}
 				const codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-				codeLink.setAttribute('href', code.target.toString());
+				codeLink.setAttribute('href', code.target.toString(true));
 
 				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
 					this._openerService.open(code.target, { allowCommands: true });

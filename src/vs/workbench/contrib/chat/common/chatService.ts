@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { Command, Location, TextEdit } from 'vs/editor/common/languages';
-import { FileType } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ISelection } from '../../../../editor/common/core/selection.js';
+import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
+import { FileType } from '../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceSymbol } from '../../search/common/search.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
+import { IParsedChatRequest } from './chatParserTypes.js';
+import { IChatParserContext } from './chatRequestParser.js';
+import { IChatRequestVariableValue } from './chatVariables.js';
 
 export interface IChatRequest {
 	message: string;
@@ -96,7 +97,7 @@ export interface IChatCodeCitation {
 }
 
 export interface IChatContentInlineReference {
-	inlineReference: URI | Location;
+	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';
 }
@@ -153,6 +154,11 @@ export interface IChatAgentVulnerabilityDetails {
 	description: string;
 }
 
+export interface IChatResponseCodeblockUriPart {
+	kind: 'codeblockUri';
+	uri: URI;
+}
+
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
 	vulnerabilities: IChatAgentVulnerabilityDetails[];
@@ -201,6 +207,7 @@ export type IChatProgress =
 	| IChatWarningMessage
 	| IChatTextEdit
 	| IChatMoveMessage
+	| IChatResponseCodeblockUriPart
 	| IChatConfirmation;
 
 export interface IChatFollowup {
@@ -217,10 +224,22 @@ export enum ChatAgentVoteDirection {
 	Up = 1
 }
 
+export enum ChatAgentVoteDownReason {
+	IncorrectCode = 'incorrectCode',
+	DidNotFollowInstructions = 'didNotFollowInstructions',
+	IncompleteCode = 'incompleteCode',
+	MissingContext = 'missingContext',
+	PoorlyWrittenOrFormatted = 'poorlyWrittenOrFormatted',
+	RefusedAValidRequest = 'refusedAValidRequest',
+	OffensiveOrUnsafe = 'offensiveOrUnsafe',
+	Other = 'other',
+	WillReportIssue = 'willReportIssue'
+}
+
 export interface IChatVoteAction {
 	kind: 'vote';
 	direction: ChatAgentVoteDirection;
-	reportIssue?: boolean;
+	reason: ChatAgentVoteDownReason | undefined;
 }
 
 export enum ChatCopyKind {

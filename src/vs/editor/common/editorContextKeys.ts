@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from '../../nls.js';
+import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 
 export namespace EditorContextKeys {
 
@@ -27,7 +27,6 @@ export namespace EditorContextKeys {
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false, nls.localize('editorReadonly', "Whether the editor is read-only"));
 	export const inDiffEditor = new RawContextKey<boolean>('inDiffEditor', false, nls.localize('inDiffEditor', "Whether the context is a diff editor"));
 	export const isEmbeddedDiffEditor = new RawContextKey<boolean>('isEmbeddedDiffEditor', false, nls.localize('isEmbeddedDiffEditor', "Whether the context is an embedded diff editor"));
-	export const inMultiDiffEditor = new RawContextKey<boolean>('inMultiDiffEditor', false, nls.localize('inMultiDiffEditor', "Whether the context is a multi diff editor"));
 	export const multiDiffEditorAllCollapsed = new RawContextKey<boolean>('multiDiffEditorAllCollapsed', undefined, nls.localize('multiDiffEditorAllCollapsed', "Whether all files in multi diff editor are collapsed"));
 	export const hasChanges = new RawContextKey<boolean>('diffEditorHasChanges', false, nls.localize('diffEditorHasChanges', "Whether the diff editor has changes"));
 	export const comparingMovedCode = new RawContextKey<boolean>('comparingMovedCode', false, nls.localize('comparingMovedCode', "Whether a moved code block is selected for comparison"));

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle } from '../../../base/parts/ipc/node/ipc.net.js';
 import * as http from 'http';
 import * as fs from 'fs';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IWindowOpenable, IOpenWindowOptions } from 'vs/platform/window/common/window';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
+import { IExtHostCommands } from '../common/extHostCommands.js';
+import { IWindowOpenable, IOpenWindowOptions } from '../../../platform/window/common/window.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { hasWorkspaceFileExtension } from '../../../platform/workspace/common/workspace.js';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';

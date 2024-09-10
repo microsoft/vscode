@@ -3,34 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { matchesSomeScheme, Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, isEqualAuthority } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ColorScheme } from 'vs/workbench/browser/web.api';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IChatRendererContent, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { SETTINGS_AUTHORITY } from 'vs/workbench/services/preferences/common/preferences';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/path.js';
+import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { ColorScheme } from '../../../../browser/web.api.js';
+import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
+import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
+import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
+import { ChatTreeItem } from '../chat.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
@@ -52,6 +57,8 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		element: IChatResponseViewModel,
 		contentReferencesListPool: CollapsibleListPool,
 		@IOpenerService openerService: IOpenerService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 
@@ -114,6 +121,31 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		this._register(list.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
+
+			if (e.element && 'reference' in e.element && typeof e.element.reference === 'object') {
+				const uriOrLocation = 'variableName' in e.element.reference ? e.element.reference.value : e.element.reference;
+				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
+					uriOrLocation?.uri;
+				if (uri) {
+					this.contextMenuService.showContextMenu({
+						getAnchor: () => e.anchor,
+						getActions: () => {
+							return [{
+								id: 'workbench.action.chat.copyReference',
+								title: localize('copyReference', "Copy"),
+								label: localize('copyReference', "Copy"),
+								tooltip: localize('copyReference', "Copy"),
+								enabled: e.element?.kind === 'reference',
+								class: undefined,
+								run: () => {
+									void this.clipboardService.writeResources([uri]);
+								}
+							}];
+						}
+					});
+				}
+			}
+
 		}));
 
 		const maxItemsShown = 6;
@@ -149,6 +181,7 @@ export class CollapsibleListPool extends Disposable {
 		private _onDidChangeVisibility: Event<boolean>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 		this._pool = this._register(new ResourcePool(() => this.listFactory()));
@@ -159,6 +192,20 @@ export class CollapsibleListPool extends Disposable {
 
 		const container = $('.chat-used-context-list');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
+
+		const getDragURI = (element: IChatCollapsibleListItem): URI | null => {
+			if (element.kind === 'warning') {
+				return null;
+			}
+			const { reference } = element;
+			if (typeof reference === 'string' || 'variableName' in reference) {
+				return null;
+			} else if (URI.isUri(reference)) {
+				return reference;
+			} else {
+				return reference.uri;
+			}
+		};
 
 		const list = this.instantiationService.createInstance(
 			WorkbenchList<IChatCollapsibleListItem>,
@@ -188,22 +235,29 @@ export class CollapsibleListPool extends Disposable {
 					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat List")
 				},
 				dnd: {
-					getDragURI: (element: IChatCollapsibleListItem) => {
-						if (element.kind === 'warning') {
-							return null;
-						}
-						const { reference } = element;
-						if (typeof reference === 'string' || 'variableName' in reference) {
-							return null;
-						} else if (URI.isUri(reference)) {
-							return reference.toString();
+					getDragURI: (element: IChatCollapsibleListItem) => getDragURI(element)?.toString() ?? null,
+					getDragLabel: (elements, originalEvent) => {
+						const uris: URI[] = coalesce(elements.map(getDragURI));
+						if (!uris.length) {
+							return undefined;
+						} else if (uris.length === 1) {
+							return this.labelService.getUriLabel(uris[0], { relative: true });
 						} else {
-							return reference.uri.toString();
+							return `${uris.length}`;
 						}
 					},
 					dispose: () => { },
 					onDragOver: () => false,
 					drop: () => { },
+					onDragStart: (data, originalEvent) => {
+						try {
+							const elements = data.getData() as IChatCollapsibleListItem[];
+							const uris: URI[] = coalesce(elements.map(getDragURI));
+							this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
+						} catch {
+							// noop
+						}
+					},
 				},
 			});
 

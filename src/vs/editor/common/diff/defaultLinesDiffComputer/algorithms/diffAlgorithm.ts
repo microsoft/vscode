@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { forEachAdjacent } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { forEachAdjacent } from '../../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { OffsetRange } from '../../../core/offsetRange.js';
 
 /**
  * Represents a synchronous diff algorithm. Should be executed in a worker.
@@ -196,8 +196,6 @@ export class DateTimeout implements ITimeout {
 		const valid = Date.now() - this.startTime < this.timeout;
 		if (!valid && this.valid) {
 			this.valid = false; // timeout reached
-			// eslint-disable-next-line no-debugger
-			debugger; // WARNING: Most likely debugging caused the timeout. Call `this.disable()` to continue without timing out.
 		}
 		return this.valid;
 	}

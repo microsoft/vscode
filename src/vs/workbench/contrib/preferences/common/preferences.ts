@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IExtensionRecommendations } from 'vs/base/common/product';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IExtensionRecommendations } from '../../../../base/common/product.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ISearchResult, ISettingsEditorModel } from '../../../services/preferences/common/preferences.js';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {

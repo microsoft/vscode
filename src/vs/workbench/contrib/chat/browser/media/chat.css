@@ -211,6 +211,10 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+.interactive-item-container .value .rendered-markdown a {
+	user-select: text;
+}
+
 .interactive-item-container .value .rendered-markdown a:hover,
 .interactive-item-container .value .rendered-markdown a:active {
 	color: var(--vscode-textLink-activeForeground);

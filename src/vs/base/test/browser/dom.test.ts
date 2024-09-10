@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from 'vs/base/browser/dom';
-import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
+import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
+import { DeferredPromise, timeout } from '../../common/async.js';
+import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('dom', () => {
 	test('hasClass', () => {

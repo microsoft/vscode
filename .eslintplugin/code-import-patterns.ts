@@ -12,19 +12,19 @@ import { createImportRuleListener } from './utils';
 const REPO_ROOT = path.normalize(path.join(__dirname, '../'));
 
 interface ConditionalPattern {
-	when?: 'hasBrowser' | 'hasNode' | 'test';
+	when?: 'hasBrowser' | 'hasNode' | 'hasElectron' | 'test';
 	pattern: string;
 }
 
 interface RawImportPatternsConfig {
 	target: string;
-	layer?: 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-main';
+	layer?: 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-utility' | 'electron-main';
 	test?: boolean;
 	restrictions: string | (string | ConditionalPattern)[];
 }
 
 interface LayerAllowRule {
-	when: 'hasBrowser' | 'hasNode' | 'test';
+	when: 'hasBrowser' | 'hasNode' | 'hasElectron' | 'test';
 	allow: string[];
 }
 
@@ -44,7 +44,9 @@ export = new class implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization',
-			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json'
+			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/.eslintrc.json',
+			badAbsolute: 'Imports have to be relative to support ESM',
+			badExtension: 'Imports have to end with `.js` or `.css` to support ESM',
 		},
 		docs: {
 			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
@@ -77,13 +79,14 @@ export = new class implements eslint.Rule.RuleModule {
 			return this._optionsCache.get(options)!;
 		}
 
-		type Layer = 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-main';
+		type Layer = 'common' | 'worker' | 'browser' | 'electron-sandbox' | 'node' | 'electron-utility' | 'electron-main';
 
 		interface ILayerRule {
 			layer: Layer;
 			deps: string;
 			isBrowser?: boolean;
 			isNode?: boolean;
+			isElectron?: boolean;
 		}
 
 		function orSegment(variants: Layer[]): string {
@@ -96,11 +99,13 @@ export = new class implements eslint.Rule.RuleModule {
 			{ layer: 'browser', deps: orSegment(['common', 'browser']), isBrowser: true },
 			{ layer: 'electron-sandbox', deps: orSegment(['common', 'browser', 'electron-sandbox']), isBrowser: true },
 			{ layer: 'node', deps: orSegment(['common', 'node']), isNode: true },
-			{ layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-main']), isNode: true },
+			{ layer: 'electron-utility', deps: orSegment(['common', 'node', 'electron-utility']), isNode: true, isElectron: true },
+			{ layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-utility', 'electron-main']), isNode: true, isElectron: true },
 		];
 
 		let browserAllow: string[] = [];
 		let nodeAllow: string[] = [];
+		let electronAllow: string[] = [];
 		let testAllow: string[] = [];
 		for (const option of options) {
 			if (isLayerAllowRule(option)) {
@@ -108,6 +113,8 @@ export = new class implements eslint.Rule.RuleModule {
 					browserAllow = option.allow.slice(0);
 				} else if (option.when === 'hasNode') {
 					nodeAllow = option.allow.slice(0);
+				} else if (option.when === 'hasElectron') {
+					electronAllow = option.allow.slice(0);
 				} else if (option.when === 'test') {
 					testAllow = option.allow.slice(0);
 				}
@@ -135,9 +142,13 @@ export = new class implements eslint.Rule.RuleModule {
 				restrictions.push(...nodeAllow);
 			}
 
+			if (layerRule.isElectron) {
+				restrictions.push(...electronAllow);
+			}
+
 			for (const rawRestriction of rawRestrictions) {
 				let importPattern: string;
-				let when: 'hasBrowser' | 'hasNode' | 'test' | undefined = undefined;
+				let when: 'hasBrowser' | 'hasNode' | 'hasElectron' | 'test' | undefined = undefined;
 				if (typeof rawRestriction === 'string') {
 					importPattern = rawRestriction;
 				} else {
@@ -147,6 +158,7 @@ export = new class implements eslint.Rule.RuleModule {
 				if (typeof when === 'undefined'
 					|| (when === 'hasBrowser' && layerRule.isBrowser)
 					|| (when === 'hasNode' && layerRule.isNode)
+					|| (when === 'hasElectron' && layerRule.isElectron)
 				) {
 					restrictions.push(importPattern.replace(/\/\~$/, `/${layerRule.deps}/**`));
 					testRestrictions.push(importPattern.replace(/\/\~$/, `/test/${layerRule.deps}/**`));
@@ -181,8 +193,8 @@ export = new class implements eslint.Rule.RuleModule {
 
 			if (targetIsVS) {
 				// Always add "vs/nls" and "vs/amdX"
-				restrictions.push('vs/nls');
-				restrictions.push('vs/amdX'); // TODO@jrieken remove after ESM is real
+				restrictions.push('vs/nls.js');
+				restrictions.push('vs/amdX.js'); // TODO@jrieken remove after ESM is real
 			}
 
 			if (targetIsVS && option.layer) {
@@ -212,6 +224,25 @@ export = new class implements eslint.Rule.RuleModule {
 	}
 
 	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, importPath: string) {
+		const targetIsVS = /^src\/vs\//.test(getRelativeFilename(context));
+		if (targetIsVS) {
+
+			// ESM: check for import ending with ".js" or ".css"
+			if (importPath[0] === '.' && !importPath.endsWith('.js') && !importPath.endsWith('.css')) {
+				context.report({
+					loc: node.loc,
+					messageId: 'badExtension',
+				});
+			}
+
+			// check for import being relative
+			if (importPath.startsWith('vs/')) {
+				context.report({
+					loc: node.loc,
+					messageId: 'badAbsolute',
+				});
+			}
+		}
 
 		// resolve relative paths
 		if (importPath[0] === '.') {

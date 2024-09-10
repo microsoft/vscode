@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ExtHostLanguageModelToolsShape, ExtHostContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IToolData, ILanguageModelToolsService, IToolResult, IToolInvokation, CountTokensCallback } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
@@ -24,25 +23,25 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageModelTools);
 
-		this._register(this._languageModelToolsService.onDidChangeTools(e => this._proxy.$acceptToolDelta(e)));
+		this._register(this._languageModelToolsService.onDidChangeTools(e => this._proxy.$onDidChangeTools([...this._languageModelToolsService.getTools()])));
 	}
 
 	async $getTools(): Promise<IToolData[]> {
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(dto: IToolInvokation, token: CancellationToken): Promise<IToolResult> {
+	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
 		return this._languageModelToolsService.invokeTool(
 			dto,
-			(input, token) => this._proxy.$countTokensForInvokation(dto.callId, input, token),
+			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
 			token,
 		);
 	}
 
-	$countTokensForInvokation(callId: string, input: string | IChatMessage, token: CancellationToken): Promise<number> {
+	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {
 		const fn = this._countTokenCallbacks.get(callId);
 		if (!fn) {
-			throw new Error(`Tool invokation call ${callId} not found`);
+			throw new Error(`Tool invocation call ${callId} not found`);
 		}
 
 		return fn(input, token);

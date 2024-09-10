@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
-import { localize } from 'vs/nls';
-import { extname, basename } from 'vs/base/common/path';
-import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/browser/snippetVariables';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { relativePath } from 'vs/base/common/resources';
-import { isObject } from 'vs/base/common/types';
-import { tail } from 'vs/base/common/arrays';
-import { Iterable } from 'vs/base/common/iterator';
-import { WindowIdleValue, getActiveWindow } from 'vs/base/browser/dom';
+import { parse as jsonParse, getNodeType } from '../../../../base/common/json.js';
+import { localize } from '../../../../nls.js';
+import { extname, basename } from '../../../../base/common/path.js';
+import { SnippetParser, Variable, Placeholder, Text } from '../../../../editor/contrib/snippet/browser/snippetParser.js';
+import { KnownSnippetVariableNames } from '../../../../editor/contrib/snippet/browser/snippetVariables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { relativePath } from '../../../../base/common/resources.js';
+import { isObject } from '../../../../base/common/types.js';
+import { tail } from '../../../../base/common/arrays.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
 
 class SnippetBodyInsights {
 

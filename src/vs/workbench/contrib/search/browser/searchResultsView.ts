@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/path';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, MatchInNotebook } from 'vs/workbench/contrib/search/browser/searchModel';
-import { isEqual } from 'vs/base/common/resources';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { ISearchActionContext } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import * as DOM from '../../../../base/browser/dom.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import * as paths from '../../../../base/common/path.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { SearchView } from './searchView.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, MatchInNotebook } from './searchModel.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
+import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { ISearchActionContext } from './searchActionsRemoveReplace.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { SearchContext } from '../common/constants.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;

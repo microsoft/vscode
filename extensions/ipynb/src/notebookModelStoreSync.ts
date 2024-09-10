@@ -5,7 +5,7 @@
 
 import { Disposable, ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
 import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively } from './serializers';
-import { CellMetadata, useCustomPropertyInMetadata } from './common';
+import { CellMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
 import type * as nbformat from '@jupyterlab/nbformat';
 
@@ -108,17 +108,12 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 	pendingNotebookCellModelUpdates.set(notebook, pendingUpdates);
 	const edit = new WorkspaceEdit();
 	updates.forEach(({ cell, metadata }) => {
-		let newMetadata: any = {};
-		if (useCustomPropertyInMetadata()) {
-			newMetadata = { ...(cell.metadata), custom: metadata };
-		} else {
-			newMetadata = { ...cell.metadata, ...metadata };
-			if (!metadata.execution_count && newMetadata.execution_count) {
-				delete newMetadata.execution_count;
-			}
-			if (!metadata.attachments && newMetadata.attachments) {
-				delete newMetadata.attachments;
-			}
+		const newMetadata = { ...cell.metadata, ...metadata };
+		if (!metadata.execution_count && newMetadata.execution_count) {
+			delete newMetadata.execution_count;
+		}
+		if (!metadata.attachments && newMetadata.attachments) {
+			delete newMetadata.attachments;
 		}
 		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, sortObjectPropertiesRecursively(newMetadata))]);
 	});

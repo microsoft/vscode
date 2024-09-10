@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { IHeaders, IRequestContext, IRequestOptions, OfflineError } from 'vs/base/parts/request/common/request';
+import { bufferToStream, VSBuffer } from '../../../common/buffer.js';
+import { CancellationToken } from '../../../common/cancellation.js';
+import { canceled } from '../../../common/errors.js';
+import { IHeaders, IRequestContext, IRequestOptions, OfflineError } from '../common/request.js';
 
 export async function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	if (token.isCancellationRequested) {

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from 'vs/editor/browser/services/treeSitter/treeSitterParserService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TextModelTreeSitter, TreeSitterImporter, TreeSitterLanguages } from '../../../browser/services/treeSitter/treeSitterParserService.js';
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { timeout } from 'vs/base/common/async';
-import { ConsoleMainLogger, ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { LogService } from 'vs/platform/log/common/logService';
-import { mock } from 'vs/base/test/common/mock';
+import { createTextModel } from '../../common/testTextModel.js';
+import { timeout } from '../../../../base/common/async.js';
+import { ConsoleMainLogger, ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { LogService } from '../../../../platform/log/common/logService.js';
+import { mock } from '../../../../base/test/common/mock.js';
 
 class MockParser implements Parser {
 	static async init(): Promise<void> { }

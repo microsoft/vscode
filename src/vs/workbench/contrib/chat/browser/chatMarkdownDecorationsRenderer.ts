@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { Location } from 'vs/editor/common/languages';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { asCssVariable } from 'vs/platform/theme/common/colorUtils';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
-import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { contentRefUrl } from '../common/annotations';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
+import * as dom from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { revive } from '../../../../base/common/marshalling.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { ContentRefData, contentRefUrl } from '../common/annotations.js';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/chatColors.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
+import { IChatService } from '../common/chatService.js';
+import { IChatVariablesService } from '../common/chatVariables.js';
+import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { IChatWidgetService } from './chat.js';
+import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
+import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
+import './media/chatInlineAnchorWidget.css';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -74,10 +75,10 @@ interface IDecorationWidgetArgs {
 	title?: string;
 }
 
-export class ChatMarkdownDecorationsRenderer {
+export class ChatMarkdownDecorationsRenderer extends Disposable {
+
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -86,8 +87,11 @@ export class ChatMarkdownDecorationsRenderer {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
+		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-	) { }
+	) {
+		super();
+	}
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
 		let result = '';
@@ -161,7 +165,7 @@ export class ChatMarkdownDecorationsRenderer {
 						this.renderResourceWidget(a.textContent!, args, store),
 						a);
 				} else if (href.startsWith(contentRefUrl)) {
-					this.renderFileWidget(href, a);
+					this.renderFileWidget(href, a, store);
 				} else if (href.startsWith('command:')) {
 					this.injectKeybindingHint(a, href, this.keybindingService);
 				}
@@ -226,31 +230,24 @@ export class ChatMarkdownDecorationsRenderer {
 		return container;
 	}
 
-	private renderFileWidget(href: string, a: HTMLAnchorElement): void {
+	private renderFileWidget(href: string, a: HTMLAnchorElement, store: DisposableStore): void {
 		// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
 		const fullUri = URI.parse(href);
-		let location: Location | { uri: URI; range: undefined };
+		let data: ContentRefData;
 		try {
-			location = revive(JSON.parse(fullUri.fragment));
+			data = revive(JSON.parse(fullUri.fragment));
 		} catch (err) {
 			this.logService.error('Invalid chat widget render data JSON', toErrorMessage(err));
 			return;
 		}
 
-		if (!location.uri || !URI.isUri(location.uri)) {
+		if (data.kind !== 'symbol' && !URI.isUri(data.uri)) {
 			this.logService.error(`Invalid chat widget render data: ${fullUri.fragment}`);
 			return;
 		}
 
-		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
-		a.setAttribute('data-href', location.uri.with({ fragment }).toString());
-
-		const label = this.labelService.getUriLabel(location.uri, { relative: true });
-		a.title = location.range ?
-			`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-			label;
+		store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data));
 	}
-
 
 	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {
 		const container = dom.$('span.chat-resource-widget');

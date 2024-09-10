@@ -2,16 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { localize } from 'vs/nls';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { NOTEBOOK_EDITOR_FOCUSED } from '../common/notebookContextKeys.js';
+import { localize } from '../../../../nls.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IVisibleEditorPane } from '../../../common/editor.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 
 export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 105;

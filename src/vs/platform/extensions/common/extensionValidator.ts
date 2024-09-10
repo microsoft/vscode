@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { IExtensionManifest, parseApiProposals } from 'vs/platform/extensions/common/extensions';
-import { allApiProposals } from 'vs/platform/extensions/common/extensionsApiProposals';
+import { isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import Severity from '../../../base/common/severity.js';
+import { URI } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { IExtensionManifest, parseApiProposals } from './extensions.js';
+import { allApiProposals } from './extensionsApiProposals.js';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -369,7 +369,7 @@ export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): b
 			continue;
 		}
 		if (existingProposal.version !== version) {
-			incompatibleNotices.push(nls.localize('apiProposalMismatch', "Extension is using an API proposal '{0}' that is not compatible with the current version of VS Code.", proposalName));
+			incompatibleNotices.push(nls.localize('apiProposalMismatch', "This extension is using the API proposal '{0}' that is not compatible with the current version of VS Code.", proposalName));
 		}
 	}
 	notices?.push(...incompatibleNotices);

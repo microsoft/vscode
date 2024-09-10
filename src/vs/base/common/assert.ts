@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError } from './errors.js';
 
 /**
  * Throws an error with the provided message if the provided value does not evaluate to a true Javascript value.
