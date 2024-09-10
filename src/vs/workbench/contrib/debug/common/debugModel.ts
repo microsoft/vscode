@@ -10,7 +10,7 @@ import { VSBuffer, decodeBase64, encodeBase64 } from '../../../../base/common/bu
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event, trackSetChanges } from '../../../../base/common/event.js';
 import { stringHash } from '../../../../base/common/hash.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mixin } from '../../../../base/common/objects.js';
 import { autorun } from '../../../../base/common/observable.js';
 import * as resources from '../../../../base/common/resources.js';
