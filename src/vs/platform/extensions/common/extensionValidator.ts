@@ -369,7 +369,7 @@ export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): b
 			continue;
 		}
 		if (existingProposal.version !== version) {
-			incompatibleNotices.push(nls.localize('apiProposalMismatch', "Extension is using an API proposal '{0}' that is not compatible with the current version of VS Code.", proposalName));
+			incompatibleNotices.push(nls.localize('apiProposalMismatch', "This extension is using the API proposal '{0}' that is not compatible with the current version of VS Code.", proposalName));
 		}
 	}
 	notices?.push(...incompatibleNotices);
