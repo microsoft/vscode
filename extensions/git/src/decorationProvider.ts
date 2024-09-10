@@ -164,11 +164,11 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 	constructor(private readonly repository: Repository) {
 		this.disposables.push(
 			window.registerFileDecorationProvider(this),
-			runAndSubscribeEvent(repository.historyProvider.onDidChangeCurrentHistoryItemGroup, () => this.onDidChangeCurrentHistoryItemGroup())
+			runAndSubscribeEvent(repository.historyProvider.onDidChangeCurrentHistoryItemRefs, () => this.onDidChangeCurrentHistoryItemRefs())
 		);
 	}
 
-	private async onDidChangeCurrentHistoryItemGroup(): Promise<void> {
+	private async onDidChangeCurrentHistoryItemRefs(): Promise<void> {
 		const newDecorations = new Map<string, FileDecoration>();
 		await this.collectIncomingChangesFileDecorations(newDecorations);
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
@@ -218,18 +218,19 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 	private async getIncomingChanges(): Promise<Change[]> {
 		try {
 			const historyProvider = this.repository.historyProvider;
-			const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup;
+			const currentHistoryItemRef = historyProvider.currentHistoryItemRef;
+			const currentHistoryItemRemoteRef = historyProvider.currentHistoryItemRemoteRef;
 
-			if (!currentHistoryItemGroup?.remote) {
+			if (!currentHistoryItemRef || !currentHistoryItemRemoteRef) {
 				return [];
 			}
 
-			const ancestor = await historyProvider.resolveHistoryItemRefsCommonAncestor([currentHistoryItemGroup.id, currentHistoryItemGroup.remote.id]);
+			const ancestor = await historyProvider.resolveHistoryItemRefsCommonAncestor([currentHistoryItemRef.id, currentHistoryItemRemoteRef.id]);
 			if (!ancestor) {
 				return [];
 			}
 
-			const changes = await this.repository.diffBetween(ancestor, currentHistoryItemGroup.remote.id);
+			const changes = await this.repository.diffBetween(ancestor, currentHistoryItemRemoteRef.id);
 			return changes;
 		} catch (err) {
 			return [];

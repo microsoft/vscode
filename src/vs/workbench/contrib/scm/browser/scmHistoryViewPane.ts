@@ -129,9 +129,9 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 			const historyProvider = this._repository.provider.historyProvider.get();
 
 			return [
-				historyProvider?.currentHistoryItemRef.get()?.name,
-				historyProvider?.currentHistoryItemRemoteRef.get()?.name,
-				historyProvider?.currentHistoryItemBaseRef.get()?.name
+				historyProvider?.historyItemRef.get()?.name,
+				historyProvider?.historyItemRemoteRef.get()?.name,
+				historyProvider?.historyItemBaseRef.get()?.name
 			].filter(ref => !!ref).join(', ');
 		} else if (this._historyItemsFilter.length === 1) {
 			return this._historyItemsFilter[0].name;
@@ -326,7 +326,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
 		const provider = node.element.repository.provider;
-		const historyItemRef = provider.historyProvider.get()?.currentHistoryItemRef?.get();
+		const historyItemRef = provider.historyProvider.get()?.historyItemRef?.get();
 		const extraClasses = historyItemRef?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this._processMatches(historyItemViewModel, node.filterData);
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
@@ -752,9 +752,9 @@ class SCMHistoryViewModel extends Disposable {
 						break;
 					case 'auto':
 						historyItemRefs = [
-							historyProvider.currentHistoryItemRef.get(),
-							historyProvider.currentHistoryItemRemoteRef.get(),
-							historyProvider.currentHistoryItemBaseRef.get(),
+							historyProvider.historyItemRef.get(),
+							historyProvider.historyItemRemoteRef.get(),
+							historyProvider.historyItemBaseRef.get(),
 						].filter(ref => !!ref);
 						break;
 					default:
@@ -801,9 +801,9 @@ class SCMHistoryViewModel extends Disposable {
 	private _getGraphColorMap(historyItemRefs: ISCMHistoryItemRef[]): Map<string, ColorIdentifier | undefined> {
 		const repository = this.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
-		const historyItemRef = historyProvider?.currentHistoryItemRef.get();
-		const historyItemRemoteRef = historyProvider?.currentHistoryItemRemoteRef.get();
-		const historyItemBaseRef = historyProvider?.currentHistoryItemBaseRef.get();
+		const historyItemRef = historyProvider?.historyItemRef.get();
+		const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
+		const historyItemBaseRef = historyProvider?.historyItemBaseRef.get();
 
 		const colorMap = new Map<string, ColorIdentifier | undefined>();
 
@@ -1086,7 +1086,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				const firstRepositoryInitialized = derived(this, reader => {
 					const repository = this._treeViewModel.repository.read(reader);
 					const historyProvider = repository?.provider.historyProvider.read(reader);
-					const historyItemRef = historyProvider?.currentHistoryItemRef.read(reader);
+					const historyItemRef = historyProvider?.historyItemRef.read(reader);
 
 					return historyItemRef !== undefined ? true : undefined;
 				});
@@ -1115,12 +1115,12 @@ export class SCMHistoryViewPane extends ViewPane {
 
 				// Publish
 				const historyItemRemoteRefIdSignal = signalFromObservable(this, derived(reader => {
-					return historyProvider.currentHistoryItemRemoteRef.read(reader)?.id;
+					return historyProvider.historyItemRemoteRef.read(reader)?.id;
 				}));
 
 				// Fetch, Push
 				const historyItemRemoteRefRevision = derived(reader => {
-					return historyProvider.currentHistoryItemRemoteRef.read(reader)?.revision;
+					return historyProvider.historyItemRemoteRef.read(reader)?.revision;
 				});
 
 				// HistoryItemRefs changed
@@ -1134,7 +1134,7 @@ export class SCMHistoryViewPane extends ViewPane {
 						},
 					}, (reader, changeSummary) => {
 						historyItemRemoteRefIdSignal.read(reader);
-						const historyItemRefValue = historyProvider.currentHistoryItemRef.read(reader);
+						const historyItemRefValue = historyProvider.historyItemRef.read(reader);
 						const historyItemRemoteRefRevisionValue = historyItemRemoteRefRevision.read(reader);
 
 						// Commit, Checkout, Publish, Pull

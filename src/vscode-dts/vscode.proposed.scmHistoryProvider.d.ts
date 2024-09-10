@@ -11,13 +11,15 @@ declare module 'vscode' {
 	}
 
 	export interface SourceControlHistoryProvider {
-		currentHistoryItemGroup?: SourceControlHistoryItemGroup;
+		readonly currentHistoryItemRef: SourceControlHistoryItemRef | undefined;
+		readonly currentHistoryItemRemoteRef: SourceControlHistoryItemRef | undefined;
+		readonly currentHistoryItemBaseRef: SourceControlHistoryItemRef | undefined;
 
 		/**
-		 * Fires when the current history item group changes after
-		 * a user action (ex: commit, checkout, fetch, pull, push)
+		 * Fires when the current history item refs (local, remote, base)
+		 * change after a user action (ex: commit, checkout, fetch, pull, push)
 		 */
-		onDidChangeCurrentHistoryItemGroup: Event<void>;
+		onDidChangeCurrentHistoryItemRefs: Event<void>;
 
 		/**
 		 * Fires when history item refs change
@@ -35,14 +37,6 @@ declare module 'vscode' {
 		readonly skip?: number;
 		readonly limit?: number | { id?: string };
 		readonly historyItemRefs?: readonly string[];
-	}
-
-	export interface SourceControlHistoryItemGroup {
-		readonly id: string;
-		readonly name: string;
-		readonly revision?: string;
-		readonly base?: Omit<Omit<SourceControlHistoryItemGroup, 'base'>, 'remote'>;
-		readonly remote?: Omit<Omit<SourceControlHistoryItemGroup, 'base'>, 'remote'>;
 	}
 
 	export interface SourceControlHistoryItemStatistics {
