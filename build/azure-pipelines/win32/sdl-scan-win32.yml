@@ -85,6 +85,7 @@ steps:
       exec { npm ci }
     env:
       npm_config_arch: ${{ parameters.VSCODE_ARCH }}
+      npm_config_foreground_scripts: "true"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"

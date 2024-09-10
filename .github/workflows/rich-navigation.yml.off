@@ -28,6 +28,8 @@ jobs:
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
         run: npm ci
+        env:
+          npm_config_foreground_scripts: "true"
 
       - uses: microsoft/RichCodeNavIndexer@v0.1
         with:
