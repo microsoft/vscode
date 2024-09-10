@@ -44,7 +44,7 @@ import { NotebookEditorWidgetService } from './services/notebookEditorServiceImp
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { Event } from '../../../../base/common/event.js';
-import { getFormattedMetadataJSON, getFormattedOutputJSON, getStreamOutputData } from './diff/diffElementViewModel.js';
+import { getFormattedOutputJSON, getStreamOutputData } from './diff/diffElementViewModel.js';
 import { NotebookModelResolverServiceImpl } from '../common/notebookEditorModelResolverServiceImpl.js';
 import { INotebookKernelHistoryService, INotebookKernelService } from '../common/notebookKernelService.js';
 import { NotebookKernelService } from './services/notebookKernelServiceImpl.js';
@@ -126,6 +126,8 @@ import { NotebookAccessibleView } from './notebookAccessibleView.js';
 import { DefaultFormatter } from '../../format/browser/formatActionsMultiple.js';
 import { NotebookMultiTextDiffEditor } from './diff/notebookMultiDiffEditor.js';
 import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInput.js';
+import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
+import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -442,7 +444,7 @@ class CellInfoContentProvider {
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
 				const cellIndex = ref.object.notebook.cells.indexOf(cell);
-				const metadataSource = getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
+				const metadataSource = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,
@@ -450,9 +452,9 @@ class CellInfoContentProvider {
 				);
 				this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
 					if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellMetadata || event.kind === NotebookCellsChangeType.ChangeCellLanguage) && event.index === cellIndex)) {
-						const value = getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
+						const value = getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language);
 						if (result.getValue() !== value) {
-							result.setValue(getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language));
+							result.setValue(getFormattedMetadataJSON(ref.object.notebook.transientOptions.transientCellMetadata, cell.metadata, cell.language));
 						}
 					}
 				})));
@@ -789,6 +791,7 @@ registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingSe
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
+registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {

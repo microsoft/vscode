@@ -28,7 +28,7 @@ jobs:
   - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
     - job: Compile
       displayName: Compile & Hygiene
-      pool: 1es-oss-ubuntu-20.04-x64
+      pool: 1es-oss-ubuntu-22.04-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -39,7 +39,7 @@ jobs:
 
     - job: Linuxx64UnitTest
       displayName: Linux (Unit Tests)
-      pool: 1es-oss-ubuntu-20.04-x64
+      pool: 1es-oss-ubuntu-22.04-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -58,7 +58,7 @@ jobs:
 
     - job: Linuxx64IntegrationTest
       displayName: Linux (Integration Tests)
-      pool: 1es-oss-ubuntu-20.04-x64
+      pool: 1es-oss-ubuntu-22.04-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -77,7 +77,7 @@ jobs:
 
     - job: Linuxx64SmokeTest
       displayName: Linux (Smoke Tests)
-      pool: 1es-oss-ubuntu-20.04-x64
+      pool: 1es-oss-ubuntu-22.04-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -96,14 +96,14 @@ jobs:
 
     - job: LinuxCLI
       displayName: Linux (CLI)
-      pool: 1es-oss-ubuntu-20.04-x64
+      pool: 1es-oss-ubuntu-22.04-x64
       timeoutInMinutes: 30
       steps:
         - template: cli/test.yml@self
 
     - job: Windowsx64UnitTests
       displayName: Windows (Unit Tests)
-      pool: 1es-oss-windows-2019-x64
+      pool: 1es-oss-windows-2022-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -121,8 +121,8 @@ jobs:
 
     - job: Windowsx64IntegrationTests
       displayName: Windows (Integration Tests)
-      pool: 1es-oss-windows-2019-x64
-      timeoutInMinutes: 30
+      pool: 1es-oss-windows-2022-x64
+      timeoutInMinutes: 60
       variables:
         VSCODE_ARCH: x64
         NPM_ARCH: x64
@@ -139,7 +139,7 @@ jobs:
 
     # - job: Windowsx64SmokeTests
     #   displayName: Windows (Smoke Tests)
-    #   pool: 1es-oss-windows-2019-x64
+    #   pool: 1es-oss-windows-2022-x64
     #   timeoutInMinutes: 30
     #   variables:
     #     VSCODE_ARCH: x64
@@ -156,7 +156,7 @@ jobs:
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - job: Linuxx64MaintainNodeModulesCache
       displayName: Linux (Maintain node_modules cache)
-      pool: 1es-oss-ubuntu-20.04-x64
+      pool: 1es-oss-ubuntu-22.04-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -165,7 +165,7 @@ jobs:
 
     - job: Windowsx64MaintainNodeModulesCache
       displayName: Windows (Maintain node_modules cache)
-      pool: 1es-oss-windows-2019-x64
+      pool: 1es-oss-windows-2022-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64

@@ -18,7 +18,7 @@ steps:
 
   - template: ../distro/download-distro.yml@self
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
@@ -32,18 +32,18 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
-      exec { yarn config set registry "$env:NPM_REGISTRY" }
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
@@ -82,7 +82,7 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      retry { exec { yarn --frozen-lockfile --check-files } }
+      retry { exec { npm ci } }
     env:
       npm_config_arch: ${{ parameters.VSCODE_ARCH }}
       CHILD_CONCURRENCY: 1
@@ -99,7 +99,7 @@ steps:
     env:
       VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
-  - powershell: yarn compile
+  - powershell: npm run compile
     displayName: Compile
 
   - powershell: |
@@ -109,7 +109,7 @@ steps:
       Get-ChildItem '$(Build.SourcesDirectory)' -Recurse -Filter "*.pdb"
     displayName: List files
 
-  - powershell: yarn gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+  - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Symbols

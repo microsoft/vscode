@@ -5,7 +5,6 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
-import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
@@ -17,10 +16,11 @@ import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from './
 import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN, DiffSide, IDiffElementLayoutInfo } from './notebookDiffEditorBrowser.js';
 import { CellLayoutState, IGenericCellViewModel } from '../notebookBrowser.js';
 import { NotebookLayoutInfo } from '../notebookViewEvents.js';
-import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { getFormattedMetadataJSON, NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto, NotebookCellMetadata } from '../../common/notebookCommon.js';
+import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -182,6 +182,10 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		return this.layoutInfo.totalHeight;
 	}
 
+	private get ignoreOutputs() {
+		return this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(this.mainDocumentTextModel?.transientOptions.transientOutputs);
+	}
+
 	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _outputEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
@@ -199,7 +203,8 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		},
-		notebookService: INotebookService
+		notebookService: INotebookService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super(mainDocumentTextModel, editorEventDispatcher, initData);
 		this.original = original ? this._register(new DiffNestedCellViewModel(original, notebookService)) : undefined;
@@ -265,7 +270,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		const outputStatusHeight = delta.outputStatusHeight !== undefined ? delta.outputStatusHeight : this._layoutInfo.outputStatusHeight;
 		const bodyMargin = delta.bodyMargin !== undefined ? delta.bodyMargin : this._layoutInfo.bodyMargin;
 		const outputMetadataHeight = delta.outputMetadataHeight !== undefined ? delta.outputMetadataHeight : this._layoutInfo.outputMetadataHeight;
-		const outputHeight = (delta.recomputeOutput || delta.rawOutputHeight !== undefined || delta.outputMetadataHeight !== undefined) ? this._getOutputTotalHeight(rawOutputHeight, outputMetadataHeight) : this._layoutInfo.outputTotalHeight;
+		const outputHeight = this.ignoreOutputs ? 0 : (delta.recomputeOutput || delta.rawOutputHeight !== undefined || delta.outputMetadataHeight !== undefined) ? this._getOutputTotalHeight(rawOutputHeight, outputMetadataHeight) : this._layoutInfo.outputTotalHeight;
 
 		const totalHeight = editorHeight
 			+ editorMargin
@@ -359,7 +364,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 
 	getHeight(lineHeight: number) {
 		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			const editorHeight = this.estimateEditorHeight(lineHeight);
+			const editorHeight = this.cellFoldingState === PropertyFoldingState.Collapsed ? 0 : this.estimateEditorHeight(lineHeight);
 			return this._computeTotalHeight(editorHeight);
 		} else {
 			return this._layoutInfo.totalHeight;
@@ -481,7 +486,8 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		},
-		notebookService: INotebookService
+		notebookService: INotebookService,
+		configurationService: IConfigurationService
 	) {
 		super(
 			mainDocumentTextModel,
@@ -490,7 +496,8 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			type,
 			editorEventDispatcher,
 			initData,
-			notebookService);
+			notebookService,
+			configurationService);
 
 		this.type = type;
 
@@ -550,13 +557,13 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		}
 
 		return {
-			reason: ret === OutputComparison.Metadata ? 'Output metadata is changed' : undefined,
+			reason: ret === OutputComparison.Metadata ? 'Output metadata has changed' : undefined,
 			kind: ret
 		};
 	}
 
 	checkMetadataIfModified() {
-		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel.transientOptions.transientCellMetadata, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel.transientOptions.transientCellMetadata, this.modified?.metadata ?? {}, this.modified?.language));
 		if (modified) {
 			return { reason: undefined };
 		} else {
@@ -659,9 +666,10 @@ export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		},
-		notebookService: INotebookService
+		notebookService: INotebookService,
+		configurationService: IConfigurationService
 	) {
-		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService);
+		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService, configurationService);
 		this.type = type;
 
 		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {
@@ -801,38 +809,6 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 	}
 
 	return OutputComparison.Unchanged;
-}
-
-export function getFormattedMetadataJSON(documentTextModel: INotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
-	let filteredMetadata: { [key: string]: any } = {};
-
-	if (documentTextModel) {
-		const transientCellMetadata = documentTextModel.transientOptions.transientCellMetadata;
-
-		const keys = new Set([...Object.keys(metadata)]);
-		for (const key of keys) {
-			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
-			) {
-				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
-			}
-		}
-	} else {
-		filteredMetadata = metadata;
-	}
-
-	const obj = {
-		language,
-		...filteredMetadata
-	};
-	// Give preference to the language we have been given.
-	// Metadata can contain `language` due to round-tripping of cell metadata.
-	// I.e. we add it here, and then from SCM when we revert the cell, we get this same metadata back with the `language` property.
-	if (language) {
-		obj.language = language;
-	}
-	const metadataSource = toFormattedString(obj, {});
-
-	return metadataSource;
 }
 
 export function getStreamOutputData(outputs: IOutputItemDto[]) {

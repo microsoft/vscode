@@ -37,6 +37,7 @@ import { IViewDescriptorService, ViewContainerLocation, ViewContainerLocationToS
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 export class ActivitybarPart extends Part {
 
@@ -205,6 +206,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IViewsService viewService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -217,7 +219,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 				options.fillExtraContextMenuActions(actions, e);
 				this.fillContextMenuActions(actions, e);
 			}
-		}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, contextKeyService, environmentService, layoutService);
+		}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
 
 		if (showGlobalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));

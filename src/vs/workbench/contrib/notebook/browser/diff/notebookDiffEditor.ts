@@ -511,7 +511,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 
 		if (this._model) {
-			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.instantiationService, this.configurationService, this._eventDispatcher!, this.notebookService, this.fontInfo));
+			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.fontInfo));
 			this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
 				this._list.splice(e.start, e.deleteCount, e.elements);
 				if (this.isOverviewRulerEnabled()) {

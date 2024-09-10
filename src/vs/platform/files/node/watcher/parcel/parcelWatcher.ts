@@ -5,7 +5,7 @@
 
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, statSync, unlinkSync } from 'fs';
-import { tmpdir } from 'os';
+import { tmpdir, homedir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
 import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -16,7 +16,7 @@ import { GLOBSTAR, patternsEquals } from '../../../../../base/common/glob.js';
 import { BaseWatcher } from '../baseWatcher.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
-import { dirname, normalize } from '../../../../../base/common/path.js';
+import { dirname, normalize, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { realcaseSync, realpathSync } from '../../../../../base/node/extpath.js';
 import { NodeJSFileWatcherLibrary } from '../nodejs/nodejsWatcherLib.js';
@@ -144,6 +144,14 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			['delete', FileChangeType.DELETED]
 		]
 	);
+
+	private static readonly PREDEFINED_EXCLUDES: { [platform: string]: string[] } = {
+		'win32': [],
+		'darwin': [
+			join(homedir(), 'Library', 'Containers') // Triggers access dialog from macOS 14 (https://github.com/microsoft/vscode/issues/208105)
+		],
+		'linux': []
+	};
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
 
@@ -294,7 +302,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			// We already ran before, check for events since
 			if (counter > 1) {
-				const parcelEvents = await parcelWatcher.getEventsSince(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+				const parcelEvents = await parcelWatcher.getEventsSince(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 				if (cts.token.isCancellationRequested) {
 					return;
@@ -305,7 +313,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			}
 
 			// Store a snapshot of files to the snapshot file
-			await parcelWatcher.writeSnapshot(realPath, snapshotFile, { ignore: request.excludes, backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			await parcelWatcher.writeSnapshot(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
@@ -367,7 +375,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 			}, {
 				backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-				ignore: watcher.request.excludes
+				ignore: this.addPredefinedExcludes(watcher.request.excludes)
 			});
 
 			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
@@ -381,6 +389,21 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			watcher.notifyWatchFailed();
 			this._onDidWatchFail.fire(request);
 		}
+	}
+
+	private addPredefinedExcludes(initialExcludes: string[]): string[] {
+		const excludes = [...initialExcludes];
+
+		const predefinedExcludes = ParcelWatcher.PREDEFINED_EXCLUDES[process.platform];
+		if (Array.isArray(predefinedExcludes)) {
+			for (const exclude of predefinedExcludes) {
+				if (!excludes.includes(exclude)) {
+					excludes.push(exclude);
+				}
+			}
+		}
+
+		return excludes;
 	}
 
 	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: ParcelWatcherInstance, realPathDiffers: boolean, realPathLength: number): void {

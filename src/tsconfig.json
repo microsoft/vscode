@@ -7,7 +7,7 @@
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
-		"isolatedModules": true,
+		"isolatedModules": false,
 		"outDir": "../out/vs",
 		"types": [
 			"mocha",

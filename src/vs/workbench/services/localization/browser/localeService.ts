@@ -14,34 +14,11 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { getCookieValue } from '../../../../base/browser/dom.js';
 
 const localeStorage = new class LocaleStorage {
 
 	private static readonly LOCAL_STORAGE_LOCALE_KEY = 'vscode.nls.locale';
 	private static readonly LOCAL_STORAGE_EXTENSION_ID_KEY = 'vscode.nls.languagePackExtensionId';
-
-	constructor() {
-		this.migrateCookie(); // TODO@bpasero remove me eventually
-	}
-
-	private migrateCookie(): void {
-		const localeCookieValue = getCookieValue(LocaleStorage.LOCAL_STORAGE_LOCALE_KEY);
-		const localeStorageValue = localStorage.getItem(LocaleStorage.LOCAL_STORAGE_LOCALE_KEY);
-
-		if (
-			(typeof localeCookieValue !== 'string' && typeof localeStorageValue !== 'string') ||
-			(localeCookieValue === localeStorageValue)
-		) {
-			return; // already matching
-		}
-
-		if (typeof localeStorageValue === 'string') {
-			this.doSetLocaleToCookie(localeStorageValue);
-		} else {
-			this.doClearLocaleToCookie();
-		}
-	}
 
 	setLocale(locale: string): void {
 		localStorage.setItem(LocaleStorage.LOCAL_STORAGE_LOCALE_KEY, locale);

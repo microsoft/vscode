@@ -169,6 +169,7 @@ export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly reference?: number;
 	readonly memoryReference?: string;
 	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
+	readonly valueLocationReference?: number;
 }
 
 export interface IExpression extends IExpressionContainer {
@@ -910,7 +911,6 @@ export interface IDebugAdapterInlineImpl extends IDisposable {
 
 export interface IDebugAdapterImpl {
 	readonly type: 'implementation';
-	readonly implementation: IDebugAdapterInlineImpl;
 }
 
 export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterNamedPipeServer | IDebugAdapterImpl;

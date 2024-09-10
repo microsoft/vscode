@@ -723,7 +723,7 @@ impl Auth {
 
 			match &init_code_json.message {
 				Some(m) => self.log.result(m),
-				None => self.log.result(&format!(
+				None => self.log.result(format!(
 					"To grant access to the server, please log into {} and use code {}",
 					init_code_json.verification_uri, init_code_json.user_code
 				)),

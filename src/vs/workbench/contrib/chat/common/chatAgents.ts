@@ -74,7 +74,7 @@ export interface IChatAgentData {
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
-	disambiguation: { categoryName: string; description: string; examples: string[] }[];
+	disambiguation: { category: string; description: string; examples: string[] }[];
 	supportsToolReferences?: boolean;
 }
 
@@ -94,7 +94,7 @@ export interface IChatParticipantDetectionResult {
 export interface IChatParticipantMetadata {
 	participant: string;
 	command?: string;
-	disambiguation: { categoryName: string; description: string; examples: string[] }[];
+	disambiguation: { category: string; description: string; examples: string[] }[];
 }
 
 export interface IChatParticipantDetectionProvider {
@@ -507,7 +507,7 @@ export class MergedChatAgent implements IChatAgent {
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
-	get disambiguation(): { categoryName: string; description: string; examples: string[] }[] { return this.data.disambiguation; }
+	get disambiguation(): { category: string; description: string; examples: string[] }[] { return this.data.disambiguation; }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		return this.impl.invoke(request, progress, history, token);

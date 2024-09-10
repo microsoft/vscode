@@ -8,12 +8,19 @@ const path = require('path');
 const os = require('os');
 const cp = require('child_process');
 const { dirs } = require('./dirs');
-const { setupBuildYarnrc } = require('./setupBuildYarnrc');
-const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const root = path.dirname(path.dirname(__dirname));
 
+function log(dir, message) {
+	if (process.stdout.isTTY) {
+		console.log(`\x1b[34m[${dir}]\x1b[0m`, message);
+	} else {
+		console.log(`[${dir}]`, message);
+	}
+}
+
 function run(command, args, opts) {
-	console.log('$ ' + command + ' ' + args.join(' '));
+	log(opts.cwd || '.', '$ ' + command + ' ' + args.join(' '));
 
 	const result = cp.spawnSync(command, args, opts);
 
@@ -30,7 +37,7 @@ function run(command, args, opts) {
  * @param {string} dir
  * @param {*} [opts]
  */
-function yarnInstall(dir, opts) {
+function npmInstall(dir, opts) {
 	opts = {
 		env: { ...process.env },
 		...(opts ?? {}),
@@ -39,88 +46,95 @@ function yarnInstall(dir, opts) {
 		shell: true
 	};
 
-	const raw = process.env['npm_config_argv'] || '{}';
-	const argv = JSON.parse(raw);
-	const original = argv.original || [];
-	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile' || arg === '--check-files');
-
-	if (opts.ignoreEngines) {
-		args.push('--ignore-engines');
-		delete opts.ignoreEngines;
-	}
+	const command = process.env['npm_command'] || 'install';
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const userinfo = os.userInfo();
-		console.log(`Installing dependencies in ${dir} inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
+		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
 		opts.cwd = root;
 		if (process.env['npm_config_arch'] === 'arm64') {
 			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
 		}
-		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'yarn', '--cwd', dir, ...args], opts);
-		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${dir}/node_modules`], opts);
+		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve('/root/vscode', dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && npm i -g node-gyp-build && npm ci\"`], opts);
+		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
-		console.log(`Installing dependencies in ${dir}...`);
-		run(yarn, args, opts);
+		log(dir, 'Installing dependencies...');
+		run(npm, [command], opts);
+	}
+}
+
+function setNpmrcConfig(dir, env) {
+	const npmrcPath = path.join(root, dir, '.npmrc');
+	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
+
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		if (trimmedLine && !trimmedLine.startsWith('#')) {
+			const [key, value] = trimmedLine.split('=');
+			env[`npm_config_${key}`] = value.replace(/^"(.*)"$/, '$1');
+		}
+	}
+
+	if (dir === 'build') {
+		env['npm_config_target'] = process.versions.node;
+		env['npm_config_arch'] = process.arch;
 	}
 }
 
 for (let dir of dirs) {
 
 	if (dir === '') {
-		// `yarn` already executed in root
+		// already executed in root
 		continue;
-	}
-
-	if (/^.build\/distro\/npm(\/?)/.test(dir)) {
-		const ossPath = path.relative('.build/distro/npm', dir);
-		const ossYarnRc = path.join(ossPath, '.yarnrc');
-
-		if (fs.existsSync(ossYarnRc)) {
-			fs.cpSync(ossYarnRc, path.join(dir, '.yarnrc'));
-		}
 	}
 
 	let opts;
 
 	if (dir === 'build') {
-		const env = { ...process.env };
-		setupBuildYarnrc();
-		opts = { env };
-		if (process.env['CC']) { env['CC'] = 'gcc'; }
-		if (process.env['CXX']) { env['CXX'] = 'g++'; }
-		if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
-		if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
-		yarnInstall('build', opts);
+		opts = {
+			env: {
+				...process.env
+			},
+		}
+		if (process.env['CC']) { opts.env['CC'] = 'gcc'; }
+		if (process.env['CXX']) { opts.env['CXX'] = 'g++'; }
+		if (process.env['CXXFLAGS']) { opts.env['CXXFLAGS'] = ''; }
+		if (process.env['LDFLAGS']) { opts.env['LDFLAGS'] = ''; }
+
+		setNpmrcConfig('build', opts.env);
+		npmInstall('build', opts);
 		continue;
 	}
 
 	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		// node modules used by vscode server
-		const env = { ...process.env };
+		opts = {
+			env: {
+				...process.env
+			},
+		}
 		if (process.env['VSCODE_REMOTE_CC']) {
-			env['CC'] = process.env['VSCODE_REMOTE_CC'];
+			opts.env['CC'] = process.env['VSCODE_REMOTE_CC'];
 		} else {
-			delete env['CC'];
+			delete opts.env['CC'];
 		}
 		if (process.env['VSCODE_REMOTE_CXX']) {
-			env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
+			opts.env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
 		} else {
-			delete env['CXX'];
+			delete opts.env['CXX'];
 		}
-		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
-		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
-		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
-		if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+		if (process.env['CXXFLAGS']) { delete opts.env['CXXFLAGS']; }
+		if (process.env['CFLAGS']) { delete opts.env['CFLAGS']; }
+		if (process.env['LDFLAGS']) { delete opts.env['LDFLAGS']; }
+		if (process.env['VSCODE_REMOTE_CXXFLAGS']) { opts.env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
+		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
+		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-		opts = { env };
-	} else if (/^extensions\//.test(dir)) {
-		opts = { ignoreEngines: true };
+		setNpmrcConfig('remote', opts.env);
 	}
 
-	yarnInstall(dir, opts);
+	npmInstall(dir, opts);
 }
 
 cp.execSync('git config pull.rebase merges');

@@ -14,6 +14,12 @@ const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
+	// ESM-comment-begin
+	// const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	const isESM = true;
+	// ESM-uncomment-end
 
 	function factory() {
 		// First group matches a double quoted string
@@ -73,7 +79,7 @@ const module = { exports: {} };
 		};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		// amd
 		define([], function () { return factory(); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {

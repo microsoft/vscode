@@ -61,8 +61,7 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { IExtensionsViewPaneContainer, VIEWLET_ID } from '../../extensions/common/extensions.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { WorkspaceStateSynchroniser } from '../common/workspaceStateSync.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
@@ -101,10 +100,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositePartService = accessor.get(IPaneCompositePartService);
-		const viewlet = await paneCompositePartService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search('@tag:continueOn');
+		return accessor.get(IExtensionsWorkbenchService).openSearch('@tag:continueOn');
 	}
 });
 
