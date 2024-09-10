@@ -21,6 +21,7 @@ import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../co
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
+import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
 	private readonly placeholderAndRelatedCells = new Map<DiffElementPlaceholderViewModel, DiffElementCellViewModelBase[]>();
