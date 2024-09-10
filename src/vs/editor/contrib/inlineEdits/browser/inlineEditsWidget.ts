@@ -6,9 +6,10 @@
 import { h, svgElem } from '../../../../base/browser/dom.js';
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable } from '../../../../base/common/observable.js';
-import { derivedWithSetter } from '../../../../base/common/observableInternal/derived.js';
-import './inlineEditsWidget.css';
+import { autorun, constObservable, derived, derivedWithSetter, IObservable, ISettableObservable } from '../../../../base/common/observable.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../browser/editorExtensions.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
@@ -24,9 +25,7 @@ import { TextModel } from '../../../common/model/textModel.js';
 import { ContextMenuController } from '../../contextmenu/browser/contextmenu.js';
 import { PlaceholderTextContribution } from '../../placeholderText/browser/placeholderTextContribution.js';
 import { SuggestController } from '../../suggest/browser/suggestController.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import './inlineEditsWidget.css';
 
 export class InlineEdit {
 	constructor(
