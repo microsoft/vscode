@@ -36,7 +36,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
 		() => this.scmService.repositories);
 
-	private readonly _activeRepositoryCurrentHistoryItemGroupName = derived(reader => {
+	private readonly _activeRepositoryHistoryItemRefName = derived(reader => {
 		const repository = this.scmViewService.activeRepository.read(reader);
 		const historyProvider = repository?.provider.historyProvider.read(reader);
 		const historyItemRef = historyProvider?.historyItemRef.read(reader);
@@ -109,9 +109,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const repository = this.scmViewService.activeRepository.read(reader);
-			const currentHistoryItemGroupName = this._activeRepositoryCurrentHistoryItemGroupName.read(reader);
+			const historyItemRefName = this._activeRepositoryHistoryItemRefName.read(reader);
 
-			this._updateActiveRepositoryContextKeys(repository?.provider.name, currentHistoryItemGroupName);
+			this._updateActiveRepositoryContextKeys(repository?.provider.name, historyItemRefName);
 		}));
 	}
 
