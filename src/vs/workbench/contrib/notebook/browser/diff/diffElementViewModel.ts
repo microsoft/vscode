@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import * as editorCommon from '../../../../../editor/common/editorCommon.js';
-import { fixedEditorPadding } from './diffCellEditorOptions.js';
+import { getEditorPadding } from './diffCellEditorOptions.js';
 import { DiffNestedCellViewModel } from './diffNestedCellViewModel.js';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from './eventDispatcher.js';
 import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN, DiffSide, IDiffElementLayoutInfo } from './notebookDiffEditorBrowser.js';
@@ -18,9 +18,16 @@ import { CellLayoutState, IGenericCellViewModel } from '../notebookBrowser.js';
 import { NotebookLayoutInfo } from '../notebookViewEvents.js';
 import { getFormattedMetadataJSON, NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto } from '../../common/notebookCommon.js';
+import { CellUri, ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
+import { Schemas } from '../../../../../base/common/network.js';
+
+// From `.monaco-editor .diff-hidden-lines .center` in src/vs/editor/browser/widget/diffEditor/style.css
+export const HeightOfHiddenLinesRegionInDiffEditor = 24;
+
+export const DefaultLineHeight = 17;
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -204,7 +211,9 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 			fontInfo: FontInfo | undefined;
 		},
 		notebookService: INotebookService,
-		private readonly configurationService: IConfigurationService
+		public readonly index: number,
+		private readonly configurationService: IConfigurationService,
+		public readonly unchangedRegionsService: IUnchangedEditorRegionsService
 	) {
 		super(mainDocumentTextModel, editorEventDispatcher, initData);
 		this.original = original ? this._register(new DiffNestedCellViewModel(original, notebookService)) : undefined;
@@ -246,14 +255,14 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 			case 'insert':
 				{
 					const lineCount = this.modified!.textModel.textBuffer.getLineCount();
-					const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
+					const editorHeight = lineCount * lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom;
 					return editorHeight;
 				}
 			case 'delete':
 			case 'modified':
 				{
 					const lineCount = this.original!.textModel.textBuffer.getLineCount();
-					const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
+					const editorHeight = lineCount * lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom;
 					return editorHeight;
 				}
 		}
@@ -364,7 +373,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 
 	getHeight(lineHeight: number) {
 		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
-			const editorHeight = this.cellFoldingState === PropertyFoldingState.Collapsed ? 0 : this.estimateEditorHeight(lineHeight);
+			const editorHeight = this.cellFoldingState === PropertyFoldingState.Collapsed ? 0 : this.computeInputEditorHeight(lineHeight);
 			return this._computeTotalHeight(editorHeight);
 		} else {
 			return this._layoutInfo.totalHeight;
@@ -385,15 +394,9 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		return totalHeight;
 	}
 
-	private estimateEditorHeight(lineHeight: number | undefined = 20): number {
-		const hasScrolling = false;
-		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
-		// const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+	public computeInputEditorHeight(lineHeight: number): number {
 		const lineCount = Math.max(this.original?.textModel.textBuffer.getLineCount() ?? 1, this.modified?.textModel.textBuffer.getLineCount() ?? 1);
-		return lineCount * lineHeight
-			+ 24 // Top padding
-			+ 12 // Bottom padding
-			+ verticalScrollbarHeight;
+		return lineCount * lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom;
 	}
 
 	private _getOutputTotalHeight(rawOutputHeight: number, metadataHeight: number) {
@@ -474,6 +477,10 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 	override readonly modified!: DiffNestedCellViewModel;
 	override readonly type: 'unchanged' | 'modified';
 
+	/**
+	 * The height of the editor when the unchanged lines are collapsed.
+	 */
+	private editorHeightWithUnchangedLinesCollapsed?: number;
 	constructor(
 		mainDocumentTextModel: NotebookTextModel,
 		readonly otherDocumentTextModel: NotebookTextModel,
@@ -487,7 +494,9 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			fontInfo: FontInfo | undefined;
 		},
 		notebookService: INotebookService,
-		configurationService: IConfigurationService
+		configurationService: IConfigurationService,
+		index: number,
+		unchangedRegionsService: IUnchangedEditorRegionsService
 	) {
 		super(
 			mainDocumentTextModel,
@@ -497,7 +506,9 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			editorEventDispatcher,
 			initData,
 			notebookService,
-			configurationService);
+			index,
+			configurationService,
+			unchangedRegionsService);
 
 		this.type = type;
 
@@ -629,6 +640,40 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			return this.modified;
 		}
 	}
+
+	public override computeInputEditorHeight(lineHeight: number): number {
+		if (this.type === 'modified' &&
+			typeof this.editorHeightWithUnchangedLinesCollapsed === 'number' &&
+			this.unchangedRegionsService.options.enabled &&
+			this.checkIfInputModified()) {
+			return this.editorHeightWithUnchangedLinesCollapsed;
+		}
+
+		return super.computeInputEditorHeight(lineHeight);
+	}
+
+	private async computeInputEditorHeightWithUnchangedLinesHidden() {
+		if (this.checkIfInputModified()) {
+			this.editorHeightWithUnchangedLinesCollapsed = this._layoutInfo.editorHeight = await this.unchangedRegionsService.computeEditorHeight(this.original.uri, this.modified.uri);
+		}
+	}
+
+	private async computeMetadataEditorHeightWithUnchangedLinesHidden() {
+		if (this.checkMetadataIfModified()) {
+			const originalMetadataUri = CellUri.generateCellPropertyUri(this.originalDocument.uri, this.original.handle, Schemas.vscodeNotebookCellMetadata);
+			const modifiedMetadataUri = CellUri.generateCellPropertyUri(this.modifiedDocument.uri, this.modified.handle, Schemas.vscodeNotebookCellMetadata);
+			this._layoutInfo.metadataHeight = await this.unchangedRegionsService.computeEditorHeight(originalMetadataUri, modifiedMetadataUri);
+		}
+	}
+
+	public async computeEditorHeights() {
+		if (this.type === 'unchanged' || !this.unchangedRegionsService.options.enabled) {
+			return;
+		}
+
+		await Promise.all([this.computeInputEditorHeightWithUnchangedLinesHidden(), this.computeMetadataEditorHeightWithUnchangedLinesHidden()]);
+	}
+
 }
 
 export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase {
@@ -667,9 +712,11 @@ export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase
 			fontInfo: FontInfo | undefined;
 		},
 		notebookService: INotebookService,
-		configurationService: IConfigurationService
+		configurationService: IConfigurationService,
+		unchangedRegionsService: IUnchangedEditorRegionsService,
+		index: number
 	) {
-		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService, configurationService);
+		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService, index, configurationService, unchangedRegionsService);
 		this.type = type;
 
 		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {

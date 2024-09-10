@@ -64,6 +64,30 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'notebook.diff.cell.toggleCollapseUnchangedRegions',
+			title: localize2('notebook.diff.cell.toggleCollapseUnchangedRegions', 'Toggle Collapse Unchanged Regions'),
+			icon: Codicon.map,
+			toggled: ContextKeyExpr.has('config.diffEditor.hideUnchangedRegions.enabled'),
+			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const configurationService = accessor.get(IConfigurationService);
+		const newValue = !configurationService.getValue<boolean>('diffEditor.hideUnchangedRegions.enabled');
+		configurationService.updateValue('diffEditor.hideUnchangedRegions.enabled', newValue);
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'notebook.diff.switchToText',
 			icon: openAsTextIcon,
 			title: localize2('notebook.diff.switchToText', 'Open Text Diff Editor'),

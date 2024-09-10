@@ -129,6 +129,18 @@ declare module 'vscode' {
 		constructor(uri: Uri, range: Range);
 	}
 
+	// Extended to add `SymbolInformation`. Would also be added to `constructor`.
+	export interface ChatResponseAnchorPart {
+		/**
+		 * The target of this anchor.
+		 *
+		 * If this is a {@linkcode Uri} or {@linkcode Location}, this is rendered as a normal link.
+		 *
+		 * If this is a {@linkcode SymbolInformation}, this is rendered as a symbol link.
+		 */
+		value2: Uri | Location | SymbolInformation;
+	}
+
 	export interface ChatResponseStream {
 
 		/**
