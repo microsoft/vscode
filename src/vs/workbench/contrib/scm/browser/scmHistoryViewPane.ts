@@ -766,10 +766,10 @@ class SCMHistoryViewModel extends Disposable {
 			}
 
 			const limit = clamp(this._configurationService.getValue<number>('scm.graph.pageSize'), 1, 1000);
-			const historyItemGroupIds = historyItemRefs.map(ref => ref.revision ?? ref.id);
+			const historyItemRefIds = historyItemRefs.map(ref => ref.revision ?? ref.id);
 
 			const historyItems = await historyProvider.provideHistoryItems({
-				historyItemRefs: historyItemGroupIds, limit, skip: existingHistoryItems.length
+				historyItemRefs: historyItemRefIds, limit, skip: existingHistoryItems.length
 			}) ?? [];
 
 			state = {
