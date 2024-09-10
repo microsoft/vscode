@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { CommentCommandId } from '../common/commentCommandIds.js';
@@ -20,9 +21,11 @@ export class CommentFormActions implements IDisposable {
 	constructor(
 		private readonly keybindingService: IKeybindingService,
 		private readonly contextKeyService: IContextKeyService,
+		private readonly contextMenuService: IContextMenuService,
 		private container: HTMLElement,
 		private actionHandler: (action: IAction) => void,
-		private readonly maxActions?: number
+		private readonly maxActions?: number,
+		private readonly supportDropdowns?: boolean,
 	) { }
 
 	setActions(menu: IMenu, hasOnlySecondaryActions: boolean = false) {
@@ -34,16 +37,31 @@ export class CommentFormActions implements IDisposable {
 		const groups = menu.getActions({ shouldForwardArgs: true });
 		let isPrimary: boolean = !hasOnlySecondaryActions;
 		for (const group of groups) {
-			const [, actions] = group;
+			const [groupId, actions] = group;
 
 			this._actions = actions;
-			for (const action of actions) {
+			const isDropdown = this.supportDropdowns && /_\d+_dropdown$/.test(groupId);
+			for (const current of isDropdown ? [actions] : actions) {
+				const [action, dropDownActions] = Array.isArray(current) ? [current[0], current.slice(1)] : [current, []];
 				let keybinding = this.keybindingService.lookupKeybinding(action.id, this.contextKeyService)?.getLabel();
 				if (!keybinding && isPrimary) {
 					keybinding = this.keybindingService.lookupKeybinding(CommentCommandId.Submit, this.contextKeyService)?.getLabel();
 				}
 				const title = keybinding ? `${action.label} (${keybinding})` : action.label;
-				const button = new Button(this.container, { secondary: !isPrimary, title, ...defaultButtonStyles });
+				const actionHandler = this.actionHandler;
+				const button = dropDownActions.length ? new ButtonWithDropdown(this.container, {
+					contextMenuProvider: this.contextMenuService,
+					actions: dropDownActions,
+					actionRunner: new class extends ActionRunner {
+						protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+							return actionHandler(action);
+						}
+					},
+					secondary: !isPrimary,
+					title,
+					addPrimaryActionToDropdown: false,
+					...defaultButtonStyles
+				}) : new Button(this.container, { secondary: !isPrimary, title, ...defaultButtonStyles });
 
 				isPrimary = false;
 				this._buttonElements.push(button.element);
