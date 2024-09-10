@@ -30,6 +30,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
 import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 
 class MessageWidget {
 
