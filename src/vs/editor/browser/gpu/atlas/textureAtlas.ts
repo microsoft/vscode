@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { CharCode } from '../../../../base/common/charCode.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { TwoKeyMap } from '../../../../base/common/map.js';
@@ -126,7 +127,7 @@ export class TextureAtlas extends Disposable {
 		const taskQueue = this._warmUpTask.value = new IdleTaskQueue();
 		// Warm up using roughly the larger glyphs first to help optimize atlas allocation
 		// A-Z
-		for (let code = 65; code <= 90; code++) {
+		for (let code = CharCode.A; code <= CharCode.Z; code++) {
 			taskQueue.enqueue(() => {
 				for (const fgColor of this._colorMap.keys()) {
 					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
@@ -134,7 +135,7 @@ export class TextureAtlas extends Disposable {
 			});
 		}
 		// a-z
-		for (let code = 97; code <= 122; code++) {
+		for (let code = CharCode.a; code <= CharCode.z; code++) {
 			taskQueue.enqueue(() => {
 				for (const fgColor of this._colorMap.keys()) {
 					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
@@ -142,7 +143,7 @@ export class TextureAtlas extends Disposable {
 			});
 		}
 		// Remaining ascii
-		for (let code = 33; code <= 126; code++) {
+		for (let code = CharCode.ExclamationMark; code <= CharCode.Tilde; code++) {
 			taskQueue.enqueue(() => {
 				for (const fgColor of this._colorMap.keys()) {
 					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
