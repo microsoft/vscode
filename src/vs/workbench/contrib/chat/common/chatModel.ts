@@ -290,11 +290,14 @@ export class Response extends Disposable implements IResponse {
 	}
 
 	private _updateRepr(quiet?: boolean) {
+		const inlineRefToRepr = (part: IChatContentInlineReference) =>
+			'uri' in part.inlineReference ? basename(part.inlineReference.uri) : 'name' in part.inlineReference ? part.inlineReference.name : basename(part.inlineReference);
+
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {
 				return '';
 			} else if (part.kind === 'inlineReference') {
-				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+				return inlineRefToRepr(part);
 			} else if (part.kind === 'command') {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
@@ -314,7 +317,7 @@ export class Response extends Disposable implements IResponse {
 
 		this._markdownContent = this._responseParts.map(part => {
 			if (part.kind === 'inlineReference') {
-				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+				return inlineRefToRepr(part);
 			} else if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
 				return part.content.value;
 			} else {
@@ -807,28 +810,24 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get requesterUsername(): string {
-		return (this._defaultAgent ?
-			this._defaultAgent.metadata.requester?.name :
-			this.initialData?.requesterUsername) ?? '';
+		return this._defaultAgent?.metadata.requester?.name ??
+			this.initialData?.requesterUsername ?? '';
 	}
 
 	get responderUsername(): string {
-		return (this._defaultAgent ?
-			this._defaultAgent.fullName :
-			this.initialData?.responderUsername) ?? '';
+		return this._defaultAgent?.fullName ??
+			this.initialData?.responderUsername ?? '';
 	}
 
 	private readonly _initialRequesterAvatarIconUri: URI | undefined;
 	get requesterAvatarIconUri(): URI | undefined {
-		return this._defaultAgent ?
-			this._defaultAgent.metadata.requester?.icon :
+		return this._defaultAgent?.metadata.requester?.icon ??
 			this._initialRequesterAvatarIconUri;
 	}
 
 	private readonly _initialResponderAvatarIconUri: ThemeIcon | URI | undefined;
 	get responderAvatarIcon(): ThemeIcon | URI | undefined {
-		return this._defaultAgent ?
-			this._defaultAgent?.metadata.themeIcon :
+		return this._defaultAgent?.metadata.themeIcon ??
 			this._initialResponderAvatarIconUri;
 	}
 

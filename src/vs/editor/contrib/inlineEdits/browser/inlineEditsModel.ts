@@ -8,8 +8,7 @@ import { CancellationToken, cancelOnDispose } from '../../../../base/common/canc
 import { itemsEquals, structuralEquals } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, ITransaction, ObservablePromise, derived, derivedHandleChanges, derivedOpts, disposableObservableValue, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction } from '../../../../base/common/observable.js';
-import { derivedDisposable } from '../../../../base/common/observableInternal/derived.js';
+import { IObservable, ISettableObservable, ITransaction, ObservablePromise, derived, derivedDisposable, derivedHandleChanges, derivedOpts, disposableObservableValue, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';

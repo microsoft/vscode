@@ -9,10 +9,10 @@ import { timeout, Delayer, Promises } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { Action } from '../../../../base/common/actions.js';
-import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus } from '../../../../base/browser/dom.js';
+import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus, addDisposableListener, EventType, clearNode } from '../../../../base/browser/dom.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -25,7 +25,7 @@ import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, Reco
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import Severity from '../../../../base/common/severity.js';
-import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IActivityService, IBadge, NumberBadge, WarningBadge } from '../../../services/activity/common/activity.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation } from '../../../common/views.js';
@@ -64,6 +64,9 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -494,7 +497,9 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	private searchDelayer: Delayer<void>;
 	private root: HTMLElement | undefined;
+	private header: HTMLElement | undefined;
 	private searchBox: SuggestEnabledInput | undefined;
+	private notificationContainer: HTMLElement | undefined;
 	private readonly searchViewletState: MementoObject;
 
 	constructor(
@@ -557,12 +562,12 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		overlay.style.backgroundColor = overlayBackgroundColor;
 		hide(overlay);
 
-		const header = append(this.root, $('.header'));
+		this.header = append(this.root, $('.header'));
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 
 		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 
-		const searchContainer = append(header, $('.extensions-search-container'));
+		const searchContainer = append(this.header, $('.extensions-search-container'));
 
 		this.searchBox = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
@@ -574,6 +579,10 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			},
 			provideResults: (query: string) => Query.suggestions(query)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder, value: searchValue }));
+
+		this.notificationContainer = append(this.header, $('.notification-container.hidden', { 'tabindex': '0' }));
+		this.renderNotificaiton();
+		this._register(this.extensionsWorkbenchService.onDidChangeExtensionsNotification(() => this.renderNotificaiton()));
 
 		this.updateInstalledExtensionsContexts();
 		if (this.searchBox.getValue()) {
@@ -657,13 +666,18 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.searchBox?.focus();
 	}
 
+	private _dimension: Dimension | undefined;
 	override layout(dimension: Dimension): void {
+		this._dimension = dimension;
 		if (this.root) {
 			this.root.classList.toggle('narrow', dimension.width <= 250);
 			this.root.classList.toggle('mini', dimension.width <= 200);
 		}
 		this.searchBox?.layout(new Dimension(dimension.width - 34 - /*padding*/8 - (24 * 2), 20));
-		super.layout(new Dimension(dimension.width, dimension.height - 41));
+		const searchBoxHeight = 20 + 21 /*margin*/;
+		const headerHeight = this.header && !!this.notificationContainer?.childNodes.length ? this.notificationContainer.clientHeight + searchBoxHeight + 10 /*margin*/ : searchBoxHeight;
+		this.header!.style.height = `${headerHeight}px`;
+		super.layout(new Dimension(dimension.width, dimension.height - headerHeight));
 	}
 
 	override getOptimalWidth(): number {
@@ -681,6 +695,46 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.doSearch(true);
 		if (this.configurationService.getValue(AutoCheckUpdatesConfigurationKey)) {
 			this.extensionsWorkbenchService.checkForUpdates();
+		}
+	}
+
+	private readonly notificationDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private renderNotificaiton(): void {
+		if (!this.notificationContainer) {
+			return;
+		}
+
+		clearNode(this.notificationContainer);
+		this.notificationDisposables.value = new DisposableStore();
+		const status = this.extensionsWorkbenchService.getExtensionsNotification();
+		if (status && !this.searchMarketplaceExtensionsContextKey.get()) {
+			this.notificationContainer.setAttribute('aria-label', status.message);
+			this.notificationContainer.classList.remove('hidden');
+			const messageContainer = append(this.notificationContainer, $('.message-container'));
+			append(messageContainer, $('span')).className = SeverityIcon.className(status.severity);
+			append(messageContainer, $('span.message', undefined, status.message));
+			const showAction = append(messageContainer,
+				$('span.message-text-action', {
+					'tabindex': '0',
+					'role': 'button',
+					'aria-label': `${status.message}. ${localize('click show', "Click to Show")}`
+				}, localize('show', "Show")));
+			const showExtensions = () => this.search(status.extensions.map(extension => `@id:${extension.identifier.id}`).join(' '));
+			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => showExtensions()));
+			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				const standardKeyboardEvent = new StandardKeyboardEvent(e);
+				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+					showExtensions();
+				}
+				standardKeyboardEvent.stopPropagation();
+			}));
+		} else {
+			this.notificationContainer.removeAttribute('aria-label');
+			this.notificationContainer.classList.add('hidden');
+		}
+
+		if (this._dimension) {
+			this.layout(this._dimension);
 		}
 	}
 
@@ -736,6 +790,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.sortByUpdateDateContextKey.set(ExtensionsListView.isSortUpdateDateQuery(value));
 			this.defaultViewsContextKey.set(!value || ExtensionsListView.isSortInstalledExtensionsQuery(value));
 		});
+
+		this.renderNotificaiton();
 
 		return this.progress(Promise.all(this.panes.map(view =>
 			(<ExtensionsListView>view).show(this.normalizedQuery(), refresh)
@@ -851,27 +907,40 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	) {
 		super();
 		this.onServiceChange();
-		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store)(this.onServiceChange, this));
+		this._register(Event.any(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store), extensionsWorkbenchService.onDidChangeExtensionsNotification)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {
 		this.badgeHandle.clear();
+		let badge: IBadge | undefined;
 
-		const actionRequired = this.configurationService.getValue(AutoRestartConfigurationKey) === true ? [] : this.extensionsWorkbenchService.installed.filter(e => e.runtimeState !== undefined);
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) ? 1 : 0), 0);
-		const newBadgeNumber = outdated + actionRequired.length;
-		if (newBadgeNumber > 0) {
-			let msg = '';
-			if (outdated) {
-				msg += outdated === 1 ? localize('extensionToUpdate', '{0} requires update', outdated) : localize('extensionsToUpdate', '{0} require update', outdated);
+		const extensionsNotification = this.extensionsWorkbenchService.getExtensionsNotification();
+		if (extensionsNotification) {
+			if (extensionsNotification.severity === Severity.Warning) {
+				badge = new WarningBadge(() => extensionsNotification.message);
 			}
-			if (outdated > 0 && actionRequired.length > 0) {
-				msg += ', ';
+		}
+
+		else {
+			const actionRequired = this.configurationService.getValue(AutoRestartConfigurationKey) === true ? [] : this.extensionsWorkbenchService.installed.filter(e => e.runtimeState !== undefined);
+			const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) ? 1 : 0), 0);
+			const newBadgeNumber = outdated + actionRequired.length;
+			if (newBadgeNumber > 0) {
+				let msg = '';
+				if (outdated) {
+					msg += outdated === 1 ? localize('extensionToUpdate', '{0} requires update', outdated) : localize('extensionsToUpdate', '{0} require update', outdated);
+				}
+				if (outdated > 0 && actionRequired.length > 0) {
+					msg += ', ';
+				}
+				if (actionRequired.length) {
+					msg += actionRequired.length === 1 ? localize('extensionToReload', '{0} requires restart', actionRequired.length) : localize('extensionsToReload', '{0} require restart', actionRequired.length);
+				}
+				badge = new NumberBadge(newBadgeNumber, () => msg);
 			}
-			if (actionRequired.length) {
-				msg += actionRequired.length === 1 ? localize('extensionToReload', '{0} requires restart', actionRequired.length) : localize('extensionsToReload', '{0} require restart', actionRequired.length);
-			}
-			const badge = new NumberBadge(newBadgeNumber, () => msg);
+		}
+
+		if (badge) {
 			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge });
 		}
 	}

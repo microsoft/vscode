@@ -225,11 +225,14 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		this.notifyUserAction(chatService, context);
 	}
 
-	protected async computeEdits(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult> {
+	protected async computeEdits(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
 		const activeModel = codeEditor.getModel();
 		const range = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 		const text = reindent(codeBlockActionContext.code, activeModel, range.startLineNumber);
-		return { edits: [new ResourceTextEdit(activeModel.uri, { range, text })] };
+		if (text !== undefined) {
+			return { edits: [new ResourceTextEdit(activeModel.uri, { range, text })] };
+		}
+		return undefined;
 	}
 
 	protected get showPreview() {
@@ -239,6 +242,9 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 	private async handleTextEditor(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
 		const result = await this.computeEdits(progressService, notificationService, languageFeaturesService, bulkEditService, codeEditorService, chatService, codeEditor, codeBlockActionContext);
 		this.notifyUserAction(chatService, codeBlockActionContext, result);
+		if (!result) {
+			return;
+		}
 
 		if (this.showPreview) {
 			const showWithPreview = await this.applyWithInlinePreview(codeEditorService, result.edits, codeEditor);
@@ -300,10 +306,10 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 
 }
 
-function reindent(codeBlockContent: string, model: ITextModel, seletionStartLine: number) {
+function reindent(codeBlockContent: string, model: ITextModel, seletionStartLine: number): string | undefined {
 	const newContent = strings.splitLines(codeBlockContent);
 	if (newContent.length === 0) {
-		return codeBlockContent;
+		return undefined;
 	}
 
 	const formattingOptions = model.getFormattingOptions();
@@ -321,7 +327,7 @@ function reindent(codeBlockContent: string, model: ITextModel, seletionStartLine
 
 	if (newContentIndentLevel === Number.MAX_VALUE || newContentIndentLevel === codeIndentLevel) {
 		// all lines are empty or the indent is already correct
-		return codeBlockContent;
+		return undefined;
 	}
 	const newLines = [];
 	for (let i = 0; i < newContent.length; i++) {
@@ -488,7 +494,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		protected override async computeEdits(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult> {
+		protected override async computeEdits(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
 
 
 			const activeModel = codeEditor.getModel();
@@ -546,14 +552,13 @@ export function registerChatCodeBlockActions() {
 					}
 				} catch (e) {
 					notificationService.notify({ severity: Severity.Error, message: localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message) });
-
 				} finally {
 					cancellationTokenSource.dispose();
 				}
 			}
-			// fall back to inserting the code block as is
-			return super.computeEdits(progressService, notificationService, languageFeaturesService, bulkEditService, codeEditorService, chatService, codeEditor, codeBlockActionContext);
+			return undefined;
 		}
+
 
 		protected override get showPreview() {
 			return true;

@@ -79,6 +79,10 @@ function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMH
 	return { ...historyItem, references };
 }
 
+function toSCMHistoryItemRefDto(historyItemRef?: vscode.SourceControlHistoryItemRef): SCMHistoryItemRefDto | undefined {
+	return historyItemRef ? { ...historyItemRef, icon: getHistoryItemIconDto(historyItemRef.icon) } : undefined;
+}
+
 function compareResourceThemableDecorations(a: vscode.SourceControlResourceThemableDecorations, b: vscode.SourceControlResourceThemableDecorations): number {
 	if (!a.iconPath && !b.iconPath) {
 		return 0;
@@ -577,7 +581,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private readonly _historyProviderDisposable = new MutableDisposable<DisposableStore>();
-	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
@@ -593,9 +596,23 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasHistoryProvider: !!historyProvider });
 
 		if (historyProvider) {
-			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
-				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
-				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
+			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemRefs(() => {
+				const historyItemRef = toSCMHistoryItemRefDto(historyProvider?.currentHistoryItemRef);
+				const historyItemRemoteRef = toSCMHistoryItemRefDto(historyProvider?.currentHistoryItemRemoteRef);
+				const historyItemBaseRef = toSCMHistoryItemRefDto(historyProvider?.currentHistoryItemBaseRef);
+
+				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemRefs(this.handle, historyItemRef, historyItemRemoteRef, historyItemBaseRef);
+			}));
+			this._historyProviderDisposable.value.add(historyProvider.onDidChangeHistoryItemRefs((e) => {
+				if (e.added.length === 0 && e.modified.length === 0 && e.removed.length === 0) {
+					return;
+				}
+
+				const added = e.added.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
+				const modified = e.modified.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
+				const removed = e.removed.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
+
+				this.#proxy.$onDidChangeHistoryProviderHistoryItemRefs(this.handle, { added, modified, removed });
 			}));
 		}
 	}

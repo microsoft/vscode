@@ -473,7 +473,11 @@
 }
 
 .monaco-hover.history-item-hover p:last-child {
-	margin-bottom: 4px;
+	margin-bottom: 0;
+}
+
+.monaco-hover.history-item-hover p:last-child span:not(.codicon) {
+	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover hr {
@@ -485,8 +489,18 @@
 	margin: 4px 0;
 }
 
-.monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span:not(.codicon) {
+.monaco-hover.history-item-hover span:not(.codicon) {
 	margin-bottom: 0 !important;
+}
+
+.monaco-hover.history-item-hover .hover-row.status-bar .action {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-hover.history-item-hover .hover-row.status-bar .action .codicon {
+	color: inherit;
+	font-size: 12px;
 }
 
 /* Graph */

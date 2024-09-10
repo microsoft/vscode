@@ -5,17 +5,16 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { transaction } from '../../../../base/common/observable.js';
-import { asyncTransaction } from '../../../../base/common/observableInternal/base.js';
+import { asyncTransaction, transaction } from '../../../../base/common/observable.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { inlineEditAcceptId, inlineEditVisible, showNextInlineEditActionId, showPreviousInlineEditActionId } from './consts.js';
 import { InlineEditsController } from './inlineEditsController.js';
-import * as nls from '../../../../nls.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 
 function labelAndAlias(str: nls.ILocalizedString): { label: string; alias: string } {

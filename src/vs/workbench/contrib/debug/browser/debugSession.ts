@@ -363,7 +363,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
 				supportsMemoryEvent: true, // #133643
-				supportsStartDebuggingRequest: true
+				supportsStartDebuggingRequest: true,
+				supportsANSIStyling: true,
 			});
 
 			this.initialized = true;
@@ -1201,7 +1202,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 				if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
 					const expanded = event.body.group === 'start';
-					this.repl.startGroup(event.body.output || '', expanded, source);
+					this.repl.startGroup(this, event.body.output || '', expanded, source);
 					return;
 				}
 				if (event.body.group === 'end') {
