@@ -12,8 +12,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
 import { request } from '../../../../base/parts/request/browser/request.js';
-import { ILoggerService } from '../../../../platform/log/common/log.js';
-import { localize } from '../../../../nls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class BrowserRequestService extends AbstractRequestService implements IRequestService {
 
@@ -22,12 +21,9 @@ export class BrowserRequestService extends AbstractRequestService implements IRe
 	constructor(
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILoggerService loggerService: ILoggerService,
+		@ILogService logService: ILogService,
 	) {
-		super(loggerService.createLogger('network-window', {
-			name: localize('network-window', "Network (Window)"),
-			hidden: true
-		}));
+		super(logService);
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {

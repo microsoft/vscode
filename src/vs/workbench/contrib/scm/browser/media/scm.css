@@ -491,18 +491,41 @@
 
 /* Graph */
 
+.pane-header .scm-graph-view-badge-container {
+	display: flex;
+	align-items: center;
+	min-width: fit-content;
+}
+
+.pane-header .scm-graph-view-badge-container > .scm-graph-view-badge.monaco-count-badge.long {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border: 1px solid var(--vscode-contrastBorder);
+	margin-left: 6px;
+	padding: 2px 4px;
+}
+
 .monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker {
 	display: flex;
 }
 
-.monaco-toolbar .action-label.scm-graph-repository-picker {
+.monaco-toolbar .action-label.scm-graph-repository-picker,
+.monaco-toolbar .action-label.scm-graph-history-item-picker {
 	align-items: center;
 	font-weight: normal;
 	line-height: 16px;
 }
 
-.monaco-toolbar .action-label.scm-graph-repository-picker .codicon {
+.monaco-toolbar .action-label.scm-graph-repository-picker .codicon,
+.monaco-toolbar .action-label.scm-graph-history-item-picker .codicon {
 	font-size: 14px;
+}
+
+.monaco-toolbar .action-label.scm-graph-repository-picker > .name,
+.monaco-toolbar .action-label.scm-graph-history-item-picker > .name {
+	max-width: 100px;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .scm-history-view .scm-provider .label-name {
@@ -558,7 +581,7 @@
 
 .scm-history-view .history-item-load-more .history-item-placeholder.shimmer .monaco-icon-label-container {
 	height: 18px;
-	background: var(--vscode-scm-historyItemDefaultLabelBackground);
+	background: var(--vscode-scmGraph-historyItemHoverDefaultLabelBackground);
 	border-radius: 2px;
 	opacity: 0.5;
 }
