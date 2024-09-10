@@ -55,6 +55,8 @@ import { IViewModel } from '../common/viewModel.js';
 import { ViewContext } from '../common/viewModel/viewContext.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
+import { ViewGpuContext } from './gpu/viewGpuContext.js';
+import { ViewLinesGpu } from './viewParts/linesGpu/viewLinesGpu.js';
 import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
@@ -79,10 +81,12 @@ export class View extends ViewEventHandler {
 
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
+	private readonly _viewGpuContext?: ViewGpuContext;
 	private _selections: Selection[];
 
 	// The view lines
 	private readonly _viewLines: ViewLines;
+	private readonly _viewLinesGpu?: ViewLinesGpu;
 
 	// These are parts, but we must do some API related calls on them, so we keep a reference
 	private readonly _viewZones: ViewZones;
@@ -145,6 +149,10 @@ export class View extends ViewEventHandler {
 		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
 		this.domNode.setAttribute('role', 'code');
 
+		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
+			this._viewGpuContext = new ViewGpuContext();
+		}
+
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
 		this._overflowGuardContainer.setClassName('overflow-guard');
@@ -154,6 +162,9 @@ export class View extends ViewEventHandler {
 
 		// View Lines
 		this._viewLines = new ViewLines(this._context, this._linesContent);
+		if (this._viewGpuContext) {
+			this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
+		}
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
@@ -227,6 +238,9 @@ export class View extends ViewEventHandler {
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
+		if (this._viewGpuContext) {
+			this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
+		}
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this._editContext.appendTo(this._overflowGuardContainer);
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
@@ -418,8 +432,10 @@ export class View extends ViewEventHandler {
 		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
 
 		this._context.removeEventHandler(this);
+		this._viewGpuContext?.dispose();
 
 		this._viewLines.dispose();
+		this._viewLinesGpu?.dispose();
 
 		// Destroy view parts
 		for (const viewPart of this._viewParts) {
@@ -531,6 +547,11 @@ export class View extends ViewEventHandler {
 
 					// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 					viewPartsToRender = this._getViewPartsToRender();
+				}
+
+				if (this._viewLinesGpu?.shouldRender()) {
+					this._viewLinesGpu.renderText(viewportData);
+					this._viewLinesGpu.onDidRender();
 				}
 
 				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines)];
