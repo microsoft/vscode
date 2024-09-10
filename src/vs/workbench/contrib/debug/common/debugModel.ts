@@ -258,7 +258,7 @@ export class VisualizedExpression implements IExpression {
 		return Promise.resolve();
 	}
 	getChildren(): Promise<IExpression[]> {
-		return this.visualizer.getVisualizedChildren(this.treeId, this.treeItem.id);
+		return this.visualizer.getVisualizedChildren(this.session, this.treeId, this.treeItem.id);
 	}
 
 	getId(): string {
@@ -278,11 +278,16 @@ export class VisualizedExpression implements IExpression {
 	}
 
 	constructor(
+		private readonly session: IDebugSession | undefined,
 		private readonly visualizer: IDebugVisualizerService,
 		public readonly treeId: string,
 		public readonly treeItem: IDebugVisualizationTreeItem,
 		public readonly original?: Variable,
 	) { }
+
+	public getSession(): IDebugSession | undefined {
+		return this.session;
+	}
 
 	/** Edits the value, sets the {@link errorMessage} and returns false if unsuccessful */
 	public async edit(newValue: string) {
