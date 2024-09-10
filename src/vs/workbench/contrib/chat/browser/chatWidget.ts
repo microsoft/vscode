@@ -794,7 +794,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: [...this.inputPart.attachedContext.values()],
+				attachedContext: [...this.inputPart.attachedContext.values()]
 			});
 
 			if (result) {
