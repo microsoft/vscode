@@ -184,7 +184,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					when: '!accessibilityModeEnabled',
 					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
@@ -425,6 +424,22 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: {
 						type: 'markdown', path: 'empty'
 					}
+				},
+				{
+					id: 'pickColorThemeAccessibility',
+					title: localize('gettingStarted.pickTheme.title', "Choose your theme"),
+					description: localize('gettingStarted.pickTheme.description.interpolated', "The right theme helps you focus on your code, is easy on your eyes, and is simply more fun to use. We offer high contrast themes to best support users with visual impairments. \n{0}", Button(localize('titleID', "Browse Color Themes"), 'command:workbench.action.selectTheme')),
+					completionEvents: [
+						'onSettingChanged:workbench.colorTheme',
+						'onCommand:workbench.action.selectTheme'
+					],
+					media: { type: 'markdown', path: 'empty' }
+				},
+				{
+					id: 'accessibilitySettings',
+					title: localize('gettingStarted.accessibilitySettings.title', "Configure accessibility settings"),
+					description: localize('gettingStarted.accessibilitySettings.description.interpolated', "Accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openAccessibilitySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
+					media: { type: 'markdown', path: 'empty' }
 				}
 			]
 		}
