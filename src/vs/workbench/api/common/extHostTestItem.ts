@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as editorRange from 'vs/editor/common/core/range';
-import { createPrivateApiFor, getPrivateApiFor, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { TestId, TestIdPathParts } from 'vs/workbench/contrib/testing/common/testId';
-import { createTestItemChildren, ExtHostTestItemEvent, ITestChildrenLike, ITestItemApi, ITestItemChildren, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { denamespaceTestTag, ITestItem, ITestItemContext } from 'vs/workbench/contrib/testing/common/testTypes';
+import * as editorRange from '../../../editor/common/core/range.js';
+import { createPrivateApiFor, getPrivateApiFor, IExtHostTestItemApi } from './extHostTestingPrivateApi.js';
+import { TestId, TestIdPathParts } from '../../contrib/testing/common/testId.js';
+import { createTestItemChildren, ExtHostTestItemEvent, ITestChildrenLike, ITestItemApi, ITestItemChildren, TestItemCollection, TestItemEventOp } from '../../contrib/testing/common/testItemCollection.js';
+import { denamespaceTestTag, ITestItem, ITestItemContext } from '../../contrib/testing/common/testTypes.js';
 import type * as vscode from 'vscode';
-import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import * as Convert from './extHostTypeConverters.js';
+import { URI } from '../../../base/common/uri.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 	api: IExtHostTestItemApi,

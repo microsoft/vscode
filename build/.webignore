@@ -14,7 +14,7 @@
 
 jschardet/index.js
 jschardet/src/**
-jschardet/dist/jschardet.js
+# TODO@esm uncomment when we can use jschardet.min.js again jschardet/dist/jschardet.js
 
 vscode-textmate/webpack.config.js
 
@@ -38,6 +38,7 @@ vscode-textmate/webpack.config.js
 
 # This makes sure the model is included in the package
 !@vscode/vscode-languagedetection/model/**
+!@vscode/tree-sitter-wasm/wasm/**
 
 # Ensure only the required telemetry pieces are loaded in web to reduce bundle size
 @microsoft/1ds-core-js/**
@@ -45,7 +46,9 @@ vscode-textmate/webpack.config.js
 @microsoft/applicationinsights-core-js/**
 @microsoft/applicationinsights-shims/**
 !@microsoft/1ds-core-js/dist/ms.core.min.js
+!@microsoft/1ds-core-js/bundle/ms.core.min.js
 !@microsoft/1ds-post-js/dist/ms.post.min.js
+!@microsoft/1ds-post-js/bundle/ms.post.min.js
 !@microsoft/applicationinsights-core-js/browser/applicationinsights-core-js.min.js
 !@microsoft/applicationinsights-shims/dist/umd/applicationinsights-shims.min.js
 

@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionTriggerKind, ProviderResult } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { SuggestInlineCompletions } from 'vs/editor/contrib/suggest/browser/suggestInlineCompletions';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionTriggerKind, ProviderResult } from '../../../../common/languages.js';
+import { ITextModel } from '../../../../common/model.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { SuggestInlineCompletions } from '../../browser/suggestInlineCompletions.js';
+import { ISuggestMemoryService } from '../../browser/suggestMemory.js';
+import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 
 suite('Suggest Inline Completions', function () {

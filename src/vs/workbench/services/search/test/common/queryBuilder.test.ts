@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { resolveResourcesForSearchIncludes } from '../../common/queryBuilder.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('QueryBuilderCommon', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

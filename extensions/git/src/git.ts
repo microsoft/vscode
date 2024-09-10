@@ -491,7 +491,6 @@ export class Git {
 			const repoUri = Uri.file(repositoryRootPath);
 			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
@@ -1062,6 +1061,7 @@ export interface PullOptions {
 }
 
 export class Repository {
+	private _isUsingRefTable = false;
 
 	constructor(
 		private _git: Git,
@@ -1169,7 +1169,14 @@ export class Repository {
 			args.push(`--max-parents=${options.maxParents}`);
 		}
 
+		if (typeof options?.skip === 'number') {
+			args.push(`--skip=${options.skip}`);
+		}
+
 		if (options?.refNames) {
+			if (options.refNames.length === 0) {
+				args.push('--all');
+			}
 			args.push('--topo-order');
 			args.push('--decorate=full');
 			args.push(...options.refNames);
@@ -1496,6 +1503,21 @@ export class Repository {
 
 		if (ref) {
 			args.push(ref);
+		}
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
+	async diffTrees(treeish1: string, treeish2?: string): Promise<Change[]> {
+		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR', treeish1];
+
+		if (treeish2) {
+			args.push(treeish2);
 		}
 
 		const gitResult = await this.exec(args);
@@ -2315,13 +2337,25 @@ export class Repository {
 	}
 
 	async getHEAD(): Promise<Ref> {
-		try {
-			// Attempt to parse the HEAD file
-			const result = await this.getHEADFS();
-			return result;
-		}
-		catch (err) {
-			this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: ${err.message}`);
+		if (!this._isUsingRefTable) {
+			try {
+				// Attempt to parse the HEAD file
+				const result = await this.getHEADFS();
+
+				// Git 2.45 adds support for a new reference storage backend called "reftable", promising
+				// faster lookups, reads, and writes for repositories with any number of references. For
+				// backwards compatibility the `.git/HEAD` file contains `ref: refs/heads/.invalid`. More
+				// details are available at https://git-scm.com/docs/reftable
+				if (result.name === '.invalid') {
+					this._isUsingRefTable = true;
+					this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: Repository is using reftable format.`);
+				} else {
+					return result;
+				}
+			}
+			catch (err) {
+				this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: ${err.message}`);
+			}
 		}
 
 		try {
@@ -2615,7 +2649,7 @@ export class Repository {
 
 	async getDefaultBranch(): Promise<Branch> {
 		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-		if (!result.stdout) {
+		if (!result.stdout || result.stderr) {
 			throw new Error('No default branch');
 		}
 
@@ -2680,24 +2714,6 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
-	}
-
-	async getCommitFiles(ref: string): Promise<string[]> {
-		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
-		return result.stdout.split('\n').filter(l => !!l);
-	}
-
-	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const args = ['rev-list', '--count', '--left-right', range];
-
-		if (isWindows) {
-			args.splice(0, 0, '-c', 'core.longpaths=true');
-		}
-
-		const result = await this.exec(args);
-		const [ahead, behind] = result.stdout.trim().split('\t');
-
-		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

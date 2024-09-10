@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// AMD2ESM mirgation relevant
+// AMD2ESM migration relevant
 
 declare global {
 

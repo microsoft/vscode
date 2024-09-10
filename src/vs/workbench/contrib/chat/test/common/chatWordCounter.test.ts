@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getNWords } from '../../common/chatWordCounter.js';
 
 suite('ChatWordCounter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +38,10 @@ suite('ChatWordCounter', () => {
 				['[hello](https://example.com) world', 2, '[hello](https://example.com) world'],
 				['oh [hello](https://example.com "title") world', 1, 'oh'],
 				['oh [hello](https://example.com "title") world', 2, 'oh [hello](https://example.com "title")'],
+				// Parens in link destination
+				['[hello](https://example.com?()) world', 1, '[hello](https://example.com?())'],
+				// Escaped brackets in link text
+				['[he \\[l\\] \\]lo](https://example.com?()) world', 1, '[he \\[l\\] \\]lo](https://example.com?())'],
 			];
 
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));

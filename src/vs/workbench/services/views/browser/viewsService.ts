@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewPaneContainer } from 'vs/workbench/common/views';
-import { FocusedViewContext, getVisbileViewContextKey } from 'vs/workbench/common/contextkeys';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Event, Emitter } from 'vs/base/common/event';
-import { isString } from 'vs/base/common/types';
-import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { localize, localize2 } from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as PaneCompositeExtensions, PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { URI } from 'vs/base/common/uri';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common/action';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Disposable, IDisposable, toDisposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewPaneContainer } from '../../../common/views.js';
+import { FocusedViewContext, getVisbileViewContextKey } from '../../../common/contextkeys.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { isString } from '../../../../base/common/types.js';
+import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IPaneComposite } from '../../../common/panecomposite.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as PaneCompositeExtensions, PaneComposite } from '../../../browser/panecomposite.js';
+import { IWorkbenchLayoutService, Parts } from '../../layout/browser/layoutService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
+import { FilterViewPaneContainer } from '../../../browser/parts/views/viewsViewlet.js';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
+import { ICommandActionTitle, ILocalizedString } from '../../../../platform/action/common/action.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IViewsService } from '../common/viewsService.js';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -149,7 +149,10 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.registerPaneComposite(viewContainer, to);
 
 		// Open view container if part is visible and there is only one view container in location
-		if (this.layoutService.isVisible(getPartByLocation(to)) && this.viewDescriptorService.getViewContainersByLocation(to).length === 1) {
+		if (
+			this.layoutService.isVisible(getPartByLocation(to)) &&
+			this.viewDescriptorService.getViewContainersByLocation(to).filter(vc => this.isViewContainerActive(vc.id)).length === 1
+		) {
 			this.openViewContainer(viewContainer.id);
 		}
 	}
@@ -196,15 +199,33 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.paneCompositeService.getPaneComposite(compositeId, location);
 	}
 
+	// One view container can be visible at a time in a location
 	isViewContainerVisible(id: string): boolean {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-		if (viewContainer) {
-			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (viewContainerLocation !== null) {
-				return this.paneCompositeService.getActivePaneComposite(viewContainerLocation)?.getId() === id;
-			}
+		if (!viewContainer) {
+			return false;
 		}
-		return false;
+
+		const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+		if (viewContainerLocation === null) {
+			return false;
+		}
+
+		return this.paneCompositeService.getActivePaneComposite(viewContainerLocation)?.getId() === id;
+	}
+
+	// Multiple view containers can be active/inactive at a time in a location
+	isViewContainerActive(id: string): boolean {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+		if (!viewContainer) {
+			return false;
+		}
+
+		if (!viewContainer.hideIfEmpty) {
+			return true;
+		}
+
+		return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;
 	}
 
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null {

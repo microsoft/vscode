@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { INativeHostService } from 'vs/platform/native/common/native';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 
 // @ts-ignore: interface is implemented via proxy
 export class NativeWorkspacesService implements IWorkspacesService {

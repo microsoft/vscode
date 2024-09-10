@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { homedir } from 'os';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
 import * as fileSchemes from './configuration/fileSchemes';
 import { Schemes } from './configuration/schemes';
@@ -30,6 +31,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
+import { hash } from './utils/hash';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 
 
@@ -424,22 +426,33 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.serverState = new ServerState.Running(handle, apiVersion, undefined, true);
 		this.lastStart = Date.now();
 
-		const hasGlobalPlugins = this.pluginManager.plugins.length > 0;
+
+		/* __GDPR__FRAGMENT__
+			"TypeScriptServerEnvCommonProperties" : {
+				"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"globalPluginNameHashes": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		const typeScriptServerEnvCommonProperties = {
+			hasGlobalPlugins: this.pluginManager.plugins.length > 0,
+			globalPluginNameHashes: JSON.stringify(this.pluginManager.plugins.map(plugin => hash(plugin.name))),
+		};
+
 		/* __GDPR__
 			"tsserver.spawned" : {
 				"owner": "mjbvz",
 				"${include}": [
-					"${TypeScriptCommonProperties}"
+					"${TypeScriptCommonProperties}",
+					"${TypeScriptServerEnvCommonProperties}"
 				],
 				"localTypeScriptVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"typeScriptVersionSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.logTelemetry('tsserver.spawned', {
+			...typeScriptServerEnvCommonProperties,
 			localTypeScriptVersion: this.versionProvider.localVersion ? this.versionProvider.localVersion.displayName : '',
 			typeScriptVersionSource: version.source,
-			hasGlobalPlugins,
 		});
 
 		handle.onError((err: Error) => {
@@ -462,12 +475,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"tsserver.error" : {
 					"owner": "mjbvz",
 					"${include}": [
-						"${TypeScriptCommonProperties}"
-					],
-					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						"${TypeScriptCommonProperties}",
+						"${TypeScriptServerEnvCommonProperties}"
+					]
 				}
 			*/
-			this.logTelemetry('tsserver.error', { hasGlobalPlugins });
+			this.logTelemetry('tsserver.error', {
+				...typeScriptServerEnvCommonProperties
+			});
 			this.serviceExited(false, apiVersion);
 		});
 
@@ -481,17 +496,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				"tsserver.exitWithCode" : {
 					"owner": "mjbvz",
 					"${include}": [
-						"${TypeScriptCommonProperties}"
+						"${TypeScriptCommonProperties}",
+						"${TypeScriptServerEnvCommonProperties}"
 					],
 					"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"hasGlobalPlugins": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 				}
 			*/
 			this.logTelemetry('tsserver.exitWithCode', {
+				...typeScriptServerEnvCommonProperties,
 				code: code ?? undefined,
 				signal: signal ?? undefined,
-				hasGlobalPlugins,
 			});
 
 			if (this.token !== mytoken) {
@@ -972,16 +987,16 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						spans: diagnosticEvent.body.spans,
 					});
 				}
-				break;
+				return;
 			}
 			case EventName.configFileDiag:
 				this._onConfigDiagnosticsReceived.fire(event as Proto.ConfigFileDiagnosticEvent);
-				break;
+				return;
 
 			case EventName.telemetry: {
 				const body = (event as Proto.TelemetryEvent).body;
 				this.dispatchTelemetryEvent(body);
-				break;
+				return;
 			}
 			case EventName.projectLanguageServiceState: {
 				const body = (event as Proto.ProjectLanguageServiceStateEvent).body!;
@@ -989,7 +1004,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.serverState.updateLanguageServiceEnabled(body.languageServiceEnabled);
 				}
 				this._onProjectLanguageServiceStateChanged.fire(body);
-				break;
+				return;
 			}
 			case EventName.projectsUpdatedInBackground: {
 				this.loadingIndicator.reset();
@@ -997,56 +1012,71 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 				const resources = body.openFiles.map(file => this.toResource(file));
 				this.bufferSyncSupport.getErr(resources);
-				break;
+				return;
 			}
 			case EventName.beginInstallTypes:
 				this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
-				break;
+				return;
 
 			case EventName.endInstallTypes:
 				this._onDidEndInstallTypings.fire((event as Proto.EndInstallTypesEvent).body);
-				break;
+				return;
 
 			case EventName.typesInstallerInitializationFailed:
 				this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
-				break;
+				return;
 
 			case EventName.surveyReady:
 				this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
-				break;
+				return;
 
 			case EventName.projectLoadingStart:
 				this.loadingIndicator.startedLoadingProject((event as Proto.ProjectLoadingStartEvent).body.projectName);
-				break;
+				return;
 
 			case EventName.projectLoadingFinish:
 				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
-				break;
+				return;
 
-			case EventName.createDirectoryWatcher:
+			case EventName.createDirectoryWatcher: {
+				const fpath = (event.body as Proto.CreateDirectoryWatcherEventBody).path;
+				if (fpath.startsWith(inMemoryResourcePrefix)) {
+					return;
+				}
+				if (process.platform === 'darwin' && fpath === path.join(homedir(), 'Library')) {
+					// ignore directory watch requests on ~/Library
+					// until microsoft/TypeScript#59831 is resolved
+					return;
+				}
+
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
 					new vscode.RelativePattern(
-						vscode.Uri.file((event.body as Proto.CreateDirectoryWatcherEventBody).path),
+						vscode.Uri.file(fpath),
 						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
 					),
 					(event.body as Proto.CreateDirectoryWatcherEventBody).ignoreUpdate
 				);
-				break;
+				return;
+			}
+			case EventName.createFileWatcher: {
+				const path = (event.body as Proto.CreateFileWatcherEventBody).path;
+				if (path.startsWith(inMemoryResourcePrefix)) {
+					return;
+				}
 
-			case EventName.createFileWatcher:
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateFileWatcherEventBody).id,
 					new vscode.RelativePattern(
-						vscode.Uri.file((event.body as Proto.CreateFileWatcherEventBody).path),
+						vscode.Uri.file(path),
 						'*'
 					)
 				);
-				break;
-
+				return;
+			}
 			case EventName.closeFileWatcher:
 				this.closeFileSystemWatcher(event.body.id);
-				break;
+				return;
 
 			case EventName.requestCompleted: {
 				// @ts-expect-error until ts 5.6
@@ -1058,12 +1088,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 							const resource = this.toResource(fileData.file);
 							return {
 								...fileData,
-								lineCount: this.bufferSyncSupport.lineCount(resource),
+								fileLineCount: this.bufferSyncSupport.lineCount(resource),
 							};
 						})
 					);
 				}
-				break;
+				return;
 			}
 		}
 	}
@@ -1148,13 +1178,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.watches.set(id, disposable);
 	}
 
-	private closeFileSystemWatcher(
-		id: number,
-	) {
+	private closeFileSystemWatcher(id: number) {
 		const existing = this.watches.get(id);
-		if (existing) {
-			existing.dispose();
-		}
+		existing?.dispose();
 	}
 
 	private dispatchTelemetryEvent(telemetryData: Proto.TelemetryEventBody): void {
@@ -1188,6 +1214,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 			}
 		}
+
+		// Add plugin data here
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
 				this.serverState.updateTsserverVersion(properties['version']);
@@ -1210,9 +1238,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private configurePlugin(pluginName: string, configuration: {}): any {
-		if (this.apiVersion.gte(API.v314)) {
-			this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
-		}
+		this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 	}
 }
 
