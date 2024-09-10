@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from '../../../base/common/errors.js';
 import { toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 
 export const quadVertices = new Float32Array([
@@ -52,6 +53,7 @@ export function observeDevicePixelDimensions(element: HTMLElement, parentWindow:
 	} catch {
 		observer.disconnect();
 		observer = undefined;
+		throw new BugIndicatingError('Could not observe device pixel dimensions');
 	}
 	return toDisposable(() => observer?.disconnect());
 }
