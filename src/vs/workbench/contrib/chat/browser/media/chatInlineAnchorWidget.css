@@ -32,7 +32,6 @@
 
 .chat-inline-anchor-widget .codicon {
 	vertical-align: text-bottom;
-	color: reset-layer !important;
 }
 
 .chat-inline-anchor-widget .monaco-icon-label::before {

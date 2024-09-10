@@ -79,7 +79,7 @@ export class ListService implements IListService {
 		if (!this._hasCreatedStyleController) {
 			this._hasCreatedStyleController = true;
 			// create a shared default tree style sheet for performance reasons
-			const styleController = new DefaultStyleController(createStyleSheet(), '');
+			const styleController = new DefaultStyleController(createStyleSheet(), 'default-styled-list');
 			styleController.style(defaultListStyles);
 		}
 
@@ -489,6 +489,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		if (options.overrideStyles !== undefined) {
 			this.updateStyles(options.overrideStyles);
 		}
+
+		this.getHTMLElement().classList.toggle('default-styled-list', !options.overrideStyles);
 
 		if (options.multipleSelectionSupport !== undefined) {
 			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);

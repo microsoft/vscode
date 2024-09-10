@@ -891,8 +891,8 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
-		if (styles.listActiveSelectionIconForeground) {
-			content.push(`@layer monaco-list { .monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; } }`);
+		if (styles.listActiveSelectionIconForeground && suffix) {
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {
@@ -915,7 +915,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listInactiveSelectionIconForeground) {
-			content.push(`@layer monaco-list { .monaco-list${suffix} .monaco-list-row.focused .codicon { color:  ${styles.listInactiveSelectionIconForeground}; } }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused .codicon { color:  ${styles.listInactiveSelectionIconForeground}; }`);
 		}
 
 		if (styles.listInactiveFocusBackground) {
