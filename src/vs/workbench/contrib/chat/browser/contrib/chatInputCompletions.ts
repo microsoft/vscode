@@ -383,7 +383,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			return {
 				label: { label: basename, description: this.labelService.getUriLabel(resource) },
-				filterText: info.varWord?.word,
+				filterText: `${chatVariableLeader}${basename}`,
 				insertText,
 				range: info,
 				kind: CompletionItemKind.File,

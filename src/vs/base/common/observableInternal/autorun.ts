@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from '../assert.js';
-import { onBugIndicatingError } from '../errors.js';
-import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from '../lifecycle.js';
 import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
+import { assertFn, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
 
 /**

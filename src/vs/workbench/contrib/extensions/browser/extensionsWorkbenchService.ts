@@ -25,7 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer } from '../common/extensions.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -45,7 +45,7 @@ import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource 
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { isBoolean, isDefined, isString, isUndefined } from '../../../../base/common/types.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
-import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, IExtensionsStatus as IExtensionRuntimeStatus, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { isWeb, language } from '../../../../base/common/platform.js';
 import { getLocale } from '../../../../platform/languagePacks/common/languagePacks.js';
 import { ILocaleService } from '../../../services/localization/common/locale.js';
@@ -55,7 +55,7 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
-import { isEngineValid } from '../../../../platform/extensions/common/extensionValidator.js';
+import { areApiProposalsCompatible, isEngineValid } from '../../../../platform/extensions/common/extensionValidator.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
@@ -904,8 +904,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private updatesCheckDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 
-	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
+	private readonly _onChange = this._register(new Emitter<IExtension | undefined>());
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
+
+	private extensionsNotification: IExtensionsNotification | undefined;
+	private dismissedNotifications: string[] = [];
+	private readonly _onDidChangeExtensionsNotification = new Emitter<IExtensionsNotification | undefined>();
+	readonly onDidChangeExtensionsNotification = this._onDidChangeExtensionsNotification.event;
 
 	private readonly _onReset = new Emitter<void>();
 	get onReset() { return this._onReset.event; }
@@ -1033,11 +1038,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this._store.isDisposed) {
 			return;
 		}
+
 		this.initializeAutoUpdate();
+		this.updateExtensionsNotificaiton();
 		this.reportInstalledExtensionsTelemetry();
-		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.reportProgressFromOtherSources()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_DONOT_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
+		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => {
+			this.updateExtensionsNotificaiton();
+			this.reportProgressFromOtherSources();
+		}));
 	}
 
 	private initializeAutoUpdate(): void {
@@ -1329,6 +1339,60 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			?? this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, undefined, { resourceExtension, isWorkspaceScoped }));
 	}
 
+	private updateExtensionsNotificaiton(): void {
+		let extensionsNotification: IExtensionsNotification | undefined;
+
+		let message = '';
+		const severity = Severity.Warning;
+		const extensions: IExtension[] = [];
+
+		extensions.push(...this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension));
+		if (extensions.length) {
+			if (extensions.some(e => e.local &&
+				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
+			)) {
+				message = nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them.");
+			} else {
+				message = nls.localize('invalidExtensions', "You have invalid extensions installed. Review them.");
+			}
+		}
+
+		else {
+			extensions.push(...this.local.filter(e => e.enablementState === EnablementState.DisabledByExtensionDependency));
+			if (extensions.length) {
+				message = nls.localize('missingDependencies', "Some extensions are disabled due to missing dependencies. Review them.");
+			}
+
+			else {
+				extensions.push(...this.local.filter(e => !!e.deprecationInfo));
+				if (extensions.length) {
+					message = nls.localize('deprecated extensions', "You have deprecated extensions installed. Review them and migrate to alternatives.");
+				}
+			}
+		}
+
+		if (extensions.length && !this.dismissedNotifications.includes(message)) {
+			extensionsNotification = {
+				message,
+				severity,
+				extensions,
+				dismiss: () => {
+					this.dismissedNotifications.push(message);
+					this.updateExtensionsNotificaiton();
+				},
+			};
+		}
+
+		if (this.extensionsNotification?.message !== extensionsNotification?.message) {
+			this.extensionsNotification = extensionsNotification;
+			this._onDidChangeExtensionsNotification.fire(this.extensionsNotification);
+		}
+	}
+
+	getExtensionsNotification(): IExtensionsNotification | undefined {
+		return this.extensionsNotification;
+	}
+
 	private resolveQueryText(text: string): string {
 		text = text.replace(/@web/g, `tag:"${WEB_EXTENSION_TAG}"`);
 
@@ -1399,7 +1463,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
-	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined {
+	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined {
 		const extensionsStatus = this.extensionService.getExtensionsStatus();
 		for (const id of Object.keys(extensionsStatus)) {
 			if (areSameExtensions({ id }, extension.identifier)) {

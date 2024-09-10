@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { BidirectionalMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, MRUCache, ResourceMap, SetMap, Touch } from '../../common/map.js';
+import { BidirectionalMap, FourKeyMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, MRUCache, ResourceMap, SetMap, Touch, TwoKeyMap } from '../../common/map.js';
 import { extUriIgnorePathCase } from '../../common/resources.js';
 import { URI } from '../../common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
@@ -681,5 +681,65 @@ suite('SetMap', () => {
 		const setMap = new SetMap<string, number>();
 		assert.deepStrictEqual([...setMap.get('a')], []);
 	});
+});
 
+suite('TwoKeyMap', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('set and get', () => {
+		const map = new TwoKeyMap<string, string, number>();
+		map.set('a', 'b', 1);
+		map.set('a', 'c', 2);
+		map.set('b', 'c', 3);
+		assert.strictEqual(map.get('a', 'b'), 1);
+		assert.strictEqual(map.get('a', 'c'), 2);
+		assert.strictEqual(map.get('b', 'c'), 3);
+		assert.strictEqual(map.get('a', 'd'), undefined);
+	});
+
+	test('clear', () => {
+		const map = new TwoKeyMap<string, string, number>();
+		map.set('a', 'b', 1);
+		map.set('a', 'c', 2);
+		map.set('b', 'c', 3);
+		map.clear();
+		assert.strictEqual(map.get('a', 'b'), undefined);
+		assert.strictEqual(map.get('a', 'c'), undefined);
+		assert.strictEqual(map.get('b', 'c'), undefined);
+	});
+
+	test('values', () => {
+		const map = new TwoKeyMap<string, string, number>();
+		map.set('a', 'b', 1);
+		map.set('a', 'c', 2);
+		map.set('b', 'c', 3);
+		assert.deepStrictEqual(Array.from(map.values()), [1, 2, 3]);
+	});
+});
+
+
+suite('FourKeyMap', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('set and get', () => {
+		const map = new FourKeyMap<string, string, string, string, number>();
+		map.set('a', 'b', 'c', 'd', 1);
+		map.set('a', 'c', 'c', 'd', 2);
+		map.set('b', 'e', 'f', 'g', 3);
+		assert.strictEqual(map.get('a', 'b', 'c', 'd'), 1);
+		assert.strictEqual(map.get('a', 'c', 'c', 'd'), 2);
+		assert.strictEqual(map.get('b', 'e', 'f', 'g'), 3);
+		assert.strictEqual(map.get('a', 'b', 'c', 'a'), undefined);
+	});
+
+	test('clear', () => {
+		const map = new FourKeyMap<string, string, string, string, number>();
+		map.set('a', 'b', 'c', 'd', 1);
+		map.set('a', 'c', 'c', 'd', 2);
+		map.set('b', 'e', 'f', 'g', 3);
+		map.clear();
+		assert.strictEqual(map.get('a', 'b', 'c', 'd'), undefined);
+		assert.strictEqual(map.get('a', 'c', 'c', 'd'), undefined);
+		assert.strictEqual(map.get('b', 'e', 'f', 'g'), undefined);
+	});
 });

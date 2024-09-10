@@ -15,11 +15,9 @@ export interface ISCMHistoryProviderMenus {
 }
 
 export interface ISCMHistoryProvider {
-	readonly currentHistoryItemGroup: IObservable<ISCMHistoryItemGroup | undefined>;
-
-	readonly currentHistoryItemRef: IObservable<ISCMHistoryItemRef | undefined>;
-	readonly currentHistoryItemRemoteRef: IObservable<ISCMHistoryItemRef | undefined>;
-	readonly currentHistoryItemBaseRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemRemoteRef: IObservable<ISCMHistoryItemRef | undefined>;
+	readonly historyItemBaseRef: IObservable<ISCMHistoryItemRef | undefined>;
 
 	readonly historyItemRefChanges: IObservable<ISCMHistoryItemRefsChangeEvent>;
 
@@ -33,14 +31,6 @@ export interface ISCMHistoryOptions {
 	readonly skip?: number;
 	readonly limit?: number | { id?: string };
 	readonly historyItemRefs?: readonly string[];
-}
-
-export interface ISCMHistoryItemGroup {
-	readonly id: string;
-	readonly name: string;
-	readonly revision?: string;
-	readonly base?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
-	readonly remote?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
 }
 
 export interface ISCMHistoryItemStatistics {

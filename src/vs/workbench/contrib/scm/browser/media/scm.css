@@ -493,6 +493,16 @@
 	margin-bottom: 0 !important;
 }
 
+.monaco-hover.history-item-hover .hover-row.status-bar .action {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-hover.history-item-hover .hover-row.status-bar .action .codicon {
+	color: inherit;
+	font-size: 12px;
+}
+
 /* Graph */
 
 .pane-header .scm-graph-view-badge-container {
