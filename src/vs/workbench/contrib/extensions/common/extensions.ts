@@ -15,10 +15,11 @@ import { IExtensionManifest, ExtensionType } from '../../../../platform/extensio
 import { URI } from '../../../../base/common/uri.js';
 import { IView, IViewPaneContainer } from '../../../common/views.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IExtensionsStatus } from '../../../services/extensions/common/extensions.js';
+import { IExtensionsStatus as IExtensionRuntimeStatus } from '../../../services/extensions/common/extensions.js';
 import { IExtensionEditorOptions } from './extensionsInput.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { Severity } from '../../../../platform/notification/common/notification.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -110,6 +111,13 @@ export interface InstallExtensionOptions extends InstallOptions {
 	enable?: boolean;
 }
 
+export interface IExtensionsNotification {
+	readonly message: string;
+	readonly severity: Severity;
+	readonly extensions: IExtension[];
+	dismiss(): void;
+}
+
 export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IExtension | undefined>;
@@ -144,9 +152,12 @@ export interface IExtensionsWorkbenchService {
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
 	checkForUpdates(): Promise<void>;
-	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
+	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
 	updateRunningExtensions(): Promise<void>;
+
+	onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
+	getExtensionsNotification(): IExtensionsNotification | undefined;
 
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;

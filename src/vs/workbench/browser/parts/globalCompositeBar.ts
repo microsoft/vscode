@@ -602,8 +602,7 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 		}
 
 		show(this.profileBadge);
-		this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
-		this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+		this.profileBadgeContent.classList.add('profile-text-overlay');
 		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 
