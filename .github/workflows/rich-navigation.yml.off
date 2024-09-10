@@ -28,8 +28,6 @@ jobs:
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
         run: npm ci
-        env:
-          CHILD_CONCURRENCY: 1
 
       - uses: microsoft/RichCodeNavIndexer@v0.1
         with:
