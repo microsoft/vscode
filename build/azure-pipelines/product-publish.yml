@@ -26,10 +26,8 @@ steps:
   - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
     displayName: Add build tag
 
-  - pwsh: node build/npm/setupBuildYarnrc
-    displayName: Prepare build dependencies
-
-  - pwsh: yarn
+  - pwsh: |
+      npm ci
     workingDirectory: build
     displayName: Install build dependencies
 

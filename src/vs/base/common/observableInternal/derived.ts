@@ -5,6 +5,7 @@
 
 import { assertFn } from '../assert.js';
 import { EqualityComparer, strictEquals } from '../equals.js';
+import { onBugIndicatingError } from '../errors.js';
 import { DisposableStore, IDisposable } from '../lifecycle.js';
 import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
 import { DebugNameData, IDebugNameData, DebugOwner } from './debugName.js';
@@ -277,29 +278,35 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 		const oldValue = this.value;
 		this.state = DerivedState.upToDate;
 
-		const changeSummary = this.changeSummary!;
-		this.changeSummary = this.createChangeSummary?.();
+		let didChange = false;
+
 		try {
-			/** might call {@link handleChange} indirectly, which could invalidate us */
-			this.value = this._computeFn(this, changeSummary);
-		} finally {
-			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
-			// Thus, we only unsubscribe from observables that are definitely not read anymore.
-			for (const o of this.dependenciesToBeRemoved) {
-				o.removeObserver(this);
+			const changeSummary = this.changeSummary!;
+			this.changeSummary = this.createChangeSummary?.();
+			try {
+				/** might call {@link handleChange} indirectly, which could invalidate us */
+				this.value = this._computeFn(this, changeSummary);
+			} finally {
+				// We don't want our observed observables to think that they are (not even temporarily) not being observed.
+				// Thus, we only unsubscribe from observables that are definitely not read anymore.
+				for (const o of this.dependenciesToBeRemoved) {
+					o.removeObserver(this);
+				}
+				this.dependenciesToBeRemoved.clear();
 			}
-			this.dependenciesToBeRemoved.clear();
+
+			didChange = hadValue && !(this._equalityComparator(oldValue!, this.value));
+
+			getLogger()?.handleDerivedRecomputed(this, {
+				oldValue,
+				newValue: this.value,
+				change: undefined,
+				didChange,
+				hadValue,
+			});
+		} catch (e) {
+			onBugIndicatingError(e);
 		}
-
-		const didChange = hadValue && !(this._equalityComparator(oldValue!, this.value));
-
-		getLogger()?.handleDerivedRecomputed(this, {
-			oldValue,
-			newValue: this.value,
-			change: undefined,
-			didChange,
-			hadValue,
-		});
 
 		if (didChange) {
 			for (const r of this.observers) {
@@ -356,11 +363,17 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	public handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void {
 		if (this.dependencies.has(observable) && !this.dependenciesToBeRemoved.has(observable)) {
-			const shouldReact = this._handleChange ? this._handleChange({
-				changedObservable: observable,
-				change,
-				didChange: (o): this is any => o === observable as any,
-			}, this.changeSummary!) : true;
+			let shouldReact = false;
+			try {
+				shouldReact = this._handleChange ? this._handleChange({
+					changedObservable: observable,
+					change,
+					didChange: (o): this is any => o === observable as any,
+				}, this.changeSummary!) : true;
+			} catch (e) {
+				onBugIndicatingError(e);
+			}
+
 			const wasUpToDate = this.state === DerivedState.upToDate;
 			if (shouldReact && (this.state === DerivedState.dependenciesMightHaveChanged || wasUpToDate)) {
 				this.state = DerivedState.stale;

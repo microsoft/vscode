@@ -10,6 +10,7 @@ import { ISettableObservable, autorun, derived, ITransaction, observableFromEven
 import { BaseObservable, IObservable, IObserver } from '../../common/observableInternal/base.js';
 import { derivedDisposable } from '../../common/observableInternal/derived.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { setUnexpectedErrorHandler } from '../../common/errors.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1324,6 +1325,79 @@ suite('observables', () => {
 		]);
 
 		d.dispose();
+	});
+
+	suite('autorun error handling', () => {
+		test('immediate throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				myObservable.read(reader);
+				throw new Error('foobar');
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+				"error: foobar"
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
+		});
+
+		test('late throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				const value = myObservable.read(reader);
+				if (value >= 1) {
+					throw new Error('foobar');
+				}
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			myObservable.set(2, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 2)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
+		});
 	});
 });
 

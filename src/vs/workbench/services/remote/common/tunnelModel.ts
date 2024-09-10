@@ -497,13 +497,13 @@ export class TunnelModel extends Disposable {
 				});
 			}
 			await this.storeForwarded();
+			this.checkExtensionActivationEvents();
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
 			return this.onTunnelClosed(address, TunnelCloseReason.Other);
 		}));
-		this.checkExtensionActivationEvents();
 	}
 
 	private extensionHasActivationEvent() {

@@ -34,9 +34,15 @@ export async function activate(context: vscode.ExtensionContext) {
 			this._index.clear();
 		}
 
-		async all() {
-			await this._currentRun;
-			return this._index.values();
+		async all(token: vscode.CancellationToken) {
+
+			await Promise.race([this._currentRun, new Promise<void>(resolve => token.onCancellationRequested(resolve))]);
+
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			return Array.from(this._index.values());
 		}
 
 		private _refresh(clear: boolean) {
@@ -86,10 +92,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const range = new vscode.Range(document.positionAt(node.moduleSpecifier.pos), document.positionAt(node.moduleSpecifier.end));
-			const uris = await Promise.race([fileIndex.all(), new Promise<void>(resolve => token.onCancellationRequested(resolve))]);
+			const uris = await fileIndex.all(token);
 
 			if (!uris) {
-				console.log('NO uris');
 				return undefined;
 			}
 
@@ -127,30 +132,82 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	class ImportCodeActions implements vscode.CodeActionProvider {
 
-		static kind = vscode.CodeActionKind.QuickFix.append('import');
+		static FixKind = vscode.CodeActionKind.QuickFix.append('esmImport');
+
+		static SourceKind = vscode.CodeActionKind.SourceFixAll.append('esmImport');
 
 		async provideCodeActions(document: vscode.TextDocument, range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, token: vscode.CancellationToken): Promise<vscode.CodeAction[] | undefined> {
 
-			const diag = context.diagnostics.find(d => d.code === 2307);
-			if (!diag) {
+			if (context.only && ImportCodeActions.SourceKind.intersects(context.only)) {
+				return this._provideFixAll(document, context, token);
+			}
+
+			return this._provideFix(document, range, context, token);
+		}
+
+		private async _provideFixAll(document: vscode.TextDocument, context: vscode.CodeActionContext, token: vscode.CancellationToken): Promise<vscode.CodeAction[] | undefined> {
+
+			const diagnostics = context.diagnostics
+				.filter(d => d.code === 2307)
+				.sort((a, b) => b.range.start.compareTo(a.range.start));
+
+			if (diagnostics.length === 0) {
 				return undefined;
 			}
 
-			const node = findImportAt(document, range.start)?.moduleSpecifier;
-
-			if (!node || !ts.isStringLiteral(node)) {
+			const uris = await fileIndex.all(token);
+			if (!uris) {
 				return undefined;
+			}
+
+			const result = new vscode.CodeAction(`Fix All ESM Imports`, ImportCodeActions.SourceKind);
+			result.edit = new vscode.WorkspaceEdit();
+			result.diagnostics = [];
+
+			for (const diag of diagnostics) {
+
+				const actions = this._provideFixesForDiag(document, diag, uris);
+
+				if (actions.length === 0) {
+					console.log(`ESM: no fixes for "${diag.message}"`);
+					continue;
+				}
+
+				if (actions.length > 1) {
+					console.log(`ESM: more than one fix for "${diag.message}", taking first`);
+					console.log(actions);
+				}
+
+				const [first] = actions;
+				result.diagnostics.push(diag);
+
+				for (const [uri, edits] of first.edit!.entries()) {
+					result.edit.set(uri, edits);
+				}
+			}
+			// console.log(result.edit.get(document.uri));
+			return [result];
+		}
+
+		private async _provideFix(document: vscode.TextDocument, range: vscode.Range | vscode.Selection, context: vscode.CodeActionContext, token: vscode.CancellationToken): Promise<vscode.CodeAction[] | undefined> {
+			const uris = await fileIndex.all(token);
+			if (!uris) {
+				return [];
+			}
+
+			const diag = context.diagnostics.find(d => d.code === 2307 && d.range.intersection(range));
+			return diag && this._provideFixesForDiag(document, diag, uris);
+		}
+
+		private _provideFixesForDiag(document: vscode.TextDocument, diag: vscode.Diagnostic, uris: Iterable<vscode.Uri>): vscode.CodeAction[] {
+
+			const node = findImportAt(document, diag.range.start)?.moduleSpecifier;
+			if (!node || !ts.isStringLiteral(node)) {
+				return [];
 			}
 
 			const nodeRange = new vscode.Range(document.positionAt(node.pos), document.positionAt(node.end));
 			const name = path.basename(node.text, path.extname(node.text));
-
-			const uris = await Promise.race([fileIndex.all(), new Promise<void>(resolve => token.onCancellationRequested(resolve))]);
-
-			if (!uris) {
-				console.log('NO uris');
-				return [];
-			}
 
 			const result: vscode.CodeAction[] = [];
 
@@ -159,7 +216,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					let relativePath = path.relative(path.dirname(document.uri.path), item.path).replace(/\.ts$/, '.js');
 					relativePath = relativePath.startsWith('.') ? relativePath : `./${relativePath}`;
 
-					const action = new vscode.CodeAction(`Fix to '${relativePath}'`, ImportCodeActions.kind);
+					const action = new vscode.CodeAction(`Fix to '${relativePath}'`, ImportCodeActions.FixKind);
 					action.edit = new vscode.WorkspaceEdit();
 					action.edit.replace(document.uri, nodeRange, ` '${relativePath}'`);
 					action.diagnostics = [diag];
@@ -173,5 +230,5 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(fileIndex);
 	context.subscriptions.push(vscode.languages.registerCompletionItemProvider(selector, completionProvider));
-	context.subscriptions.push(vscode.languages.registerCodeActionsProvider(selector, new ImportCodeActions(), { providedCodeActionKinds: [ImportCodeActions.kind] }));
+	context.subscriptions.push(vscode.languages.registerCodeActionsProvider(selector, new ImportCodeActions(), { providedCodeActionKinds: [ImportCodeActions.FixKind, ImportCodeActions.SourceKind] }));
 }

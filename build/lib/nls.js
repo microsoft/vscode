@@ -174,7 +174,7 @@ var _nls;
             if (!(0, amd_1.isAMD)()) {
                 return d.moduleReference.expression.getText().endsWith(`/nls.js'`);
             }
-            return d.moduleReference.expression.getText() === '\'vs/nls\'';
+            return d.moduleReference.expression.getText().endsWith(`/nls'`);
         });
         // import ... from 'vs/nls';
         const importDeclarations = imports
@@ -185,7 +185,7 @@ var _nls;
             if (!(0, amd_1.isAMD)()) {
                 return d.moduleSpecifier.getText().endsWith(`/nls.js'`);
             }
-            return d.moduleSpecifier.getText() === '\'vs/nls\'';
+            return d.moduleSpecifier.getText().endsWith(`/nls'`);
         })
             .filter(d => !!d.importClause && !!d.importClause.namedBindings);
         // `nls.localize(...)` calls

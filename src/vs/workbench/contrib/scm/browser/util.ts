@@ -19,10 +19,6 @@ import { reset } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 
-export function isSCMRepositoryArray(element: any): element is ISCMRepository[] {
-	return Array.isArray(element) && element.every(r => isSCMRepository(r));
-}
-
 export function isSCMViewService(element: any): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
 }
@@ -52,7 +48,7 @@ export function isSCMResourceNode(element: any): element is IResourceNode<ISCMRe
 }
 
 export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
-	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItem2';
+	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItemViewModel';
 }
 
 export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {

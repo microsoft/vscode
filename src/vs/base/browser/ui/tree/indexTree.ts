@@ -5,8 +5,8 @@
 
 import { IListVirtualDelegate } from '../list/list.js';
 import { AbstractTree, IAbstractTreeOptions } from './abstractTree.js';
-import { IList, IndexTreeModel } from './indexTreeModel.js';
-import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from './tree.js';
+import { IndexTreeModel } from './indexTreeModel.js';
+import { ITreeElement, ITreeModel, ITreeRenderer, TreeError } from './tree.js';
 import { Iterable } from '../../../common/iterator.js';
 import './media/tree.css';
 
@@ -17,7 +17,7 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 	protected declare model: IndexTreeModel<T, TFilterData>;
 
 	constructor(
-		user: string,
+		private readonly user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
@@ -41,10 +41,19 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 	}
 
 	updateElementHeight(location: number[], height: number): void {
-		this.model.updateElementHeight(location, height);
+		if (location.length === 0) {
+			throw new TreeError(this.user, `Update element height failed: invalid location`);
+		}
+
+		const elementIndex = this.model.getListIndex(location);
+		if (elementIndex === -1) {
+			return;
+		}
+
+		this.view.updateElementHeight(elementIndex, height);
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
-		return new IndexTreeModel(user, view, this.rootElement, options);
+	protected createModel(user: string, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
+		return new IndexTreeModel(user, this.rootElement, options);
 	}
 }

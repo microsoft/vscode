@@ -4,7 +4,6 @@
 	<meta charset="utf-8">
 	<title>VSCode Tests</title>
 	<link href="../../../node_modules/mocha/mocha.css" rel="stylesheet" />
-
 </head>
 
 <body>
@@ -36,7 +35,7 @@
 
 		mocha.setup({
 			ui: 'tdd',
-			timeout: 5000,
+			timeout: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' ? 30000 : 5000,
 			forbidOnly: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' // disallow .only() when running on build machine
 		});
 	</script>
@@ -86,14 +85,12 @@
 			}
 		};
 
-
 		const builtin = require('module').builtinModules.filter(mod => !mod.startsWith('_') && !mod.startsWith('electron/js2c/')).sort();
 		const dependencies = Object.keys(require('../../../package.json').dependencies).sort();
 		const optionalDependencies = Object.keys(require('../../../package.json').optionalDependencies).sort();
 		const dependenciesRemote = Object.keys(require('../../../remote/package.json').dependencies).sort();
 
 		for (const name of new Set([].concat(builtin, dependencies, optionalDependencies, dependenciesRemote))) {
-
 			const url = asRequireBlobUri(name);
 			if(!url) {
 				continue;
@@ -121,14 +118,12 @@
 			}
 
 		}).then(() => {
-
 			const rawImportMap = JSON.stringify(importMap, undefined, 2);
 			const importMapScript = document.createElement('script');
 			importMapScript.type = 'importmap';
 			importMapScript.textContent = rawImportMap;
 			document.head.append(importMapScript);
 		});
-
 	</script>
 	<script src="./renderer.js"></script>
 </body>

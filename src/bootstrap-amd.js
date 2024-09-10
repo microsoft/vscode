@@ -20,6 +20,7 @@ import { product, pkg } from './bootstrap-meta.js';
 import './bootstrap-node.js';
 import * as performance from './vs/base/common/performance.js';
 
+/** @ts-ignore */
 const require = createRequire(import.meta.url);
 /** @type any */
 const module = { exports: {} };
@@ -44,14 +45,6 @@ if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 	register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url);
 }
 // ESM-uncomment-end
-
-// Store the node.js require function in a variable
-// before loading our AMD loader to avoid issues
-// when this file is bundled with other files.
-const nodeRequire = require;
-
-// VSCODE_GLOBALS: node_modules
-globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
 
 // VSCODE_GLOBALS: package/product.json
 /** @type Partial<IProductConfiguration> */
