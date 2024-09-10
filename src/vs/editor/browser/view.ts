@@ -178,7 +178,7 @@ export class View extends ViewEventHandler {
 		const scrollDecoration = new ScrollDecorationViewPart(this._context);
 		this._viewParts.push(scrollDecoration);
 
-		const contentViewOverlays = this._instantiationService.createInstance(ContentViewOverlays, this._context);
+		const contentViewOverlays = new ContentViewOverlays(this._context);
 		this._viewParts.push(contentViewOverlays);
 		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
@@ -186,7 +186,7 @@ export class View extends ViewEventHandler {
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new WhitespaceOverlay(this._context));
 
-		const marginViewOverlays = this._instantiationService.createInstance(MarginViewOverlays, this._context);
+		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this._viewParts.push(marginViewOverlays);
 		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
