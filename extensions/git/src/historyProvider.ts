@@ -62,7 +62,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
 
+	private _HEAD: Branch | undefined;
 	private historyItemRefs: SourceControlHistoryItemRef[] = [];
+	private historyItemBaseRef: SourceControlHistoryItemRef | undefined;
+
 	private historyItemDecorations = new Map<string, FileDecoration>();
 
 	private disposables: Disposable[] = [];
@@ -79,37 +82,56 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return;
 		}
 
-		// Get the merge base of the current history item group
-		const mergeBase = await this.resolveHEADMergeBase();
+		let historyItemRefId = '';
+		let historyItemRefName = '';
 
-		// Handle tag, and detached commit
-		const currentHistoryItemGroupId =
-			this.repository.HEAD.name === undefined ?
-				this.repository.HEAD.commit :
-				this.repository.HEAD.type === RefType.Tag ?
-					`refs/tags/${this.repository.HEAD.name}` :
-					`refs/heads/${this.repository.HEAD.name}`;
+		switch (this.repository.HEAD.type) {
+			case RefType.Head: {
+				if (this.repository.HEAD.name !== undefined) {
+					// Branch
+					historyItemRefId = `refs/heads/${this.repository.HEAD.name}`;
+					historyItemRefName = this.repository.HEAD.name;
 
-		// Detached commit
-		const currentHistoryItemGroupName =
-			this.repository.HEAD.name ?? this.repository.HEAD.commit;
+					// Merge base if the branch has changed
+					if (this._HEAD?.name !== this.repository.HEAD.name) {
+						const mergeBase = await this.resolveHEADMergeBase();
+						this.historyItemBaseRef = mergeBase &&
+							(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
+								mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
+							id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
+							name: `${mergeBase.remote}/${mergeBase.name}`,
+							revision: mergeBase.commit
+						} : undefined;
+					}
+				} else {
+					// Detached commit
+					historyItemRefId = this.repository.HEAD.commit ?? '';
+					historyItemRefName = this.repository.HEAD.commit ?? '';
+					this.historyItemBaseRef = undefined;
+				}
+				break;
+			}
+			case RefType.Tag: {
+				// Tag
+				historyItemRefId = `refs/tags/${this.repository.HEAD.name}`;
+				historyItemRefName = this.repository.HEAD.name ?? this.repository.HEAD.commit ?? '';
+				this.historyItemBaseRef = undefined;
+				break;
+			}
+		}
+
+		this._HEAD = this.repository.HEAD;
 
 		this.currentHistoryItemGroup = {
-			id: currentHistoryItemGroupId ?? '',
-			name: currentHistoryItemGroupName ?? '',
+			id: historyItemRefId,
+			name: historyItemRefName,
 			revision: this.repository.HEAD.commit,
 			remote: this.repository.HEAD.upstream ? {
 				id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				revision: this.repository.HEAD.upstream.commit
 			} : undefined,
-			base: mergeBase &&
-				(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
-					mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
-				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
-				name: `${mergeBase.remote}/${mergeBase.name}`,
-				revision: mergeBase.commit
-			} : undefined
+			base: this.historyItemBaseRef
 		};
 
 		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemGroup: ${JSON.stringify(this.currentHistoryItemGroup)}`);
