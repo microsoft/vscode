@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -60,8 +60,6 @@ import { IExtensionManifestPropertiesService } from '../../../services/extension
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { getLocale } from '../../../../platform/languagePacks/common/languagePacks.js';
@@ -2015,7 +2013,6 @@ export class ShowRecommendedExtensionAction extends Action {
 
 	constructor(
 		extensionId: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(ShowRecommendedExtensionAction.ID, ShowRecommendedExtensionAction.LABEL, undefined, false);
@@ -2023,10 +2020,7 @@ export class ShowRecommendedExtensionAction extends Action {
 	}
 
 	override async run(): Promise<any> {
-		const paneComposite = await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const paneContainer = paneComposite?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		paneContainer.search(`@id:${this.extensionId}`);
-		paneContainer.focus();
+		await this.extensionWorkbenchService.openSearch(`@id:${this.extensionId}`);
 		const [extension] = await this.extensionWorkbenchService.getExtensions([{ id: this.extensionId }], { source: 'install-recommendation' }, CancellationToken.None);
 		if (extension) {
 			return this.extensionWorkbenchService.open(extension);
@@ -2044,7 +2038,6 @@ export class InstallRecommendedExtensionAction extends Action {
 
 	constructor(
 		extensionId: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 	) {
@@ -2053,10 +2046,7 @@ export class InstallRecommendedExtensionAction extends Action {
 	}
 
 	override async run(): Promise<any> {
-		const viewlet = await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const viewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewPaneContainer.search(`@id:${this.extensionId}`);
-		viewPaneContainer.focus();
+		await this.extensionWorkbenchService.openSearch(`@id:${this.extensionId}`);
 		const [extension] = await this.extensionWorkbenchService.getExtensions([{ id: this.extensionId }], { source: 'install-recommendation' }, CancellationToken.None);
 		if (extension) {
 			await this.extensionWorkbenchService.open(extension);
@@ -2112,22 +2102,6 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 	public override run(): Promise<any> {
 		this.extensionRecommendationsManagementService.toggleGlobalIgnoredRecommendation(this.extension.identifier.id, false);
 		return Promise.resolve();
-	}
-}
-
-export class SearchExtensionsAction extends Action {
-
-	constructor(
-		private readonly searchValue: string,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
-	) {
-		super('extensions.searchExtensions', localize('search recommendations', "Search Extensions"), undefined, true);
-	}
-
-	override async run(): Promise<void> {
-		const viewPaneContainer = (await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewPaneContainer.search(this.searchValue);
-		viewPaneContainer.focus();
 	}
 }
 
@@ -2571,10 +2545,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 			}
 		}
 
-		// Extension is disabled by untrusted workspace
-		if (this.extension.enablementState === EnablementState.DisabledByTrustRequirement ||
-			// All disabled dependencies of the extension are disabled by untrusted workspace
-			(this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.workbenchExtensionEnablementService.getDependenciesEnablementStates(this.extension.local).every(([, enablementState]) => this.workbenchExtensionEnablementService.isEnabledEnablementState(enablementState) || enablementState === EnablementState.DisabledByTrustRequirement))) {
+		if (!this.workspaceTrustService.isWorkspaceTrusted() &&
+			// Extension is disabled by untrusted workspace
+			(this.extension.enablementState === EnablementState.DisabledByTrustRequirement ||
+				// All disabled dependencies of the extension are disabled by untrusted workspace
+				(this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.workbenchExtensionEnablementService.getDependenciesEnablementStates(this.extension.local).every(([, enablementState]) => this.workbenchExtensionEnablementService.isEnabledEnablementState(enablementState) || enablementState === EnablementState.DisabledByTrustRequirement)))) {
 			this.enabled = true;
 			const untrustedDetails = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
 			this.updateStatus({ icon: trustIcon, message: new MarkdownString(untrustedDetails ? escapeMarkdownSyntaxTokens(untrustedDetails) : localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted.")) }, true);
@@ -2682,6 +2657,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 			return;
 		}
 
+		if (!this.extension.local.isValid) {
+			const errors = this.extension.local.validations.filter(([severity]) => severity === Severity.Error).map(([, message]) => message);
+			this.updateStatus({ icon: errorIcon, message: new MarkdownString(errors.join(' ').trim()) }, true);
+			return;
+		}
+
 		const isEnabled = this.workbenchExtensionEnablementService.isEnabled(this.extension.local);
 		const isRunning = this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier));
 
@@ -2711,12 +2692,6 @@ export class ExtensionStatusAction extends ExtensionAction {
 				return;
 			}
 		}
-
-		if (isEnabled && !isRunning && !this.extension.local.isValid) {
-			const errors = this.extension.local.validations.filter(([severity]) => severity === Severity.Error).map(([, message]) => message);
-			this.updateStatus({ icon: errorIcon, message: new MarkdownString(errors.join(' ').trim()) }, true);
-		}
-
 	}
 
 	private updateStatus(status: ExtensionStatus | undefined, updateClass: boolean): void {
@@ -2785,7 +2760,6 @@ export class ReinstallAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService private readonly hostService: IHostService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(id, label);
@@ -2818,7 +2792,7 @@ export class ReinstallAction extends Action {
 	}
 
 	private reinstallExtension(extension: IExtension): Promise<void> {
-		return this.instantiationService.createInstance(SearchExtensionsAction, '@installed ').run()
+		return this.extensionsWorkbenchService.openSearch('@installed ')
 			.then(() => {
 				return this.extensionsWorkbenchService.reinstall(extension)
 					.then(extension => {
@@ -2864,7 +2838,7 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 		if (extensionPick && extensionPick.extension) {
 			const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extensionPick.extension, true);
 			await action.run();
-			await this.instantiationService.createInstance(SearchExtensionsAction, extensionPick.extension.identifier.id).run();
+			await this.extensionsWorkbenchService.openSearch(extensionPick.extension.identifier.id);
 		}
 	}
 
@@ -3106,29 +3080,14 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 }
 
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
-	const paneCompositeService = accessor.get(IPaneCompositePartService);
-
-	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-		.then(viewlet => {
-			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
-			viewlet.focus();
-		});
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	return extensionsWorkbenchService.openSearch(`ext:${fileExtension.replace(/^\./, '')}`);
 });
 
 export const showExtensionsWithIdsCommandId = 'workbench.extensions.action.showExtensionsWithIds';
 CommandsRegistry.registerCommand(showExtensionsWithIdsCommandId, function (accessor: ServicesAccessor, extensionIds: string[]) {
-	const paneCompositeService = accessor.get(IPaneCompositePartService);
-
-	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-		.then(viewlet => {
-			const query = extensionIds
-				.map(id => `@id:${id}`)
-				.join(' ');
-			viewlet.search(query);
-			viewlet.focus();
-		});
+	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+	return extensionsWorkbenchService.openSearch(extensionIds.map(id => `@id:${id}`).join(' '));
 });
 
 registerColor('extensionButton.background', {

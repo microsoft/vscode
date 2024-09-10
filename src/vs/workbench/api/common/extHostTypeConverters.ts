@@ -1623,27 +1623,51 @@ export namespace MappedEditsContext {
 			!!v && typeof v === 'object' &&
 			'documents' in v &&
 			Array.isArray(v.documents) &&
-			v.documents.every(subArr =>
-				Array.isArray(subArr) &&
-				subArr.every(docRef =>
-					docRef && typeof docRef === 'object' &&
-					'uri' in docRef && URI.isUri(docRef.uri) &&
-					'version' in docRef && typeof docRef.version === 'number' &&
-					'ranges' in docRef && Array.isArray(docRef.ranges) && docRef.ranges.every((r: unknown) => r instanceof types.Range)
-				)
-			)
+			v.documents.every(
+				subArr => Array.isArray(subArr) &&
+					subArr.every(DocumentContextItem.is))
 		);
 	}
 
 	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
 		return {
 			documents: extContext.documents.map((subArray) =>
-				subArray.map((r) => ({
-					uri: URI.from(r.uri),
-					version: r.version,
-					ranges: r.ranges.map((r) => Range.from(r)),
-				}))
+				subArray.map(DocumentContextItem.from)
 			),
+			conversation: extContext.conversation?.map(item => (
+				(item.type === 'request') ?
+					{
+						type: 'request',
+						message: item.message,
+					} :
+					{
+						type: 'response',
+						message: item.message,
+						references: item.references?.map(DocumentContextItem.from)
+					}
+			))
+		};
+
+	}
+}
+
+export namespace DocumentContextItem {
+
+	export function is(item: unknown): item is vscode.DocumentContextItem {
+		return (
+			typeof item === 'object' &&
+			item !== null &&
+			'uri' in item && URI.isUri(item.uri) &&
+			'version' in item && typeof item.version === 'number' &&
+			'ranges' in item && Array.isArray(item.ranges) && item.ranges.every((r: unknown) => r instanceof types.Range)
+		);
+	}
+
+	export function from(item: vscode.DocumentContextItem): languages.DocumentContextItem {
+		return {
+			uri: URI.from(item.uri),
+			version: item.version,
+			ranges: item.ranges.map(r => Range.from(r)),
 		};
 	}
 }
@@ -2462,18 +2486,27 @@ export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
 		// Work around type-narrowing confusion between vscode.Uri and URI
 		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
+		const isSymbolInformation = (x: any): x is vscode.SymbolInformation => x instanceof types.SymbolInformation;
 
 		return {
 			kind: 'inlineReference',
 			name: part.title,
-			inlineReference: isUri(part.value) ? part.value : Location.from(part.value)
+			inlineReference: isUri(part.value)
+				? part.value
+				: isSymbolInformation(part.value)
+					? WorkspaceSymbol.from(part.value)
+					: Location.from(part.value)
 		};
 	}
 
 	export function to(part: Dto<IChatContentInlineReference>): vscode.ChatResponseAnchorPart {
 		const value = revive<IChatContentInlineReference>(part);
 		return new types.ChatResponseAnchorPart(
-			URI.isUri(value.inlineReference) ? value.inlineReference : Location.to(value.inlineReference),
+			URI.isUri(value.inlineReference)
+				? value.inlineReference
+				: 'location' in value.inlineReference
+					? WorkspaceSymbol.to(value.inlineReference) as vscode.SymbolInformation
+					: Location.to(value.inlineReference),
 			part.name
 		);
 	}

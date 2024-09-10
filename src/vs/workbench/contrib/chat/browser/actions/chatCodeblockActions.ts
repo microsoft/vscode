@@ -13,7 +13,7 @@ import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browse
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { DocumentContextItem, IWorkspaceFileEdit, IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
+import { ConversationRequest, ConversationResponse, DocumentContextItem, isLocation, IWorkspaceFileEdit, IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
@@ -33,8 +33,8 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService, IChatCodeBlockContextProviderService } from '../chat.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDIT_APPLIED } from '../../common/chatContextKeys.js';
-import { ChatCopyKind, IChatService, IDocumentContext } from '../../common/chatService.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatCopyKind, IChatContentReference, IChatService, IDocumentContext } from '../../common/chatService.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
@@ -46,6 +46,8 @@ import { CharCode } from '../../../../../base/common/charCode.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const shellLangIds = [
 	'fish',
@@ -75,6 +77,53 @@ function isResponseFiltered(context: ICodeBlockActionContext) {
 
 function getUsedDocuments(context: ICodeBlockActionContext): IDocumentContext[] | undefined {
 	return isResponseVM(context.element) ? context.element.usedContext?.documents : undefined;
+}
+
+
+function getReferencesAsDocumentContext(res: readonly IChatContentReference[]): DocumentContextItem[] {
+	const map = new ResourceMap<DocumentContextItem>();
+	for (const r of res) {
+		let uri;
+		let range;
+		if (URI.isUri(r.reference)) {
+			uri = r.reference;
+		} else if (isLocation(r.reference)) {
+			uri = r.reference.uri;
+			range = r.reference.range;
+		}
+		if (uri) {
+			const item = map.get(uri);
+			if (item) {
+				if (range) {
+					item.ranges.push(range);
+				}
+			} else {
+				map.set(uri, { uri, version: -1, ranges: range ? [range] : [] });
+			}
+		}
+	}
+	return [...map.values()];
+}
+
+
+function getChatConversation(context: ICodeBlockActionContext): (ConversationRequest | ConversationResponse)[] {
+	// TODO@aeschli for now create a conversation with just the current element
+	// this will be expanded in the future to include the request and any other responses
+
+	if (isResponseVM(context.element)) {
+		return [{
+			type: 'response',
+			message: context.element.response.toMarkdown(),
+			references: getReferencesAsDocumentContext(context.element.contentReferences)
+		}];
+	} else if (isRequestVM(context.element)) {
+		return [{
+			type: 'request',
+			message: context.element.messageText,
+		}];
+	} else {
+		return [];
+	}
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
@@ -475,7 +524,10 @@ export function registerChatCodeBlockActions() {
 								const mappedEdits = await provider.provideMappedEdits(
 									activeModel,
 									[codeBlockActionContext.code],
-									{ documents: docRefs },
+									{
+										documents: docRefs,
+										conversation: getChatConversation(codeBlockActionContext),
+									},
 									cancellationTokenSource.token
 								);
 								if (mappedEdits) {

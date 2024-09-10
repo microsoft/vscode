@@ -51,6 +51,5 @@ steps:
 
       unzip $ArchivePath -d .build
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
-      cp remote/.yarnrc .build/distro/npm/remote/.yarnrc
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Download distro (non-Windows)

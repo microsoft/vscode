@@ -73,7 +73,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 function nodeModules(destinationExe, destinationPdb, platform) {
 	const productionDependencies = deps.getProductionDependencies(root);
-	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 	const exe = () => {
 		return gulp.src(dependenciesSrc, { base: '.', dot: true })

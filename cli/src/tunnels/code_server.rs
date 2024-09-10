@@ -674,7 +674,7 @@ where
 		let write_line = |line: &str| -> std::io::Result<()> {
 			if let Some(mut f) = log_file.as_ref() {
 				f.write_all(line.as_bytes())?;
-				f.write_all(&[b'\n'])?;
+				f.write_all(b"\n")?;
 			}
 			if write_directly {
 				println!("{}", line);

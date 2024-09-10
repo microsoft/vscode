@@ -224,7 +224,7 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				return [];
 			}
 
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor([currentHistoryItemGroup.id, currentHistoryItemGroup.remote.id]);
+			const ancestor = await historyProvider.resolveHistoryItemRefsCommonAncestor([currentHistoryItemGroup.id, currentHistoryItemGroup.remote.id]);
 			if (!ancestor) {
 				return [];
 			}

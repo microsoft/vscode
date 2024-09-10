@@ -8081,7 +8081,7 @@ declare namespace monaco.languages {
 
 	export interface MappedEditsContext {
 		/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
-		documents: DocumentContextItem[][];
+		readonly documents: DocumentContextItem[][];
 	}
 
 	export interface MappedEditsProvider {

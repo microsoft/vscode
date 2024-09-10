@@ -11,8 +11,24 @@ declare module 'vscode' {
 		readonly ranges: Range[];
 	}
 
+	export interface ConversationRequest {
+		readonly type: 'request';
+		readonly message: string;
+	}
+
+	export interface ConversationResponse {
+		readonly type: 'response';
+		readonly message: string;
+		readonly references?: DocumentContextItem[];
+	}
+
 	export interface MappedEditsContext {
-		documents: DocumentContextItem[][];
+		readonly documents: DocumentContextItem[][];
+		/**
+		 * The conversation that led to the current code block(s).
+		 * The last conversation part contains the code block(s) for which the code mapper should provide edits.
+		 */
+		readonly conversation?: (ConversationRequest | ConversationResponse)[];
 	}
 
 	/**

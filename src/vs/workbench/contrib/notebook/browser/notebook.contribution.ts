@@ -127,6 +127,7 @@ import { DefaultFormatter } from '../../format/browser/formatActionsMultiple.js'
 import { NotebookMultiTextDiffEditor } from './diff/notebookMultiDiffEditor.js';
 import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInput.js';
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
+import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -790,6 +791,7 @@ registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingSe
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
+registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
