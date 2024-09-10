@@ -38,7 +38,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding, fixedEditorPaddingSingleLineCells } from './diffCellEditorOptions.js';
+import { fixedDiffEditorOptions, fixedEditorOptions, getEditorPadding } from './diffCellEditorOptions.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
@@ -48,6 +48,7 @@ import { localize } from '../../../../../nls.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { getFormattedMetadataJSON } from '../../common/model/notebookCellTextModel.js';
+import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -516,20 +517,36 @@ abstract class AbstractElementRenderer extends Disposable {
 				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 			});
 
+			if (this.cell.unchangedRegionsService.options.enabled) {
+				this._metadataEditor.updateOptions({ hideUnchangedRegions: this.cell.unchangedRegionsService.options });
+			}
+			this._metadataEditorDisposeStore.add(this.cell.unchangedRegionsService.options.onDidChangeEnablement(() => {
+				if (this._metadataEditor) {
+					this._metadataEditor.updateOptions({ hideUnchangedRegions: this.cell.unchangedRegionsService.options });
+				}
+			}));
+
+
 			this.layout({ metadataHeight: true });
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
 
-			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original.handle, Schemas.vscodeNotebookCellMetadata));
-			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified.handle, Schemas.vscodeNotebookCellMetadata));
-			this._metadataEditor.setModel({
+			const [originalMetadataModel, modifiedMetadataModel] = await Promise.all([
+				this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original.handle, Schemas.vscodeNotebookCellMetadata)),
+				this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified.handle, Schemas.vscodeNotebookCellMetadata))
+			]);
+			this._metadataEditorDisposeStore.add(originalMetadataModel);
+			this._metadataEditorDisposeStore.add(modifiedMetadataModel);
+			const vm = this._metadataEditor.createViewModel({
 				original: originalMetadataModel.object.textEditorModel,
 				modified: modifiedMetadataModel.object.textEditorModel
 			});
-
-			this._metadataEditorDisposeStore.add(originalMetadataModel);
-			this._metadataEditorDisposeStore.add(modifiedMetadataModel);
+			// Reduces flicker (compute this before setting the model)
+			// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+			// & that results in flicker.
+			await vm.waitForDiff();
+			this._metadataEditor.setModel(vm);
 
 			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
 
@@ -847,10 +864,8 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				this.cell.editorHeight = 0;
 				return;
 			}
-
-			const lineCount = this.nestedCellViewModel.textModel.textBuffer.getLineCount();
 			const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-			const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
+			const editorHeight = this.cell.computeInputEditorHeight(lineHeight);
 
 			this._editorContainer.style.height = `${editorHeight}px`;
 			this._editorContainer.style.display = 'block';
@@ -1585,7 +1600,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 			const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-			const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : (lineCount * lineHeight) + fixedEditorPadding.top + fixedEditorPadding.bottom;
+			const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : this.cell.computeInputEditorHeight(lineHeight);
 
 			this._editorContainer.style.height = `${editorHeight}px`;
 			this._editorContainer.style.display = 'block';
@@ -1603,11 +1618,17 @@ export class ModifiedElement extends AbstractElementRenderer {
 			// E.g. assume we have a cell with 1 line and we add some whitespace,
 			// Then diff editor displays the button `Show Whitespace Differences`, however with 12 paddings on the top, the
 			// button can get cut off.
-			if (lineCount === 1) {
-				this._editor.updateOptions({
-					padding: fixedEditorPaddingSingleLineCells
-				});
+			const options: IDiffEditorOptions = {
+				padding: getEditorPadding(lineCount)
+			};
+			if (this.cell.unchangedRegionsService.options.enabled) {
+				options.hideUnchangedRegions = this.cell.unchangedRegionsService.options;
 			}
+			this._editor.updateOptions(options);
+			this._register(this.cell.unchangedRegionsService.options.onDidChangeEnablement(() => {
+				options.hideUnchangedRegions = this.cell.unchangedRegionsService.options;
+				this._editor?.updateOptions(options);
+			}));
 			this._editor.layout({
 				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: editorHeight
@@ -1683,25 +1704,28 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	private async _initializeSourceDiffEditor() {
-		const originalCell = this.cell.original;
-		const modifiedCell = this.cell.modified;
-
-		const originalRef = await this.textModelService.createModelReference(originalCell.uri);
-		const modifiedRef = await this.textModelService.createModelReference(modifiedCell.uri);
-
-		if (this._isDisposed) {
-			return;
-		}
-
-		const textModel = originalRef.object.textEditorModel;
-		const modifiedTextModel = modifiedRef.object.textEditorModel;
+		const [originalRef, modifiedRef] = await Promise.all([
+			this.textModelService.createModelReference(this.cell.original.uri),
+			this.textModelService.createModelReference(this.cell.modified.uri)]);
 		this._register(originalRef);
 		this._register(modifiedRef);
 
-		this._editor!.setModel({
-			original: textModel,
-			modified: modifiedTextModel,
-		});
+		if (this._isDisposed) {
+			originalRef.dispose();
+			modifiedRef.dispose();
+			return;
+		}
+
+		const vm = this._register(this._editor!.createViewModel({
+			original: originalRef.object.textEditorModel,
+			modified: modifiedRef.object.textEditorModel,
+		}));
+
+		// Reduces flicker (compute this before setting the model)
+		// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+		// & that results in flicker.
+		await vm.waitForDiff();
+		this._editor!.setModel(vm);
 
 		const handleViewStateChange = () => {
 			this._editorViewStateChanged = true;

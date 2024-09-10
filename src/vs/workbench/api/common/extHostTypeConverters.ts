@@ -2486,18 +2486,27 @@ export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
 		// Work around type-narrowing confusion between vscode.Uri and URI
 		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
+		const isSymbolInformation = (x: any): x is vscode.SymbolInformation => x instanceof types.SymbolInformation;
 
 		return {
 			kind: 'inlineReference',
 			name: part.title,
-			inlineReference: isUri(part.value) ? part.value : Location.from(part.value)
+			inlineReference: isUri(part.value)
+				? part.value
+				: isSymbolInformation(part.value)
+					? WorkspaceSymbol.from(part.value)
+					: Location.from(part.value)
 		};
 	}
 
 	export function to(part: Dto<IChatContentInlineReference>): vscode.ChatResponseAnchorPart {
 		const value = revive<IChatContentInlineReference>(part);
 		return new types.ChatResponseAnchorPart(
-			URI.isUri(value.inlineReference) ? value.inlineReference : Location.to(value.inlineReference),
+			URI.isUri(value.inlineReference)
+				? value.inlineReference
+				: 'location' in value.inlineReference
+					? WorkspaceSymbol.to(value.inlineReference) as vscode.SymbolInformation
+					: Location.to(value.inlineReference),
 			part.name
 		);
 	}

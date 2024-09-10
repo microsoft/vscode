@@ -301,6 +301,15 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 	}
 }
 
+export function signalFromObservable<T>(owner: DebugOwner | undefined, observable: IObservable<T>): IObservable<void> {
+	return derivedOpts({
+		owner,
+		equalsFn: () => false,
+	}, reader => {
+		observable.read(reader);
+	});
+}
+
 /**
  * @deprecated Use `debouncedObservable2` instead.
  */

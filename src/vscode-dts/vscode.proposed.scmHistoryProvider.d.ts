@@ -22,7 +22,7 @@ declare module 'vscode' {
 		/**
 		 * Fires when history item refs change
 		 */
-		onDidChangeHistory: Event<SourceControlHistoryChangeEvent>;
+		onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent>;
 
 		provideHistoryItemRefs(token: CancellationToken): ProviderResult<SourceControlHistoryItemRef[]>;
 		provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
@@ -78,9 +78,9 @@ declare module 'vscode' {
 		readonly renameUri: Uri | undefined;
 	}
 
-	export interface SourceControlHistoryChangeEvent {
-		readonly added: Iterable<SourceControlHistoryItemRef>;
-		readonly removed: Iterable<SourceControlHistoryItemRef>;
-		readonly modified: Iterable<SourceControlHistoryItemRef>;
+	export interface SourceControlHistoryItemRefsChangeEvent {
+		readonly added: readonly SourceControlHistoryItemRef[];
+		readonly removed: readonly SourceControlHistoryItemRef[];
+		readonly modified: readonly SourceControlHistoryItemRef[];
 	}
 }

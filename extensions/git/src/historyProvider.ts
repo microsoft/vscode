@@ -4,21 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryChangeEvent, SourceControlHistoryItemRef, l10n } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, dispose } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose } from './util';
 import { toGitUri } from './uri';
-import { Branch, LogOptions, RefType } from './api/git';
+import { Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
+
+function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
+	switch (ref.type) {
+		case RefType.RemoteHead:
+			return {
+				id: `refs/remotes/${ref.remote}/${ref.name}`,
+				name: ref.name ?? '',
+				description: ref.commit ? l10n.t('Remote branch at {0}', ref.commit.substring(0, 8)) : undefined,
+				revision: ref.commit,
+				icon: new ThemeIcon('cloud'),
+				category: l10n.t('remote branches')
+			};
+		case RefType.Tag:
+			return {
+				id: `refs/tags/${ref.name}`,
+				name: ref.name ?? '',
+				description: ref.commit ? l10n.t('Tag at {0}', ref.commit.substring(0, 8)) : undefined,
+				revision: ref.commit,
+				icon: new ThemeIcon('tag'),
+				category: l10n.t('tags')
+			};
+		default:
+			return {
+				id: `refs/heads/${ref.name}`,
+				name: ref.name ?? '',
+				description: ref.commit ? ref.commit.substring(0, 8) : undefined,
+				revision: ref.commit,
+				icon: new ThemeIcon('git-branch'),
+				category: l10n.t('branches')
+			};
+	}
+}
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
 	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup: Event<void> = this._onDidChangeCurrentHistoryItemGroup.event;
 
-	private readonly _onDidChangeHistory = new EventEmitter<SourceControlHistoryChangeEvent>();
-	readonly onDidChangeHistory: Event<SourceControlHistoryChangeEvent> = this._onDidChangeHistory.event;
+	private readonly _onDidChangeHistoryItemRefs = new EventEmitter<SourceControlHistoryItemRefsChangeEvent>();
+	readonly onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent> = this._onDidChangeHistoryItemRefs.event;
 
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
@@ -29,6 +61,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this._currentHistoryItemGroup = value;
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
+
+	private _HEAD: Branch | undefined;
+	private historyItemRefs: SourceControlHistoryItemRef[] = [];
+	private historyItemBaseRef: SourceControlHistoryItemRef | undefined;
 
 	private historyItemDecorations = new Map<string, FileDecoration>();
 
@@ -46,40 +82,74 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return;
 		}
 
-		// Get the merge base of the current history item group
-		const mergeBase = await this.resolveHEADMergeBase();
+		let historyItemRefId = '';
+		let historyItemRefName = '';
 
-		// Handle tag, and detached commit
-		const currentHistoryItemGroupId =
-			this.repository.HEAD.name === undefined ?
-				this.repository.HEAD.commit :
-				this.repository.HEAD.type === RefType.Tag ?
-					`refs/tags/${this.repository.HEAD.name}` :
-					`refs/heads/${this.repository.HEAD.name}`;
+		switch (this.repository.HEAD.type) {
+			case RefType.Head: {
+				if (this.repository.HEAD.name !== undefined) {
+					// Branch
+					historyItemRefId = `refs/heads/${this.repository.HEAD.name}`;
+					historyItemRefName = this.repository.HEAD.name;
 
-		// Detached commit
-		const currentHistoryItemGroupName =
-			this.repository.HEAD.name ?? this.repository.HEAD.commit;
+					// Merge base if the branch has changed
+					if (this._HEAD?.name !== this.repository.HEAD.name) {
+						const mergeBase = await this.resolveHEADMergeBase();
+						this.historyItemBaseRef = mergeBase &&
+							(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
+								mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
+							id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
+							name: `${mergeBase.remote}/${mergeBase.name}`,
+							revision: mergeBase.commit
+						} : undefined;
+					}
+				} else {
+					// Detached commit
+					historyItemRefId = this.repository.HEAD.commit ?? '';
+					historyItemRefName = this.repository.HEAD.commit ?? '';
+					this.historyItemBaseRef = undefined;
+				}
+				break;
+			}
+			case RefType.Tag: {
+				// Tag
+				historyItemRefId = `refs/tags/${this.repository.HEAD.name}`;
+				historyItemRefName = this.repository.HEAD.name ?? this.repository.HEAD.commit ?? '';
+				this.historyItemBaseRef = undefined;
+				break;
+			}
+		}
+
+		this._HEAD = this.repository.HEAD;
 
 		this.currentHistoryItemGroup = {
-			id: currentHistoryItemGroupId ?? '',
-			name: currentHistoryItemGroupName ?? '',
+			id: historyItemRefId,
+			name: historyItemRefName,
 			revision: this.repository.HEAD.commit,
 			remote: this.repository.HEAD.upstream ? {
 				id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 				revision: this.repository.HEAD.upstream.commit
 			} : undefined,
-			base: mergeBase &&
-				(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
-					mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
-				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
-				name: `${mergeBase.remote}/${mergeBase.name}`,
-				revision: mergeBase.commit
-			} : undefined
+			base: this.historyItemBaseRef
 		};
 
 		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemGroup: ${JSON.stringify(this.currentHistoryItemGroup)}`);
+
+		// Refs (alphabetically)
+		const refs = await this.repository.getRefs({ sort: 'alphabetically' });
+		const historyItemRefs = refs.map(ref => toSourceControlHistoryItemRef(ref));
+
+		const delta = deltaHistoryItemRefs(this.historyItemRefs, historyItemRefs);
+		this._onDidChangeHistoryItemRefs.fire(delta);
+		this.historyItemRefs = historyItemRefs;
+
+		const deltaLog = {
+			added: delta.added.map(ref => ref.id),
+			modified: delta.modified.map(ref => ref.id),
+			removed: delta.removed.map(ref => ref.id)
+		};
+		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] historyItemRefs: ${JSON.stringify(deltaLog)}`);
 	}
 
 	async provideHistoryItemRefs(): Promise<SourceControlHistoryItemRef[]> {
@@ -92,34 +162,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		for (const ref of refs) {
 			switch (ref.type) {
 				case RefType.RemoteHead:
-					remoteBranches.push({
-						id: `refs/remotes/${ref.remote}/${ref.name}`,
-						name: ref.name ?? '',
-						description: ref.commit ? l10n.t('Remote branch at {0}', ref.commit.substring(0, 8)) : undefined,
-						revision: ref.commit,
-						icon: new ThemeIcon('cloud'),
-						category: l10n.t('remote branches')
-					});
+					remoteBranches.push(toSourceControlHistoryItemRef(ref));
 					break;
 				case RefType.Tag:
-					tags.push({
-						id: `refs/tags/${ref.name}`,
-						name: ref.name ?? '',
-						description: ref.commit ? l10n.t('Tag at {0}', ref.commit.substring(0, 8)) : undefined,
-						revision: ref.commit,
-						icon: new ThemeIcon('tag'),
-						category: l10n.t('tags')
-					});
+					tags.push(toSourceControlHistoryItemRef(ref));
 					break;
 				default:
-					branches.push({
-						id: `refs/heads/${ref.name}`,
-						name: ref.name ?? '',
-						description: ref.commit ? ref.commit.substring(0, 8) : undefined,
-						revision: ref.commit,
-						icon: new ThemeIcon('git-branch'),
-						category: l10n.t('branches')
-					});
+					branches.push(toSourceControlHistoryItemRef(ref));
 					break;
 			}
 		}

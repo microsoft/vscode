@@ -46,6 +46,10 @@ import { NotebookDiffOverviewRuler } from './notebookDiffOverviewRuler.js';
 import { registerZIndex, ZIndex } from '../../../../../platform/layout/browser/zIndexRegistry.js';
 import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { INotebookService } from '../../common/notebookService.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { UnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 
 const $ = DOM.$;
 
@@ -150,6 +154,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextResourceConfigurationService private readonly textConfigurationService: ITextResourceConfigurationService
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
 		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, false, undefined);
@@ -511,7 +518,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 
 		if (this._model) {
-			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.fontInfo));
+			const unchangedEditorRegions = this._localStore.add(new UnchangedEditorRegionsService(this.configurationService, this.editorWorkerService, this.textModelResolverService, this.textConfigurationService, this.fontInfo.lineHeight));
+			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, unchangedEditorRegions, this.fontInfo, undefined));
 			this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
 				this._list.splice(e.start, e.deleteCount, e.elements);
 				if (this.isOverviewRulerEnabled()) {
