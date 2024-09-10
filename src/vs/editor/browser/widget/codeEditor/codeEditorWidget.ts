@@ -188,8 +188,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _updateCounter = 0;
 
-	private readonly _onWillTriggerEditorEvent: Emitter<editorCommon.ITriggerEditorOperationEvent> = this._register(new Emitter<editorCommon.ITriggerEditorOperationEvent>());
-	public readonly onWillTriggerEditorOperationEvent: Event<editorCommon.ITriggerEditorOperationEvent> = this._onWillTriggerEditorEvent.event;
+	private readonly _onWillTriggerEditorOperationEvent: Emitter<editorCommon.ITriggerEditorOperationEvent> = this._register(new Emitter<editorCommon.ITriggerEditorOperationEvent>());
+	public readonly onWillTriggerEditorOperationEvent: Event<editorCommon.ITriggerEditorOperationEvent> = this._onWillTriggerEditorOperationEvent.event;
 
 	private readonly _onBeginUpdate: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onBeginUpdate: Event<void> = this._onBeginUpdate.event;
@@ -1050,7 +1050,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		payload = payload || {};
 
 		try {
-			this._onWillTriggerEditorEvent.fire({ source: source, handlerId: handlerId, payload: payload });
+			this._onWillTriggerEditorOperationEvent.fire({ source: source, handlerId: handlerId, payload: payload });
 			this._beginUpdate();
 
 			switch (handlerId) {
