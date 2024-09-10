@@ -26,6 +26,8 @@ import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -49,6 +51,7 @@ export class NativeEditContext extends AbstractEditContext {
 		viewController: ViewController,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IClipboardService clipboardService: IClipboardService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(context);
 
@@ -82,7 +85,10 @@ export class NativeEditContext extends AbstractEditContext {
 			// The beforeinput and input events send `insertParagraph` and `insertLineBreak` events but only on input elements
 			// Hence we handle the enter key press in the keydown event
 			if (standardKeyboardEvent.keyCode === KeyCode.Enter) {
-				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
+				const shouldAddNewLineOnEnterKeyDown = !EditorContextKeys.suggestWidgetIsVisible.getValue(contextKeyService);
+				if (shouldAddNewLineOnEnterKeyDown) {
+					this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
+				}
 			}
 
 			viewController.emitKeyDown(standardKeyboardEvent);

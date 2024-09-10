@@ -35,6 +35,7 @@ import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } 
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer.js';
 import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 
 /**
  * Suggest widget colors
@@ -288,7 +289,7 @@ export class SuggestWidget implements IDisposable {
 			}
 		}));
 
-		this._ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetVisible = EditorContextKeys.suggestWidgetIsVisible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasFocusedSuggestion = SuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);

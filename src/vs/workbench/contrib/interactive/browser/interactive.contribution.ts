@@ -19,7 +19,6 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { peekViewBorder } from '../../../../editor/contrib/peekView/browser/peekView.js';
-import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -61,6 +60,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 const interactiveWindowCategory: ILocalizedString = localize2('interactiveWindow', "Interactive Window");
 
@@ -610,7 +610,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
+					EditorContextKeys.suggestWidgetIsVisible.toNegated()
 				),
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -619,7 +619,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
+					EditorContextKeys.suggestWidgetIsVisible.toNegated()
 				),
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -660,7 +660,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
+					EditorContextKeys.suggestWidgetIsVisible.toNegated()
 				),
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -669,7 +669,7 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
+					EditorContextKeys.suggestWidgetIsVisible.toNegated()
 				),
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib

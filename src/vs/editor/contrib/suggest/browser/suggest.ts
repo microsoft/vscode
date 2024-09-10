@@ -24,13 +24,11 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { historyNavigationVisible } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from '../../../common/config/editorOptions.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 
 export const Context = {
-	Visible: historyNavigationVisible,
 	HasFocusedSuggestion: new RawContextKey<boolean>('suggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
 	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),

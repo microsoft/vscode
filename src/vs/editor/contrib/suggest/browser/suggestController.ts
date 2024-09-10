@@ -806,7 +806,7 @@ export class TriggerSuggestAction extends EditorAction {
 			id: TriggerSuggestAction.id,
 			label: nls.localize('suggest.trigger.label', "Trigger Suggest"),
 			alias: 'Trigger Suggest',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider, SuggestContext.Visible.toNegated()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCompletionItemProvider, EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
@@ -846,19 +846,19 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, SuggestContext.HasFocusedSuggestion),
 	handler(x) {
 		x.acceptSelectedSuggestion(true, false);
 	},
 	kbOpts: [{
 		// normal tab
 		primary: KeyCode.Tab,
-		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, EditorContextKeys.textInputFocus),
 		weight,
 	}, {
 		// accept on enter has special rules
 		primary: KeyCode.Enter,
-		kbExpr: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
 		weight,
 	}],
 	menuOpts: [{
@@ -884,7 +884,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptAlternativeSelectedSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus, SuggestContext.HasFocusedSuggestion),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, EditorContextKeys.textInputFocus, SuggestContext.HasFocusedSuggestion),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
@@ -915,7 +915,7 @@ CommandsRegistry.registerCommandAlias('acceptSelectedSuggestionOnEnter', 'accept
 
 registerEditorCommand(new SuggestCommand({
 	id: 'hideSuggestWidget',
-	precondition: SuggestContext.Visible,
+	precondition: EditorContextKeys.suggestWidgetIsVisible,
 	handler: x => x.cancelSuggestWidget(),
 	kbOpts: {
 		weight: weight,
@@ -927,7 +927,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectNextSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectNextSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -940,7 +940,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectNextPageSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectNextPageSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -952,13 +952,13 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectLastSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectLastSuggestion()
 }));
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectPrevSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -971,7 +971,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevPageSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectPrevPageSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -983,13 +983,13 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'selectFirstSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, ContextKeyExpr.or(SuggestContext.MultipleSuggestions, SuggestContext.HasFocusedSuggestion.negate())),
 	handler: c => c.selectFirstSuggestion()
 }));
 
 registerEditorCommand(new SuggestCommand({
 	id: 'focusSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate()),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, SuggestContext.HasFocusedSuggestion.negate()),
 	handler: x => x.focusSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -1002,7 +1002,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'focusAndAcceptSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion.negate()),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, SuggestContext.HasFocusedSuggestion.negate()),
 	handler: c => {
 		c.focusSuggestion();
 		c.acceptSelectedSuggestion(true, false);
@@ -1011,7 +1011,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'toggleSuggestionDetails',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.HasFocusedSuggestion),
+	precondition: ContextKeyExpr.and(EditorContextKeys.suggestWidgetIsVisible, SuggestContext.HasFocusedSuggestion),
 	handler: x => x.toggleSuggestionDetails(),
 	kbOpts: {
 		weight: weight,
@@ -1037,7 +1037,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'toggleExplainMode',
-	precondition: SuggestContext.Visible,
+	precondition: EditorContextKeys.suggestWidgetIsVisible,
 	handler: x => x.toggleExplainMode(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib,
@@ -1047,7 +1047,7 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'toggleSuggestionFocus',
-	precondition: SuggestContext.Visible,
+	precondition: EditorContextKeys.suggestWidgetIsVisible,
 	handler: x => x.toggleSuggestionFocus(),
 	kbOpts: {
 		weight: weight,
@@ -1065,7 +1065,7 @@ registerEditorCommand(new SuggestCommand({
 		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		WordContextKey.AtEnd,
-		SuggestContext.Visible.toNegated(),
+		EditorContextKeys.suggestWidgetIsVisible.toNegated(),
 		SuggestAlternatives.OtherSuggestions.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
@@ -1085,7 +1085,7 @@ registerEditorCommand(new SuggestCommand({
 		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		SuggestAlternatives.OtherSuggestions,
-		SuggestContext.Visible.toNegated(),
+		EditorContextKeys.suggestWidgetIsVisible.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
 	handler: x => x.acceptNextSuggestion(),
@@ -1102,7 +1102,7 @@ registerEditorCommand(new SuggestCommand({
 		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		SuggestAlternatives.OtherSuggestions,
-		SuggestContext.Visible.toNegated(),
+		EditorContextKeys.suggestWidgetIsVisible.toNegated(),
 		SnippetController2.InSnippetMode.toNegated()
 	),
 	handler: x => x.acceptPrevSuggestion(),

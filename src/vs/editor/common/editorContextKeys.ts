@@ -5,6 +5,7 @@
 
 import * as nls from '../../nls.js';
 import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { historyNavigationVisible } from '../../platform/history/common/contextScopedHistoryWidgetUtils.js';
 
 export namespace EditorContextKeys {
 
@@ -89,4 +90,6 @@ export namespace EditorContextKeys {
 	export const hasMultipleDocumentFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentFormattingProvider', false, nls.localize('editorHasMultipleDocumentFormattingProvider', "Whether the editor has multiple document formatting providers"));
 	export const hasMultipleDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasMultipleDocumentSelectionFormattingProvider', false, nls.localize('editorHasMultipleDocumentSelectionFormattingProvider', "Whether the editor has multiple document selection formatting providers"));
 
+	// -- Suggest widget
+	export const suggestWidgetIsVisible = historyNavigationVisible;
 }

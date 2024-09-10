@@ -10,7 +10,6 @@ import { isBoolean, isObject, isString } from '../../../../base/common/types.js'
 import { URI } from '../../../../base/common/uri.js';
 import './media/preferences.css';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -47,6 +46,7 @@ import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from '../../../servi
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -590,7 +590,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 					keybinding: {
 						primary: KeyCode.DownArrow,
 						weight: KeybindingWeight.EditorContrib,
@@ -610,7 +610,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 					keybinding: {
 						primary: KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -1126,7 +1126,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_WHEN_FOCUS, SuggestContext.Visible.toNegated()),
+			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_WHEN_FOCUS, EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 			primary: KeyCode.Escape,
 			handler: async (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
@@ -1139,7 +1139,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_WHEN_FOCUS, SuggestContext.Visible.toNegated()),
+			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_WHEN_FOCUS, EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 			primary: KeyCode.Enter,
 			handler: async (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;

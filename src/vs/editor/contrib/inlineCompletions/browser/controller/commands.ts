@@ -13,7 +13,6 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
-import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
@@ -152,7 +151,7 @@ export class AcceptInlineCompletion extends EditorAction {
 					InlineCompletionContextKeys.inlineSuggestionVisible,
 					EditorContextKeys.tabMovesFocus.toNegated(),
 					InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
-					SuggestContext.Visible.toNegated(),
+					EditorContextKeys.suggestWidgetIsVisible.toNegated(),
 					EditorContextKeys.hoverFocused.toNegated(),
 				),
 			}

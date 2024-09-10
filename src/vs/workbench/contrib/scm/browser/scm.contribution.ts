@@ -28,7 +28,6 @@ import { ContextKeys, SCMViewPane } from './scmViewPane.js';
 import { SCMViewService } from './scmViewService.js';
 import { SCMRepositoriesViewPane } from './scmRepositoriesViewPane.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from '../../workspace/common/workspace.js';
 import { IQuickDiffService } from '../common/quickDiff.js';
 import { QuickDiffService } from '../common/quickDiffService.js';
@@ -38,6 +37,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { isSCMRepository } from './util.js';
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -401,7 +401,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmService = accessor.get(ISCMService);
@@ -443,14 +443,14 @@ const viewPreviousCommitCommand = {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	...viewNextCommitCommand,
 	id: 'scm.viewNextCommit',
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition'), SuggestContext.Visible.toNegated()),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInLastPosition'), EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 	primary: KeyCode.DownArrow
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	...viewPreviousCommitCommand,
 	id: 'scm.viewPreviousCommit',
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition'), SuggestContext.Visible.toNegated()),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), ContextKeyExpr.has('scmInputIsInFirstPosition'), EditorContextKeys.suggestWidgetIsVisible.toNegated()),
 	primary: KeyCode.UpArrow
 });
 
