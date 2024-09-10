@@ -16,7 +16,7 @@ function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
 	switch (ref.type) {
 		case RefType.RemoteHead:
 			return {
-				id: `refs/remotes/${ref.remote}/${ref.name}`,
+				id: `refs/remotes/${ref.name}`,
 				name: ref.name ?? '',
 				description: ref.commit ? l10n.t('Remote branch at {0}', ref.commit.substring(0, 8)) : undefined,
 				revision: ref.commit,
