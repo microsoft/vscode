@@ -31,6 +31,9 @@ const enum GlyphStorageBufferInfo {
 	Offset_OriginPosition = 4,
 }
 
+/**
+ * The GPU implementation of the ViewLines part.
+ */
 export class ViewLinesGpu extends ViewPart {
 
 	private readonly canvas: HTMLCanvasElement;

@@ -88,6 +88,10 @@ class HorizontalRevealSelectionsRequest {
 
 type HorizontalRevealRequest = HorizontalRevealRangeRequest | HorizontalRevealSelectionsRequest;
 
+/**
+ * The view lines part is responsible for rendering the actual content of a
+ * file.
+ */
 export class ViewLines extends ViewPart implements IViewLines {
 	/**
 	 * Adds this amount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
