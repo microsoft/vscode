@@ -113,6 +113,16 @@ steps:
   - script: |
       set -e
 
+      # V8 >= 12.8 requies C++20 or later
+      # current headers shipped from Electron are missing
+      # https://github.com/nodejs/node/commit/c7e42092f34f019fa0c4d9a2d0d49719af2f5daa
+      # Following is a workaround until the headers are fixed in upstream.
+      if [ "$(g++ -dumpversion)" -lt 10 ]; then
+        export CXXFLAGS="-std=gnu++2a"
+      else
+        export CXXFLAGS="-std=gnu++20"
+      fi
+
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
       source ./build/azure-pipelines/linux/setup-env.sh --skip-sysroot
 
