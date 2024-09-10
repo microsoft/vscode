@@ -60,6 +60,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { compare } from '../../../../base/common/strings.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
@@ -292,6 +293,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 
 	constructor(
 		private readonly hoverDelegate: IHoverDelegate,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IThemeService private readonly _themeService: IThemeService
@@ -315,7 +317,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(node.element));
+		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this._getHoverContent(node.element), {
+			actions: this._getHoverActions(historyItem),
+		});
 		templateData.elementDisposables.add(historyItemHover);
 
 		templateData.graphContainer.textContent = '';
@@ -324,7 +328,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		const provider = node.element.repository.provider;
 		const currentHistoryItemGroup = provider.historyProvider.get()?.currentHistoryItemGroup?.get();
 		const extraClasses = currentHistoryItemGroup?.revision === historyItem.id ? ['history-item-current'] : [];
-		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
+		const [matches, descriptionMatches] = this._processMatches(historyItemViewModel, node.filterData);
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
 		this._renderBadges(historyItem, templateData);
@@ -364,12 +368,29 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		}));
 	}
 
-	private getTooltip(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
+	private _getHoverActions(historyItem: ISCMHistoryItem) {
+		return [
+			{
+				commandId: 'workbench.scm.action.copyHistoryItemId',
+				iconClass: 'codicon.codicon-copy',
+				label: historyItem.displayId ?? historyItem.id,
+				run: () => this._clipboardService.writeText(historyItem.id)
+			},
+			{
+				commandId: 'workbench.scm.action.copyHistoryItemMessage',
+				iconClass: 'codicon.codicon-copy',
+				label: localize('historyItemMessage', "Message"),
+				run: () => this._clipboardService.writeText(historyItem.message)
+			}
+		];
+	}
+
+	private _getHoverContent(element: SCMHistoryItemViewModelTreeElement): IManagedHoverTooltipMarkdownString {
 		const colorTheme = this._themeService.getColorTheme();
 		const historyItem = element.historyItemViewModel.historyItem;
 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		markdown.appendMarkdown(`$(git-commit) \`${historyItem.displayId ?? historyItem.id}\`\n\n`);
+		// markdown.appendMarkdown(`$(git-commit) \`${historyItem.displayId ?? historyItem.id}\`\n\n`);
 
 		if (historyItem.author) {
 			markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
@@ -421,7 +442,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		return { markdown, markdownNotSupportedFallback: historyItem.message };
 	}
 
-	private processMatches(historyItemViewModel: ISCMHistoryItemViewModel, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+	private _processMatches(historyItemViewModel: ISCMHistoryItemViewModel, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 		if (!filterData) {
 			return [undefined, undefined];
 		}
