@@ -5,147 +5,147 @@
 
 //#region --- editor/workbench core
 
-import 'vs/editor/editor.all';
+import '../editor/editor.all.js';
 
-import 'vs/workbench/api/browser/extensionHost.contribution';
-import 'vs/workbench/browser/workbench.contribution';
+import './api/browser/extensionHost.contribution.js';
+import './browser/workbench.contribution.js';
 
 //#endregion
 
 
 //#region --- workbench actions
 
-import 'vs/workbench/browser/actions/textInputActions';
-import 'vs/workbench/browser/actions/developerActions';
-import 'vs/workbench/browser/actions/helpActions';
-import 'vs/workbench/browser/actions/layoutActions';
-import 'vs/workbench/browser/actions/listCommands';
-import 'vs/workbench/browser/actions/navigationActions';
-import 'vs/workbench/browser/actions/windowActions';
-import 'vs/workbench/browser/actions/workspaceActions';
-import 'vs/workbench/browser/actions/workspaceCommands';
-import 'vs/workbench/browser/actions/quickAccessActions';
-import 'vs/workbench/browser/actions/widgetNavigationCommands';
+import './browser/actions/textInputActions.js';
+import './browser/actions/developerActions.js';
+import './browser/actions/helpActions.js';
+import './browser/actions/layoutActions.js';
+import './browser/actions/listCommands.js';
+import './browser/actions/navigationActions.js';
+import './browser/actions/windowActions.js';
+import './browser/actions/workspaceActions.js';
+import './browser/actions/workspaceCommands.js';
+import './browser/actions/quickAccessActions.js';
+import './browser/actions/widgetNavigationCommands.js';
 
 //#endregion
 
 
 //#region --- API Extension Points
 
-import 'vs/workbench/services/actions/common/menusExtensionPoint';
-import 'vs/workbench/api/common/configurationExtensionPoint';
-import 'vs/workbench/api/browser/viewsExtensionPoint';
+import './services/actions/common/menusExtensionPoint.js';
+import './api/common/configurationExtensionPoint.js';
+import './api/browser/viewsExtensionPoint.js';
 
 //#endregion
 
 
 //#region --- workbench parts
 
-import 'vs/workbench/browser/parts/editor/editor.contribution';
-import 'vs/workbench/browser/parts/editor/editorParts';
-import 'vs/workbench/browser/parts/paneCompositePartService';
-import 'vs/workbench/browser/parts/banner/bannerPart';
-import 'vs/workbench/browser/parts/statusbar/statusbarPart';
+import './browser/parts/editor/editor.contribution.js';
+import './browser/parts/editor/editorParts.js';
+import './browser/parts/paneCompositePartService.js';
+import './browser/parts/banner/bannerPart.js';
+import './browser/parts/statusbar/statusbarPart.js';
 
 //#endregion
 
 
 //#region --- workbench services
 
-import 'vs/platform/actions/common/actions.contribution';
-import 'vs/platform/undoRedo/common/undoRedoService';
-import 'vs/workbench/services/workspaces/common/editSessionIdentityService';
-import 'vs/workbench/services/workspaces/common/canonicalUriService';
-import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
-import 'vs/workbench/services/keybinding/common/keybindingEditing';
-import 'vs/workbench/services/decorations/browser/decorationsService';
-import 'vs/workbench/services/dialogs/common/dialogService';
-import 'vs/workbench/services/progress/browser/progressService';
-import 'vs/workbench/services/editor/browser/codeEditorService';
-import 'vs/workbench/services/preferences/browser/preferencesService';
-import 'vs/workbench/services/configuration/common/jsonEditingService';
-import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import 'vs/workbench/services/editor/browser/editorService';
-import 'vs/workbench/services/editor/browser/editorResolverService';
-import 'vs/workbench/services/aiEmbeddingVector/common/aiEmbeddingVectorService';
-import 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformationService';
-import 'vs/workbench/services/history/browser/historyService';
-import 'vs/workbench/services/activity/browser/activityService';
-import 'vs/workbench/services/keybinding/browser/keybindingService';
-import 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import 'vs/workbench/services/textresourceProperties/common/textResourcePropertiesService';
-import 'vs/workbench/services/textfile/common/textEditorService';
-import 'vs/workbench/services/language/common/languageService';
-import 'vs/workbench/services/model/common/modelService';
-import 'vs/workbench/services/notebook/common/notebookDocumentService';
-import 'vs/workbench/services/commands/common/commandService';
-import 'vs/workbench/services/themes/browser/workbenchThemeService';
-import 'vs/workbench/services/label/common/labelService';
-import 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
-import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
-import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
-import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
-import 'vs/workbench/services/extensionManagement/common/extensionFeaturesManagemetService';
-import 'vs/workbench/services/notification/common/notificationService';
-import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
-import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
-import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
-import 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
-import 'vs/workbench/services/remote/common/remoteExplorerService';
-import 'vs/workbench/services/remote/common/remoteExtensionsScanner';
-import 'vs/workbench/services/terminal/common/embedderTerminalService';
-import 'vs/workbench/services/workingCopy/common/workingCopyService';
-import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import 'vs/workbench/services/views/browser/viewDescriptorService';
-import 'vs/workbench/services/views/browser/viewsService';
-import 'vs/workbench/services/quickinput/browser/quickInputService';
-import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
-import 'vs/workbench/services/authentication/browser/authenticationService';
-import 'vs/workbench/services/authentication/browser/authenticationExtensionsService';
-import 'vs/workbench/services/authentication/browser/authenticationUsageService';
-import 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import 'vs/editor/browser/services/hoverService/hoverService';
-import 'vs/workbench/services/assignment/common/assignmentService';
-import 'vs/workbench/services/outline/browser/outlineService';
-import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
-import 'vs/editor/common/services/languageFeaturesService';
-import 'vs/editor/common/services/semanticTokensStylingService';
-import 'vs/editor/common/services/treeViewsDndService';
-import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contribution';
-import 'vs/workbench/services/treeSitter/browser/treeSitterTokenizationFeature.contribution';
-import 'vs/workbench/services/userActivity/common/userActivityService';
-import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
-import 'vs/workbench/services/editor/browser/editorPaneService';
-import 'vs/workbench/services/editor/common/customEditorLabelService';
+import '../platform/actions/common/actions.contribution.js';
+import '../platform/undoRedo/common/undoRedoService.js';
+import './services/workspaces/common/editSessionIdentityService.js';
+import './services/workspaces/common/canonicalUriService.js';
+import './services/extensions/browser/extensionUrlHandler.js';
+import './services/keybinding/common/keybindingEditing.js';
+import './services/decorations/browser/decorationsService.js';
+import './services/dialogs/common/dialogService.js';
+import './services/progress/browser/progressService.js';
+import './services/editor/browser/codeEditorService.js';
+import './services/preferences/browser/preferencesService.js';
+import './services/configuration/common/jsonEditingService.js';
+import './services/textmodelResolver/common/textModelResolverService.js';
+import './services/editor/browser/editorService.js';
+import './services/editor/browser/editorResolverService.js';
+import './services/aiEmbeddingVector/common/aiEmbeddingVectorService.js';
+import './services/aiRelatedInformation/common/aiRelatedInformationService.js';
+import './services/history/browser/historyService.js';
+import './services/activity/browser/activityService.js';
+import './services/keybinding/browser/keybindingService.js';
+import './services/untitled/common/untitledTextEditorService.js';
+import './services/textresourceProperties/common/textResourcePropertiesService.js';
+import './services/textfile/common/textEditorService.js';
+import './services/language/common/languageService.js';
+import './services/model/common/modelService.js';
+import './services/notebook/common/notebookDocumentService.js';
+import './services/commands/common/commandService.js';
+import './services/themes/browser/workbenchThemeService.js';
+import './services/label/common/labelService.js';
+import './services/extensions/common/extensionManifestPropertiesService.js';
+import './services/extensionManagement/browser/extensionEnablementService.js';
+import './services/extensionManagement/browser/builtinExtensionsScannerService.js';
+import './services/extensionRecommendations/common/extensionIgnoredRecommendationsService.js';
+import './services/extensionRecommendations/common/workspaceExtensionsConfig.js';
+import './services/extensionManagement/common/extensionFeaturesManagemetService.js';
+import './services/notification/common/notificationService.js';
+import './services/userDataSync/common/userDataSyncUtil.js';
+import './services/userDataProfile/browser/userDataProfileImportExportService.js';
+import './services/userDataProfile/browser/userDataProfileManagement.js';
+import './services/userDataProfile/common/remoteUserDataProfiles.js';
+import './services/remote/common/remoteExplorerService.js';
+import './services/remote/common/remoteExtensionsScanner.js';
+import './services/terminal/common/embedderTerminalService.js';
+import './services/workingCopy/common/workingCopyService.js';
+import './services/workingCopy/common/workingCopyFileService.js';
+import './services/workingCopy/common/workingCopyEditorService.js';
+import './services/filesConfiguration/common/filesConfigurationService.js';
+import './services/views/browser/viewDescriptorService.js';
+import './services/views/browser/viewsService.js';
+import './services/quickinput/browser/quickInputService.js';
+import './services/userDataSync/browser/userDataSyncWorkbenchService.js';
+import './services/authentication/browser/authenticationService.js';
+import './services/authentication/browser/authenticationExtensionsService.js';
+import './services/authentication/browser/authenticationUsageService.js';
+import './services/authentication/browser/authenticationAccessService.js';
+import '../editor/browser/services/hoverService/hoverService.js';
+import './services/assignment/common/assignmentService.js';
+import './services/outline/browser/outlineService.js';
+import './services/languageDetection/browser/languageDetectionWorkerServiceImpl.js';
+import '../editor/common/services/languageFeaturesService.js';
+import '../editor/common/services/semanticTokensStylingService.js';
+import '../editor/common/services/treeViewsDndService.js';
+import './services/textMate/browser/textMateTokenizationFeature.contribution.js';
+import './services/treeSitter/browser/treeSitterTokenizationFeature.contribution.js';
+import './services/userActivity/common/userActivityService.js';
+import './services/userActivity/browser/userActivityBrowser.js';
+import './services/editor/browser/editorPaneService.js';
+import './services/editor/common/customEditorLabelService.js';
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { WorkbenchEditorWorkerService } from 'vs/workbench/contrib/codeEditor/browser/workbenchEditorWorkerService';
-import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadService } from 'vs/platform/download/common/downloadService';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
+import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { ExtensionGalleryService } from '../platform/extensionManagement/common/extensionGalleryService.js';
+import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
+import { IExtensionGalleryService, IGlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionManagement.js';
+import { ContextViewService } from '../platform/contextview/browser/contextViewService.js';
+import { IContextViewService } from '../platform/contextview/browser/contextView.js';
+import { IListService, ListService } from '../platform/list/browser/listService.js';
+import { IEditorWorkerService } from '../editor/common/services/editorWorker.js';
+import { WorkbenchEditorWorkerService } from './contrib/codeEditor/browser/workbenchEditorWorkerService.js';
+import { MarkerDecorationsService } from '../editor/common/services/markerDecorationsService.js';
+import { IMarkerDecorationsService } from '../editor/common/services/markerDecorations.js';
+import { IMarkerService } from '../platform/markers/common/markers.js';
+import { MarkerService } from '../platform/markers/common/markerService.js';
+import { ContextKeyService } from '../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../platform/contextkey/common/contextkey.js';
+import { ITextResourceConfigurationService } from '../editor/common/services/textResourceConfiguration.js';
+import { TextResourceConfigurationService } from '../editor/common/services/textResourceConfigurationService.js';
+import { IDownloadService } from '../platform/download/common/download.js';
+import { DownloadService } from '../platform/download/common/downloadService.js';
+import { OpenerService } from '../editor/browser/services/openerService.js';
+import { IOpenerService } from '../platform/opener/common/opener.js';
+import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from '../platform/userDataSync/common/ignoredExtensions.js';
+import { ExtensionStorageService, IExtensionStorageService } from '../platform/extensionManagement/common/extensionStorage.js';
+import { IUserDataSyncLogService } from '../platform/userDataSync/common/userDataSync.js';
+import { UserDataSyncLogService } from '../platform/userDataSync/common/userDataSyncLog.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
@@ -168,233 +168,234 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 //#region --- workbench contributions
 
 // Telemetry
-import 'vs/workbench/contrib/telemetry/browser/telemetry.contribution';
+import './contrib/telemetry/browser/telemetry.contribution.js';
 
 // Preferences
-import 'vs/workbench/contrib/preferences/browser/preferences.contribution';
-import 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
-import 'vs/workbench/contrib/preferences/browser/preferencesSearch';
+import './contrib/preferences/browser/preferences.contribution.js';
+import './contrib/preferences/browser/keybindingsEditorContribution.js';
+import './contrib/preferences/browser/preferencesSearch.js';
 
 // Performance
-import 'vs/workbench/contrib/performance/browser/performance.contribution';
+import './contrib/performance/browser/performance.contribution.js';
 
 // Context Menus
-import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
+import './contrib/contextmenu/browser/contextmenu.contribution.js';
 
 // Notebook
-import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+import './contrib/notebook/browser/notebook.contribution.js';
 
 // Speech
-import 'vs/workbench/contrib/speech/browser/speech.contribution';
+import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import 'vs/workbench/contrib/chat/browser/chat.contribution';
-import 'vs/workbench/contrib/inlineChat/browser/inlineChat.contribution';
+import './contrib/chat/browser/chat.contribution.js';
+import './contrib/inlineChat/browser/inlineChat.contribution.js';
 
 // Interactive
-import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
+import './contrib/interactive/browser/interactive.contribution.js';
 
 // repl
-import 'vs/workbench/contrib/replNotebook/browser/repl.contribution';
+import './contrib/replNotebook/browser/repl.contribution.js';
 
 // Testing
-import 'vs/workbench/contrib/testing/browser/testing.contribution';
+import './contrib/testing/browser/testing.contribution.js';
 
 // Logs
-import 'vs/workbench/contrib/logs/common/logs.contribution';
+import './contrib/logs/common/logs.contribution.js';
 
 // Quickaccess
-import 'vs/workbench/contrib/quickaccess/browser/quickAccess.contribution';
+import './contrib/quickaccess/browser/quickAccess.contribution.js';
 
 // Explorer
-import 'vs/workbench/contrib/files/browser/explorerViewlet';
-import 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import 'vs/workbench/contrib/files/browser/files.contribution';
+import './contrib/files/browser/explorerViewlet.js';
+import './contrib/files/browser/fileActions.contribution.js';
+import './contrib/files/browser/files.contribution.js';
 
 // Bulk Edit
-import 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
-import 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution';
+import './contrib/bulkEdit/browser/bulkEditService.js';
+import './contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 
 // Search
-import 'vs/workbench/contrib/search/browser/search.contribution';
-import 'vs/workbench/contrib/search/browser/searchView';
+import './contrib/search/browser/search.contribution.js';
+import './contrib/search/browser/searchView.js';
 
 // Search Editor
-import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
+import './contrib/searchEditor/browser/searchEditor.contribution.js';
 
 // Sash
-import 'vs/workbench/contrib/sash/browser/sash.contribution';
+import './contrib/sash/browser/sash.contribution.js';
 
 // SCM
-import 'vs/workbench/contrib/scm/browser/scm.contribution';
+import './contrib/scm/browser/scm.contribution.js';
 
 // Debug
-import 'vs/workbench/contrib/debug/browser/debug.contribution';
-import 'vs/workbench/contrib/debug/browser/debugEditorContribution';
-import 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import 'vs/workbench/contrib/debug/browser/repl';
-import 'vs/workbench/contrib/debug/browser/debugViewlet';
+import './contrib/debug/browser/debug.contribution.js';
+import './contrib/debug/browser/debugEditorContribution.js';
+import './contrib/debug/browser/breakpointEditorContribution.js';
+import './contrib/debug/browser/callStackEditorContribution.js';
+import './contrib/debug/browser/repl.js';
+import './contrib/debug/browser/debugViewlet.js';
 
 // Markers
-import 'vs/workbench/contrib/markers/browser/markers.contribution';
+import './contrib/markers/browser/markers.contribution.js';
 
 // Merge Editor
-import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
+import './contrib/mergeEditor/browser/mergeEditor.contribution.js';
 
 // Multi Diff Editor
-import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
+import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
 
 // Mapped Edits
-import 'vs/workbench/contrib/mappedEdits/common/mappedEdits.contribution';
+import './contrib/mappedEdits/common/mappedEdits.contribution.js';
 
 // Commands
-import 'vs/workbench/contrib/commands/common/commands.contribution';
+import './contrib/commands/common/commands.contribution.js';
 
 // Comments
-import 'vs/workbench/contrib/comments/browser/comments.contribution';
+import './contrib/comments/browser/comments.contribution.js';
 
 // URL Support
-import 'vs/workbench/contrib/url/browser/url.contribution';
+import './contrib/url/browser/url.contribution.js';
 
 // Webview
-import 'vs/workbench/contrib/webview/browser/webview.contribution';
-import 'vs/workbench/contrib/webviewPanel/browser/webviewPanel.contribution';
-import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
-import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
+import './contrib/webview/browser/webview.contribution.js';
+import './contrib/webviewPanel/browser/webviewPanel.contribution.js';
+import './contrib/webviewView/browser/webviewView.contribution.js';
+import './contrib/customEditor/browser/customEditor.contribution.js';
 
 // External Uri Opener
-import 'vs/workbench/contrib/externalUriOpener/common/externalUriOpener.contribution';
+import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 
 // Extensions Management
-import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
-import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
+import './contrib/extensions/browser/extensions.contribution.js';
+import './contrib/extensions/browser/extensionsViewlet.js';
 
 // Output View
-import 'vs/workbench/contrib/output/common/outputChannelModelService';
-import 'vs/workbench/contrib/output/browser/output.contribution';
-import 'vs/workbench/contrib/output/browser/outputView';
+import './contrib/output/common/outputChannelModelService.js';
+import './contrib/output/browser/output.contribution.js';
+import './contrib/output/browser/outputView.js';
 
 // Terminal
-import 'vs/workbench/contrib/terminal/terminal.all';
+import './contrib/terminal/terminal.all.js';
 
 // External terminal
-import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
+import './contrib/externalTerminal/browser/externalTerminal.contribution.js';
 
 // Relauncher
-import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
+import './contrib/relauncher/browser/relauncher.contribution.js';
 
 // Tasks
-import 'vs/workbench/contrib/tasks/browser/task.contribution';
+import './contrib/tasks/browser/task.contribution.js';
 
 // Remote
-import 'vs/workbench/contrib/remote/common/remote.contribution';
-import 'vs/workbench/contrib/remote/browser/remote.contribution';
+import './contrib/remote/common/remote.contribution.js';
+import './contrib/remote/browser/remote.contribution.js';
 
 // Emmet
-import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
+import './contrib/emmet/browser/emmet.contribution.js';
 
 // CodeEditor Contributions
-import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
+import './contrib/codeEditor/browser/codeEditor.contribution.js';
 
 // Keybindings Contributions
-import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
+import './contrib/keybindings/browser/keybindings.contribution.js';
 
 // Snippets
-import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import './contrib/snippets/browser/snippets.contribution.js';
 
 // Formatter Help
-import 'vs/workbench/contrib/format/browser/format.contribution';
+import './contrib/format/browser/format.contribution.js';
 
 // Folding
-import 'vs/workbench/contrib/folding/browser/folding.contribution';
+import './contrib/folding/browser/folding.contribution.js';
 
 // Limit Indicator
-import 'vs/workbench/contrib/limitIndicator/browser/limitIndicator.contribution';
+import './contrib/limitIndicator/browser/limitIndicator.contribution.js';
 
 // Inlay Hint Accessibility
-import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';
+import './contrib/inlayHints/browser/inlayHintsAccessibilty.js';
 
 // Themes
-import 'vs/workbench/contrib/themes/browser/themes.contribution';
+import './contrib/themes/browser/themes.contribution.js';
 
 // Update
-import 'vs/workbench/contrib/update/browser/update.contribution';
+import './contrib/update/browser/update.contribution.js';
 
 // Surveys
-import 'vs/workbench/contrib/surveys/browser/nps.contribution';
-import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
+import './contrib/surveys/browser/nps.contribution.js';
+import './contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
-import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
-import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';
-import 'vs/workbench/contrib/welcomeViews/common/newFile.contribution';
+import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
+import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
+import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
+import './contrib/welcomeViews/common/newFile.contribution.js';
 
 // Call Hierarchy
-import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
+import './contrib/callHierarchy/browser/callHierarchy.contribution.js';
 
 // Type Hierarchy
-import 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution';
+import './contrib/typeHierarchy/browser/typeHierarchy.contribution.js';
 
 // Outline
-import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
-import 'vs/workbench/contrib/outline/browser/outline.contribution';
+import './contrib/codeEditor/browser/outline/documentSymbolsOutline.js';
+import './contrib/outline/browser/outline.contribution.js';
 
 // Language Detection
-import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contribution';
+import './contrib/languageDetection/browser/languageDetection.contribution.js';
 
 // Language Status
-import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
+import './contrib/languageStatus/browser/languageStatus.contribution.js';
 
 // Authentication
-import 'vs/workbench/contrib/authentication/browser/authentication.contribution';
+import './contrib/authentication/browser/authentication.contribution.js';
 
 // User Data Sync
-import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
+import './contrib/userDataSync/browser/userDataSync.contribution.js';
 
 // User Data Profiles
-import 'vs/workbench/contrib/userDataProfile/browser/userDataProfile.contribution';
+import './contrib/userDataProfile/browser/userDataProfile.contribution.js';
 
 // Continue Edit Session
-import 'vs/workbench/contrib/editSessions/browser/editSessions.contribution';
+import './contrib/editSessions/browser/editSessions.contribution.js';
 
 // Code Actions
-import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
+import './contrib/codeActions/browser/codeActions.contribution.js';
 
 // Timeline
-import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
+import './contrib/timeline/browser/timeline.contribution.js';
 
 // Local History
-import 'vs/workbench/contrib/localHistory/browser/localHistory.contribution';
+import './contrib/localHistory/browser/localHistory.contribution.js';
 
 // Workspace
-import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
+import './contrib/workspace/browser/workspace.contribution.js';
 
 // Workspaces
-import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
+import './contrib/workspaces/browser/workspaces.contribution.js';
 
 // List
-import 'vs/workbench/contrib/list/browser/list.contribution';
+import './contrib/list/browser/list.contribution.js';
 
 // Accessibility Signals
-import 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution';
+import './contrib/accessibilitySignals/browser/accessibilitySignal.contribution.js';
 
 // Deprecated Extension Migrator
-import 'vs/workbench/contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution';
+import './contrib/deprecatedExtensionMigrator/browser/deprecatedExtensionMigrator.contribution.js';
 
 // Bracket Pair Colorizer 2 Telemetry
-import 'vs/workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution';
+import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution.js';
 
 // Accessibility
-import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
+import './contrib/accessibility/browser/accessibility.contribution.js';
 
 // Share
-import 'vs/workbench/contrib/share/browser/share.contribution';
+import './contrib/share/browser/share.contribution.js';
 
 // Account Entitlements
-import 'vs/workbench/contrib/accountEntitlements/browser/accountsEntitlements.contribution';
+import './contrib/accountEntitlements/browser/accountsEntitlements.contribution.js';
 
 // Synchronized Scrolling
-import 'vs/workbench/contrib/scrollLocking/browser/scrollLocking.contribution';
+import './contrib/scrollLocking/browser/scrollLocking.contribution.js';
+
 //#endregion

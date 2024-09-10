@@ -3,32 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, DisposableStore, Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, createCSSRule, asCSSUrl, isMouseEvent } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, StorageTarget, IProfileStorageValueChangeEvent } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { isString } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isNative } from 'vs/base/common/platform';
-import { Before2D, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { StringSHA1 } from 'vs/base/common/hash';
-import { GestureEvent } from 'vs/base/browser/touch';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { localize } from '../../../nls.js';
+import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { IActivityService } from '../../services/activity/common/activity.js';
+import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
+import { Dimension, createCSSRule, asCSSUrl, isMouseEvent } from '../../../base/browser/dom.js';
+import { IStorageService, StorageScope, StorageTarget, IProfileStorageValueChangeEvent } from '../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from './compositeBarActions.js';
+import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from '../../common/views.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { isString } from '../../../base/common/types.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { isNative } from '../../../base/common/platform.js';
+import { Before2D, ICompositeDragAndDrop } from '../dnd.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
+import { GestureEvent } from '../../../base/browser/touch.js';
+import { IPaneCompositePart } from './paneCompositePart.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -102,6 +103,7 @@ export class PaneCompositeBar extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IViewsService private readonly viewService: IViewsService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
@@ -383,7 +385,7 @@ export class PaneCompositeBar extends Disposable {
 
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {
-				if (this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0) {
+				if (this.viewService.isViewContainerActive(viewContainerId)) {
 					return false;
 				}
 			} else {

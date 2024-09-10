@@ -3,25 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IShellIntegration, ShellIntegrationStatus } from 'vs/platform/terminal/common/terminal';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import { ILogService } from 'vs/platform/log/common/log';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Emitter } from 'vs/base/common/event';
-import { BufferMarkCapability } from 'vs/platform/terminal/common/capabilities/bufferMarkCapability';
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
+import { IShellIntegration, ShellIntegrationStatus } from '../terminal.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { TerminalCapabilityStore } from '../capabilities/terminalCapabilityStore.js';
+import { CommandDetectionCapability } from '../capabilities/commandDetectionCapability.js';
+import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.js';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
+import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
+import { ILogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { BufferMarkCapability } from '../capabilities/bufferMarkCapability.js';
 import type { ITerminalAddon, Terminal } from '@xterm/headless';
-import { URI } from 'vs/base/common/uri';
-import { sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
-import { removeAnsiEscapeCodesFromPrompt } from 'vs/base/common/strings';
+import { URI } from '../../../../base/common/uri.js';
+import { sanitizeCwd } from '../terminalEnvironment.js';
+import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings.js';
 
 
 /**

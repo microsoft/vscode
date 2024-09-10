@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableMap, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IAttachedView } from 'vs/editor/common/model';
-import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelPart } from 'vs/editor/common/model/textModelPart';
-import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { AbstractTokens, AttachedViewHandler, AttachedViews } from 'vs/editor/common/model/tokens';
-import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
-import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
-import { ContiguousTokensStore } from 'vs/editor/common/tokens/contiguousTokensStore';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
+import { CharCode } from '../../../base/common/charCode.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { countEOL } from '../core/eolCounter.js';
+import { LineRange } from '../core/lineRange.js';
+import { IPosition, Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { IWordAtPosition, getWordAtText } from '../core/wordHelper.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry, TreeSitterTokenizationRegistry } from '../languages.js';
+import { ILanguageService } from '../languages/language.js';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from '../languages/languageConfigurationRegistry.js';
+import { IAttachedView } from '../model.js';
+import { BracketPairsTextModelPart } from './bracketPairsTextModelPart/bracketPairsImpl.js';
+import { TextModel } from './textModel.js';
+import { TextModelPart } from './textModelPart.js';
+import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from './textModelTokens.js';
+import { AbstractTokens, AttachedViewHandler, AttachedViews } from './tokens.js';
+import { TreeSitterTokens } from './treeSitterTokens.js';
+import { ITreeSitterParserService } from '../services/treeSitterParserService.js';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
+import { BackgroundTokenizationState, ITokenizationTextModelPart, ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
+import { ContiguousMultilineTokens } from '../tokens/contiguousMultilineTokens.js';
+import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder.js';
+import { ContiguousTokensStore } from '../tokens/contiguousTokensStore.js';
+import { LineTokens } from '../tokens/lineTokens.js';
+import { SparseMultilineTokens } from '../tokens/sparseMultilineTokens.js';
+import { SparseTokensStore } from '../tokens/sparseTokensStore.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
@@ -208,8 +208,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return this._tokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character);
 	}
 
-	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
-		return this._tokens.tokenizeLineWithEdit(position, length, newText);
+	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
+		return this._tokens.tokenizeLineWithEdit(lineNumber, edit);
 	}
 
 	// #endregion
@@ -654,14 +654,12 @@ class GrammarTokens extends AbstractTokens {
 		return this._tokenizer.getTokenTypeIfInsertingCharacter(position, character);
 	}
 
-	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
 		if (!this._tokenizer) {
-			return null;
+			return { mainLineTokens: null, additionalLines: null };
 		}
-
-		const validatedPosition = this._textModel.validatePosition(position);
-		this.forceTokenization(validatedPosition.lineNumber);
-		return this._tokenizer.tokenizeLineWithEdit(validatedPosition, length, newText);
+		this.forceTokenization(lineNumber);
+		return this._tokenizer.tokenizeLineWithEdit(lineNumber, edit);
 	}
 
 	public get hasTokens(): boolean {

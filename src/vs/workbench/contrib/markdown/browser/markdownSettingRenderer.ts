@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IPreferencesService, ISetting } from 'vs/workbench/services/preferences/common/preferences';
-import { settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IAction } from 'vs/base/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Schemas } from 'vs/base/common/network';
-import { Tokens } from 'vs/base/common/marked/marked';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../base/common/actions.js';
+import type { Tokens } from '../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IPreferencesService, ISetting } from '../../../services/preferences/common/preferences.js';
+import { settingKeyToDisplayFormat } from '../../preferences/browser/settingsTreeModels.js';
 
 export class SimpleSettingRenderer {
 	private readonly codeSettingRegex: RegExp;
@@ -41,8 +41,8 @@ export class SimpleSettingRenderer {
 		return result;
 	}
 
-	getHtmlRenderer(): (token: Tokens.HTML) => string {
-		return ({ raw }: Tokens.HTML): string => {
+	getHtmlRenderer(): (token: Tokens.HTML | Tokens.Tag) => string {
+		return ({ raw }: Tokens.HTML | Tokens.Tag): string => {
 			const match = this.codeSettingRegex.exec(raw);
 			if (match && match.length === 4) {
 				const settingId = match[2];

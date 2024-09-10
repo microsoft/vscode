@@ -6,24 +6,24 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import assert from 'assert';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getReindentEditOperations } from 'vs/editor/contrib/indentation/common/indentation';
-import { IRelaxedTextModelCreationOptions, createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILanguageConfiguration, LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
-import { parse } from 'vs/base/common/json';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { getReindentEditOperations } from '../../../../../editor/contrib/indentation/common/indentation.js';
+import { IRelaxedTextModelCreationOptions, createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILanguageConfiguration, LanguageConfigurationFileHandler } from '../../common/languageConfigurationExtensionPoint.js';
+import { parse } from '../../../../../base/common/json.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { trimTrailingWhitespace } from '../../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
 import { execSync } from 'child_process';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ITextModel } from 'vs/editor/common/model';
-import { FileAccess } from 'vs/base/common/network';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../../editor/common/languages.js';
+import { NullState } from '../../../../../editor/common/languages/nullTokenize.js';
+import { MetadataConsts, StandardTokenType } from '../../../../../editor/common/encodedTokenAttributes.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { FileAccess } from '../../../../../base/common/network.js';
 
 function getIRange(range: IRange): IRange {
 	return {

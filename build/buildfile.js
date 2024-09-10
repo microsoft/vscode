@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { isESM } = require('./lib/esm');
+const { isAMD } = require('./lib/amd');
 
 /**
  * @param {string} name
@@ -71,7 +71,7 @@ exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/co
 exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker');
 
 exports.workbenchDesktop = function () {
-	return isESM() ? [
+	return !isAMD() ? [
 		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -90,12 +90,12 @@ exports.workbenchDesktop = function () {
 };
 
 exports.workbenchWeb = function () {
-	return isESM() ? [
+	return !isAMD() ? [
 		createModuleDescription('vs/workbench/workbench.web.main')
 	] : [
 		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
 		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
-		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
+		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main.internal'])
 	];
 };
 
@@ -109,7 +109,7 @@ exports.code = [
 	createModuleDescription('vs/code/electron-main/main'),
 	createModuleDescription('vs/code/node/cli'),
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-	createModuleDescription('vs/code/node/sharedProcess/sharedProcessMain'),
+	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 

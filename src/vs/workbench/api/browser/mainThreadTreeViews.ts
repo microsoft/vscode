@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from 'vs/workbench/common/views';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { distinct } from 'vs/base/common/arrays';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from '../common/extHost.protocol.js';
+import { ITreeViewDataProvider, ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from '../../common/views.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { distinct } from '../../../base/common/arrays.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { isUndefinedOrNull, isNumber } from '../../../base/common/types.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { createStringDataTransferItem, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
+import * as typeConvert from '../common/extHostTypeConverters.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {

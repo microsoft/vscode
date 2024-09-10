@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants } from 'vs/base/common/uint';
-import { FloatHorizontalRange } from 'vs/editor/browser/view/renderingContext';
-import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
+import { Constants } from '../../../../base/common/uint.js';
+import { FloatHorizontalRange } from '../../view/renderingContext.js';
+import { DomReadingContext } from './domReadingContext.js';
 
 export class RangeUtil {
 

@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { NumberBadge, IBadge, IActivity, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Emitter, Event } from 'vs/base/common/event';
-import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { Color } from 'vs/base/common/color';
-import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { URI } from 'vs/base/common/uri';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import { localize } from '../../../nls.js';
+import { Action, IAction, Separator } from '../../../base/common/actions.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from '../../../base/browser/dom.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { toDisposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IThemeService, IColorTheme } from '../../../platform/theme/common/themeService.js';
+import { NumberBadge, IBadge, IActivity, ProgressBadge, IconBadge } from '../../services/activity/common/activity.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { DelayedDragHandler } from '../../../base/browser/dnd.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from '../dnd.js';
+import { Color } from '../../../base/common/color.js';
+import { BaseActionViewItem, IActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { URI } from '../../../base/common/uri.js';
+import { badgeBackground, badgeForeground, contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
+import type { IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
 export interface ICompositeBar {
 
@@ -154,7 +154,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	protected override readonly options: ICompositeBarActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
-	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private readonly badgeDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private mouseUpTimeout: any;
 	private keybindingLabel: string | undefined | null;
 
@@ -214,9 +214,10 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		// Badge
 		if (this.badgeContent) {
-			const badgeFg = colors.badgeForeground ?? theme.getColor(badgeForeground);
-			const badgeBg = colors.badgeBackground ?? theme.getColor(badgeBackground);
-			const contrastBorderColor = theme.getColor(contrastBorder);
+			const badgeStyles = this.getActivity()?.badge.getColors(theme);
+			const badgeFg = badgeStyles?.badgeForeground ?? colors.badgeForeground ?? theme.getColor(badgeForeground);
+			const badgeBg = badgeStyles?.badgeBackground ?? colors.badgeBackground ?? theme.getColor(badgeBackground);
+			const contrastBorderColor = badgeStyles?.badgeBorder ?? theme.getColor(contrastBorder);
 
 			this.badgeContent.style.color = badgeFg ? badgeFg.toString() : '';
 			this.badgeContent.style.backgroundColor = badgeBg ? badgeBg.toString() : '';
@@ -285,15 +286,21 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.updateStyles();
 	}
 
+	private getActivity(): IActivity | undefined {
+		if (this._action instanceof CompositeBarAction) {
+			return this._action.activity;
+		}
+		return undefined;
+	}
+
 	protected updateActivity(): void {
-		const action = this.action;
-		if (!this.badge || !this.badgeContent || !(action instanceof CompositeBarAction)) {
+		if (!this.badge || !this.badgeContent || !(this._action instanceof CompositeBarAction)) {
 			return;
 		}
 
-		const activity = action.activity;
+		const activity = this.getActivity();
 
-		this.badgeDisposable.clear();
+		this.badgeDisposable.value = new DisposableStore();
 
 		clearNode(this.badgeContent);
 		hide(this.badge);
@@ -336,14 +343,24 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 				}
 			}
 
+			// Icon
+			else if (badge instanceof IconBadge) {
+				classes.push('icon-badge');
+				const badgeContentClassess = ['icon-overlay', ...ThemeIcon.asClassNameArray(badge.icon)];
+				this.badgeContent.classList.add(...badgeContentClassess);
+				this.badgeDisposable.value.add(toDisposable(() => this.badgeContent?.classList.remove(...badgeContentClassess)));
+				show(this.badge);
+			}
+
 			if (classes.length) {
 				this.badge.classList.add(...classes);
-				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classes));
+				this.badgeDisposable.value.add(toDisposable(() => this.badge.classList.remove(...classes)));
 			}
 
 		}
 
 		this.updateTitle();
+		this.updateStyles();
 	}
 
 	protected override updateLabel(): void {

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IIconRegistry, Extensions as IconRegistryExtensions } from 'vs/platform/theme/common/iconRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import * as resources from 'vs/base/common/resources';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { extname, posix } from 'vs/base/common/path';
+import * as nls from '../../../../nls.js';
+import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { IIconRegistry, Extensions as IconRegistryExtensions } from '../../../../platform/theme/common/iconRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import * as resources from '../../../../base/common/resources.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { extname, posix } from '../../../../base/common/path.js';
 
 interface IIconExtensionPoint {
 	[id: string]: {

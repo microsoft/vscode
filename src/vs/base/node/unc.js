@@ -7,11 +7,18 @@
 'use strict';
 
 // ESM-uncomment-begin
-// /** @type any */
-// const module = { exports: {} };
+/** @type any */
+const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
+	// ESM-comment-begin
+	// const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	const isESM = true;
+	// ESM-uncomment-end
+
 	function factory() {
 
 		/**
@@ -141,7 +148,7 @@
 		};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		// amd
 		define([], function () { return factory(); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
@@ -153,9 +160,9 @@
 })();
 
 // ESM-uncomment-begin
-// export const getUNCHost = module.exports.getUNCHost;
-// export const getUNCHostAllowlist = module.exports.getUNCHostAllowlist;
-// export const addUNCHostToAllowlist = module.exports.addUNCHostToAllowlist;
-// export const disableUNCAccessRestrictions = module.exports.disableUNCAccessRestrictions;
-// export const isUNCAccessRestrictionsDisabled = module.exports.isUNCAccessRestrictionsDisabled;
+export const getUNCHost = module.exports.getUNCHost;
+export const getUNCHostAllowlist = module.exports.getUNCHostAllowlist;
+export const addUNCHostToAllowlist = module.exports.addUNCHostToAllowlist;
+export const disableUNCAccessRestrictions = module.exports.disableUNCAccessRestrictions;
+export const isUNCAccessRestrictionsDisabled = module.exports.isUNCAccessRestrictionsDisabled;
 // ESM-uncomment-end

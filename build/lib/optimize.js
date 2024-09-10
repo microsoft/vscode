@@ -25,7 +25,7 @@ const util = require("./util");
 const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
-const esm_1 = require("./esm");
+const amd_1 = require("./amd");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
@@ -255,7 +255,7 @@ function optimizeESMTask(opts, cjsOpts) {
                     '.sh': 'file',
                 },
                 assetNames: 'media/[name]', // moves media assets into a sub-folder "media"
-                banner,
+                banner: entryPoint.name === 'vs/workbench/workbench.web.main' ? undefined : banner, // TODO@esm remove line when we stop supporting web-amd-esm-bridge
                 entryPoints: [
                     {
                         in: path.join(REPO_ROOT_PATH, opts.src, `${entryPoint.name}.js`),
@@ -344,7 +344,7 @@ function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', exte
 function optimizeTask(opts) {
     return function () {
         const optimizers = [];
-        if ((0, esm_1.isESM)('Running optimizer in ESM mode')) {
+        if (!(0, amd_1.isAMD)()) {
             optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
         }
         else {

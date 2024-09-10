@@ -5,7 +5,7 @@ parameters:
     type: boolean
   - name: VSCODE_ARCH
     type: string
-  - name: VSCODE_BUILD_ESM
+  - name: VSCODE_BUILD_AMD
     type: boolean
     default: false
 
@@ -18,7 +18,7 @@ steps:
 
   - template: ../distro/download-distro.yml
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
@@ -37,8 +37,8 @@ steps:
   - script: |
       set -e
       # Start X server
-      sudo apt-get update
-      sudo apt-get install -y pkg-config \
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
         dbus \
         xvfb \
         libgtk-3-0 \
@@ -62,18 +62,17 @@ steps:
 
   - script: |
       set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      echo "always-auth=true" >> .npmrc
-      yarn config set registry "$NPM_REGISTRY"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
@@ -89,28 +88,31 @@ steps:
 
   - script: |
       set -e
-      # To workaround the issue of yarn not respecting the registry value from .npmrc
-      yarn config set registry "$NPM_REGISTRY"
 
       for i in {1..5}; do # try 5 times
-        yarn --cwd build --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
+    workingDirectory: build
+    displayName: Install build dependencies
+
+  - script: |
+      set -e
 
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
       source ./build/azure-pipelines/linux/setup-env.sh --only-remote
 
       for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
     env:
       npm_config_arch: $(NPM_ARCH)
@@ -134,7 +136,7 @@ steps:
 
   - script: |
       set -e
-      yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+      npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
       ARCHIVE_PATH=".build/linux/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
@@ -152,7 +154,7 @@ steps:
   - script: |
       set -e
       export VSCODE_NODE_GLIBC="-glibc-2.17"
-      yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
+      npm run gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/server/vscode-server-linux-legacy-$(VSCODE_ARCH).tar.gz"
       UNARCHIVE_PATH="`pwd`/../vscode-server-linux-$(VSCODE_ARCH)"
@@ -167,7 +169,7 @@ steps:
   - script: |
       set -e
       export VSCODE_NODE_GLIBC="-glibc-2.17"
-      yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+      npm run gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/web/vscode-server-linux-legacy-$(VSCODE_ARCH)-web.tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
@@ -204,7 +206,7 @@ steps:
         VSCODE_RUN_UNIT_TESTS: false
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: false
-        VSCODE_BUILD_ESM: ${{ parameters.VSCODE_BUILD_ESM }}
+        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 

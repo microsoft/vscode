@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { memoize } from 'vs/base/common/decorators';
-import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as env from 'vs/base/common/platform';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import * as pfs from 'vs/base/node/pfs';
-import * as processes from 'vs/base/node/processes';
-import * as nls from 'vs/nls';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { memoize } from '../../../base/common/decorators.js';
+import { FileAccess } from '../../../base/common/network.js';
+import * as path from '../../../base/common/path.js';
+import * as env from '../../../base/common/platform.js';
+import { sanitizeProcessEnvironment } from '../../../base/common/processes.js';
+import * as pfs from '../../../base/node/pfs.js';
+import * as processes from '../../../base/node/processes.js';
+import * as nls from '../../../nls.js';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from '../common/externalTerminal.js';
+import { ITerminalEnvironment } from '../../terminal/common/terminal.js';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 

@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, ISettableObservable, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { derivedConstOnceDefined } from 'vs/base/common/observableInternal/utils';
-import { Constants } from 'vs/base/common/uint';
-import { allowsTrueInlineDiffRendering } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones';
-import { DiffEditorViewModel, DiffState } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
-import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
-import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
-import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IObservable, ISettableObservable, derived, derivedConstOnceDefined, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
+import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from '../../../common/config/editorOptions.js';
+import { LineRangeMapping } from '../../../common/diff/rangeMapping.js';
+import { allowsTrueInlineDiffRendering } from './components/diffEditorViewZones/diffEditorViewZones.js';
+import { DiffEditorViewModel, DiffState } from './diffEditorViewModel.js';
 
 export class DiffEditorOptions {
 	private readonly _options: ISettableObservable<IEditorOptions & Required<IDiffEditorBaseOptions>, { changedOptions: IDiffEditorOptions }>;

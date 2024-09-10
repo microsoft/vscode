@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalLinkResolver, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { removeLinkSuffix, removeLinkQueryString, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { URI } from 'vs/base/common/uri';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Schemas } from 'vs/base/common/network';
-import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IPath, posix, win32 } from 'vs/base/common/path';
-import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
-import { mainWindow } from 'vs/base/browser/window';
+import { ITerminalLinkResolver, ResolvedLink } from './links.js';
+import { removeLinkSuffix, removeLinkQueryString, winDrivePrefix } from './terminalLinkParsing.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isWindows, OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IPath, posix, win32 } from '../../../../../base/common/path.js';
+import { ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
 	// Link cache could be shared across all terminals, but that could lead to weird results when

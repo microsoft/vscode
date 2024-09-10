@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from "assert";
-import { DisposableStore } from "vs/base/common/lifecycle";
-import { IObservable, derivedHandleChanges } from "vs/base/common/observable";
-import { ensureNoDisposablesAreLeakedInTestSuite } from "vs/base/test/common/utils";
-import { ICodeEditor } from "vs/editor/browser/editorBrowser";
-import { ObservableCodeEditor, observableCodeEditor } from "vs/editor/browser/observableCodeEditor";
-import { Position } from "vs/editor/common/core/position";
-import { Range } from "vs/editor/common/core/range";
-import { ViewModel } from "vs/editor/common/viewModel/viewModelImpl";
-import { withTestCodeEditor } from "vs/editor/test/browser/testCodeEditor";
+import { DisposableStore } from "../../../../base/common/lifecycle.js";
+import { IObservable, derivedHandleChanges } from "../../../../base/common/observable.js";
+import { ensureNoDisposablesAreLeakedInTestSuite } from "../../../../base/test/common/utils.js";
+import { ICodeEditor } from "../../../browser/editorBrowser.js";
+import { ObservableCodeEditor, observableCodeEditor } from "../../../browser/observableCodeEditor.js";
+import { Position } from "../../../common/core/position.js";
+import { Range } from "../../../common/core/range.js";
+import { ViewModel } from "../../../common/viewModel/viewModelImpl.js";
+import { withTestCodeEditor } from "../testCodeEditor.js";
 
 suite("CodeEditorWidget", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

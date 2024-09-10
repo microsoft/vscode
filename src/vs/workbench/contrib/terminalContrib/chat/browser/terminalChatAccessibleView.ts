@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { TerminalChatController } from './terminalChatController.js';
+import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { TerminalChatContextKeys } from '../../../terminal/terminalContribExports.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 105;
