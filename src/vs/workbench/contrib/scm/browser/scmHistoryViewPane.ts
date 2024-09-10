@@ -326,8 +326,8 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
 		const provider = node.element.repository.provider;
-		const currentHistoryItemGroup = provider.historyProvider.get()?.currentHistoryItemGroup?.get();
-		const extraClasses = currentHistoryItemGroup?.revision === historyItem.id ? ['history-item-current'] : [];
+		const historyItemRef = provider.historyProvider.get()?.currentHistoryItemRef?.get();
+		const extraClasses = historyItemRef?.revision === historyItem.id ? ['history-item-current'] : [];
 		const [matches, descriptionMatches] = this._processMatches(historyItemViewModel, node.filterData);
 		templateData.label.setLabel(historyItem.subject, historyItem.author, { matches, descriptionMatches, extraClasses });
 
@@ -1072,108 +1072,113 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._createTree(this._treeContainer);
 
 		this.onDidChangeBodyVisibility(async visible => {
-			if (visible) {
-				this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
-				this._visibilityDisposables.add(this._treeViewModel);
+			if (!visible) {
+				this._visibilityDisposables.clear();
+				return;
+			}
 
+			// Create view model
+			this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
+			this._visibilityDisposables.add(this._treeViewModel);
+
+			// Initial rendering
+			await this._progressService.withProgress({ location: this.id }, async () => {
 				const firstRepositoryInitialized = derived(this, reader => {
 					const repository = this._treeViewModel.repository.read(reader);
 					const historyProvider = repository?.provider.historyProvider.read(reader);
-					const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+					const historyItemRef = historyProvider?.currentHistoryItemRef.read(reader);
 
-					return currentHistoryItemGroup !== undefined ? repository : undefined;
+					return historyItemRef !== undefined ? true : undefined;
 				});
 
 				// Wait for first repository to be initialized
 				await waitForState(firstRepositoryInitialized);
 
 				// Set tree input
-				this._treeOperationSequencer.queue(async () => {
+				await this._treeOperationSequencer.queue(async () => {
 					await this._tree.setInput(this._treeViewModel);
 					this._tree.scrollTop = 0;
 				});
+			});
 
-				// Repository change
-				let isFirstRun = true;
-				this._visibilityDisposables.add(autorunWithStore((reader, store) => {
-					const repository = this._treeViewModel.repository.read(reader);
-					const historyProvider = repository?.provider.historyProvider.read(reader);
-					if (!repository || !historyProvider) {
-						return;
-					}
+			// Repository change
+			let isFirstRun = true;
+			this._visibilityDisposables.add(autorunWithStore((reader, store) => {
+				const repository = this._treeViewModel.repository.read(reader);
+				const historyProvider = repository?.provider.historyProvider.read(reader);
+				if (!repository || !historyProvider) {
+					return;
+				}
 
-					// Update context
-					this._scmProviderCtx.set(repository.provider.contextValue);
+				// Update context
+				this._scmProviderCtx.set(repository.provider.contextValue);
 
-					// Publish
-					const historyItemRemoteRefIdSignal = signalFromObservable(this, derived(reader => {
-						return historyProvider.currentHistoryItemRemoteRef.read(reader)?.id;
-					}));
+				// Publish
+				const historyItemRemoteRefIdSignal = signalFromObservable(this, derived(reader => {
+					return historyProvider.currentHistoryItemRemoteRef.read(reader)?.id;
+				}));
 
-					// Fetch, Push
-					const historyItemRemoteRefRevision = derived(reader => {
-						return historyProvider.currentHistoryItemRemoteRef.read(reader)?.revision;
-					});
+				// Fetch, Push
+				const historyItemRemoteRefRevision = derived(reader => {
+					return historyProvider.currentHistoryItemRemoteRef.read(reader)?.revision;
+				});
 
-					// HistoryItemRefs changed
-					store.add(
-						autorunWithStoreHandleChanges<{ refresh: boolean | 'ifScrollTop' }>({
-							owner: this,
-							createEmptyChangeSummary: () => ({ refresh: false }),
-							handleChange(context, changeSummary) {
-								changeSummary.refresh = context.didChange(historyItemRemoteRefRevision) ? 'ifScrollTop' : true;
-								return true;
-							},
-						}, (reader, changeSummary) => {
-							historyItemRemoteRefIdSignal.read(reader);
-							const historyItemRefValue = historyProvider.currentHistoryItemRef.read(reader);
-							const historyItemRemoteRefRevisionValue = historyItemRemoteRefRevision.read(reader);
+				// HistoryItemRefs changed
+				store.add(
+					autorunWithStoreHandleChanges<{ refresh: boolean | 'ifScrollTop' }>({
+						owner: this,
+						createEmptyChangeSummary: () => ({ refresh: false }),
+						handleChange(context, changeSummary) {
+							changeSummary.refresh = context.didChange(historyItemRemoteRefRevision) ? 'ifScrollTop' : true;
+							return true;
+						},
+					}, (reader, changeSummary) => {
+						historyItemRemoteRefIdSignal.read(reader);
+						const historyItemRefValue = historyProvider.currentHistoryItemRef.read(reader);
+						const historyItemRemoteRefRevisionValue = historyItemRemoteRefRevision.read(reader);
 
-							// Commit, Checkout, Publish, Pull
-							if (changeSummary.refresh === true) {
+						// Commit, Checkout, Publish, Pull
+						if (changeSummary.refresh === true) {
+							this.refresh();
+							return;
+						}
+
+						if (changeSummary.refresh === 'ifScrollTop') {
+							// If the history item remote revision has changed, but it matches the history
+							// item revision, then it means that a Push operation was performed and it is
+							// safe to refresh the graph.
+							if (historyItemRefValue?.revision === historyItemRemoteRefRevisionValue) {
 								this.refresh();
 								return;
 							}
 
-							if (changeSummary.refresh === 'ifScrollTop') {
-								// If the history item remote revision has changed, but it matches the history
-								// item revision, then it means that a Push operation was performed and it is
-								// safe to refresh the graph.
-								if (historyItemRefValue?.revision === historyItemRemoteRefRevisionValue) {
-									this.refresh();
-									return;
-								}
-
-								// If the history item remote revision has changed, but it does not matches the
-								// history item revision, then a Fetch operation was performed. This can be the
-								// result of a user action (Fetch) or a background action (Auto Fetch). If the
-								// tree is scrolled to the top, we can safely refresh the tree.
-								if (this._tree.scrollTop === 0) {
-									this.refresh();
-									return;
-								}
-
-								// Show the "Outdated" badge on the view
-								this._repositoryOutdated.set(true, undefined);
+							// If the history item remote revision has changed, but it does not matches the
+							// history item revision, then a Fetch operation was performed. This can be the
+							// result of a user action (Fetch) or a background action (Auto Fetch). If the
+							// tree is scrolled to the top, we can safely refresh the tree.
+							if (this._tree.scrollTop === 0) {
+								this.refresh();
+								return;
 							}
-						}));
 
-					// HistoryItemRefs filter changed
-					store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {
-						this.refresh();
+							// Show the "Outdated" badge on the view
+							this._repositoryOutdated.set(true, undefined);
+						}
 					}));
 
-					// We skip refreshing the graph on the first execution of the autorun
-					// since the graph for the first repository is rendered when the tree
-					// input is set.
-					if (!isFirstRun) {
-						this.refresh();
-					}
-					isFirstRun = false;
+				// HistoryItemRefs filter changed
+				store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {
+					this.refresh();
 				}));
-			} else {
-				this._visibilityDisposables.clear();
-			}
+
+				// We skip refreshing the graph on the first execution of the autorun
+				// since the graph for the first repository is rendered when the tree
+				// input is set.
+				if (!isFirstRun) {
+					this.refresh();
+				}
+				isFirstRun = false;
+			}));
 		});
 	}
 
