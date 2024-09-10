@@ -62,6 +62,9 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { compare } from '../../../../base/common/strings.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
+const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
+const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
+
 type TreeElement = SCMHistoryItemViewModelTreeElement | SCMHistoryItemLoadMoreTreeElement;
 
 class SCMRepositoryActionViewItem extends ActionViewItem {
@@ -144,7 +147,7 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
-			id: 'workbench.scm.graph.action.pickRepository',
+			id: PICK_REPOSITORY_ACTION_ID,
 			title: '',
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
@@ -165,7 +168,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
-			id: 'workbench.scm.graph.action.pickHistoryItemRefs',
+			id: PICK_HISTORY_ITEM_REFS_ACTION_ID,
 			title: '',
 			icon: Codicon.gitBranch,
 			viewId: HISTORY_VIEW_PANE_ID,
@@ -187,7 +190,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
-			id: 'workbench.scm.action.refreshGraph',
+			id: 'workbench.scm.action.graph.refresh',
 			title: localize('refreshGraph', "Refresh"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
@@ -208,7 +211,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.scm.action.scm.viewChanges',
+			id: 'workbench.scm.action.graph.viewChanges',
 			title: localize('viewChanges', "View Changes"),
 			f1: false,
 			menu: [
@@ -371,13 +374,13 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	private _getHoverActions(historyItem: ISCMHistoryItem) {
 		return [
 			{
-				commandId: 'workbench.scm.action.copyHistoryItemId',
+				commandId: 'workbench.scm.action.graph.copyHistoryItemId',
 				iconClass: 'codicon.codicon-copy',
 				label: historyItem.displayId ?? historyItem.id,
 				run: () => this._clipboardService.writeText(historyItem.id)
 			},
 			{
-				commandId: 'workbench.scm.action.copyHistoryItemMessage',
+				commandId: 'workbench.scm.action.graph.copyHistoryItemMessage',
 				iconClass: 'codicon.codicon-copy',
 				label: localize('historyItemMessage', "Message"),
 				run: () => this._clipboardService.writeText(historyItem.message)
@@ -1196,12 +1199,12 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	override getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === 'workbench.scm.graph.action.pickRepository') {
+		if (action.id === PICK_REPOSITORY_ACTION_ID) {
 			const repository = this._treeViewModel?.repository.get();
 			if (repository) {
 				return new SCMRepositoryActionViewItem(repository, action, options);
 			}
-		} else if (action.id === 'workbench.scm.graph.action.pickHistoryItemRefs') {
+		} else if (action.id === PICK_HISTORY_ITEM_REFS_ACTION_ID) {
 			const repository = this._treeViewModel?.repository.get();
 			const historyItemsFilter = this._treeViewModel?.historyItemsFilter.get();
 			if (repository && historyItemsFilter) {
