@@ -27,16 +27,16 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 	private readonly _ctx: OffscreenCanvasRenderingContext2D;
 
-	private _slabs: ITextureAtlasSlab[] = [];
-	private _activeSlabsByDims: TwoKeyMap<number, number, ITextureAtlasSlab> = new TwoKeyMap();
+	private readonly _slabs: ITextureAtlasSlab[] = [];
+	private readonly _activeSlabsByDims: TwoKeyMap<number, number, ITextureAtlasSlab> = new TwoKeyMap();
 
-	private _unusedRects: ITextureAtlasSlabUnusedRect[] = [];
+	private readonly _unusedRects: ITextureAtlasSlabUnusedRect[] = [];
 
-	private _openRegionsByHeight: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
-	private _openRegionsByWidth: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
+	private readonly _openRegionsByHeight: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
+	private readonly _openRegionsByWidth: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
 
 	/** A set of all glyphs allocated, this is only tracked to enable debug related functionality */
-	private _allocatedGlyphs: Set<Readonly<ITextureAtlasPageGlyph>> = new Set();
+	private readonly _allocatedGlyphs: Set<Readonly<ITextureAtlasPageGlyph>> = new Set();
 
 	private _slabW: number;
 	private _slabH: number;

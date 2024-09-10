@@ -22,7 +22,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 	};
 
 	/** A set of all glyphs allocated, this is only tracked to enable debug related functionality */
-	private _allocatedGlyphs: Set<Readonly<ITextureAtlasPageGlyph>> = new Set();
+	private readonly _allocatedGlyphs: Set<Readonly<ITextureAtlasPageGlyph>> = new Set();
 
 	private _nextIndex = 0;
 
