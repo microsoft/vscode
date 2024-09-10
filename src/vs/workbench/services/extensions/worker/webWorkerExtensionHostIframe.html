@@ -102,11 +102,11 @@
 
 			const blob = new Blob([[
 				`/*extensionHostWorker*/`,
-				`globalThis.MonacoEnvironment = { baseUrl: ${JSON.stringify(baseUrl)} };`,
+				`globalThis.MonacoEnvironment = { baseUrl: '${baseUrl}' };`,
 				`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(nlsMessages)};`,
 				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(nlsLanguage)};`,
-				`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(fileRoot)};`,
-				isESM ? `await import(${JSON.stringify(workerUrl)});` : `importScripts(${JSON.stringify(workerUrl)});`,
+				`globalThis._VSCODE_FILE_ROOT = '${fileRoot}';`,
+				isESM ? `await import('${workerUrl}');` : `importScripts('${workerUrl}');`,
 				isESM ? `globalThis.onmessage({ data: 'vs/workbench/api/worker/extensionHostWorker' });` : undefined, // important to start loading after the ESM async import has finished
 				`/*extensionHostWorker*/`
 			].join('')], { type: 'application/javascript' });
