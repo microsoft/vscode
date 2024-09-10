@@ -39,6 +39,7 @@ import type { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../
 import type { URI } from '../../../../../base/common/uri.js';
 import { type IDiffElementViewModelBase } from './diffElementViewModel.js';
 import { autorun, transaction } from '../../../../../base/common/observable.js';
+import { UnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 
 export class NotebookMultiTextDiffEditor extends EditorPane {
 	private _multiDiffEditorWidget?: MultiDiffEditorWidget;
@@ -111,7 +112,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			this._model = model;
 		}
 		const eventDispatcher = this.modelSpecificResources.add(new NotebookDiffEditorEventDispatcher());
-		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, undefined, true));
+		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, UnchangedEditorRegionsService.Empty, undefined, true));
 		await this.viewModel.computeDiff(this.modelSpecificResources.add(new CancellationTokenSource()).token);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);

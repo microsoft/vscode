@@ -19,11 +19,11 @@ const CIRCLE_RADIUS = 4;
 const SWIMLANE_CURVE_RADIUS = 5;
 
 /**
- * History graph colors (local, remote, base)
+ * History item reference colors (local, remote, base)
  */
-export const historyItemGroupLocal = registerColor('scmGraph.historyItemGroupLocal', chartsBlue, localize('scmGraphHistoryItemGroupLocal', "Local history item group color."));
-export const historyItemGroupRemote = registerColor('scmGraph.historyItemGroupRemote', chartsPurple, localize('scmGraphHistoryItemGroupRemote', "Remote history item group color."));
-export const historyItemGroupBase = registerColor('scmGraph.historyItemGroupBase', chartsOrange, localize('scmGraphHistoryItemGroupBase', "Base history item group color."));
+export const historyItemRefColor = registerColor('scmGraph.historyItemRefColor', chartsBlue, localize('scmGraphHistoryItemRefColor', "History item reference color."));
+export const historyItemRemoteRefColor = registerColor('scmGraph.historyItemRemoteRefColor', chartsPurple, localize('scmGraphHistoryItemRemoteRefColor', "History item remote reference color."));
+export const historyItemBaseRefColor = registerColor('scmGraph.historyItemBaseRefColor', chartsOrange, localize('scmGraphHistoryItemBaseRefColor', "History item base reference color."));
 
 /**
  * History item hover color
@@ -107,7 +107,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 
 	// Circle color - use the output swimlane color if present, otherwise the input swimlane color
 	const circleColor = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
-		circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemGroupLocal;
+		circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemRefColor;
 
 	let outputSwimlaneIndex = 0;
 	for (let index = 0; index < inputSwimlanes.length; index++) {
@@ -315,7 +315,7 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 
 					// Circle color - use the output swimlane color if present, otherwise the input swimlane color
 					color = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color :
-						circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemGroupLocal;
+						circleIndex < inputSwimlanes.length ? inputSwimlanes[circleIndex].color : historyItemRefColor;
 				}
 
 				return { ...ref, color };

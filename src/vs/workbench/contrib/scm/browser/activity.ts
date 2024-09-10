@@ -39,9 +39,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	private readonly _activeRepositoryCurrentHistoryItemGroupName = derived(reader => {
 		const repository = this.scmViewService.activeRepository.read(reader);
 		const historyProvider = repository?.provider.historyProvider.read(reader);
-		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.read(reader);
+		const historyItemRef = historyProvider?.historyItemRef.read(reader);
 
-		return currentHistoryItemGroup?.name;
+		return historyItemRef?.name;
 	});
 
 	private readonly _countBadgeRepositories = derived(this, reader => {

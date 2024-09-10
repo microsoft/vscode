@@ -757,3 +757,27 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	},
 	order: 1
 });
+
+
+// Chat resource anchor context menu
+
+MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+	group: 'navigation',
+	order: 10,
+	command: openToSideCommand,
+	when: ResourceContextKey.HasResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+	group: '1_cutcopypaste',
+	order: 10,
+	command: copyPathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+	group: '1_cutcopypaste',
+	order: 20,
+	command: copyRelativePathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});

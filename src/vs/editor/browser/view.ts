@@ -95,7 +95,9 @@ export class View extends ViewEventHandler {
 	private readonly _glyphMarginWidgets: GlyphMarginWidgets;
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
+	private readonly _viewController: ViewController;
 
+	private _experimentalEditContextEnabled: boolean;
 	private _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
@@ -121,7 +123,7 @@ export class View extends ViewEventHandler {
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 
-		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
+		this._viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, colorTheme, model);
@@ -132,10 +134,8 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		const editContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
-		this._editContext = editContextEnabled
-			? this._instantiationService.createInstance(NativeEditContext, this._context, viewController)
-			: this._instantiationService.createInstance(TextAreaEditContext, this._context, viewController, this._createTextAreaHandlerHelper());
+		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		this._editContext = this._instantiateEditContext(this._experimentalEditContextEnabled);
 
 		this._viewParts.push(this._editContext);
 
@@ -260,7 +260,29 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 
 		// Pointer handler
-		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
+		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
+	}
+
+	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
+		return experimentalEditContextEnabled
+			? this._instantiationService.createInstance(NativeEditContext, this._context, this._viewController)
+			: this._instantiationService.createInstance(TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
+	}
+
+	private _updateEditContext(): void {
+		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled) {
+			return;
+		}
+		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		this._editContext.dispose();
+		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
+		this._editContext.appendTo(this._overflowGuardContainer);
+		// Replace the view parts with the new edit context
+		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
+		if (indexOfEditContextHandler !== -1) {
+			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
+		}
 	}
 
 	private _computeGlyphMarginLanes(): IGlyphMarginLanesModel {
@@ -376,6 +398,7 @@ export class View extends ViewEventHandler {
 	}
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this.domNode.setClassName(this._getEditorClassName());
+		this._updateEditContext();
 		this._applyLayout();
 		return false;
 	}

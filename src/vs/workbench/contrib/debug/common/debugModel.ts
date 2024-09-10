@@ -8,9 +8,9 @@ import { findLastIdx } from '../../../../base/common/arraysFind.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer, decodeBase64, encodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter, Event, trackSetChanges } from '../../../../base/common/event.js';
 import { stringHash } from '../../../../base/common/hash.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mixin } from '../../../../base/common/objects.js';
 import { autorun } from '../../../../base/common/observable.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -1422,7 +1422,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private exceptionBreakpoints!: ExceptionBreakpoint[];
 	private dataBreakpoints!: DataBreakpoint[];
 	private watchExpressions!: Expression[];
-	private watchExpressionChangeListeners: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
 	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
@@ -1446,12 +1445,14 @@ export class DebugModel extends Disposable implements IDebugModel {
 			this._onDidChangeWatchExpressions.fire(undefined);
 		}));
 
+		this._register(trackSetChanges(
+			() => new Set(this.watchExpressions),
+			this.onDidChangeWatchExpressions,
+			(we) => we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)))
+		);
+
 		this.instructionBreakpoints = [];
 		this.sessions = [];
-
-		for (const we of this.watchExpressions) {
-			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
-		}
 	}
 
 	getId(): string {
@@ -2025,7 +2026,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
-		this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 
@@ -2043,11 +2043,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire(undefined);
-		if (!id) {
-			this.watchExpressionChangeListeners.clearAndDisposeAll();
-			return;
-		}
-		this.watchExpressionChangeListeners.deleteAndDispose(id);
 	}
 
 	moveWatchExpression(id: string, position: number): void {
