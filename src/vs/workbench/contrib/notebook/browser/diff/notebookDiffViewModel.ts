@@ -13,7 +13,7 @@ import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import type { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel.js';
+import { DefaultLineHeight, DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel.js';
 import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
 import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent, NOTEBOOK_DIFF_ITEM_DIFF_STATE, NOTEBOOK_DIFF_ITEM_KIND } from './notebookDiffEditorBrowser.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
@@ -21,6 +21,7 @@ import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../co
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
+import { getEditorPadding } from './diffCellEditorOptions.js';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
 	private readonly placeholderAndRelatedCells = new Map<DiffElementPlaceholderViewModel, DiffElementCellViewModelBase[]>();
@@ -80,6 +81,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		private readonly unchangedRegionsService: IUnchangedEditorRegionsService,
 		private readonly fontInfo?: FontInfo,
 		private readonly excludeUnchangedPlaceholder?: boolean,
+		private readonly viewportHeight?: number
 	) {
 		super();
 		this.hideOutput = this.model.modified.notebook.transientOptions.transientOutputs || this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
@@ -195,7 +197,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	}
 
 	private async updateViewModels(cellDiffInfo: CellDiffInfo[]) {
-		const cellViewModels = await createDiffViewModels(this.configurationService, this.model, this.eventDispatcher, cellDiffInfo, this.fontInfo, this.notebookService, this.unchangedRegionsService);
+		const cellViewModels = await createDiffViewModels(this.configurationService, this.model, this.eventDispatcher, cellDiffInfo, this.fontInfo, this.notebookService, this.unchangedRegionsService, this.viewportHeight);
 		const oldLength = this._items.length;
 		this.clear();
 		this._items.splice(0, oldLength);
@@ -395,7 +397,7 @@ function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: DiffElementCellViewMo
 	return true;
 }
 
-async function createDiffViewModels(configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, computedCellDiffs: CellDiffInfo[], fontInfo: FontInfo | undefined, notebookService: INotebookService, unchangedRegionsService: IUnchangedEditorRegionsService) {
+async function createDiffViewModels(configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, computedCellDiffs: CellDiffInfo[], fontInfo: FontInfo | undefined, notebookService: INotebookService, unchangedRegionsService: IUnchangedEditorRegionsService, viewportHeight?: number) {
 	const originalModel = model.original.notebook;
 	const modifiedModel = model.modified.notebook;
 	const initData = {
@@ -403,7 +405,16 @@ async function createDiffViewModels(configurationService: IConfigurationService,
 		outputStatusHeight: configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(modifiedModel.transientOptions.transientOutputs) ? 0 : 25,
 		fontInfo
 	};
-	return Promise.all(computedCellDiffs.map(async (diff) => {
+	viewportHeight = viewportHeight ?? 0;
+	// 25 is height of the header, 16 is margin (.cell-body)
+	// If the metadata and outputs aren't ignored, then 25 for each of the headers.
+	const metadataHeaderHeight = configurationService.getValue<boolean>('notebook.diff.ignoreMetadata') ? 0 : 25;
+	const outputHeaderHeight = (configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(model.original.notebook.transientOptions.transientOutputs)) ? 0 : 25;
+	const minimumCellHeight = 25 + (initData.fontInfo?.lineHeight ?? DefaultLineHeight) + getEditorPadding(1).top + + getEditorPadding(1).bottom + 16 + metadataHeaderHeight + outputHeaderHeight;
+
+	let heightOfCellsComputedThusfar = 0;
+	const promises: Promise<unknown>[] = [];
+	const viewModels = computedCellDiffs.map((diff) => {
 		switch (diff.type) {
 			case 'delete': {
 				return new SingleSideDiffElementViewModel(
@@ -449,10 +460,19 @@ async function createDiffViewModels(configurationService: IConfigurationService,
 					diff.originalCellIndex,
 					unchangedRegionsService
 				);
-				// Reduces flicker (compute this before setting the model)
-				// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
-				// & that results in flicker.
-				await viewModel.computeEditorHeights();
+
+				// If there are 500cells that have all changed,
+				// No point computing the height for all of them.
+				// We only need enough to fit the viewport height.
+				// Each cell is a minimum of header height + 1 line + top and bottom padding in editor + padding between cells.
+				// Thats 25 + info.lineHeight + padding.top + padding.bottom + top padding between cells
+				if (heightOfCellsComputedThusfar < viewportHeight) {
+					// Awaiting on viewModel.computeEditorHeights(), Reduces flicker (compute this before setting the model)
+					// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+					// & that results in flicker.
+					promises.push(viewModel.computeEditorHeights());
+					heightOfCellsComputedThusfar += minimumCellHeight;
+				}
 				return viewModel;
 			}
 			case 'unchanged': {
@@ -470,7 +490,10 @@ async function createDiffViewModels(configurationService: IConfigurationService,
 				);
 			}
 		}
-	}));
+	});
+
+	await Promise.all(promises);
+	return viewModels;
 }
 
 function computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel) {

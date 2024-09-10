@@ -519,7 +519,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		if (this._model) {
 			const unchangedEditorRegions = this._localStore.add(new UnchangedEditorRegionsService(this.configurationService, this.editorWorkerService, this.textModelResolverService, this.textConfigurationService, this.fontInfo.lineHeight));
-			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, unchangedEditorRegions, this.fontInfo, undefined));
+			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, unchangedEditorRegions, this.fontInfo, undefined, this.window.outerHeight));
 			this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
 				this._list.splice(e.start, e.deleteCount, e.elements);
 				if (this.isOverviewRulerEnabled()) {
