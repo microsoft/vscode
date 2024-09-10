@@ -56,6 +56,15 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
+          # V8 >= 12.8 requies C++20 or later
+          # current headers shipped from Electron are missing
+          # https://github.com/nodejs/node/commit/c7e42092f34f019fa0c4d9a2d0d49719af2f5daa
+          # Following is a workaround until the headers are fixed in upstream.
+          if [ "$(g++ -dumpversion)" -lt 10 ]; then
+            export CXXFLAGS="-std=gnu++2a"
+          else
+            export CXXFLAGS="-std=gnu++20"
+          fi
           npm ci
 
       - name: Download Playwright
