@@ -275,7 +275,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			if (historyItemRefs.length === 0) {
 				// TODO@lszomoru - log
 				return undefined;
-			} else if (historyItemRefs.length === 1 && historyItemRefs[0] === this.currentHistoryItemRemoteRef?.id) {
+			} else if (historyItemRefs.length === 1 && historyItemRefs[0] === this.currentHistoryItemRef?.id) {
 				// Remote
 				if (this.currentHistoryItemRemoteRef) {
 					const ancestor = await this.repository.getMergeBase(historyItemRefs[0], this.currentHistoryItemRemoteRef.id);
