@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../nls.js';
+import '../../services/markerDecorations.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
@@ -13,15 +13,18 @@ import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDelivery
 import { hash } from '../../../../base/common/hash.js';
 import { Disposable, DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import './editor.css';
+import { applyFontInfo } from '../../config/domFontInfo.js';
+import { EditorConfiguration, IEditorConstructionOptions } from '../../config/editorConfiguration.js';
+import { TabFocus } from '../../config/tabFocus.js';
+import * as editorBrowser from '../../editorBrowser.js';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../editorExtensions.js';
+import { ICodeEditorService } from '../../services/codeEditorService.js';
+import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } from '../../view.js';
+import { DOMLineBreaksComputerFactory } from '../../view/domLineBreaksComputer.js';
+import { ICommandDelegate } from '../../view/viewController.js';
+import { ViewUserInputEvents } from '../../view/viewUserInputEvents.js';
+import { CodeEditorContributions } from './codeEditorContributions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterValidationDecorations } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
@@ -47,19 +50,16 @@ import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
-import { applyFontInfo } from '../../config/domFontInfo.js';
-import { EditorConfiguration, IEditorConstructionOptions } from '../../config/editorConfiguration.js';
-import { TabFocus } from '../../config/tabFocus.js';
-import * as editorBrowser from '../../editorBrowser.js';
-import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../editorExtensions.js';
-import { ICodeEditorService } from '../../services/codeEditorService.js';
-import '../../services/markerDecorations.js';
-import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } from '../../view.js';
-import { DOMLineBreaksComputerFactory } from '../../view/domLineBreaksComputer.js';
-import { ICommandDelegate } from '../../view/viewController.js';
-import { ViewUserInputEvents } from '../../view/viewUserInputEvents.js';
-import { CodeEditorContributions } from './codeEditorContributions.js';
-import './editor.css';
+import * as nls from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
