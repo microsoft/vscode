@@ -191,7 +191,7 @@ interface IRenderMarkdownDocumentOptions {
 	readonly token?: CancellationToken;
 }
 
-/*marked.*
+/**
  * Renders a string of markdown as a document.
  *
  * Uses VS Code's syntax highlighting code blocks.
