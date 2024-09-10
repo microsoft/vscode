@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
@@ -358,14 +359,13 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 	draw(pass: GPURenderPassEncoder, viewportData: ViewportData): void {
 		if (this._visibleObjectCount <= 0) {
-			console.error('Attempt to draw 0 objects');
-		} else {
-			pass.draw(
-				quadVertices.length / 2,
-				this._visibleObjectCount,
-				undefined,
-				(viewportData.startLineNumber - 1) * FullFileRenderStrategy._columnCount
-			);
+			throw new BugIndicatingError('Attempt to draw 0 objects');
 		}
+		pass.draw(
+			quadVertices.length / 2,
+			this._visibleObjectCount,
+			undefined,
+			(viewportData.startLineNumber - 1) * FullFileRenderStrategy._columnCount
+		);
 	}
 }
