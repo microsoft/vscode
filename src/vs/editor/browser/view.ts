@@ -162,7 +162,6 @@ export class View extends ViewEventHandler {
 
 		// View Lines
 		this._viewLines = new ViewLines(this._context, this._linesContent);
-		this._viewParts.push(this._viewLines);
 		if (this._viewGpuContext) {
 			this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
 		}
