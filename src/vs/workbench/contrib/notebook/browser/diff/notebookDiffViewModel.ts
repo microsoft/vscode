@@ -449,6 +449,9 @@ async function createDiffViewModels(configurationService: IConfigurationService,
 					diff.originalCellIndex,
 					unchangedRegionsService
 				);
+				// Reduces flicker (compute this before setting the model)
+				// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+				// & that results in flicker.
 				await viewModel.computeEditorHeights();
 				return viewModel;
 			}
