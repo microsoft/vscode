@@ -218,7 +218,6 @@
     "tslib": "^2.6.3",
     "typescript": "^5.7.0-dev.20240903",
     "util": "^0.12.4",
-    "vscode-nls-dev": "^3.3.1",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",

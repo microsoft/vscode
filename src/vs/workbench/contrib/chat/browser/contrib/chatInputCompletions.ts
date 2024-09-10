@@ -8,25 +8,34 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
-import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../../editor/common/languages.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
 import { SubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { SelectAndInsertFileAction } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, SelectAndInsertFileAction } from './chatDynamicVariables.js';
 import { ChatAgentLocation, getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
-import { IChatVariablesService } from '../../common/chatVariables.js';
+import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { isPatternInWord } from '../../../../../base/common/filters.js';
+import { ISearchService } from '../../../../services/search/common/search.js';
+import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -301,19 +310,35 @@ class AssignSelectedAgentAction extends Action2 {
 }
 registerAction2(AssignSelectedAgentAction);
 
+
+class ReferenceArgument {
+	constructor(
+		readonly widget: IChatWidget,
+		readonly variable: IDynamicVariable
+	) { }
+}
+
 class BuiltinDynamicCompletions extends Disposable {
+	private static readonly addReferenceCommand = '_addReferenceCmd';
 	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
 
+	private readonly queryBuilder: QueryBuilder;
+
 	constructor(
+		@IHistoryService private readonly historyService: IHistoryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISearchService private readonly searchService: ISearchService,
+		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatDynamicCompletions',
 			triggerCharacters: [chatVariableLeader],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.supportsFileReferences) {
 					return null;
@@ -324,22 +349,113 @@ class BuiltinDynamicCompletions extends Disposable {
 					return null;
 				}
 
+				const result: CompletionList = { suggestions: [] };
+
 				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
-				return {
-					suggestions: [
-						{
-							label: `${chatVariableLeader}file`,
-							insertText: `${chatVariableLeader}file:`,
-							detail: localize('pickFileLabel', "Pick a file"),
-							range,
-							kind: CompletionItemKind.Text,
-							command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
-							sortText: 'z'
-						} satisfies CompletionItem
-					]
-				};
+				result.suggestions.push({
+					label: `${chatVariableLeader}file`,
+					insertText: `${chatVariableLeader}file:`,
+					detail: localize('pickFileLabel', "Pick a file"),
+					range,
+					kind: CompletionItemKind.Text,
+					command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
+					sortText: 'z'
+				});
+
+
+				await this.addFileEntries(widget, result, range, token);
+
+				return result;
 			}
 		}));
+
+		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
+
+		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
+	}
+
+	private async addFileEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+
+		const makeFileCompletionItem = (resource: URI): CompletionItem => {
+
+			const basename = this.labelService.getUriBasenameLabel(resource);
+			const insertText = `${chatVariableLeader}file:${basename} `;
+
+			return {
+				label: { label: basename, description: this.labelService.getUriLabel(resource) },
+				filterText: info.varWord?.word,
+				insertText,
+				range: info,
+				kind: CompletionItemKind.File,
+				sortText: '{', // after `z`
+				command: {
+					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
+						id: 'vscode.file',
+						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + insertText.length },
+						data: resource
+					})]
+				}
+			};
+		};
+
+		let pattern: string | undefined;
+		if (info.varWord?.word && info.varWord.word.startsWith(chatVariableLeader)) {
+			pattern = info.varWord.word.toLowerCase().slice(1); // remove leading #
+		}
+
+		const seen = new ResourceSet();
+		const len = result.suggestions.length;
+
+		// HISTORY
+		// always take the last N items
+		for (const item of this.historyService.getHistory()) {
+			if (!item.resource || !this.workspaceContextService.getWorkspaceFolder(item.resource)) {
+				// ignore "forgein" editors
+				continue;
+			}
+
+			if (pattern) {
+				// use pattern if available
+				const basename = this.labelService.getUriBasenameLabel(item.resource).toLowerCase();
+				if (!isPatternInWord(pattern, 0, pattern.length, basename, 0, basename.length)) {
+					continue;
+				}
+			}
+
+			seen.add(item.resource);
+			const newLen = result.suggestions.push(makeFileCompletionItem(item.resource));
+			if (newLen - len >= 5) {
+				break;
+			}
+		}
+
+		// SEARCH
+		// use file search when having a pattern
+		if (pattern) {
+			const query = this.queryBuilder.file(this.workspaceContextService.getWorkspace().folders, {
+				filePattern: pattern,
+				sortByScore: true,
+				maxResults: 100,
+			});
+
+			const data = await this.searchService.fileSearch(query, token);
+			for (const match of data.results) {
+				if (seen.has(match.resource)) {
+					// already included via history
+					continue;
+				}
+				result.suggestions.push(makeFileCompletionItem(match.resource));
+			}
+		}
+
+		// mark results as incomplete because further typing might yield
+		// in more search results
+		result.incomplete = true;
+	}
+
+	private cmdAddReference(arg: ReferenceArgument) {
+		// invoked via the completion command
+		arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference(arg.variable);
 	}
 }
 
