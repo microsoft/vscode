@@ -407,8 +407,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return result;
 	}
 
-	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		if (this.shouldRender()) {
+	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean, forceCalculation: boolean = false): LineVisibleRanges[] | null {
+		if (this.shouldRender() && !forceCalculation) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
