@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { ensureNonNullable } from '../gpuUtils.js';
 import type { IRasterizedGlyph } from '../raster/raster.js';
 import { UsagePreviewColors, type ITextureAtlasAllocator, type ITextureAtlasPageGlyph } from './atlas.js';
@@ -40,7 +41,7 @@ export class TextureAtlasShelfAllocator implements ITextureAtlasAllocator {
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
 		if (glyphWidth > this._canvas.width || glyphHeight > this._canvas.height) {
-			throw new Error('Glyph is too large for the atlas page');
+			throw new BugIndicatingError('Glyph is too large for the atlas page');
 		}
 
 		// Finalize and increment row if it doesn't fix horizontally

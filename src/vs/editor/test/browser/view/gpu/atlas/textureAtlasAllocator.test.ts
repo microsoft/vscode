@@ -11,6 +11,7 @@ import { TextureAtlasShelfAllocator } from '../../../../../browser/gpu/atlas/tex
 import { TextureAtlasSlabAllocator, type TextureAtlasSlabAllocatorOptions } from '../../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { assertIsValidGlyph } from './testUtil.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 
 const blackArr = [0x00, 0x00, 0x00, 0xFF];
 
@@ -74,7 +75,7 @@ suite('TextureAtlasAllocator', () => {
 			// Skipping because it fails unexpectedly on web only when asserting the error message
 			test.skip(`(${name}) glyph too large for canvas`, () => {
 				const { allocator } = initAllocator(1, 1);
-				throws(() => allocateAndAssert(allocator, pixel2x1, undefined), new Error('Glyph is too large for the atlas page'));
+				throws(() => allocateAndAssert(allocator, pixel2x1, undefined), new BugIndicatingError('Glyph is too large for the atlas page'));
 			});
 		}
 	});

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { TwoKeyMap } from '../../../../base/common/map.js';
 import { ensureNonNullable } from '../gpuUtils.js';
 import type { IRasterizedGlyph } from '../raster/raster.js';
@@ -72,7 +73,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 		// The glyph does not fit into the atlas page, glyphs should never be this large in practice
 		if (glyphWidth > this._canvas.width || glyphHeight > this._canvas.height) {
-			throw new Error('Glyph is too large for the atlas page');
+			throw new BugIndicatingError('Glyph is too large for the atlas page');
 		}
 
 		// The glyph does not fit into a slab
