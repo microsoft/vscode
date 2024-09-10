@@ -63,7 +63,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite.only('Terminal Contrib Suggest Recordings', () => {
+suite('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
