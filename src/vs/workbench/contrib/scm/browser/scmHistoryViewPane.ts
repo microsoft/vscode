@@ -32,7 +32,7 @@ import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, historyItemGroupLocal, historyItemGroupRemote, historyItemGroupBase, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground } from './scmHistory.js';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground, historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelForeground, historyItemHoverDefaultLabelBackground } from './scmHistory.js';
 import { isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
@@ -801,16 +801,20 @@ class SCMHistoryViewModel extends Disposable {
 	private _getGraphColorMap(historyItemRefs: ISCMHistoryItemRef[]): Map<string, ColorIdentifier | undefined> {
 		const repository = this.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
-		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
+		const historyItemRef = historyProvider?.currentHistoryItemRef.get();
+		const historyItemRemoteRef = historyProvider?.currentHistoryItemRemoteRef.get();
+		const historyItemBaseRef = historyProvider?.currentHistoryItemBaseRef.get();
 
 		const colorMap = new Map<string, ColorIdentifier | undefined>();
-		if (currentHistoryItemGroup) {
-			colorMap.set(currentHistoryItemGroup.id, historyItemGroupLocal);
-			if (currentHistoryItemGroup.remote) {
-				colorMap.set(currentHistoryItemGroup.remote.id, historyItemGroupRemote);
+
+		if (historyItemRef) {
+			colorMap.set(historyItemRef.id, historyItemRef.color);
+
+			if (historyItemRemoteRef) {
+				colorMap.set(historyItemRemoteRef.id, historyItemRemoteRef.color);
 			}
-			if (currentHistoryItemGroup.base) {
-				colorMap.set(currentHistoryItemGroup.base.id, historyItemGroupBase);
+			if (historyItemBaseRef) {
+				colorMap.set(historyItemBaseRef.id, historyItemBaseRef.color);
 			}
 		}
 
@@ -1101,18 +1105,15 @@ export class SCMHistoryViewPane extends ViewPane {
 					// Update context
 					this._scmProviderCtx.set(repository.provider.contextValue);
 
-					// Commit, Checkout
-					const historyItemRefSignal = signalFromObservable(this, historyProvider.currentHistoryItemRef);
-
 					// Publish
-					const historyItemRefRemoteIdSignal = signalFromObservable(this, derived(reader => {
+					const historyItemRemoteRefIdSignal = signalFromObservable(this, derived(reader => {
 						return historyProvider.currentHistoryItemRemoteRef.read(reader)?.id;
 					}));
 
 					// Fetch, Push
-					const historyItemRefRemoteRevisionSignal = signalFromObservable(this, derived(reader => {
+					const historyItemRemoteRefRevision = derived(reader => {
 						return historyProvider.currentHistoryItemRemoteRef.read(reader)?.revision;
-					}));
+					});
 
 					// HistoryItemRefs changed
 					store.add(
@@ -1120,23 +1121,33 @@ export class SCMHistoryViewPane extends ViewPane {
 							owner: this,
 							createEmptyChangeSummary: () => ({ refresh: false }),
 							handleChange(context, changeSummary) {
-								changeSummary.refresh = context.didChange(historyItemRefRemoteRevisionSignal) ? 'ifScrollTop' : true;
+								changeSummary.refresh = context.didChange(historyItemRemoteRefRevision) ? 'ifScrollTop' : true;
 								return true;
 							},
 						}, (reader, changeSummary) => {
-							historyItemRefSignal.read(reader);
-							historyItemRefRemoteIdSignal.read(reader);
-							historyItemRefRemoteRevisionSignal.read(reader);
+							historyItemRemoteRefIdSignal.read(reader);
+							const historyItemRefValue = historyProvider.currentHistoryItemRef.read(reader);
+							const historyItemRemoteRefRevisionValue = historyItemRemoteRefRevision.read(reader);
 
+							// Commit, Checkout, Publish, Pull
 							if (changeSummary.refresh === true) {
 								this.refresh();
 								return;
 							}
 
 							if (changeSummary.refresh === 'ifScrollTop') {
-								// Remote revision changes can occur as a result of a user action (Fetch, Push) but
-								// it can also occur as a result of background action (Auto Fetch). If the tree is
-								// scrolled to the top, we can safely refresh the tree.
+								// If the history item remote revision has changed, but it matches the history
+								// item revision, then it means that a Push operation was performed and it is
+								// safe to refresh the graph.
+								if (historyItemRefValue?.revision === historyItemRemoteRefRevisionValue) {
+									this.refresh();
+									return;
+								}
+
+								// If the history item remote revision has changed, but it does not matches the
+								// history item revision, then a Fetch operation was performed. This can be the
+								// result of a user action (Fetch) or a background action (Auto Fetch). If the
+								// tree is scrolled to the top, we can safely refresh the tree.
 								if (this._tree.scrollTop === 0) {
 									this.refresh();
 									return;
