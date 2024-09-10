@@ -26,10 +26,6 @@ import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
-import { DebugEditContext } from './debugEditContext.js';
-
-// Boolean indicating whether we use the edit context or the debug edit context with the colored control, selection and character bounds
-const useDebugEditContext = true;
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -62,7 +58,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
-		this._editContext = useDebugEditContext ? new DebugEditContext() : new EditContext();
+		this._editContext = new EditContext();
 		this.domNode.domNode.editContext = this._editContext;
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
@@ -360,11 +356,9 @@ export class NativeEditContext extends AbstractEditContext {
 			// Force the calculation so that we get the correct lines visible range immediately
 			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(compositionRangeWithinEditor, true, true) ?? [];
 			for (const lineVisibleRanges of linesVisibleRanges) {
-
 				const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 				const roundedTypicalHalfwidthCharacterWidth = Math.floor(typicalHalfWidthCharacterWidth);
 				for (const visibleRange of lineVisibleRanges.ranges) {
-
 					const numberOfCharactersInComposition = compositionRangeWithinEditor.endColumn - compositionRangeWithinEditor.startColumn;
 					for (let i = 0; i < numberOfCharactersInComposition; i++) {
 						const x = parentBounds.left + contentLeft + visibleRange.left + i * roundedTypicalHalfwidthCharacterWidth;
@@ -373,9 +367,7 @@ export class NativeEditContext extends AbstractEditContext {
 				}
 			}
 		}
-		if (characterBounds.length) {
-			this._characterBounds = characterBounds;
-		}
+		this._characterBounds = characterBounds.length ? characterBounds : this._characterBounds;
 		const textModel = this._context.viewModel.model;
 		const offsetOfEditContextStart = textModel.getOffsetAt(this._textStartPositionWithinEditor);
 		const offsetOfCompositionStart = textModel.getOffsetAt(compositionRangeWithinEditor.getStartPosition());
