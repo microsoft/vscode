@@ -537,6 +537,7 @@
 
 .monaco-toolbar .action-label.scm-graph-repository-picker,
 .monaco-toolbar .action-label.scm-graph-history-item-picker {
+	color: var(--vscode-icon-foreground);
 	align-items: center;
 	font-weight: normal;
 	line-height: 16px;
