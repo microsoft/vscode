@@ -62,6 +62,7 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -953,6 +954,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
@@ -1340,53 +1342,65 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private updateExtensionsNotificaiton(): void {
-		let extensionsNotification: IExtensionsNotification | undefined;
-
-		let message = '';
-		const severity = Severity.Warning;
-		const extensions: IExtension[] = [];
-
-		extensions.push(...this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension));
-		if (extensions.length) {
-			if (extensions.some(e => e.local &&
-				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
-			)) {
-				message = nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them.");
-			} else {
-				message = nls.localize('invalidExtensions', "You have invalid extensions installed. Review them.");
-			}
-		}
-
-		else {
-			extensions.push(...this.local.filter(e => e.enablementState === EnablementState.DisabledByExtensionDependency));
-			if (extensions.length) {
-				message = nls.localize('missingDependencies', "Some extensions are disabled due to missing dependencies. Review them.");
-			}
-
-			else {
-				extensions.push(...this.local.filter(e => !!e.deprecationInfo));
-				if (extensions.length) {
-					message = nls.localize('deprecated extensions', "You have deprecated extensions installed. Review them and migrate to alternatives.");
-				}
-			}
-		}
-
-		if (extensions.length && !this.dismissedNotifications.includes(message)) {
-			extensionsNotification = {
-				message,
-				severity,
-				extensions,
+		const computedNotificiation = this.computeExtensionsNotification();
+		const extensionsNotification = computedNotificiation && !this.dismissedNotifications.includes(computedNotificiation.message) ?
+			{
+				...computedNotificiation,
 				dismiss: () => {
-					this.dismissedNotifications.push(message);
+					this.dismissedNotifications.push(computedNotificiation.message);
 					this.updateExtensionsNotificaiton();
 				},
-			};
-		}
+			}
+			: undefined;
 
 		if (this.extensionsNotification?.message !== extensionsNotification?.message) {
 			this.extensionsNotification = extensionsNotification;
 			this._onDidChangeExtensionsNotification.fire(this.extensionsNotification);
 		}
+	}
+
+	private computeExtensionsNotification(): Omit<IExtensionsNotification, 'dismiss'> | undefined {
+
+		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension);
+		if (invalidExtensions.length) {
+			if (invalidExtensions.some(e => e.local &&
+				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
+			)) {
+				return {
+					message: nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them."),
+					severity: Severity.Warning,
+					extensions: invalidExtensions,
+				};
+			} else {
+				return {
+					message: nls.localize('invalidExtensions', "Invalid extensions detected. Review them."),
+					severity: Severity.Warning,
+					extensions: invalidExtensions,
+				};
+			}
+		}
+
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			const disabledExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByExtensionDependency);
+			if (disabledExtensions.length) {
+				return {
+					message: nls.localize('missingDependencies', "Some extensions are disabled due to missing or disabled dependencies. Review them."),
+					severity: Severity.Warning,
+					extensions: disabledExtensions,
+				};
+			}
+		}
+
+		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo);
+		if (deprecatedExtensions.length) {
+			return {
+				message: nls.localize('deprecated extensions', "Deprecated extensions detected. Review them and migrate to alternatives."),
+				severity: Severity.Warning,
+				extensions: deprecatedExtensions,
+			};
+		}
+
+		return undefined;
 	}
 
 	getExtensionsNotification(): IExtensionsNotification | undefined {

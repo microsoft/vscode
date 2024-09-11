@@ -86,6 +86,15 @@ function createHideUnchangedRegionOptions(configurationService: IConfigurationSe
 	};
 
 	disposables.add(configurationService.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.minimumLineCount')) {
+			options.minimumLineCount = configurationService.getValue<number>('diffEditor.hideUnchangedRegions.minimumLineCount');
+		}
+		if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.contextLineCount')) {
+			options.contextLineCount = configurationService.getValue<number>('diffEditor.hideUnchangedRegions.contextLineCount');
+		}
+		if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.revealLineCount')) {
+			options.revealLineCount = configurationService.getValue<number>('diffEditor.hideUnchangedRegions.revealLineCount');
+		}
 		if (e.affectsConfiguration('diffEditor.hideUnchangedRegions.enabled')) {
 			options.enabled = configurationService.getValue('diffEditor.hideUnchangedRegions.enabled');
 			unchangedRegionsEnablementEmitter.fire(options.enabled);

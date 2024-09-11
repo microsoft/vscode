@@ -103,9 +103,9 @@ class PropertyHeader extends Disposable {
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
 			updateInfoRendering: (renderOutput: boolean) => void;
-			checkIfModified: (cell: DiffElementCellViewModelBase) => false | { reason: string | undefined };
-			getFoldingState: (cell: DiffElementCellViewModelBase) => PropertyFoldingState;
-			updateFoldingState: (cell: DiffElementCellViewModelBase, newState: PropertyFoldingState) => void;
+			checkIfModified: () => false | { reason: string | undefined };
+			getFoldingState: () => PropertyFoldingState;
+			updateFoldingState: (newState: PropertyFoldingState) => void;
 			unChangedLabel: string;
 			changedLabel: string;
 			prefix: string;
@@ -142,9 +142,7 @@ class PropertyHeader extends Disposable {
 				return undefined;
 			}
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService));
-		this._toolbar.context = {
-			cell: this.cell
-		};
+		this._toolbar.context = this.cell;
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
 		this._register(scopedContextKeyService);
@@ -166,8 +164,8 @@ class PropertyHeader extends Disposable {
 				target === this._foldingIndicator || this._foldingIndicator.contains(target) ||
 				target === metadataStatus || metadataStatus.contains(target)
 			) {
-				const oldFoldingState = this.accessor.getFoldingState(this.cell);
-				this.accessor.updateFoldingState(this.cell, oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
+				const oldFoldingState = this.accessor.getFoldingState();
+				this.accessor.updateFoldingState(oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
 				this._updateFoldingIcon();
 				this.accessor.updateInfoRendering(this.cell.renderOutput);
 			}
@@ -180,7 +178,7 @@ class PropertyHeader extends Disposable {
 		this.updateMenu();
 		this._updateFoldingIcon();
 
-		const metadataChanged = this.accessor.checkIfModified(this.cell);
+		const metadataChanged = this.accessor.checkIfModified();
 		if (this._propertyChanged) {
 			this._propertyChanged.set(!!metadataChanged);
 		}
@@ -200,7 +198,7 @@ class PropertyHeader extends Disposable {
 	}
 
 	private updateMenu() {
-		const metadataChanged = this.accessor.checkIfModified(this.cell);
+		const metadataChanged = this.accessor.checkIfModified();
 		if (metadataChanged) {
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
@@ -211,7 +209,7 @@ class PropertyHeader extends Disposable {
 	}
 
 	private _updateFoldingIcon() {
-		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
+		if (this.accessor.getFoldingState() === PropertyFoldingState.Collapsed) {
 			DOM.reset(this._foldingIndicator, renderIcon(collapsedIcon));
 			this._propertyExpanded?.set(false);
 		} else {
@@ -903,9 +901,9 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: () => renderSourceEditor(),
-				checkIfModified: (_) => ({ reason: undefined }),
-				getFoldingState: (cell) => cell.cellFoldingState,
-				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
+				checkIfModified: () => ({ reason: undefined }),
+				getFoldingState: () => this.cell.cellFoldingState,
+				updateFoldingState: (state) => this.cell.cellFoldingState = state,
 				unChangedLabel: 'Input',
 				changedLabel: 'Input',
 				prefix: 'input',
@@ -970,14 +968,14 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkMetadataIfModified();
+				checkIfModified: () => {
+					return this.cell.checkMetadataIfModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.metadataFoldingState;
+				getFoldingState: () => {
+					return this.cell.metadataFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.metadataFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.metadataFoldingState = state;
 				},
 				unChangedLabel: 'Metadata',
 				changedLabel: 'Metadata changed',
@@ -1006,14 +1004,14 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkIfOutputsModified();
+				checkIfModified: () => {
+					return this.cell.checkIfOutputsModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.outputFoldingState;
+				getFoldingState: () => {
+					return this.cell.outputFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.outputFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.outputFoldingState = state;
 				},
 				unChangedLabel: 'Outputs',
 				changedLabel: 'Outputs changed',
@@ -1367,14 +1365,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkMetadataIfModified();
+				checkIfModified: () => {
+					return this.cell.checkMetadataIfModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.metadataFoldingState;
+				getFoldingState: () => {
+					return this.cell.metadataFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.metadataFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.metadataFoldingState = state;
 				},
 				unChangedLabel: 'Metadata',
 				changedLabel: 'Metadata changed',
@@ -1421,14 +1419,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkIfOutputsModified();
+				checkIfModified: () => {
+					return this.cell.checkIfOutputsModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.outputFoldingState;
+				getFoldingState: () => {
+					return this.cell.outputFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.outputFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.outputFoldingState = state;
 				},
 				unChangedLabel: 'Outputs',
 				changedLabel: 'Outputs changed',
@@ -1648,11 +1646,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: () => renderSourceEditor(),
-				checkIfModified: (cell) => {
-					return cell.modified?.textModel.getTextBufferHash() !== cell.original?.textModel.getTextBufferHash() ? { reason: undefined } : false;
+				checkIfModified: () => {
+					return this.cell.modified?.textModel.getTextBufferHash() !== this.cell.original?.textModel.getTextBufferHash() ? { reason: undefined } : false;
 				},
-				getFoldingState: (cell) => cell.cellFoldingState,
-				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
+				getFoldingState: () => this.cell.cellFoldingState,
+				updateFoldingState: (state) => this.cell.cellFoldingState = state,
 				unChangedLabel: 'Input',
 				changedLabel: 'Input changed',
 				prefix: 'input',
@@ -1673,9 +1671,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		this._toolbar = this.templateData.toolbar;
 
-		this._toolbar.context = {
-			cell: this.cell
-		};
+		this._toolbar.context = this.cell;
 
 		const refreshToolbar = () => {
 			const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');

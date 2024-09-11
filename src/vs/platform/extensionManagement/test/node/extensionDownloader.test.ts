@@ -13,8 +13,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { getTargetPlatform, IExtensionGalleryService, IGalleryExtension, IGalleryExtensionAssets, InstallOperation } from '../../common/extensionManagement.js';
 import { getGalleryExtensionId } from '../../common/extensionManagementUtil.js';
@@ -76,16 +74,8 @@ suite('ExtensionDownloader Tests', () => {
 		});
 	});
 
-	test('download completes successfully if verification is disabled by setting set to false', async () => {
-		const testObject = aTestObject({ isSignatureVerificationEnabled: false, verificationResult: 'error' });
-
-		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, true);
-
-		assert.strictEqual(actual.verificationStatus, false);
-	});
-
 	test('download completes successfully if verification is disabled by options', async () => {
-		const testObject = aTestObject({ isSignatureVerificationEnabled: true, verificationResult: 'error' });
+		const testObject = aTestObject({ verificationResult: 'error' });
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, false);
 
@@ -93,7 +83,7 @@ suite('ExtensionDownloader Tests', () => {
 	});
 
 	test('download completes successfully if verification is disabled because the module is not loaded', async () => {
-		const testObject = aTestObject({ isSignatureVerificationEnabled: true, verificationResult: false });
+		const testObject = aTestObject({ verificationResult: false });
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, true);
 
@@ -102,7 +92,7 @@ suite('ExtensionDownloader Tests', () => {
 
 	test('download completes successfully if verification fails to execute', async () => {
 		const errorCode = 'ENOENT';
-		const testObject = aTestObject({ isSignatureVerificationEnabled: true, verificationResult: errorCode });
+		const testObject = aTestObject({ verificationResult: errorCode });
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, true);
 
@@ -111,7 +101,7 @@ suite('ExtensionDownloader Tests', () => {
 
 	test('download completes successfully if verification fails ', async () => {
 		const errorCode = 'IntegrityCheckFailed';
-		const testObject = aTestObject({ isSignatureVerificationEnabled: true, verificationResult: errorCode });
+		const testObject = aTestObject({ verificationResult: errorCode });
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, true);
 
@@ -119,7 +109,7 @@ suite('ExtensionDownloader Tests', () => {
 	});
 
 	test('download completes successfully if verification succeeds', async () => {
-		const testObject = aTestObject({ isSignatureVerificationEnabled: true, verificationResult: true });
+		const testObject = aTestObject({ verificationResult: true });
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: true }), InstallOperation.Install, true);
 
@@ -127,23 +117,22 @@ suite('ExtensionDownloader Tests', () => {
 	});
 
 	test('download completes successfully for unsigned extension', async () => {
-		const testObject = aTestObject({ isSignatureVerificationEnabled: true, verificationResult: true });
+		const testObject = aTestObject({ verificationResult: true });
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, false);
+		assert.strictEqual(actual.verificationStatus, 'PackageIsUnsigned');
 	});
 
 	test('download completes successfully for an unsigned extension even when signature verification throws error', async () => {
-		const testObject = aTestObject({ isSignatureVerificationEnabled: true, verificationResult: 'error' });
+		const testObject = aTestObject({ verificationResult: 'error' });
 
 		const actual = await testObject.download(aGalleryExtension('a', { isSigned: false }), InstallOperation.Install, true);
 
-		assert.strictEqual(actual.verificationStatus, false);
+		assert.strictEqual(actual.verificationStatus, 'PackageIsUnsigned');
 	});
 
-	function aTestObject(options: { isSignatureVerificationEnabled: boolean; verificationResult: boolean | string }): ExtensionsDownloader {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService(isBoolean(options.isSignatureVerificationEnabled) ? { extensions: { verifySignature: options.isSignatureVerificationEnabled } } : undefined));
+	function aTestObject(options: { verificationResult: boolean | string }): ExtensionsDownloader {
 		instantiationService.stub(IExtensionSignatureVerificationService, new TestExtensionSignatureVerificationService(options.verificationResult));
 		return disposables.add(instantiationService.createInstance(TestExtensionDownloader));
 	}
