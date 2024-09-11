@@ -5,8 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { buttonForeground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
+import { buttonForeground, editorInfoForeground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable, ColorIdentifier, registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
@@ -21,9 +20,9 @@ const CIRCLE_STROKE_WIDTH = 2;
 /**
  * History item reference colors (local, remote, base)
  */
-export const historyItemRefColor = registerColor('scmGraph.historyItemRefColor', chartsBlue, localize('scmGraphHistoryItemRefColor', "History item reference color."));
-export const historyItemRemoteRefColor = registerColor('scmGraph.historyItemRemoteRefColor', chartsPurple, localize('scmGraphHistoryItemRemoteRefColor', "History item remote reference color."));
-export const historyItemBaseRefColor = registerColor('scmGraph.historyItemBaseRefColor', chartsOrange, localize('scmGraphHistoryItemBaseRefColor', "History item base reference color."));
+export const historyItemRefColor = registerColor('scmGraph.historyItemRefColor', editorInfoForeground, localize('scmGraphHistoryItemRefColor', "History item reference color."));
+export const historyItemRemoteRefColor = registerColor('scmGraph.historyItemRemoteRefColor', '#B66DFF', localize('scmGraphHistoryItemRemoteRefColor', "History item remote reference color."));
+export const historyItemBaseRefColor = registerColor('scmGraph.historyItemBaseRefColor', '#EA5C00', localize('scmGraphHistoryItemBaseRefColor', "History item base reference color."));
 
 /**
  * History item hover color
@@ -38,9 +37,10 @@ export const historyItemHoverDeletionsForeground = registerColor('scmGraph.histo
  * History graph color registry
  */
 export const colorRegistry: ColorIdentifier[] = [
-	registerColor('scmGraph.foreground1', chartsGreen, localize('scmGraphForeground1', "Source control graph foreground color (1).")),
-	registerColor('scmGraph.foreground2', chartsRed, localize('scmGraphForeground2', "Source control graph foreground color (2).")),
-	registerColor('scmGraph.foreground3', chartsYellow, localize('scmGraphForeground3', "Source control graph foreground color (3).")),
+	registerColor('scmGraph.foreground1', '#FFB000', localize('scmGraphForeground1', "Source control graph foreground color (1).")),
+	registerColor('scmGraph.foreground2', '#DC267F', localize('scmGraphForeground2', "Source control graph foreground color (2).")),
+	registerColor('scmGraph.foreground3', '#994F00', localize('scmGraphForeground3', "Source control graph foreground color (3).")),
+	registerColor('scmGraph.foreground4', '#40B0A6', localize('scmGraphForeground4', "Source control graph foreground color (4).")),
 ];
 
 function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier | undefined>): ColorIdentifier | undefined {
