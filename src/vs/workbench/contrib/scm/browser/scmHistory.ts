@@ -5,18 +5,18 @@
 
 import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { buttonForeground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { chartsBlue, chartsGreen, chartsOrange, chartsPurple, chartsRed, chartsYellow } from '../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable, ColorIdentifier, registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
-import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
-const CIRCLE_RADIUS = 4;
 const SWIMLANE_CURVE_RADIUS = 5;
+const CIRCLE_RADIUS = 4;
+const CIRCLE_STROKE_WIDTH = 2;
 
 /**
  * History item reference colors (local, remote, base)
@@ -64,12 +64,16 @@ function createPath(colorIdentifier: string): SVGPathElement {
 	return path;
 }
 
-function drawCircle(index: number, radius: number, colorIdentifier: string): SVGCircleElement {
+function drawCircle(index: number, radius: number, strokeWidth: number, colorIdentifier?: string): SVGCircleElement {
 	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
 	circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
 	circle.setAttribute('r', `${radius}`);
-	circle.style.fill = asCssVariable(colorIdentifier);
+
+	circle.style.strokeWidth = `${strokeWidth}px`;
+	if (colorIdentifier) {
+		circle.style.fill = asCssVariable(colorIdentifier);
+	}
 
 	return circle;
 }
@@ -205,24 +209,26 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	}
 
 	// Draw *
-	if (historyItem.parentIds.length > 1) {
-		// Multi-parent node
-		const circleOuter = drawCircle(circleIndex, CIRCLE_RADIUS + 1, circleColor);
-		svg.append(circleOuter);
-
-		const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, circleColor);
-		svg.append(circleInner);
-	} else {
+	if (historyItemViewModel.isCurrent) {
 		// HEAD
-		// TODO@lszomoru - implement a better way to determine if the commit is HEAD
-		if (historyItem.references?.some(ref => ThemeIcon.isThemeIcon(ref.icon) && ref.icon.id === 'target')) {
-			const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 2, circleColor);
-			svg.append(outerCircle);
-		}
+		const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 3, CIRCLE_STROKE_WIDTH, circleColor);
+		svg.append(outerCircle);
 
-		// Node
-		const circle = drawCircle(circleIndex, CIRCLE_RADIUS, circleColor);
-		svg.append(circle);
+		const innerCircle = drawCircle(circleIndex, CIRCLE_STROKE_WIDTH, CIRCLE_RADIUS);
+		svg.append(innerCircle);
+	} else {
+		if (historyItem.parentIds.length > 1) {
+			// Multi-parent node
+			const circleOuter = drawCircle(circleIndex, CIRCLE_RADIUS + 2, CIRCLE_STROKE_WIDTH, circleColor);
+			svg.append(circleOuter);
+
+			const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, CIRCLE_STROKE_WIDTH, circleColor);
+			svg.append(circleInner);
+		} else {
+			// Node
+			const circle = drawCircle(circleIndex, CIRCLE_RADIUS + 1, CIRCLE_STROKE_WIDTH, circleColor);
+			svg.append(circle);
+		}
 	}
 
 	// Set dimensions
@@ -246,13 +252,18 @@ export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNo
 	return elements.root;
 }
 
-export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, ColorIdentifier | undefined>()): ISCMHistoryItemViewModel[] {
+export function toISCMHistoryItemViewModelArray(
+	historyItems: ISCMHistoryItem[],
+	colorMap = new Map<string, ColorIdentifier | undefined>(),
+	currentHistoryItemRef?: ISCMHistoryItemRef
+): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
 
 	for (let index = 0; index < historyItems.length; index++) {
 		const historyItem = historyItems[index];
 
+		const isCurrent = historyItem.id === currentHistoryItemRef?.revision;
 		const outputSwimlanesFromPreviousItem = viewModels.at(-1)?.outputSwimlanes ?? [];
 		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
 		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
@@ -326,6 +337,7 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[],
 				...historyItem,
 				references
 			},
+			isCurrent,
 			inputSwimlanes,
 			outputSwimlanes,
 		});
