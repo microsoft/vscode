@@ -461,7 +461,7 @@ async function createDiffViewModels(configurationService: IConfigurationService,
 					unchangedRegionsService
 				);
 
-				// If there are 500cells that have all changed,
+				// If there are 500 cells that have all changed,
 				// No point computing the height for all of them.
 				// We only need enough to fit the viewport height.
 				// Each cell is a minimum of header height + 1 line + top and bottom padding in editor + padding between cells.
