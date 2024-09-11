@@ -907,30 +907,37 @@ class HistoryItemRefPicker extends Disposable {
 		quickPick.busy = true;
 		quickPick.show();
 
-		quickPick.items = await this._createQuickPickItems();
-		quickPick.busy = false;
+		const items = await this._createQuickPickItems();
 
 		// Set initial selection
 		let selectedItems: HistoryItemRefQuickPickItem[] = [];
 		if (this._historyItemsFilter === 'all') {
 			selectedItems.push(this._allQuickPickItem);
-			quickPick.selectedItems = [this._allQuickPickItem];
 		} else if (this._historyItemsFilter === 'auto') {
 			selectedItems.push(this._autoQuickPickItem);
-			quickPick.selectedItems = [this._autoQuickPickItem];
 		} else {
-			for (const item of quickPick.items) {
-				if (item.type === 'separator') {
+			let index = 0;
+			while (index < items.length) {
+				if (items[index].type === 'separator') {
+					index++;
 					continue;
 				}
 
-				if (this._historyItemsFilter.some(ref => ref.id === item.id)) {
-					selectedItems.push(item);
+				if (this._historyItemsFilter.some(ref => ref.id === items[index].id)) {
+					const item = items.splice(index, 1) as HistoryItemRefQuickPickItem[];
+					selectedItems.push(...item);
+				} else {
+					index++;
 				}
 			}
 
-			quickPick.selectedItems = selectedItems;
+			// Insert the selected items after `All` and `Auto`
+			items.splice(2, 0, { type: 'separator' }, ...selectedItems);
 		}
+
+		quickPick.items = items;
+		quickPick.selectedItems = selectedItems;
+		quickPick.busy = false;
 
 		return new Promise<'all' | 'auto' | ISCMHistoryItemRef[] | undefined>(resolve => {
 			this._store.add(quickPick.onDidChangeSelection(items => {
