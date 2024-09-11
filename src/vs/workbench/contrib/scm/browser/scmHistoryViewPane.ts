@@ -956,7 +956,9 @@ class HistoryItemRefPicker extends Disposable {
 			}));
 
 			this._store.add(quickPick.onDidAccept(() => {
-				if (selectedItems.length === 1 && selectedItems[0].historyItemRef === 'all') {
+				if (selectedItems.length === 0) {
+					resolve(undefined);
+				} else if (selectedItems.length === 1 && selectedItems[0].historyItemRef === 'all') {
 					resolve('all');
 				} else if (selectedItems.length === 1 && selectedItems[0].historyItemRef === 'auto') {
 					resolve('auto');
