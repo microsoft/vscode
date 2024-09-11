@@ -323,6 +323,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 		templateData.elementDisposables.add(historyItemHover);
 
 		templateData.graphContainer.textContent = '';
+		templateData.graphContainer.classList.toggle('current', historyItemViewModel.isCurrent);
 		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
 
 		const provider = node.element.repository.provider;
@@ -782,7 +783,7 @@ class SCMHistoryViewModel extends Disposable {
 		// Create the color map
 		const colorMap = this._getGraphColorMap(state.historyItemRefs);
 
-		return toISCMHistoryItemViewModelArray(state.items, colorMap)
+		return toISCMHistoryItemViewModelArray(state.items, colorMap, historyProvider.historyItemRef.get())
 			.map(historyItemViewModel => ({
 				repository,
 				historyItemViewModel,
