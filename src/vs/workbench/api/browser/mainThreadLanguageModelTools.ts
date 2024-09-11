@@ -37,7 +37,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 
 	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
 		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
-		// Maybe this should at least happen in the tools service?
+		// TODO move this to the tools service?
 		let task: IChatTask | undefined;
 		if (dto.context) {
 			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
@@ -48,7 +48,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		}
 
 		try {
-			return this._languageModelToolsService.invokeTool(
+			return await this._languageModelToolsService.invokeTool(
 				dto,
 				(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
 				token,
