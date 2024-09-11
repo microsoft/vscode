@@ -15,8 +15,7 @@ import { API } from '../tsServer/api';
 
 
 class TypeScriptHoverProvider implements vscode.HoverProvider {
-
-	private readonly hoverToLevel: Map<vscode.Hover, number> = new Map();
+	private lastHoverAndLevel: [vscode.Hover, number] | undefined;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -36,8 +35,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 
 		let verbosityLevel: number | undefined;
 		if (this.client.apiVersion.gte(API.v560)) { // >> TODO: use v570
-			const previousLevel = (context?.previousHover && this.hoverToLevel.get(context.previousHover)) ?? 0;
-			verbosityLevel = Math.max(0, previousLevel + (context?.verbosityDelta ?? 0));
+			verbosityLevel = Math.max(0, this.getPreviousLevel(context?.previousHover) + (context?.verbosityDelta ?? 0));
 		}
 		const args = { ...typeConverters.Position.toFileLocationRequestArgs(filepath, position), verbosityLevel };
 
@@ -65,7 +63,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			);
 
 		if (verbosityLevel !== undefined) {
-			this.hoverToLevel.set(hover, verbosityLevel);
+			this.lastHoverAndLevel = [hover, verbosityLevel];
 		}
 		return hover;
 	}
@@ -94,6 +92,13 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		const md = documentationToMarkdown(data.documentation, data.tags, this.client, resource);
 		parts.push(md);
 		return parts;
+	}
+
+	private getPreviousLevel(previousHover: vscode.Hover | undefined): number {
+		if (previousHover && this.lastHoverAndLevel && this.lastHoverAndLevel[0] === previousHover) {
+			return this.lastHoverAndLevel[1];
+		}
+		return 0;
 	}
 }
 
