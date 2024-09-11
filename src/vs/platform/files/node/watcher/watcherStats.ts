@@ -7,6 +7,8 @@ import { IUniversalWatchRequest, requestFilterToString } from '../../common/watc
 import { INodeJSWatcherInstance, NodeJSWatcher } from './nodejs/nodejsWatcher.js';
 import { ParcelWatcher, ParcelWatcherInstance } from './parcel/parcelWatcher.js';
 
+const useParcelWatcher2 = process.env.VSCODE_USE_WATCHER2 === 'true';
+
 export function computeStats(
 	requests: IUniversalWatchRequest[],
 	recursiveWatcher: ParcelWatcher,
@@ -59,7 +61,7 @@ export function computeStats(
 	fillNonRecursiveWatcherStats(nonRecursiveWatcheLines, nonRecursiveWatcher);
 	lines.push(...alignTextColumns(nonRecursiveWatcheLines));
 
-	return `\n\n[File Watcher] request stats:\n\n${lines.join('\n')}\n\n`;
+	return useParcelWatcher2 ? `\n\n[File Watcher NEXT] request stats:\n\n${lines.join('\n')}\n\n` : `\n\n[File Watcher CLASSIC] request stats:\n\n${lines.join('\n')}\n\n`;
 }
 
 function alignTextColumns(lines: string[]) {
