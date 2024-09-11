@@ -1373,7 +1373,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				};
 			} else {
 				return {
-					message: nls.localize('invalidExtensions', "You have invalid extensions installed. Review them."),
+					message: nls.localize('invalidExtensions', "Invalid extensions detected. Review them."),
 					severity: Severity.Warning,
 					extensions: invalidExtensions,
 				};
@@ -1394,7 +1394,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo);
 		if (deprecatedExtensions.length) {
 			return {
-				message: nls.localize('deprecated extensions', "You have deprecated extensions installed. Review them and migrate to alternatives."),
+				message: nls.localize('deprecated extensions', "Deprecated extensions detected. Review them and migrate to alternatives."),
 				severity: Severity.Warning,
 				extensions: deprecatedExtensions,
 			};

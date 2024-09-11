@@ -139,17 +139,17 @@ export class ErrorBadge extends IconBadge {
 }
 
 const activityWarningBadgeForeground = registerColor('activityWarningBadge.foreground',
-	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: null },
+	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: Color.black.lighten(0.2) },
 	localize('activityWarningBadge.foreground', 'Foreground color of the warning activity badge'));
 
 const activityWarningBadgeBackground = registerColor('activityWarningBadge.background',
-	{ dark: '#CCA700', light: '#BF8803', hcDark: null, hcLight: null },
+	{ dark: '#CCA700', light: '#BF8803', hcDark: null, hcLight: '#CCA700' },
 	localize('activityWarningBadge.background', 'Background color of the warning activity badge'));
 
 const activityErrorBadgeForeground = registerColor('activityErrorBadge.foreground',
-	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: null },
+	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: Color.black.lighten(0.2) },
 	localize('activityErrorBadge.foreground', 'Foreground color of the error activity badge'));
 
 const activityErrorBadgeBackground = registerColor('activityErrorBadge.background',
-	{ dark: '#F14C4C', light: '#E51400', hcDark: null, hcLight: null },
+	{ dark: '#F14C4C', light: '#E51400', hcDark: null, hcLight: '#F14C4C' },
 	localize('activityErrorBadge.background', 'Background color of the error activity badge'));
