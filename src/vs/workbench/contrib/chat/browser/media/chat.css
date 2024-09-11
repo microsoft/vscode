@@ -427,7 +427,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-and-execute-toolbar {
-	display: flex;
 	box-sizing: border-box;
 	cursor: text;
 	background-color: var(--vscode-input-background);
@@ -436,11 +435,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 	padding: 0 6px;
 	margin-bottom: 4px;
-	align-items: flex-end;
-	justify-content: space-between;
 }
 
 .interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
 	margin-bottom: 0;
 	border-radius: 2px;
 }
@@ -473,6 +473,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	/* It's bottom-aligned, make it appear centered within the container */
 	margin-bottom: 7px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar {
+	float: right;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar .actions-container {
