@@ -474,7 +474,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			: [];
 
 		if (!dependencyExtensions.length) {
-			return !!extensions.length && !!extension.manifest.extensionDependencies?.length;
+			return false;
 		}
 
 		const hasEnablementState = computedEnablementStates.has(extension);
