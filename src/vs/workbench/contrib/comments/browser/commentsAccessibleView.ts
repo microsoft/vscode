@@ -19,6 +19,8 @@ import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { revealCommentThread } from './commentsController.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;
@@ -129,8 +131,22 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		if (!this._commentService.activeCommentInfo) {
 			throw new Error('No current comment thread');
 		}
-		const value = this._commentService.activeCommentInfo.comment?.body;
-		return typeof value === 'string' ? value : value?.value ?? '';
+		const comment = this._commentService.activeCommentInfo.comment?.body;
+		const commentLabel = typeof comment === 'string' ? comment : comment?.value ?? '';
+		const resource = this._commentService.activeCommentInfo.thread.resource;
+		const range = this._commentService.activeCommentInfo.thread.range;
+		let contentLabel = '';
+		if (resource && range) {
+			const editor = this._editorService.findEditors(URI.parse(resource)) || [];
+			const codeEditor = this._editorService.activeEditorPane?.getControl();
+			if (editor?.length && isCodeEditor(codeEditor)) {
+				const content = codeEditor.getModel()?.getValueInRange(range);
+				if (content) {
+					contentLabel = '\nCorresponding code: \n' + content;
+				}
+			}
+		}
+		return commentLabel + contentLabel;
 	}
 	onClose(): void {
 		const commentInfo = this._commentService.activeCommentInfo;
