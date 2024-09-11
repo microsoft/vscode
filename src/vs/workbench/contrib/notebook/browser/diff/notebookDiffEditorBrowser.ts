@@ -91,6 +91,31 @@ export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTe
 	readonly outputInfoContainer: HTMLElement;
 }
 
+export interface SingleSidedDiffElementNotebookMetadataRenderTemplate extends CellDiffCommonRenderTemplate {
+	readonly container: HTMLElement;
+	readonly body: HTMLElement;
+	readonly diffEditorContainer: HTMLElement;
+	readonly diagonalFill: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly cellHeaderContainer: HTMLElement;
+	readonly editorContainer: HTMLElement;
+	readonly sourceEditor: CodeEditorWidget;
+}
+
+
+export interface SideBySideDiffElementNotebookMetadataRenderTemplate extends CellDiffCommonRenderTemplate {
+	readonly container: HTMLElement;
+	readonly body: HTMLElement;
+	readonly diffEditorContainer: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly cellHeaderContainer: HTMLElement;
+	readonly sourceEditor: DiffEditorWidget;
+	readonly editorContainer: HTMLElement;
+	readonly inputToolbarContainer: HTMLElement;
+	readonly toolbar: WorkbenchToolBar;
+	readonly marginOverlay: IDiffCellMarginOverlay;
+}
+
 export interface IDiffCellMarginOverlay extends IDisposable {
 	onAction: Event<void>;
 	show(): void;
@@ -142,6 +167,7 @@ export interface CellDiffViewModelLayoutChangeEvent extends IDiffElementSelfLayo
 
 export const DIFF_CELL_MARGIN = 16;
 export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebook.diffEditor.cell.inputChanged', false);
+export const NOTEBOOK_DIFF_METADATA = new RawContextKey<boolean>('notebook.diffEditor.metadataChanged', false);
 export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY = 'notebook.diffEditor.cell.ignoreWhitespace';
 export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE = new RawContextKey<boolean>(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false);
 export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebook.diffEditor.cell.property.changed', false);
