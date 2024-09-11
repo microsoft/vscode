@@ -48,7 +48,7 @@ suite('NotebookDiff', () => {
 	let heightCalculator: IDiffEditorHeightCalculatorService;
 	teardown(() => disposables.dispose());
 
-	const configurationService = new TestConfigurationService();
+	const configurationService = new TestConfigurationService({ notebook: { diff: { ignoreMetadata: true } } });
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {

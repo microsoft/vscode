@@ -279,7 +279,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		};
 
 		const viewModels: (SingleSideDiffElementViewModel | SideBySideDiffElementViewModel | SideBySideDiffElementNotebookMetadataViewModel)[] = [];
-		this.notebookMetadataViewModel = new SideBySideDiffElementNotebookMetadataViewModel(this.model.original.notebook, this.model.modified.notebook, metadataChanged ? 'modifiedMetadata' : 'unchangedMetadata', this.eventDispatcher, initData, this.notebookService, this.unchangedRegionsService, this.diffEditorHeightCalculator);
+		this.notebookMetadataViewModel = this._register(new SideBySideDiffElementNotebookMetadataViewModel(this.model.original.notebook, this.model.modified.notebook, metadataChanged ? 'modifiedMetadata' : 'unchangedMetadata', this.eventDispatcher, initData, this.notebookService, this.unchangedRegionsService, this.diffEditorHeightCalculator));
 		if (!this.ignoreMetadata) {
 			if (metadataChanged) {
 				await this.notebookMetadataViewModel.computeHeights();
