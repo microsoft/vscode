@@ -17,7 +17,7 @@ declare class AsarFilesystem {
 	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number } }, options: {}): Promise<void>;
 }
 
-export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
+export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs: string[], duplicateGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
 
 	const shouldUnpackFile = (file: VinylFile): boolean => {
 		for (let i = 0; i < unpackGlobs.length; i++) {
@@ -31,6 +31,17 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 	const shouldSkipFile = (file: VinylFile): boolean => {
 		for (const skipGlob of skipGlobs) {
 			if (minimatch(file.relative, skipGlob)) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// Files that should be duplicated between
+	// node_modules.asar and node_modules
+	const shouldDuplicateFile = (file: VinylFile): boolean => {
+		for (const duplicateGlob of duplicateGlobs) {
+			if (minimatch(file.relative, duplicateGlob)) {
 				return true;
 			}
 		}
@@ -88,7 +99,21 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 			throw new Error(`unknown item in stream!`);
 		}
 		if (shouldSkipFile(file)) {
+			this.queue(new VinylFile({
+				base: '.',
+				path: file.path,
+				stat: file.stat,
+				contents: file.contents
+			}));
 			return;
+		}
+		if (shouldDuplicateFile(file)) {
+			this.queue(new VinylFile({
+				base: '.',
+				path: file.path,
+				stat: file.stat,
+				contents: file.contents
+			}));
 		}
 		const shouldUnpack = shouldUnpackFile(file);
 		insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);

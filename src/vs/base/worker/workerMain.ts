@@ -103,14 +103,16 @@
 		});
 	}
 
-	function configureAMDLoader() {
-		require.config({
-			baseUrl: monacoBaseUrl,
-			catchError: true,
-			trustedTypesPolicy,
-			amdModulesPattern: /^vs\//
-		});
-	}
+	// ESM-comment-begin
+	// function configureAMDLoader() {
+	// 	require.config({
+	// 		baseUrl: monacoBaseUrl,
+	// 		catchError: true,
+	// 		trustedTypesPolicy,
+	// 		amdModulesPattern: /^vs\//
+	// 	});
+	// }
+	// ESM-comment-end
 
 	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
 		// ESM-uncomment-begin
@@ -154,9 +156,11 @@
 	// If the loader is already defined, configure it immediately
 	// This helps in the bundled case, where we must load nls files
 	// and they need a correct baseUrl to be loaded.
-	if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
-		configureAMDLoader();
-	}
+	// ESM-comment-begin
+	// if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
+	// 	configureAMDLoader();
+	// }
+	// ESM-comment-end
 
 	let isFirstMessage = true;
 	const beforeReadyMessages: MessageEvent[] = [];

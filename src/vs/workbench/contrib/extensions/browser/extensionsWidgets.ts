@@ -10,7 +10,7 @@ import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, Extension
 import { append, $, reset, addDisposableListener, EventType, finalHandler } from '../../../../base/browser/dom.js';
 import * as platform from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
-import { EnablementState, IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { extensionButtonProminentBackground, ExtensionStatusAction } from './extensionsActions.js';
@@ -501,7 +501,7 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 			return;
 		}
 
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
 		if (!extensionStatus || !extensionStatus.activationTimes) {
 			return;
 		}
@@ -647,7 +647,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
-		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const runtimeState = this.extension.runtimeState;
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
@@ -683,9 +683,6 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
 				}
 				markdown.appendMarkdown(status.message.value);
-				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
-					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
-				}
 				markdown.appendText(`\n`);
 			}
 

@@ -172,6 +172,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this._instance.focus();
 				this._instance.sendText(text, false);
 			}));
+			this.add(this._instance.onWillPaste(() => addon.isPasting = true));
+			this.add(this._instance.onDidPaste(() => {
+				// Delay this slightly as synchronizing the prompt input is debounced
+				setTimeout(() => addon.isPasting = false, 100);
+			}));
 
 			// If completions are requested, pause and queue input events until completions are
 			// received. This fixing some problems in PowerShell, particularly enter not executing

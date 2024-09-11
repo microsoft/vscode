@@ -11,14 +11,14 @@ import * as UUID from '../../../../../base/common/uuid.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import * as model from '../../../../../editor/common/model.js';
 import { PieceTreeTextBuffer } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
-import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { createTextBuffer, TextModel } from '../../../../../editor/common/model/textModel.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from '../notebookCommon.js';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -112,12 +112,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._textBuffer;
 		}
 
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(this._source);
-		const bufferFactory = builder.finish(true);
-		const { textBuffer, disposable } = bufferFactory.create(model.DefaultEndOfLine.LF);
-		this._textBuffer = textBuffer;
-		this._register(disposable);
+		this._textBuffer = this._register(createTextBuffer(this._source, model.DefaultEndOfLine.LF).textBuffer);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
@@ -307,18 +302,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		const filteredMetadata: { [key: string]: any } = {};
-		const transientCellMetadata = this.transientOptions.transientCellMetadata;
-
-		const keys = new Set([...Object.keys(this.metadata)]);
-		for (const key of keys) {
-			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
-			) {
-				filteredMetadata[key] = this.metadata[key as keyof NotebookCellMetadata];
-			}
-		}
-
-		return filteredMetadata;
+		return getFormattedMetadataJSON(this.transientOptions.transientCellMetadata, this.metadata, this.language);
 	}
 
 	getTextLength(): number {
@@ -509,4 +493,35 @@ function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata
 	} else {
 		return newMetadata.runStartTimeAdjustment;
 	}
+}
+
+
+export function getFormattedMetadataJSON(transientCellMetadata: TransientCellMetadata | undefined, metadata: NotebookCellMetadata, language?: string) {
+	let filteredMetadata: { [key: string]: any } = {};
+
+	if (transientCellMetadata) {
+		const keys = new Set([...Object.keys(metadata)]);
+		for (const key of keys) {
+			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
+			) {
+				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+			}
+		}
+	} else {
+		filteredMetadata = metadata;
+	}
+
+	const obj = {
+		language,
+		...filteredMetadata
+	};
+	// Give preference to the language we have been given.
+	// Metadata can contain `language` due to round-tripping of cell metadata.
+	// I.e. we add it here, and then from SCM when we revert the cell, we get this same metadata back with the `language` property.
+	if (language) {
+		obj.language = language;
+	}
+	const metadataSource = toFormattedString(obj, {});
+
+	return metadataSource;
 }

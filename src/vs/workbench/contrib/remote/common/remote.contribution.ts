@@ -19,7 +19,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -112,7 +111,7 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 
 	private async validateRemoteWorkspace(): Promise<void> {
 		const workspace = this.contextService.getWorkspace();
-		const workspaceUriToStat = workspace.configuration ?? firstOrDefault(workspace.folders)?.uri;
+		const workspaceUriToStat = workspace.configuration ?? workspace.folders.at(0)?.uri;
 		if (!workspaceUriToStat) {
 			return; // only when in workspace
 		}

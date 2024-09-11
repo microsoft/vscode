@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from './arrays.js';
 import { hasDriveLetter, toSlashes } from './extpath.js';
 import { posix, sep, win32 } from './path.js';
 import { isMacintosh, isWindows, OperatingSystem, OS } from './platform.js';
@@ -99,7 +98,7 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	const extUriLib = os === OperatingSystem.Linux ? extUri : extUriIgnorePathCase;
 
 	const workspace = relativePathProvider.getWorkspace();
-	const firstFolder = firstOrDefault(workspace.folders);
+	const firstFolder = workspace.folders.at(0);
 	if (!firstFolder) {
 		return undefined;
 	}

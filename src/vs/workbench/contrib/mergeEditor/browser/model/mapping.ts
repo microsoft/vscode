@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, lastOrDefault, numberComparator } from '../../../../../base/common/arrays.js';
+import { compareBy, numberComparator } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
@@ -13,7 +13,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { concatArrays } from '../utils.js';
 import { LineRangeEdit } from './editing.js';
 import { LineRange } from './lineRange.js';
-import { rangeIsBeforeOrTouching, rangeContainsPosition, lengthBetweenPositions, addLength } from './rangeUtils.js';
+import { addLength, lengthBetweenPositions, rangeContainsPosition, rangeIsBeforeOrTouching } from './rangeUtils.js';
 
 /**
  * Represents a mapping of an input line range to an output line range.
@@ -131,7 +131,7 @@ export class DocumentLineRangeMap {
 	}
 
 	public get outputLineCount(): number {
-		const last = lastOrDefault(this.lineRangeMappings);
+		const last = this.lineRangeMappings.at(-1);
 		const diff = last ? last.outputRange.endLineNumberExclusive - last.inputRange.endLineNumberExclusive : 0;
 		return this.inputLineCount + diff;
 	}
@@ -385,7 +385,7 @@ export class DocumentRangeMap {
 	}
 
 	public get outputLineCount(): number {
-		const last = lastOrDefault(this.rangeMappings);
+		const last = this.rangeMappings.at(-1);
 		const diff = last ? last.outputRange.endLineNumber - last.inputRange.endLineNumber : 0;
 		return this.inputLineCount + diff;
 	}

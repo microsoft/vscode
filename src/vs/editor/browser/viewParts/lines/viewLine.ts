@@ -9,15 +9,16 @@ import * as platform from '../../../../base/common/platform.js';
 import { IVisibleLine } from '../../view/viewLayer.js';
 import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
-import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
-import { ColorScheme, isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { EditorOption, EditorFontLigatures } from '../../../common/config/editorOptions.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
+import type { ViewLineOptions } from './viewLineOptions.js';
+import { ViewLinesGpu } from '../linesGpu/viewLinesGpu.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -44,61 +45,6 @@ const canUseFastRenderedViewLine = (function () {
 })();
 
 let monospaceAssumptionsAreValid = true;
-
-export class ViewLineOptions {
-	public readonly themeType: ColorScheme;
-	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
-	public readonly renderControlCharacters: boolean;
-	public readonly spaceWidth: number;
-	public readonly middotWidth: number;
-	public readonly wsmiddotWidth: number;
-	public readonly useMonospaceOptimizations: boolean;
-	public readonly canUseHalfwidthRightwardsArrow: boolean;
-	public readonly lineHeight: number;
-	public readonly stopRenderingLineAfter: number;
-	public readonly fontLigatures: string;
-
-	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
-		this.themeType = themeType;
-		const options = config.options;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
-		if (experimentalWhitespaceRendering === 'off') {
-			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
-		} else {
-			// whitespace is rendered in a different layer
-			this.renderWhitespace = 'none';
-		}
-		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
-		this.spaceWidth = fontInfo.spaceWidth;
-		this.middotWidth = fontInfo.middotWidth;
-		this.wsmiddotWidth = fontInfo.wsmiddotWidth;
-		this.useMonospaceOptimizations = (
-			fontInfo.isMonospace
-			&& !options.get(EditorOption.disableMonospaceOptimizations)
-		);
-		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
-		this.lineHeight = options.get(EditorOption.lineHeight);
-		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
-		this.fontLigatures = options.get(EditorOption.fontLigatures);
-	}
-
-	public equals(other: ViewLineOptions): boolean {
-		return (
-			this.themeType === other.themeType
-			&& this.renderWhitespace === other.renderWhitespace
-			&& this.renderControlCharacters === other.renderControlCharacters
-			&& this.spaceWidth === other.spaceWidth
-			&& this.middotWidth === other.middotWidth
-			&& this.wsmiddotWidth === other.wsmiddotWidth
-			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
-			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
-			&& this.lineHeight === other.lineHeight
-			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
-			&& this.fontLigatures === other.fontLigatures
-		);
-	}
-}
 
 export class ViewLine implements IVisibleLine {
 
@@ -152,6 +98,12 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+		if (this._options.useGpu && ViewLinesGpu.canRender(this._options, viewportData, lineNumber)) {
+			this._renderedViewLine?.domNode?.domNode.remove();
+			this._renderedViewLine = null;
+			return false;
+		}
+
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
 			return false;
