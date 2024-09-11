@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from './cancellation.js';
+import { diffSets } from './collections.js';
 import { onUnexpectedError } from './errors.js';
 import { createSingleCallFunction } from './functional.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
@@ -11,7 +12,6 @@ import { LinkedList } from './linkedList.js';
 import { IObservable, IObserver } from './observable.js';
 import { StopWatch } from './stopwatch.js';
 import { MicrotaskDelay } from './symbols.js';
-
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever a listener is GC'ed without having been disposed. This is a LEAK.
@@ -1790,4 +1790,31 @@ class ConstValueWithChangeEvent<T> implements IValueWithChangeEvent<T> {
 	public readonly onDidChange: Event<void> = Event.None;
 
 	constructor(readonly value: T) { }
+}
+
+/**
+ * @param handleItem Is called for each item in the set (but only the first time the item is seen in the set).
+ * 	The returned disposable is disposed if the item is no longer in the set.
+ */
+export function trackSetChanges<T>(getData: () => ReadonlySet<T>, onDidChangeData: Event<unknown>, handleItem: (d: T) => IDisposable): IDisposable {
+	const map = new DisposableMap<T, IDisposable>();
+	let oldData = new Set(getData());
+	for (const d of oldData) {
+		map.set(d, handleItem(d));
+	}
+
+	const store = new DisposableStore();
+	store.add(onDidChangeData(() => {
+		const newData = getData();
+		const diff = diffSets(oldData, newData);
+		for (const r of diff.removed) {
+			map.deleteAndDispose(r);
+		}
+		for (const a of diff.added) {
+			map.set(a, handleItem(a));
+		}
+		oldData = new Set(newData);
+	}));
+	store.add(map);
+	return store;
 }

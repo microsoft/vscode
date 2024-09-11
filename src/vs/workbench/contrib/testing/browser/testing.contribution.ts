@@ -235,5 +235,15 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+CommandsRegistry.registerCommand({
+	id: 'vscode.testing.getControllersWithTests',
+	handler: async (accessor: ServicesAccessor) => {
+		const testService = accessor.get(ITestService);
+		return [...testService.collection.rootItems]
+			.filter(r => r.children.size > 0)
+			.map(r => r.controllerId);
+	}
+});
+
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguration);
 

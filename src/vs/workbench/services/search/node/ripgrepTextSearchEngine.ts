@@ -12,23 +12,23 @@ import { groupBy } from '../../../../base/common/collections.js';
 import { splitGlobAware } from '../../../../base/common/glob.js';
 import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
-import { Range, SearchResultFromFolder, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from '../common/searchExtTypes.js';
+import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
-import { Progress } from '../../../../platform/progress/common/progress.js';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-export class RipgrepTextSearchEngine implements TextSearchProviderNew {
+export class RipgrepTextSearchEngine {
 
 	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		return Promise.all(options.folderOptions.map(folderOption => {
 			const extendedOptions: RipgrepTextSearchOptions = {
 				folderOptions: folderOption,
@@ -38,7 +38,7 @@ export class RipgrepTextSearchEngine implements TextSearchProviderNew {
 				maxFileSize: options.maxFileSize,
 				surroundingContext: options.surroundingContext
 			};
-			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, folderOption.folder, progress, token);
+			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token);
 		})).then((e => {
 			const complete: TextSearchCompleteNew = {
 				// todo: get this to actually check
@@ -48,7 +48,7 @@ export class RipgrepTextSearchEngine implements TextSearchProviderNew {
 		}));
 	}
 
-	provideTextSearchResultsWithRgOptions(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, folder: URI, progress: Progress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResultsWithRgOptions(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -81,10 +81,10 @@ export class RipgrepTextSearchEngine implements TextSearchProviderNew {
 
 			let gotResult = false;
 			const ripgrepParser = new RipgrepParser(options.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS, options.folderOptions.folder, newToOldPreviewOptions(options.previewOptions));
-			ripgrepParser.on('result', (result: TextSearchResultNew) => {
+			ripgrepParser.on('result', (match: TextSearchResultNew) => {
 				gotResult = true;
 				dataWithoutResult = '';
-				progress.report({ folder, result });
+				progress.report(match);
 			});
 
 			let isDone = false;

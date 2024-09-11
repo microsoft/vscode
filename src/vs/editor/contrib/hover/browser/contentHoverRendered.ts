@@ -16,7 +16,7 @@ import { ContentHoverResult } from './contentHoverTypes.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
-import { ColorHoverParticipant } from '../../colorPicker/browser/colorHoverParticipant.js';
+import { HoverColorPickerParticipant } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerParticipant.js';
 import { localize } from '../../../../nls.js';
 import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
@@ -218,7 +218,7 @@ class RenderedContentHoverParts extends Disposable {
 	private readonly _context: IEditorHoverContext;
 
 	private _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-	private _colorHoverParticipant: ColorHoverParticipant | undefined;
+	private _colorHoverParticipant: HoverColorPickerParticipant | undefined;
 	private _focusedHoverPartIndex: number = -1;
 
 	constructor(
@@ -328,7 +328,7 @@ class RenderedContentHoverParts extends Disposable {
 		if (markdownHoverParticipant) {
 			this._markdownHoverParticipant = markdownHoverParticipant as MarkdownHoverParticipant;
 		}
-		this._colorHoverParticipant = participants.find(p => p instanceof ColorHoverParticipant);
+		this._colorHoverParticipant = participants.find(p => p instanceof HoverColorPickerParticipant);
 	}
 
 	public focusHoverPartWithIndex(index: number): void {

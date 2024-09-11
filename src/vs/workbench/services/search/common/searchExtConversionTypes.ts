@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew, TextSearchCompleteMessage, SearchResultFromFolder } from './searchExtTypes.js';
+import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew, TextSearchCompleteMessage } from './searchExtTypes.js';
 
 // old types that are retained for backward compatibility
 // TODO: delete this when search apis are adopted by all first-party extensions
@@ -470,22 +470,13 @@ function newToOldFileProviderOptions(options: FileSearchProviderOptions): FileSe
 export class OldFileSearchProviderConverter implements FileSearchProviderNew {
 	constructor(private provider: FileSearchProvider) { }
 
-	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<SearchResultFromFolder<URI>[]> {
-		const getResult: () => Promise<{
-			uris: URI[] | null | undefined;
-			folder: URI;
-		}[]> = async () => {
+	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]> {
+		const getResult = async () => {
 			const newOpts = newToOldFileProviderOptions(options);
 			return Promise.all(newOpts.map(
-				async o => ({ uris: await this.provider.provideFileSearchResults({ pattern }, o, token), folder: o.folder })));
+				o => this.provider.provideFileSearchResults({ pattern }, o, token)));
 		};
-		return getResult().then(rawResult =>
-			coalesce(rawResult.flatMap(e => (
-				e.uris?.map(uri => (
-					{ result: uri, folder: e.folder }
-				)))
-			))
-		);
+		return getResult().then(e => coalesce(e).flat());
 	}
 }
 
@@ -537,22 +528,19 @@ export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchRe
 export class OldTextSearchProviderConverter implements TextSearchProviderNew {
 	constructor(private provider: TextSearchProvider) { }
 
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
 
-		const progressShim = (oldResult: TextSearchResult, folder: URI) => {
+		const progressShim = (oldResult: TextSearchResult) => {
 			if (!validateProviderResult(oldResult)) {
 				return;
 			}
-			progress.report({
-				folder,
-				result: oldToNewTextSearchResult(oldResult)
-			});
+			progress.report(oldToNewTextSearchResult(oldResult));
 		};
 
 		const getResult = async () => {
 			return coalesce(await Promise.all(
 				newToOldTextProviderOptions(options).map(
-					o => this.provider.provideTextSearchResults(query, o, { report: (e) => progressShim(e, o.folder) }, token))))
+					o => this.provider.provideTextSearchResults(query, o, { report: (e) => progressShim(e) }, token))))
 				.reduce(
 					(prev, cur) => ({ limitHit: prev.limitHit || cur.limitHit }),
 					{ limitHit: false }
@@ -571,21 +559,18 @@ export class OldTextSearchProviderConverter implements TextSearchProviderNew {
 export class OldAITextSearchProviderConverter implements AITextSearchProviderNew {
 	constructor(private provider: AITextSearchProvider) { }
 
-	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<SearchResultFromFolder<TextSearchResultNew>>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
-		const progressShim = (oldResult: TextSearchResult, folder: URI) => {
+	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
+		const progressShim = (oldResult: TextSearchResult) => {
 			if (!validateProviderResult(oldResult)) {
 				return;
 			}
-			progress.report({
-				folder,
-				result: oldToNewTextSearchResult(oldResult)
-			});
+			progress.report(oldToNewTextSearchResult(oldResult));
 		};
 
 		const getResult = async () => {
 			return coalesce(await Promise.all(
 				newToOldTextProviderOptions(options).map(
-					o => this.provider.provideAITextSearchResults(query, o, { report: (e) => progressShim(e, o.folder) }, token))))
+					o => this.provider.provideAITextSearchResults(query, o, { report: (e) => progressShim(e) }, token))))
 				.reduce(
 					(prev, cur) => ({ limitHit: prev.limitHit || cur.limitHit }),
 					{ limitHit: false }

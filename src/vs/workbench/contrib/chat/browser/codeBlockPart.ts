@@ -14,6 +14,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
@@ -57,17 +58,17 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ResourceLabel } from '../../../browser/labels.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { ChatTreeItem } from './chat.js';
-import { IChatRendererDelegate } from './chatListRenderer.js';
-import { ChatEditorOptions } from './chatOptions.js';
-import { CONTEXT_CHAT_EDIT_APPLIED } from '../common/chatContextKeys.js';
-import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
-import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
+import { InspectEditorTokensController } from '../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
 import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IMarkdownVulnerability } from '../common/annotations.js';
-import { assertType } from '../../../../base/common/types.js';
+import { CONTEXT_CHAT_EDIT_APPLIED } from '../common/chatContextKeys.js';
+import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
+import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
+import { ChatTreeItem } from './chat.js';
+import { IChatRendererDelegate } from './chatListRenderer.js';
+import { ChatEditorOptions } from './chatOptions.js';
 
 const $ = dom.$;
 
@@ -77,6 +78,8 @@ export interface ICodeBlockData {
 
 	readonly textModel: Promise<IResolvedTextEditorModel>;
 	readonly languageId: string;
+
+	readonly codemapperUri?: URI;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;
@@ -125,6 +128,7 @@ export function parseLocalFileData(text: string) {
 
 export interface ICodeBlockActionContext {
 	code: string;
+	codemapperUri?: URI;
 	languageId?: string;
 	codeBlockIndex: number;
 	element: unknown;
@@ -299,6 +303,8 @@ export class CodeBlockPart extends Disposable {
 				GotoDefinitionAtPositionEditorContribution.ID,
 				ColorDetector.ID,
 				LinkDetector.ID,
+
+				InspectEditorTokensController.ID,
 			])
 		}));
 	}
@@ -421,7 +427,8 @@ export class CodeBlockPart extends Disposable {
 			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
-			languageId: textModel.getLanguageId()
+			languageId: textModel.getLanguageId(),
+			codemapperUri: data.codemapperUri,
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}

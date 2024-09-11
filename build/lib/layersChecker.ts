@@ -257,9 +257,9 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Electron (node)
+	// Electron (utility)
 	{
-		target: '**/vs/**/electron-node/**',
+		target: '**/vs/**/electron-utility/**',
 		allowedTypes: [
 			...CORE_TYPES,
 

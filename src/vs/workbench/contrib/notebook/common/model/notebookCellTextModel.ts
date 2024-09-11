@@ -11,8 +11,7 @@ import * as UUID from '../../../../../base/common/uuid.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import * as model from '../../../../../editor/common/model.js';
 import { PieceTreeTextBuffer } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
-import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { createTextBuffer, TextModel } from '../../../../../editor/common/model/textModel.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
@@ -113,12 +112,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._textBuffer;
 		}
 
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(this._source);
-		const bufferFactory = builder.finish(true);
-		const { textBuffer, disposable } = bufferFactory.create(model.DefaultEndOfLine.LF);
-		this._textBuffer = textBuffer;
-		this._register(disposable);
+		this._textBuffer = this._register(createTextBuffer(this._source, model.DefaultEndOfLine.LF).textBuffer);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;

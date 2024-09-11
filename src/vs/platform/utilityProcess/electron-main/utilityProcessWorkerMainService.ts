@@ -8,12 +8,13 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit, IUtilityProcessWorkerService } from '../common/utilityProcessWorkerService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { WindowUtilityProcess } from './utilityProcess.js';
+import { IWindowUtilityProcessConfiguration, WindowUtilityProcess } from './utilityProcess.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { hash } from '../../../base/common/hash.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export const IUtilityProcessWorkerMainService = createDecorator<IUtilityProcessWorkerMainService>('utilityProcessWorker');
 
@@ -32,7 +33,8 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -50,7 +52,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		}
 
 		// Create new worker
-		const worker = new UtilityProcessWorker(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService, configuration);
+		const worker = new UtilityProcessWorker(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService, this.configurationService, configuration);
 		if (!worker.spawn()) {
 			return { reason: { code: 1, signal: 'EINVALID' } };
 		}
@@ -106,6 +108,7 @@ class UtilityProcessWorker extends Disposable {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		private readonly configuration: IUtilityProcessWorkerCreateConfiguration
 	) {
 		super();
@@ -122,7 +125,7 @@ class UtilityProcessWorker extends Disposable {
 		const window = this.windowsMainService.getWindowById(this.configuration.reply.windowId);
 		const windowPid = window?.win?.webContents.getOSProcessId();
 
-		return this.utilityProcess.start({
+		let configuration: IWindowUtilityProcessConfiguration = {
 			type: this.configuration.process.type,
 			entryPoint: this.configuration.process.moduleId,
 			parentLifecycleBound: windowPid,
@@ -131,7 +134,18 @@ class UtilityProcessWorker extends Disposable {
 			responseWindowId: this.configuration.reply.windowId,
 			responseChannel: this.configuration.reply.channel,
 			responseNonce: this.configuration.reply.nonce
-		});
+		};
+
+		if (this.configuration.process.type === 'fileWatcher' && this.configurationService.getValue<boolean>('files.experimentalWatcherNext') === true) {
+			configuration = {
+				...configuration,
+				env: {
+					VSCODE_USE_WATCHER2: 'true'
+				}
+			};
+		}
+
+		return this.utilityProcess.start(configuration);
 	}
 
 	kill() {
