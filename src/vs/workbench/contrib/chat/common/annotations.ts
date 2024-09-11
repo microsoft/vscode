@@ -6,19 +6,42 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from './chatModel.js';
 import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from './chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
+
+export type ContentRefData =
+	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }
+	| {
+		readonly kind?: undefined;
+		readonly uri: URI;
+		readonly range?: IRange;
+	};
 
 export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
 		const previousItem = result[result.length - 1];
 		if (item.kind === 'inlineReference') {
-			const location = 'uri' in item.inlineReference ? item.inlineReference : { uri: item.inlineReference };
+			const location: ContentRefData = 'uri' in item.inlineReference
+				? item.inlineReference
+				: 'name' in item.inlineReference
+					? { kind: 'symbol', symbol: item.inlineReference }
+					: { uri: item.inlineReference };
+
 			const printUri = URI.parse(contentRefUrl).with({ fragment: JSON.stringify(location) });
-			const markdownText = `[${item.name || basename(location.uri)}](${printUri.toString()})`;
+			let label: string | undefined = item.name;
+			if (!label) {
+				if (location.kind === 'symbol') {
+					label = location.symbol.name;
+				} else {
+					label = basename(location.uri);
+				}
+			}
+
+			const markdownText = `[${label}](${printUri.toString()})`;
 			if (previousItem?.kind === 'markdownContent') {
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
@@ -37,6 +60,12 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
+			}
+		} else if (item.kind === 'codeblockUri') {
+			if (previousItem?.kind === 'markdownContent') {
+				const markdownText = `<vscode_codeblock_uri>${item.uri.toString()}</vscode_codeblock_uri>`;
+				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
+				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
 			}
 		} else {
 			result.push(item);
@@ -74,6 +103,16 @@ export function annotateVulnerabilitiesInText(response: ReadonlyArray<IChatProgr
 	}
 
 	return result;
+}
+
+export function extractCodeblockUrisFromText(text: string): { uri: URI; textWithoutResult: string } | undefined {
+	const match = /<vscode_codeblock_uri>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
+	if (match && match[1]) {
+		const result = URI.parse(match[1]);
+		const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + match[0].length);
+		return { uri: result, textWithoutResult };
+	}
+	return undefined;
 }
 
 export function extractVulnerabilitiesFromText(text: string): { newText: string; vulnerabilities: IMarkdownVulnerability[] } {

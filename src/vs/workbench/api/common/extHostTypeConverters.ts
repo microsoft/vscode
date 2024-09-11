@@ -40,7 +40,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -2405,6 +2405,18 @@ export namespace ChatResponseMarkdownPart {
 	}
 }
 
+export namespace ChatResponseCodeblockUriPart {
+	export function from(part: vscode.ChatResponseCodeblockUriPart): Dto<IChatResponseCodeblockUriPart> {
+		return {
+			kind: 'codeblockUri',
+			uri: part.value,
+		};
+	}
+	export function to(part: Dto<IChatResponseCodeblockUriPart>): vscode.ChatResponseCodeblockUriPart {
+		return new types.ChatResponseCodeblockUriPart(URI.revive(part.uri));
+	}
+}
+
 export namespace ChatResponseMarkdownWithVulnerabilitiesPart {
 	export function from(part: vscode.ChatResponseMarkdownWithVulnerabilitiesPart): Dto<IChatAgentMarkdownContentWithVulnerability> {
 		return {
@@ -2486,18 +2498,27 @@ export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
 		// Work around type-narrowing confusion between vscode.Uri and URI
 		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
+		const isSymbolInformation = (x: any): x is vscode.SymbolInformation => x instanceof types.SymbolInformation;
 
 		return {
 			kind: 'inlineReference',
 			name: part.title,
-			inlineReference: isUri(part.value) ? part.value : Location.from(part.value)
+			inlineReference: isUri(part.value)
+				? part.value
+				: isSymbolInformation(part.value)
+					? WorkspaceSymbol.from(part.value)
+					: Location.from(part.value)
 		};
 	}
 
 	export function to(part: Dto<IChatContentInlineReference>): vscode.ChatResponseAnchorPart {
 		const value = revive<IChatContentInlineReference>(part);
 		return new types.ChatResponseAnchorPart(
-			URI.isUri(value.inlineReference) ? value.inlineReference : Location.to(value.inlineReference),
+			URI.isUri(value.inlineReference)
+				? value.inlineReference
+				: 'location' in value.inlineReference
+					? WorkspaceSymbol.to(value.inlineReference) as vscode.SymbolInformation
+					: Location.to(value.inlineReference),
 			part.name
 		);
 	}
@@ -2664,6 +2685,8 @@ export namespace ChatResponsePart {
 			return ChatResponseTextEditPart.from(part);
 		} else if (part instanceof types.ChatResponseMarkdownWithVulnerabilitiesPart) {
 			return ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
+		} else if (part instanceof types.ChatResponseCodeblockUriPart) {
+			return ChatResponseCodeblockUriPart.from(part);
 		} else if (part instanceof types.ChatResponseDetectedParticipantPart) {
 			return ChatResponseDetectedParticipantPart.from(part);
 		} else if (part instanceof types.ChatResponseWarningPart) {
@@ -2724,6 +2747,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
+			toolInvocationToken: Object.freeze({ sessionId: request.sessionId })
 		};
 	}
 }

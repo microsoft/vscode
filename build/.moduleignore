@@ -110,6 +110,12 @@ node-pty/third_party/**
 @parcel/watcher/src/**
 !@parcel/watcher/build/Release/*.node
 
+@bpasero/watcher/binding.gyp
+@bpasero/watcher/build/**
+@bpasero/watcher/prebuilds/**
+@bpasero/watcher/src/**
+!@bpasero/watcher/build/Release/*.node
+
 vsda/build/**
 vsda/ci/**
 vsda/src/**

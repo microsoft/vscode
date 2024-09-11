@@ -78,14 +78,12 @@ export class NativeEditContext extends AbstractEditContext {
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
 				standardKeyboardEvent.stopPropagation();
 			}
-			// Enter key presses are not sent as text update events, hence we need to handle them outside of the text update event
-			// The beforeinput and input events send `insertParagraph` and `insertLineBreak` events but only on input elements
-			// Hence we handle the enter key press in the keydown event
-			if (standardKeyboardEvent.keyCode === KeyCode.Enter) {
+			viewController.emitKeyDown(standardKeyboardEvent);
+		}));
+		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
+			if (e.inputType === 'insertParagraph') {
 				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
-
-			viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
 		// Edit context events

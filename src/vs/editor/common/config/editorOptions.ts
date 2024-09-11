@@ -635,6 +635,11 @@ export interface IEditorOptions {
 	 */
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
+	 * Enable experimental rendering using WebGPU.
+	 * Defaults to 'off'.
+	 */
+	experimentalGpuAcceleration?: 'on' | 'off';
+	/**
 	 * Enable experimental whitespace rendering.
 	 * Defaults to 'svg'.
 	 */
@@ -5380,6 +5385,7 @@ export const enum EditorOption {
 	dropIntoEditor,
 	experimentalEditContextEnabled,
 	emptySelectionClipboard,
+	experimentalGpuAcceleration,
 	experimentalWhitespaceRendering,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -5756,6 +5762,20 @@ export const EditorOptions = {
 		}
 	)),
 	stickyScroll: register(new EditorStickyScroll()),
+	experimentalGpuAcceleration: register(new EditorStringEnumOption(
+		EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration',
+		'off' as 'off' | 'on',
+		['off', 'on'] as const,
+		undefined
+		// TODO: Uncomment when we want to expose the setting to VS Code users
+		// {
+		// 	enumDescriptions: [
+		// 		nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
+		// 		nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
+		// 	],
+		// 	description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
+		// }
+	)),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
 		'svg' as 'svg' | 'font' | 'off',
