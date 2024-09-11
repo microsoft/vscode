@@ -80,6 +80,7 @@ export interface IChatCodeBlockInfo {
 	codeBlockIndex: number;
 	element: ChatTreeItem;
 	uri: URI | undefined;
+	codemapperUri: URI | undefined;
 	focus(): void;
 }
 

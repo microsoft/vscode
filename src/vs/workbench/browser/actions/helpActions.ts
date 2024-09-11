@@ -15,6 +15,8 @@ import { IProductService } from '../../../platform/product/common/productService
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 
 class KeybindingsReferenceAction extends Action2 {
 
@@ -307,6 +309,28 @@ class OpenPrivacyStatementUrlAction extends Action2 {
 	}
 }
 
+class GetStartedWithAccessibilityFeatures extends Action2 {
+	static readonly ID = 'workbench.action.getStartedWithAccessibilityFeatures';
+	constructor() {
+		super({
+			id: GetStartedWithAccessibilityFeatures.ID,
+			title: localize2('getStartedWithAccessibilityFeatures', 'Get Started with Accessibility Features'),
+			category: Categories.Help,
+			f1: true,
+			menu: {
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 6
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const commandService = accessor.get(ICommandService);
+		const accessibilityService = accessor.get(IAccessibilityService);
+		commandService.executeCommand('workbench.action.openWalkthrough', accessibilityService.isScreenReaderOptimized() ? 'SetupScreenReader' : 'SetupAccessibility');
+	}
+}
+
 // --- Actions Registration
 
 if (KeybindingsReferenceAction.AVAILABLE) {
@@ -344,3 +368,5 @@ if (OpenLicenseUrlAction.AVAILABLE) {
 if (OpenPrivacyStatementUrlAction.AVAILABE) {
 	registerAction2(OpenPrivacyStatementUrlAction);
 }
+
+registerAction2(GetStartedWithAccessibilityFeatures);

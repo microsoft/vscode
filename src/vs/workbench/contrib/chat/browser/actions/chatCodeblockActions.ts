@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { AsyncIterableObject } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CharCode } from '../../../../../base/common/charCode.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import * as strings from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -28,26 +34,20 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatWidgetService, IChatCodeBlockContextProviderService } from '../chat.js';
-import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDIT_APPLIED } from '../../common/chatContextKeys.js';
-import { ChatCopyKind, IChatContentReference, IChatService, IDocumentContext } from '../../common/chatService.js';
-import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import * as strings from '../../../../../base/common/strings.js';
-import { CharCode } from '../../../../../base/common/charCode.js';
-import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
-import { coalesce } from '../../../../../base/common/arrays.js';
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { CONTEXT_CHAT_EDIT_APPLIED, CONTEXT_CHAT_ENABLED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
+import { ChatCopyKind, IChatContentReference, IChatService, IDocumentContext } from '../../common/chatService.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
+import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 const shellLangIds = [
 	'fish',
@@ -158,14 +158,26 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 	override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
 		const editorService = accessor.get(IEditorService);
 		const textFileService = accessor.get(ITextFileService);
+		const bulkEditService = accessor.get(IBulkEditService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const chatService = accessor.get(IChatService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const notificationService = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
+		const languageService = accessor.get(ILanguageService);
 
 		if (isResponseFiltered(context)) {
 			// When run from command palette
 			return;
 		}
 
+		if (context.codemapperUri) {
+			// If the code block is from a code mapper, first reveal the target file
+			await editorService.openEditor({ resource: context.codemapperUri });
+		}
+
 		if (editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-			return this.handleNotebookEditor(accessor, editorService.activeEditorPane.getControl() as INotebookEditor, context);
+			return this.handleNotebookEditor(languageService, progressService, notificationService, languageFeaturesService, bulkEditService, codeEditorService, chatService, editorService.activeEditorPane.getControl() as INotebookEditor, context);
 		}
 
 		let activeEditorControl = editorService.activeTextEditorControl;
@@ -188,10 +200,10 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 			return;
 		}
 
-		await this.handleTextEditor(accessor, activeEditorControl, context);
+		await this.handleTextEditor(progressService, notificationService, languageFeaturesService, bulkEditService, codeEditorService, chatService, activeEditorControl, context);
 	}
 
-	private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: ICodeBlockActionContext) {
+	private async handleNotebookEditor(languageService: ILanguageService, progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, notebookEditor: INotebookEditor, context: ICodeBlockActionContext) {
 		if (!notebookEditor.hasModel()) {
 			return;
 		}
@@ -203,12 +215,9 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		if (notebookEditor.activeCodeEditor?.hasTextFocus()) {
 			const codeEditor = notebookEditor.activeCodeEditor;
 			if (codeEditor.hasModel()) {
-				return this.handleTextEditor(accessor, codeEditor, context);
+				return this.handleTextEditor(progressService, notificationService, languageFeaturesService, bulkEditService, codeEditorService, chatService, codeEditor, context);
 			}
 		}
-
-		const languageService = accessor.get(ILanguageService);
-		const chatService = accessor.get(IChatService);
 
 		const focusRange = notebookEditor.getFocus();
 		const next = Math.max(focusRange.end - 1, 0);
@@ -216,7 +225,7 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		this.notifyUserAction(chatService, context);
 	}
 
-	protected async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
+	protected async computeEdits(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
 		const activeModel = codeEditor.getModel();
 		const range = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 		const text = reindent(codeBlockActionContext.code, activeModel, range.startLineNumber);
@@ -230,12 +239,8 @@ abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
 		return false;
 	}
 
-	private async handleTextEditor(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
-		const bulkEditService = accessor.get(IBulkEditService);
-		const codeEditorService = accessor.get(ICodeEditorService);
-		const chatService = accessor.get(IChatService);
-
-		const result = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
+	private async handleTextEditor(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
+		const result = await this.computeEdits(progressService, notificationService, languageFeaturesService, bulkEditService, codeEditorService, chatService, codeEditor, codeBlockActionContext);
 		this.notifyUserAction(chatService, codeBlockActionContext, result);
 		if (!result) {
 			return;
@@ -489,14 +494,12 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		protected override async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
+		protected override async computeEdits(progressService: IProgressService, notificationService: INotificationService, languageFeaturesService: ILanguageFeaturesService, bulkEditService: IBulkEditService, codeEditorService: ICodeEditorService, chatService: IChatService, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<IComputeEditsResult | undefined> {
 
-			const progressService = accessor.get(IProgressService);
-			const notificationService = accessor.get(INotificationService);
 
 			const activeModel = codeEditor.getModel();
 
-			const mappedEditsProviders = accessor.get(ILanguageFeaturesService).mappedEditsProvider.ordered(activeModel);
+			const mappedEditsProviders = languageFeaturesService.mappedEditsProvider.ordered(activeModel);
 			if (mappedEditsProviders.length > 0) {
 
 				// 0th sub-array - editor selections array if there are any selections
@@ -819,6 +822,7 @@ function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): 
 		codeBlockIndex: codeBlockInfo.codeBlockIndex,
 		code: editor.getValue(),
 		languageId: editor.getModel()!.getLanguageId(),
+		codemapperUri: codeBlockInfo.codemapperUri
 	};
 }
 
