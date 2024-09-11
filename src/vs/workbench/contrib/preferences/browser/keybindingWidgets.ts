@@ -72,7 +72,13 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	startRecordingKeys(): void {
 		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => this._onKeyDown(new StandardKeyboardEvent(e))));
-		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.BLUR, () => this._onBlur.fire()));
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.BLUR, () => {
+			console.log('onblur of keybindings editor input');
+			this._onBlur.fire();
+		}));
+		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.FOCUS, () => {
+			console.log('onfocus of keybindings editor input');
+		}));
 		this.recordDisposables.add(dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.INPUT, () => {
 			// Prevent other characters from showing up
 			this.setInputValue(this._inputValue);

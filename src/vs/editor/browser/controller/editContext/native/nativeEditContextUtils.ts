@@ -6,6 +6,8 @@
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 
+export const NATIVE_EDIT_CONTEXT_CLASSNAME = `native-edit-context`;
+
 export interface ITypeData {
 	text: string;
 	replacePrevCharCnt: number;
@@ -21,11 +23,12 @@ export class FocusTracker extends Disposable {
 		private readonly _onFocusChange: (newFocusValue: boolean) => void,
 	) {
 		super();
-		this._register(addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
-		this._register(addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
+		this._register(addDisposableListener(this._domNode, 'focus', () => { console.log('focus'); this._handleFocusedChanged(true); }));
+		this._register(addDisposableListener(this._domNode, 'blur', () => { console.log('blur'); this._handleFocusedChanged(false); }));
 	}
 
 	private _handleFocusedChanged(focused: boolean): void {
+		console.log('_handleFocusedChanged, focused : ', focused);
 		if (this._isFocused === focused) {
 			return;
 		}
@@ -33,7 +36,24 @@ export class FocusTracker extends Disposable {
 		this._onFocusChange(this._isFocused);
 	}
 
+	public refreshFocusState(): void {
+		// console.log('refreshFocusState');
+		// const shadowRoot = getShadowRoot(this._domNode);
+		// console.log('shadowRoot : ', shadowRoot);
+		// let hasFocus: boolean;
+		// if (shadowRoot) {
+		// 	hasFocus = shadowRoot.activeElement === this._domNode;
+		// } else if (this._domNode.isConnected) {
+		// 	hasFocus = getActiveElement() === this._domNode;
+		// } else {
+		// 	hasFocus = false;
+		// }
+		// console.log('hasFocus : ', hasFocus);
+		// this._onFocusChange(hasFocus);
+
+	}
 	public focus(): void {
+		console.log('focus inside of FocusTracker');
 		this._domNode.focus();
 	}
 

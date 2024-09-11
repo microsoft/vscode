@@ -429,9 +429,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private createSearchContainer(searchContainer: HTMLElement) {
+		console.log('createSearchContainer : ');
 		this.searchContainer = searchContainer;
 		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
 		this.inputBox = this._register(this.createInputBox(searchInput));
+		console.log('this.inputBox.element : ', this.inputBox.element);
 		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
 	}
 

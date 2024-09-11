@@ -119,6 +119,7 @@ export class View extends ViewEventHandler {
 		overflowWidgetsDomNode: HTMLElement | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
+		console.log('view constructor');
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
@@ -269,11 +270,13 @@ export class View extends ViewEventHandler {
 	}
 
 	private _updateEditContext(): void {
+		console.log('_updateEditContext');
 		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
 		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled) {
 			return;
 		}
 		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		console.log('before update edit context dispose');
 		this._editContext.dispose();
 		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
 		this._editContext.appendTo(this._overflowGuardContainer);
@@ -436,9 +439,11 @@ export class View extends ViewEventHandler {
 
 		this._viewLines.dispose();
 		this._viewLinesGpu?.dispose();
+		this._editContext?.dispose();
 
 		// Destroy view parts
 		for (const viewPart of this._viewParts) {
+			console.log('before dispose of viewpart');
 			viewPart.dispose();
 		}
 

@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -21,7 +21,7 @@ import { RestrictedRenderingContext, RenderingContext } from '../../../view/rend
 import { ViewController } from '../../../view/viewController.js';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContextUtils.js';
-import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
+import { editContextAddDisposableListener, FocusTracker, ITypeData, NATIVE_EDIT_CONTEXT_CLASSNAME } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -50,13 +50,26 @@ export class NativeEditContext extends AbstractEditContext {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IClipboardService clipboardService: IClipboardService,
 	) {
+
+		console.log('native edit context constructor');
 		super(context);
 
 		this.domNode = new FastDomNode(document.createElement('div'));
-		this.domNode.setClassName(`native-edit-context`);
+		this.domNode.setClassName(NATIVE_EDIT_CONTEXT_CLASSNAME);
 		this._updateDomAttributes();
 
-		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
+		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
+			console.log('this._context.viewModel.model.getValue() : ', this._context.viewModel.model.getValue());
+			console.log('setHasFocus, newFocusValue : ', newFocusValue);
+			this._context.viewModel.setHasFocus(newFocusValue);
+
+			console.log('document.activeElement ', document.activeElement);
+			// Need to remove the range in the document so can't anymore type
+			if (!newFocusValue) {
+				this.domNode.domNode.blur();
+				this._screenReaderSupport.removeRanges();
+			}
+		}));
 
 		this._editContext = new EditContext();
 		this.domNode.domNode.editContext = this._editContext;
@@ -90,6 +103,28 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds()));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			console.log('text update, e : ', e);
+			console.log('this._domNode.domNode : ', this.domNode.domNode);
+			console.log('document.activeElement : ', document.activeElement);
+			console.log('equal : ', this.domNode.domNode === document.activeElement);
+			console.log('this._editContext : ', this._editContext);
+			const attachedElements = this._editContext.attachedElements();
+			console.log('attachedElements : ', attachedElements);
+			for (const attachedElement of attachedElements) {
+				console.log('attachedElement : ', attachedElement);
+			}
+
+			// Looks like the edit context events are sent even if the dom node is not focused?
+			console.log('removedRanges');
+			const activeDocument = getActiveWindow().document;
+			const activeDocumentSelection = activeDocument.getSelection();
+			if (activeDocumentSelection) {
+				const rangeCount = activeDocumentSelection.rangeCount;
+				for (let i = 0; i < rangeCount; i++) {
+					const range = activeDocumentSelection.getRangeAt(i);
+					console.log('range : ', range);
+				}
+			}
 			const compositionRangeWithinEditor = this._compositionRangeWithinEditor;
 			if (compositionRangeWithinEditor) {
 				const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
@@ -125,8 +160,11 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Public methods ---
 
 	public override dispose(): void {
+		console.log('dispose');
 		super.dispose();
 		this.domNode.domNode.remove();
+		this._context.viewModel.setHasFocus(false);
+		console.log('after set has focus false');
 	}
 
 	public appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
@@ -176,7 +214,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public focus(): void { this._focusTracker.focus(); }
 
-	public refreshFocusState(): void { }
+	public refreshFocusState(): void {
+		// this._focusTracker.refreshFocusState();
+	}
 
 	// --- Private methods ---
 

@@ -36,15 +36,24 @@ export abstract class Widget extends Disposable {
 	}
 
 	protected oninput(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.INPUT, listener));
+		this._register(dom.addDisposableListener(domNode, dom.EventType.INPUT, (e) => {
+			console.log('on input for domNode : ', domNode);
+			listener(e);
+		}));
 	}
 
 	protected onblur(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.BLUR, listener));
+		this._register(dom.addDisposableListener(domNode, dom.EventType.BLUR, (e) => {
+			console.log('on blur for domNode : ', domNode);
+			listener(e);
+		}));
 	}
 
 	protected onfocus(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.FOCUS, listener));
+		this._register(dom.addDisposableListener(domNode, dom.EventType.FOCUS, (e) => {
+			console.log('on focus for domNode : ', domNode);
+			listener(e);
+		}));
 	}
 
 	protected onchange(domNode: HTMLElement, listener: (e: Event) => void): void {

@@ -18,6 +18,7 @@ import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
+import { NATIVE_EDIT_CONTEXT_CLASSNAME } from './nativeEditContextUtils.js';
 
 export class ScreenReaderSupport {
 
@@ -31,6 +32,8 @@ export class ScreenReaderSupport {
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: ScreenReaderContentState | undefined;
+
+	private _screenReaderContentRange: globalThis.Range | undefined;
 
 	constructor(
 		private readonly _domNode: FastDomNode<HTMLElement>,
@@ -150,13 +153,53 @@ export class ScreenReaderSupport {
 			return;
 		}
 		const focusedElement = getActiveWindow().document.activeElement;
-		const range = new globalThis.Range();
-		range.setStart(textContent, selectionOffsetStart);
-		range.setEnd(textContent, selectionOffsetEnd);
+		this._screenReaderContentRange = new globalThis.Range();
+		this._screenReaderContentRange.setStart(textContent, selectionOffsetStart);
+		this._screenReaderContentRange.setEnd(textContent, selectionOffsetEnd);
 		activeDocumentSelection.removeAllRanges();
-		activeDocumentSelection.addRange(range);
+		activeDocumentSelection.addRange(this._screenReaderContentRange);
 		if (isHTMLElement(focusedElement)) {
 			focusedElement.focus();
+		}
+	}
+
+	public removeRanges(): void {
+		console.log('removeRanges');
+		const activeDocument = getActiveWindow().document;
+		const activeDocumentSelection = activeDocument.getSelection();
+		if (!activeDocumentSelection) {
+			return;
+		}
+		const rangeCount = activeDocumentSelection.rangeCount;
+		for (let i = 0; i < rangeCount; i++) {
+			const range = activeDocumentSelection.getRangeAt(i);
+			console.log('i');
+			console.log('this._screenReaderContentRange : ', this._screenReaderContentRange);
+			console.log('range : ', range);
+			console.log('range.startContainer : ', range.startContainer);
+			console.log('range.endContainer : ', range.endContainer);
+			const isSameRange = this._screenReaderContentRange === range;
+			console.log('isSameRange : ', isSameRange);
+			if (isSameRange) {
+				console.log('removeRange');
+				activeDocumentSelection.removeRange(range);
+			}
+			const rangeStartContainer = range.startContainer;
+			const rangeEndContainer = range.endContainer;
+			console.log('rangeStartContainer : ', rangeStartContainer);
+			console.log('rangeEndContainer : ', rangeEndContainer);
+			if (isHTMLElement(rangeStartContainer) && rangeStartContainer.classList.contains(NATIVE_EDIT_CONTEXT_CLASSNAME)
+				&& isHTMLElement(rangeEndContainer) && rangeEndContainer.classList.contains(NATIVE_EDIT_CONTEXT_CLASSNAME)) {
+				console.log('removeRange');
+				activeDocumentSelection.removeRange(range);
+			}
+		}
+
+		console.log('after removal');
+		const rangeCount2 = activeDocumentSelection.rangeCount;
+		for (let i = 0; i < rangeCount2; i++) {
+			const range = activeDocumentSelection.getRangeAt(i);
+			console.log('range : ', range);
 		}
 	}
 }
