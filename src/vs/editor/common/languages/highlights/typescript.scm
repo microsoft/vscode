@@ -17,11 +17,12 @@
 
 ("typeof") @keyword.operator.expression.typeof
 
+(binary_expression "instanceof" @keyword.operator.expression.instanceof)
+
 [
   "delete"
   "in"
   "infer"
-  "instanceof"
   "keyof"
   "of"
 ] @keyword.operator.expression
