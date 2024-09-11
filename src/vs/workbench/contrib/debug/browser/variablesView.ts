@@ -22,7 +22,7 @@ import { localize } from '../../../../nls.js';
 import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -38,16 +38,16 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable, renderViewTree } from './baseDebugView.js';
-import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from './debugCommands.js';
-import { LinkDetector } from './linkDetector.js';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from '../common/debug.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from '../common/debug.js';
 import { getContextForVariable } from '../common/debugContext.js';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from '../common/debugModel.js';
 import { DebugVisualizer, IDebugVisualizerService } from '../common/debugVisualizers.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from './debugCommands.js';
+import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -122,11 +122,11 @@ export class VariablesView extends ViewPane {
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-variables');
 		const treeContainer = renderViewTree(container);
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+		const expressionRenderer = this.instantiationService.createInstance(DebugExpressionRenderer);
 		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[
-				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
-				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
+				this.instantiationService.createInstance(VariablesRenderer, expressionRenderer),
+				this.instantiationService.createInstance(VisualizedVariableRenderer, expressionRenderer),
 				new ScopesRenderer(),
 				new ScopeErrorRenderer(),
 			],
@@ -434,7 +434,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	}
 
 	constructor(
-		private readonly linkDetector: LinkDetector,
+		private readonly expressionRenderer: DebugExpressionRenderer,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
@@ -461,12 +461,12 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 			text += ':';
 		}
 		data.label.set(text, highlights, viz.name);
-		renderExpressionValue(data.elementDisposable, viz, data.value, {
+		data.elementDisposable.add(this.expressionRenderer.renderValue(data.value, viz, {
 			showChanged: false,
 			maxValueLength: 1024,
 			colorize: true,
-			linkDetector: this.linkDetector
-		}, this.hoverService);
+			session: expression.getSession(),
+		}));
 	}
 
 	protected override getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {
@@ -516,16 +516,14 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	static readonly ID = 'variable';
 
 	constructor(
-		private readonly linkDetector: LinkDetector,
+		private readonly expressionRenderer: DebugExpressionRenderer,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugVisualizerService private readonly visualization: IDebugVisualizerService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
-		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(debugService, contextViewService, hoverService);
 	}
@@ -535,17 +533,14 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		const showType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
-		renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector, showType);
+		data.elementDisposable.add(this.expressionRenderer.renderVariable(data, expression as Variable, {
+			highlights,
+			showChanged: true,
+		}));
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
 		data.elementDisposable.clear();
-		data.elementDisposable.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.showVariableTypes')) {
-				super.renderExpressionElement(node.element, node, data);
-			}
-		}));
 		super.renderExpressionElement(node.element, node, data);
 	}
 

@@ -88,7 +88,7 @@ export class NotebookVariablesView extends ViewPane {
 			'notebookVariablesTree',
 			container,
 			new NotebookVariablesDelegate(),
-			[new NotebookVariableRenderer(this.hoverService)],
+			[this.instantiationService.createInstance(NotebookVariableRenderer)],
 			this.dataSource,
 			{
 				accessibilityProvider: new NotebookVariableAccessibilityProvider(),

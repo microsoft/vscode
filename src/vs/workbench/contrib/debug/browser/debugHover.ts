@@ -29,17 +29,16 @@ import * as nls from '../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { AbstractExpressionDataSource, renderExpressionValue } from './baseDebugView.js';
-import { LinkDetector } from './linkDetector.js';
-import { VariablesRenderer, VisualizedVariableRenderer, openContextMenuForVariableTreeElement } from './variablesView.js';
 import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from '../common/debug.js';
 import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
 import { getEvaluatableExpressionAtPosition } from '../common/debugUtils.js';
+import { AbstractExpressionDataSource } from './baseDebugView.js';
+import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
+import { VariablesRenderer, VisualizedVariableRenderer, openContextMenuForVariableTreeElement } from './variablesView.js';
 
 const $ = dom.$;
 
@@ -102,6 +101,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private toDispose: lifecycle.IDisposable[];
 	private scrollbar!: DomScrollableElement;
 	private debugHoverComputer: DebugHoverComputer;
+	private expressionRenderer: DebugExpressionRenderer;
 
 	private expressionToRender: IExpression | undefined;
 	private isUpdatingTree = false;
@@ -117,13 +117,13 @@ export class DebugHoverWidget implements IContentWidget {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		this.toDispose = [];
 
 		this.showAtPosition = null;
 		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 		this.debugHoverComputer = this.instantiationService.createInstance(DebugHoverComputer, this.editor);
+		this.expressionRenderer = this.instantiationService.createInstance(DebugExpressionRenderer);
 	}
 
 	private create(): void {
@@ -135,10 +135,9 @@ export class DebugHoverWidget implements IContentWidget {
 		const tip = dom.append(this.complexValueContainer, $('.tip'));
 		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
 		const dataSource = this.instantiationService.createInstance(DebugHoverDataSource);
-		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [
-			this.instantiationService.createInstance(VariablesRenderer, linkeDetector),
-			this.instantiationService.createInstance(VisualizedVariableRenderer, linkeDetector),
+			this.instantiationService.createInstance(VariablesRenderer, this.expressionRenderer),
+			this.instantiationService.createInstance(VisualizedVariableRenderer, this.expressionRenderer),
 		],
 			dataSource, {
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
@@ -282,7 +281,7 @@ export class DebugHoverWidget implements IContentWidget {
 			options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 		}]);
 
-		return this.doShow(result.range.getStartPosition(), expression, focus, mouseEvent);
+		return this.doShow(session, result.range.getStartPosition(), expression, focus, mouseEvent);
 	}
 
 	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -290,7 +289,7 @@ export class DebugHoverWidget implements IContentWidget {
 		className: 'hoverHighlight'
 	});
 
-	private async doShow(position: Position, expression: IExpression, focus: boolean, mouseEvent: IMouseEvent | undefined): Promise<void> {
+	private async doShow(session: IDebugSession | undefined, position: Position, expression: IExpression, focus: boolean, mouseEvent: IMouseEvent | undefined): Promise<void> {
 		if (!this.domNode) {
 			this.create();
 		}
@@ -302,11 +301,12 @@ export class DebugHoverWidget implements IContentWidget {
 		if (!expression.hasChildren) {
 			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			renderExpressionValue(store, expression, this.valueContainer, {
+			store.add(this.expressionRenderer.renderValue(this.valueContainer, expression, {
 				showChanged: false,
 				colorize: true,
 				hover: false,
-			}, this.hoverService);
+				session,
+			}));
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 			this.scrollbar.scanDomNode();

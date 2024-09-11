@@ -20,6 +20,7 @@ import { CellKind, INotebookTextModel } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { withTestNotebookDiffModel } from './testNotebookEditor.js';
+import { UnchangedEditorRegionsService } from '../../browser/diff/unchangedEditorRegions.js';
 
 class CellSequence implements ISequence {
 
@@ -87,7 +88,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 1);
@@ -116,7 +117,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			await diffViewModel.computeDiff(token);
 
 			await verifyChangeEventIsNotFired(diffViewModel);
@@ -146,7 +147,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -195,7 +196,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 1);
@@ -234,7 +235,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 1);
@@ -257,7 +258,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -287,7 +288,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -325,7 +326,7 @@ suite('NotebookDiff', () => {
 				quitEarly: false
 			};
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			const result = await diffViewModel.computeDiff(token);
@@ -379,7 +380,7 @@ suite('NotebookDiff', () => {
 				quitEarly: false
 			};
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			const result = await diffViewModel.computeDiff(token);
@@ -441,7 +442,7 @@ suite('NotebookDiff', () => {
 				quitEarly: false
 			};
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -611,7 +612,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 2);
@@ -635,7 +636,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), UnchangedEditorRegionsService.Empty, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 2);
