@@ -352,7 +352,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 	},
 	{
 		id: 'SetupAccessibility',
-		title: localize('gettingStarted.setupAccessibility.title', "Learn about Accessibility Features in VS Code"),
+		title: localize('gettingStarted.setupAccessibility.title', "Get Started with Accessibility Features in VS Code"),
 		description: localize('gettingStarted.setupAccessibility.description', "Learn the tools and shortcuts that make VS Code accessible. Note that some actions are not actionable from within the context of the walkthrough."),
 		isFeatured: true,
 		icon: setupIcon,
