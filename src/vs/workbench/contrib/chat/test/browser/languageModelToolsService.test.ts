@@ -106,7 +106,8 @@ suite('LanguageModelToolsService', () => {
 			tokenBudget: 100,
 			parameters: {
 				a: 1
-			}
+			},
+			context: { sessionId: 'a' }
 		};
 
 		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);
