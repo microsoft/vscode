@@ -5,8 +5,8 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
-import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 
@@ -16,8 +16,7 @@ export class ViewGpuContext extends Disposable {
 
 	readonly device: Promise<GPUDevice>;
 
-	private readonly _onDidChangeCanvasDevicePixelDimensions = this._register(new Emitter<{ width: number; height: number }>());
-	readonly onDidChangeCanvasDevicePixelDimensions = this._onDidChangeCanvasDevicePixelDimensions.event;
+	readonly canvasDevicePixelDimensions: IObservable<{ width: number; height: number }>;
 
 	constructor() {
 		super();
@@ -29,10 +28,12 @@ export class ViewGpuContext extends Disposable {
 
 		this.device = GPULifecycle.requestDevice().then(ref => this._register(ref).object);
 
-		this._register(observeDevicePixelDimensions(this.canvas.domNode, getActiveWindow(), (width, height) => {
-			this.canvas.domNode.width = width;
-			this.canvas.domNode.height = height;
-			this._onDidChangeCanvasDevicePixelDimensions.fire({ width, height });
-		}));
+		const canvasDevicePixelDimensions = observableValue(this, { width: this.canvas.domNode.width, height: this.canvas.domNode.height });
+		this._register(observeDevicePixelDimensions(
+			this.canvas.domNode,
+			getActiveWindow(),
+			(width, height) => canvasDevicePixelDimensions.set({ width, height }, undefined)
+		));
+		this.canvasDevicePixelDimensions = canvasDevicePixelDimensions;
 	}
 }
