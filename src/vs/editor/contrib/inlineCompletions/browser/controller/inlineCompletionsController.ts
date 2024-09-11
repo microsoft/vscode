@@ -9,10 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { readHotReloadableExport } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, constObservable, derived, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
-import { ISettableObservable } from '../../../../../base/common/observableInternal/base.js';
-import { derivedDisposable } from '../../../../../base/common/observableInternal/derived.js';
-import { derivedObservableWithCache, mapObservableArrayCached, runOnChange, runOnChangeWithStore } from '../../../../../base/common/observableInternal/utils.js';
+import { IObservable, ISettableObservable, ITransaction, autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -158,7 +155,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
-		this._register(runOnChange(this._editorObs.selections, (_value, changes) => {
+		this._register(runOnChange(this._editorObs.selections, (_value, _, changes) => {
 			if (changes.some(e => e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
 				this.model.get()?.stop();
 			}
@@ -206,7 +203,7 @@ export class InlineCompletionsController extends Disposable {
 			this._playAccessibilitySignal.read(reader);
 			currentInlineCompletionBySemanticId.read(reader);
 			return {};
-		}), async (_value, _deltas, store) => {
+		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
 			const model = this.model.get();
 			const state = model?.state.get();

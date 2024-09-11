@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from '../assert.js';
-import { EqualityComparer, strictEquals } from '../equals.js';
-import { onBugIndicatingError } from '../errors.js';
-import { DisposableStore, IDisposable } from '../lifecycle.js';
 import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
-import { DebugNameData, IDebugNameData, DebugOwner } from './debugName.js';
+import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
+import { DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
 
 /**

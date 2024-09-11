@@ -3,36 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../../nls.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
 import * as strings from '../../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../../../editor/common/core/dimension.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import { IReadonlyTextBuffer, ITextModel } from '../../../../../../editor/common/model.js';
-import { localize } from '../../../../../../nls.js';
+import { CodeActionController } from '../../../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
 import { CellPartsCollection } from '../cellPart.js';
+import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
+import { CodeCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { CellEditorOptions } from './cellEditorOptions.js';
 import { CellOutputContainer } from './cellOutput.js';
 import { CollapsedCodeCellExecutionIcon } from './codeCellExecutionIcon.js';
-import { CodeCellRenderTemplate } from '../notebookRenderingCommon.js';
-import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
-import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
-import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
-import { CodeActionController } from '../../../../../../editor/contrib/codeAction/browser/codeActionController.js';
-import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -354,12 +353,8 @@ export class CodeCell extends Disposable {
 		}));
 
 		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
-			WordHighlighterContribution.get(this.templateData.editor)?.stopHighlighting();
 			CodeActionController.get(this.templateData.editor)?.hideCodeActions();
 			CodeActionController.get(this.templateData.editor)?.hideLightBulbWidget();
-		}));
-		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
-			WordHighlighterContribution.get(this.templateData.editor)?.restoreViewState(true);
 		}));
 	}
 

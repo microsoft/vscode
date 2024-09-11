@@ -164,6 +164,7 @@ export interface IExpressionValue {
 
 export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly hasChildren: boolean;
+	getSession(): IDebugSession | undefined;
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
@@ -911,7 +912,6 @@ export interface IDebugAdapterInlineImpl extends IDisposable {
 
 export interface IDebugAdapterImpl {
 	readonly type: 'implementation';
-	readonly implementation: IDebugAdapterInlineImpl;
 }
 
 export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterNamedPipeServer | IDebugAdapterImpl;

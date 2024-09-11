@@ -78,14 +78,12 @@ export class NativeEditContext extends AbstractEditContext {
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
 				standardKeyboardEvent.stopPropagation();
 			}
-			// Enter key presses are not sent as text update events, hence we need to handle them outside of the text update event
-			// The beforeinput and input events send `insertParagraph` and `insertLineBreak` events but only on input elements
-			// Hence we handle the enter key press in the keydown event
-			if (standardKeyboardEvent.keyCode === KeyCode.Enter) {
+			viewController.emitKeyDown(standardKeyboardEvent);
+		}));
+		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
+			if (e.inputType === 'insertParagraph') {
 				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
-
-			viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 
 		// Edit context events
@@ -94,7 +92,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
 			const compositionRangeWithinEditor = this._compositionRangeWithinEditor;
 			if (compositionRangeWithinEditor) {
-				const position = this._context.viewModel.getPrimaryCursorState().viewState.position;
+				const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
 				const newCompositionRangeWithinEditor = Range.fromPositions(compositionRangeWithinEditor.getStartPosition(), position);
 				this._compositionRangeWithinEditor = newCompositionRangeWithinEditor;
 			}
@@ -105,7 +103,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._screenReaderSupport.writeScreenReaderContent();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
-			const position = this._context.viewModel.getPrimaryCursorState().viewState.position;
+			const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
 			const newCompositionRange = Range.fromPositions(position, position);
 			this._compositionRangeWithinEditor = newCompositionRange;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
@@ -262,12 +260,12 @@ export class NativeEditContext extends AbstractEditContext {
 			if (i === this._primarySelection.endLineNumber) {
 				selectionEndOffset += this._primarySelection.endColumn - 1;
 			} else {
-				selectionEndOffset += this._context.viewModel.getLineMaxColumn(i);
+				selectionEndOffset += this._context.viewModel.model.getLineMaxColumn(i);
 			}
 		}
-		const endColumnOfEndLineNumber = this._context.viewModel.getLineMaxColumn(this._primarySelection.endLineNumber);
+		const endColumnOfEndLineNumber = this._context.viewModel.model.getLineMaxColumn(this._primarySelection.endLineNumber);
 		const rangeOfText = new Range(this._primarySelection.startLineNumber, 1, this._primarySelection.endLineNumber, endColumnOfEndLineNumber);
-		const text = this._context.viewModel.getValueInRange(rangeOfText, EndOfLinePreference.TextDefined);
+		const text = this._context.viewModel.model.getValueInRange(rangeOfText, EndOfLinePreference.TextDefined);
 		const textStartPositionWithinEditor = rangeOfText.getStartPosition();
 		return {
 			text,

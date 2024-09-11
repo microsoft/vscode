@@ -6,10 +6,9 @@
 import { $ } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ObservablePromise, autorun, autorunWithStore, derived, observableSignalFromEvent } from '../../../../base/common/observable.js';
-import { derivedDisposable } from '../../../../base/common/observableInternal/derived.js';
+import { IObservable, ObservablePromise, autorun, autorunWithStore, derived, derivedDisposable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import './inlineEditSideBySideWidget.css';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
@@ -24,7 +23,7 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../common/languages/modesRegistry.j
 import { IModelDeltaDecoration } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
 import { IModelService } from '../../../common/services/model.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import './inlineEditSideBySideWidget.css';
 
 function* range(start: number, end: number, step = 1) {
 	if (end === undefined) { [end, start] = [start, 0]; }

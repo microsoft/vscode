@@ -3144,6 +3144,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.renderers.forEach(r => r.setModel(newModel));
 		this.stickyScrollController?.setModel(newModel);
 
+		this.focus.set([]);
+		this.selection.set([]);
+		this.anchor.set([]);
+
 		this.view.splice(0, oldModel.getListRenderCount(oldModel.rootRef));
 		this.model.refilter();
 
