@@ -58,6 +58,10 @@ import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
+import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
+
 
 const $ = dom.$;
 
@@ -395,6 +399,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
+		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
@@ -417,7 +422,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(inputContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID, DropIntoEditorController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
@@ -482,7 +487,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this.modelService.createModel('', null, this.inputUri, true);
+			inputModel = this.modelService.createModel('', null, this.inputUri, false);
 			this._register(inputModel);
 		}
 
