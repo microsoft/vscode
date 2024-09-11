@@ -146,7 +146,6 @@ export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase 
 			fontInfo: FontInfo | undefined;
 		},
 		notebookService: INotebookService,
-		public readonly unchangedRegionsService: IUnchangedEditorRegionsService,
 		private readonly editorHeightCalculator: IDiffEditorHeightCalculatorService
 	) {
 		super(originalDocumentTextModel, editorEventDispatcher, initData);
