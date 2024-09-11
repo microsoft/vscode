@@ -12,7 +12,7 @@ import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, Dif
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { CellEditType, CellUri, NotebookCellMetadata } from '../../common/notebookCommon.js';
+import { CellEditType, CellUri, NotebookCellMetadata, NotebookMetadataUri } from '../../common/notebookCommon.js';
 import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -492,7 +492,6 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		super.dispose();
 	}
 }
-
 
 abstract class AbstractElementRenderer extends Disposable {
 	protected readonly _metadataLocalDisposable = this._register(new DisposableStore());
