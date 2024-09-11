@@ -34,7 +34,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		}
 
 		let verbosityLevel: number | undefined;
-		if (this.client.apiVersion.gte(API.v560)) { // >> TODO: use v570
+		if (this.client.apiVersion.gte(API.v570)) {
 			verbosityLevel = Math.max(0, this.getPreviousLevel(context?.previousHover) + (context?.verbosityDelta ?? 0));
 		}
 		const args = { ...typeConverters.Position.toFileLocationRequestArgs(filepath, position), verbosityLevel };
