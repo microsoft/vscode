@@ -366,7 +366,7 @@ class CellOutputElement extends Disposable {
 					index: index,
 					picked: index === currIndex,
 					detail: this._generateRendererInfo(mimeType.rendererId),
-					description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
+					description: index === currIndex ? nls.localize('currentActiveMimeType', "Currently Active") : undefined
 				});
 			}
 		});
