@@ -193,6 +193,10 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		return this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(this.mainDocumentTextModel?.transientOptions.transientOutputs);
 	}
 
+	private get ignoreMetadata() {
+		return this.configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
+	}
+
 	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _outputEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
 	private _metadataEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
@@ -226,10 +230,10 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 			editorMargin: 0,
 			metadataHeight: 0,
 			cellStatusHeight,
-			metadataStatusHeight: 25,
+			metadataStatusHeight: this.ignoreMetadata ? 0 : 25,
 			rawOutputHeight: 0,
 			outputTotalHeight: 0,
-			outputStatusHeight: 25,
+			outputStatusHeight: this.ignoreOutputs ? 0 : 25,
 			outputMetadataHeight: 0,
 			bodyMargin: 32,
 			totalHeight: 82 + cellStatusHeight + editorHeight,
@@ -239,8 +243,6 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		this.cellFoldingState = modified?.getTextBufferHash() !== original?.getTextBufferHash() ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
 		this.metadataFoldingState = PropertyFoldingState.Collapsed;
 		this.outputFoldingState = PropertyFoldingState.Collapsed;
-
-		this._register(this.editorEventDispatcher.onDidChangeLayout(e => this._layoutInfoEmitter.fire({ outerWidth: true })));
 	}
 
 	layoutChange() {

@@ -154,6 +154,11 @@ export interface IChatAgentVulnerabilityDetails {
 	description: string;
 }
 
+export interface IChatResponseCodeblockUriPart {
+	kind: 'codeblockUri';
+	uri: URI;
+}
+
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
 	vulnerabilities: IChatAgentVulnerabilityDetails[];
@@ -202,6 +207,7 @@ export type IChatProgress =
 	| IChatWarningMessage
 	| IChatTextEdit
 	| IChatMoveMessage
+	| IChatResponseCodeblockUriPart
 	| IChatConfirmation;
 
 export interface IChatFollowup {

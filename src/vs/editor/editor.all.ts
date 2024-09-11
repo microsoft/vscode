@@ -30,6 +30,7 @@ import './contrib/inlineProgress/browser/inlineProgress.js';
 import './contrib/gotoSymbol/browser/goToCommands.js';
 import './contrib/gotoSymbol/browser/link/goToDefinitionAtPosition.js';
 import './contrib/gotoError/browser/gotoError.js';
+import './contrib/gpu/browser/gpuActions.js';
 import './contrib/hover/browser/hoverContribution.js';
 import './contrib/indentation/browser/indentation.js';
 import './contrib/inlayHints/browser/inlayHintsContribution.js';

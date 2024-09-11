@@ -184,7 +184,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						'onSettingChanged:workbench.colorTheme',
 						'onCommand:workbench.action.selectTheme'
 					],
-					when: '!accessibilityModeEnabled',
 					media: { type: 'markdown', path: 'theme_picker', }
 				},
 				{
@@ -425,6 +424,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: {
 						type: 'markdown', path: 'empty'
 					}
+				},
+				{
+					id: 'accessibilitySettings',
+					title: localize('gettingStarted.accessibilitySettings.title', "Configure accessibility settings"),
+					description: localize('gettingStarted.accessibilitySettings.description.interpolated', "Accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openAccessibilitySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
+					media: { type: 'markdown', path: 'empty' }
 				}
 			]
 		}

@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 
 export interface IChatRequestVariableEntry {
@@ -74,6 +74,7 @@ export interface IChatTextEditGroup {
 export type IChatProgressResponseContent =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
+	| IChatResponseCodeblockUriPart
 	| IChatTreeData
 	| IChatContentInlineReference
 	| IChatProgressMessage
@@ -83,7 +84,7 @@ export type IChatProgressResponseContent =
 	| IChatTextEditGroup
 	| IChatConfirmation;
 
-export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>;
+export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>;
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IChatProgressResponseContent>;
@@ -203,7 +204,7 @@ export class Response extends Disposable implements IResponse {
 		return this._responseParts;
 	}
 
-	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>) {
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>) {
 		super();
 		this._responseParts = asArray(value).map((v) => (isMarkdownString(v) ?
 			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
@@ -301,7 +302,7 @@ export class Response extends Disposable implements IResponse {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
 				return localize('editsSummary', "Made changes.");
-			} else if (part.kind === 'progressMessage') {
+			} else if (part.kind === 'progressMessage' || part.kind === 'codeblockUri') {
 				return '';
 			} else if (part.kind === 'confirmation') {
 				return `${part.title}\n${part.message}`;
@@ -422,7 +423,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	constructor(
-		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>,
+		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>,
 		private _session: ChatModel,
 		private _agent: IChatAgentData | undefined,
 		private _slashCommand: IChatAgentCommand | undefined,
@@ -809,28 +810,24 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get requesterUsername(): string {
-		return (this._defaultAgent ?
-			this._defaultAgent.metadata.requester?.name :
-			this.initialData?.requesterUsername) ?? '';
+		return this._defaultAgent?.metadata.requester?.name ??
+			this.initialData?.requesterUsername ?? '';
 	}
 
 	get responderUsername(): string {
-		return (this._defaultAgent ?
-			this._defaultAgent.fullName :
-			this.initialData?.responderUsername) ?? '';
+		return this._defaultAgent?.fullName ??
+			this.initialData?.responderUsername ?? '';
 	}
 
 	private readonly _initialRequesterAvatarIconUri: URI | undefined;
 	get requesterAvatarIconUri(): URI | undefined {
-		return this._defaultAgent ?
-			this._defaultAgent.metadata.requester?.icon :
+		return this._defaultAgent?.metadata.requester?.icon ??
 			this._initialRequesterAvatarIconUri;
 	}
 
 	private readonly _initialResponderAvatarIconUri: ThemeIcon | URI | undefined;
 	get responderAvatarIcon(): ThemeIcon | URI | undefined {
-		return this._defaultAgent ?
-			this._defaultAgent?.metadata.themeIcon :
+		return this._defaultAgent?.metadata.themeIcon ??
 			this._initialResponderAvatarIconUri;
 	}
 
@@ -1051,6 +1048,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		if (progress.kind === 'markdownContent' ||
 			progress.kind === 'treeData' ||
 			progress.kind === 'inlineReference' ||
+			progress.kind === 'codeblockUri' ||
 			progress.kind === 'markdownVuln' ||
 			progress.kind === 'progressMessage' ||
 			progress.kind === 'command' ||
