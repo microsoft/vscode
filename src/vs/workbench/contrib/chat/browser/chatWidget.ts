@@ -40,6 +40,7 @@ import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatSe
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
+import { ChatDragAndDrop } from './chatDragAndDrop.js';
 
 const $ = dom.$;
 
@@ -353,6 +354,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return undefined;
 			}
 		}).filter(isDefined);
+
+		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart));
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
