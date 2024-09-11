@@ -142,9 +142,7 @@ class PropertyHeader extends Disposable {
 				return undefined;
 			}
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService));
-		this._toolbar.context = {
-			cell: this.cell
-		};
+		this._toolbar.context = this.cell;
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
 		this._register(scopedContextKeyService);
@@ -1673,9 +1671,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		this._toolbar = this.templateData.toolbar;
 
-		this._toolbar.context = {
-			cell: this.cell
-		};
+		this._toolbar.context = this.cell;
 
 		const refreshToolbar = () => {
 			const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');

@@ -356,29 +356,29 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		if (!(context.cell instanceof SideBySideDiffElementViewModel)) {
+		if (!(context instanceof SideBySideDiffElementViewModel)) {
 			return;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const original = context.original;
+		const modified = context.modified;
 
-		const modifiedCellIndex = context.cell.mainDocumentTextModel.cells.indexOf(modified.textModel);
+		const modifiedCellIndex = context.mainDocumentTextModel.cells.indexOf(modified.textModel);
 		if (modifiedCellIndex === -1) {
 			return;
 		}
 
 		const rawEdits: ICellEditOperation[] = [{ editType: CellEditType.Metadata, index: modifiedCellIndex, metadata: original.metadata }];
-		if (context.cell.original.language && context.cell.modified.language !== context.cell.original.language) {
-			rawEdits.push({ editType: CellEditType.CellLanguage, index: modifiedCellIndex, language: context.cell.original.language });
+		if (context.original.language && context.modified.language !== context.original.language) {
+			rawEdits.push({ editType: CellEditType.CellLanguage, index: modifiedCellIndex, language: context.original.language });
 		}
 
-		context.cell.modifiedDocument.applyEdits(rawEdits, true, undefined, () => undefined, undefined, true);
+		context.modifiedDocument.applyEdits(rawEdits, true, undefined, () => undefined, undefined, true);
 	}
 });
 
@@ -396,12 +396,12 @@ registerAction2(class extends Action2 {
 // 			}
 // 		);
 // 	}
-// 	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+// 	run(accessor: ServicesAccessor, context?: DiffElementViewModelBase) {
 // 		if (!context) {
 // 			return;
 // 		}
 
-// 		context.cell.renderOutput = true;
+// 		context.renderOutput = true;
 // 	}
 // });
 
@@ -421,12 +421,12 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		context.cell.renderOutput = !context.cell.renderOutput;
+		context.renderOutput = !context.renderOutput;
 	}
 });
 
@@ -446,24 +446,24 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		if (!(context.cell instanceof SideBySideDiffElementViewModel)) {
+		if (!(context instanceof SideBySideDiffElementViewModel)) {
 			return;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const original = context.original;
+		const modified = context.modified;
 
-		const modifiedCellIndex = context.cell.mainDocumentTextModel.cells.indexOf(modified.textModel);
+		const modifiedCellIndex = context.mainDocumentTextModel.cells.indexOf(modified.textModel);
 		if (modifiedCellIndex === -1) {
 			return;
 		}
 
-		context.cell.mainDocumentTextModel.applyEdits([{
+		context.mainDocumentTextModel.applyEdits([{
 			editType: CellEditType.Output, index: modifiedCellIndex, outputs: original.outputs
 		}], true, undefined, () => undefined, undefined, true);
 	}
@@ -488,8 +488,8 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
-		const cell = context?.cell;
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
+		const cell = context;
 		if (!cell?.modified) {
 			return;
 		}
@@ -519,13 +519,13 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementCellViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: DiffElementCellViewModelBase) {
 		if (!context) {
 			return;
 		}
 
-		const original = context.cell.original;
-		const modified = context.cell.modified;
+		const original = context.original;
+		const modified = context.modified;
 
 		if (!original || !modified) {
 			return;
