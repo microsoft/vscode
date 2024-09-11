@@ -185,16 +185,20 @@ export class NotebookDiffOverviewRuler extends Themable {
 			const cellHeight = Math.round((element.totalHeight / scrollHeight) * ratio * height);
 			switch (element.type) {
 				case 'insert':
+				case 'insertMetadata':
 					ctx.fillStyle = this._insertColorHex;
 					ctx.fillRect(laneWidth, currentFrom, laneWidth, cellHeight);
 					break;
 				case 'delete':
+				case 'deleteMetadata':
 					ctx.fillStyle = this._removeColorHex;
 					ctx.fillRect(0, currentFrom, laneWidth, cellHeight);
 					break;
 				case 'unchanged':
+				case 'unchangedMetadata':
 					break;
 				case 'modified':
+				case 'modifiedMetadata':
 					ctx.fillStyle = this._removeColorHex;
 					ctx.fillRect(0, currentFrom, laneWidth, cellHeight);
 					ctx.fillStyle = this._insertColorHex;
