@@ -75,7 +75,8 @@ export class ScopeData {
 			set.delete(scope);
 		}
 
-		// If we only had OIDC scopes, we need to add a tack-on scope to make the request valid.
+		// If we only had OIDC scopes, we need to add a tack-on scope to make the request valid
+		// by forcing Identity into treating this as a Graph token request.
 		if (!set.size) {
 			scopesToSend.push(GRAPH_TACK_ON_SCOPE);
 		}
