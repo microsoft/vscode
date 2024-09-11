@@ -14,7 +14,7 @@ import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, Vis
 import { VisibleLinesCollection } from '../../view/viewLayer.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
 import { DomReadingContext } from './domReadingContext.js';
-import { ViewLine, ViewLineOptions } from './viewLine.js';
+import { ViewLine } from './viewLine.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -24,6 +24,7 @@ import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { Viewport } from '../../../common/viewModel.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { ViewLineOptions } from './viewLineOptions.js';
 
 class LastRenderedData {
 
@@ -87,6 +88,10 @@ class HorizontalRevealSelectionsRequest {
 
 type HorizontalRevealRequest = HorizontalRevealRangeRequest | HorizontalRevealSelectionsRequest;
 
+/**
+ * The view lines part is responsible for rendering the actual content of a
+ * file.
+ */
 export class ViewLines extends ViewPart implements IViewLines {
 	/**
 	 * Adds this amount of pixels to the right of lines (no-one wants to type near the edge of the viewport)

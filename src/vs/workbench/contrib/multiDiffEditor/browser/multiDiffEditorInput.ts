@@ -11,8 +11,7 @@ import { Disposable, DisposableStore, IDisposable, IReference } from '../../../.
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ObservableLazyPromise, autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { ValueWithChangeEventFromObservable, constObservable, mapObservableArrayCached, observableFromValueWithChangeEvent, recomputeInitiallyAndOnChange } from '../../../../base/common/observableInternal/utils.js';
+import { ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -28,10 +27,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
-import { MultiDiffEditorIcon } from './icons.contribution.js';
-import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { MultiDiffEditorIcon } from './icons.contribution.js';
+import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {

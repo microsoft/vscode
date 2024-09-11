@@ -37,6 +37,11 @@ export interface IToolInvocation {
 	toolId: string;
 	parameters: any;
 	tokenBudget?: number;
+	context: IToolInvocationContext | undefined;
+}
+
+export interface IToolInvocationContext {
+	sessionId: string;
 }
 
 export interface IToolResult {

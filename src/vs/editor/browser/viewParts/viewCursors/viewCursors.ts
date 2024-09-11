@@ -23,6 +23,10 @@ import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { CursorChangeReason } from '../../../common/cursorEvents.js';
 import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom.js';
 
+/**
+ * View cursors is a view part responsible for rendering the primary cursor and
+ * any secondary cursors that are currently active.
+ */
 export class ViewCursors extends ViewPart {
 
 	static readonly BLINK_INTERVAL = 500;

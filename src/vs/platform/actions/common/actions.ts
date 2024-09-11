@@ -223,6 +223,8 @@ export class MenuId {
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
+	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
+	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');

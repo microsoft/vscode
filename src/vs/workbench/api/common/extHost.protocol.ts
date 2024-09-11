@@ -1542,14 +1542,6 @@ export type SCMRawResourceSplices = [
 	SCMRawResourceSplice[]
 ];
 
-export interface SCMHistoryItemGroupDto {
-	readonly id: string;
-	readonly name: string;
-	readonly revision?: string;
-	readonly base?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
-	readonly remote?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
-}
-
 export interface SCMHistoryItemRefDto {
 	readonly id: string;
 	readonly name: string;
@@ -1557,6 +1549,12 @@ export interface SCMHistoryItemRefDto {
 	readonly category?: string;
 	readonly description?: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+}
+
+export interface SCMHistoryItemRefsChangeEventDto {
+	readonly added: readonly SCMHistoryItemRefDto[];
+	readonly modified: readonly SCMHistoryItemRefDto[];
+	readonly removed: readonly SCMHistoryItemRefDto[];
 }
 
 export interface SCMHistoryItemDto {
@@ -1600,7 +1598,8 @@ export interface MainThreadSCMShape extends IDisposable {
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): Promise<void>;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): Promise<void>;
 
-	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): Promise<void>;
+	$onDidChangeHistoryProviderCurrentHistoryItemRefs(sourceControlHandle: number, historyItemRef?: SCMHistoryItemRefDto, historyItemRemoteRef?: SCMHistoryItemRefDto, historyItemBaseRef?: SCMHistoryItemRefDto): Promise<void>;
+	$onDidChangeHistoryProviderHistoryItemRefs(sourceControlHandle: number, historyItemRefs: SCMHistoryItemRefsChangeEventDto): Promise<void>;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {

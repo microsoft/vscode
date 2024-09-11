@@ -79,6 +79,8 @@ export interface ICodeBlockData {
 	readonly textModel: Promise<IResolvedTextEditorModel>;
 	readonly languageId: string;
 
+	readonly codemapperUri?: URI;
+
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;
 
@@ -126,6 +128,7 @@ export function parseLocalFileData(text: string) {
 
 export interface ICodeBlockActionContext {
 	code: string;
+	codemapperUri?: URI;
 	languageId?: string;
 	codeBlockIndex: number;
 	element: unknown;
@@ -424,7 +427,8 @@ export class CodeBlockPart extends Disposable {
 			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
-			languageId: textModel.getLanguageId()
+			languageId: textModel.getLanguageId(),
+			codemapperUri: data.codemapperUri,
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}

@@ -48,16 +48,16 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ResourceLabels } from '../../../browser/labels.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
-import { IChatWidget } from './chat.js';
-import { ChatFollowups } from './chatFollowups.js';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
+import { IChatWidget } from './chat.js';
+import { ChatFollowups } from './chatFollowups.js';
 
 const $ = dom.$;
 
@@ -598,7 +598,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight + data.executeToolbarHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -618,10 +618,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.followupsHeight + inputEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight;
+		this._inputPartHeight = data.followupsHeight + inputEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight + data.executeToolbarHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.editorPadding - data.executeToolbarWidth - data.sideToolbarWidth - data.toolbarPadding;
+		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.editorPadding - data.executeToolbarWidth - data.sideToolbarWidth;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
@@ -637,6 +637,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getLayoutData() {
+		const executeToolbarWidth = this.cachedToolbarWidth = this.toolbar.getItemsWidth();
+		const executeToolbarPadding = (this.toolbar.getItemsLength() - 1) * 4;
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
@@ -646,8 +648,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			implicitContextHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
 			editorPadding: 12,
-			toolbarPadding: (this.toolbar.getItemsLength() - 1) * 4,
-			executeToolbarWidth: this.cachedToolbarWidth = this.toolbar.getItemsWidth(),
+			executeToolbarWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding : 0,
+			executeToolbarHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
 		};
 	}
