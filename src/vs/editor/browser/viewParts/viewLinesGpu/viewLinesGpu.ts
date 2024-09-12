@@ -21,7 +21,7 @@ import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.j
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
-import { ViewLineOptions } from '../lines/viewLineOptions.js';
+import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 
 
 const enum GlyphStorageBufferInfo {
@@ -70,6 +70,14 @@ export class ViewLinesGpu extends ViewPart {
 		this._register(autorun(reader => {
 			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
 			// TODO: Request render, should this just call renderText with the last viewportData
+		}));
+
+		// Rerender when the texture atlas deletes glyphs
+		this._register(ViewLinesGpu.atlas.onDidDeleteGlyphs(() => {
+			this._atlasGpuTextureVersions.length = 0;
+			this._atlasGpuTextureVersions[0] = 0;
+			this._atlasGpuTextureVersions[1] = 0;
+			this._renderStrategy.reset();
 		}));
 
 		this.initWebgpu();

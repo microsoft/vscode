@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest } from '@azure/msal-node';
+import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel } from '@azure/msal-node';
 import { Disposable, Memento, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
 import { raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
@@ -12,6 +12,7 @@ import { ICachedPublicClientApplication } from '../common/publicClientCache';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
+	private _sequencer = new Sequencer();
 
 	private _accounts: AccountInfo[] = [];
 	private readonly _disposable: Disposable;
@@ -28,6 +29,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			loggerOptions: {
 				correlationId: `${this._clientId}] [${this._authority}`,
 				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
+				logLevel: LogLevel.Trace
 			}
 		},
 		cache: {
@@ -82,9 +84,11 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	}
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
-		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
-		const result = await this._pca.acquireTokenSilent(request);
+		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
+		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
+		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
 		if (result.account && !result.fromCache) {
+			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
@@ -144,5 +148,14 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			}
 		}
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
+	}
+}
+
+export class Sequencer {
+
+	private current: Promise<unknown> = Promise.resolve(null);
+
+	queue<T>(promiseTask: () => Promise<T>): Promise<T> {
+		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
 	}
 }

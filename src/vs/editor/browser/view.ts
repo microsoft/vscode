@@ -27,7 +27,7 @@ import { EditorScrollbar } from './viewParts/editorScrollbar/editorScrollbar.js'
 import { GlyphMarginWidgets } from './viewParts/glyphMargin/glyphMargin.js';
 import { IndentGuidesOverlay } from './viewParts/indentGuides/indentGuides.js';
 import { LineNumbersOverlay } from './viewParts/lineNumbers/lineNumbers.js';
-import { ViewLines } from './viewParts/lines/viewLines.js';
+import { ViewLines } from './viewParts/viewLines/viewLines.js';
 import { LinesDecorationsOverlay } from './viewParts/linesDecorations/linesDecorations.js';
 import { Margin } from './viewParts/margin/margin.js';
 import { MarginViewLineDecorationsOverlay } from './viewParts/marginDecorations/marginDecorations.js';
@@ -56,7 +56,7 @@ import { ViewContext } from '../common/viewModel/viewContext.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
 import { ViewGpuContext } from './gpu/viewGpuContext.js';
-import { ViewLinesGpu } from './viewParts/linesGpu/viewLinesGpu.js';
+import { ViewLinesGpu } from './viewParts/viewLinesGpu/viewLinesGpu.js';
 import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
@@ -150,7 +150,7 @@ export class View extends ViewEventHandler {
 		this.domNode.setAttribute('role', 'code');
 
 		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
-			this._viewGpuContext = new ViewGpuContext();
+			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext);
 		}
 
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));

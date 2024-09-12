@@ -55,7 +55,7 @@ suite('NotebookDiff', () => {
 		eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 		token = cancellation.token;
 		notebookEditorWorkerService = new class extends mock<INotebookEditorWorkerService>() {
-			override computeDiff() { return Promise.resolve({ cellsDiff: diffResult }); }
+			override computeDiff() { return Promise.resolve({ cellsDiff: diffResult, metadataChanged: false }); }
 		};
 	});
 

@@ -22,8 +22,8 @@
     "workspace",
     "ui"
   ],
-  "main": "./out/ipynbMain.js",
-  "browser": "./dist/browser/ipynbMain.js",
+  "main": "./out/ipynbMain.node.js",
+  "browser": "./dist/browser/ipynbMain.browser.js",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {

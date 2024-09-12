@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, autorunWithStoreHandleChanges, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, signalFromObservable } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -59,6 +59,7 @@ import { clamp } from '../../../../base/common/numbers.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { compare } from '../../../../base/common/strings.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -1067,6 +1068,14 @@ export class SCMHistoryViewPane extends ViewPane {
 		element.badge.textContent = 'Outdated';
 		container.appendChild(element.root);
 
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), element.root, {
+			markdown: {
+				value: localize('scmGraphViewOutdated', "Please refresh the graph using the refresh action ($(refresh))."),
+				supportThemeIcons: true
+			},
+			markdownNotSupportedFallback: undefined
+		}));
+
 		this._register(autorun(reader => {
 			const outdated = this._repositoryOutdated.read(reader);
 			element.root.style.display = outdated ? '' : 'none';
@@ -1123,58 +1132,59 @@ export class SCMHistoryViewPane extends ViewPane {
 				// Update context
 				this._scmProviderCtx.set(repository.provider.contextValue);
 
-				// Publish
-				const historyItemRemoteRefIdSignal = signalFromObservable(this, derived(reader => {
-					return historyProvider.historyItemRemoteRef.read(reader)?.id;
+				// HistoryItemId changed (checkout)
+				const historyItemRefId = derived(reader => {
+					return historyProvider.historyItemRef.read(reader)?.id;
+				});
+				store.add(runOnChange(historyItemRefId, () => {
+					this.refresh();
 				}));
 
-				// Fetch, Push
-				const historyItemRemoteRefRevision = derived(reader => {
-					return historyProvider.historyItemRemoteRef.read(reader)?.revision;
-				});
-
 				// HistoryItemRefs changed
-				store.add(
-					autorunWithStoreHandleChanges<{ refresh: boolean | 'ifScrollTop' }>({
-						owner: this,
-						createEmptyChangeSummary: () => ({ refresh: false }),
-						handleChange(context, changeSummary) {
-							changeSummary.refresh = context.didChange(historyItemRemoteRefRevision) ? 'ifScrollTop' : true;
-							return true;
-						},
-					}, (reader, changeSummary) => {
-						historyItemRemoteRefIdSignal.read(reader);
-						const historyItemRefValue = historyProvider.historyItemRef.read(reader);
-						const historyItemRemoteRefRevisionValue = historyItemRemoteRefRevision.read(reader);
-
-						// Commit, Checkout, Publish, Pull
-						if (changeSummary.refresh === true) {
+				store.add(runOnChange(historyProvider.historyItemRefChanges, changes => {
+					if (changes.silent) {
+						// The history item reference changes occurred in the background (ex: Auto Fetch)
+						// If tree is scrolled to the top, we can safely refresh the tree, otherwise we
+						// will show a visual cue that the view is outdated.
+						if (this._tree.scrollTop === 0) {
 							this.refresh();
 							return;
 						}
 
-						if (changeSummary.refresh === 'ifScrollTop') {
-							// If the history item remote revision has changed, but it matches the history
-							// item revision, then it means that a Push operation was performed and it is
-							// safe to refresh the graph.
-							if (historyItemRefValue?.revision === historyItemRemoteRefRevisionValue) {
-								this.refresh();
-								return;
+						// Show the "Outdated" badge on the view
+						this._repositoryOutdated.set(true, undefined);
+						return;
+					}
+
+					// If there are any removed history item references we need to check whether they are
+					// currently being used in the filter. If they are, we need to update the filter which
+					// will result in the graph being refreshed.
+					if (changes.removed.length !== 0) {
+						const historyItemsFilter = this._treeViewModel.historyItemsFilter.get();
+
+						if (historyItemsFilter !== 'all' && historyItemsFilter !== 'auto') {
+							let updateFilter = false;
+							const historyItemRefs = [...historyItemsFilter];
+
+							for (const ref of changes.removed) {
+								const index = historyItemRefs
+									.findIndex(item => item.id === ref.id);
+
+								if (index !== -1) {
+									historyItemRefs.splice(index, 1);
+									updateFilter = true;
+								}
 							}
 
-							// If the history item remote revision has changed, but it does not matches the
-							// history item revision, then a Fetch operation was performed. This can be the
-							// result of a user action (Fetch) or a background action (Auto Fetch). If the
-							// tree is scrolled to the top, we can safely refresh the tree.
-							if (this._tree.scrollTop === 0) {
-								this.refresh();
+							if (updateFilter) {
+								this._treeViewModel.setHistoryItemsFilter(historyItemRefs);
 								return;
 							}
-
-							// Show the "Outdated" badge on the view
-							this._repositoryOutdated.set(true, undefined);
 						}
-					}));
+					}
+
+					this.refresh();
+				}));
 
 				// HistoryItemRefs filter changed
 				store.add(runOnChange(this._treeViewModel.historyItemsFilter, () => {

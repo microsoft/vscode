@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.94.0",
-  "distro": "94e8178dbd2d80f72a25452eff94052eb9fbcf68",
+  "distro": "45ad9e4ec55cacad2d7df9f6f0a95fed45a4a894",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -75,7 +75,7 @@
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "2.1.0",
-    "@bpasero/watcher": "https://github.com/bpasero/watcher.git#5d29cc732a03c91ecc2c861940a240b01e765c65",
+    "@bpasero/watcher": "https://github.com/bpasero/watcher.git#f8e301af83372b60bfd7df6d4de8c6ba3b981de5",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
@@ -144,7 +144,7 @@
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
     "@vscode/test-electron": "^2.4.0",
-    "@vscode/test-web": "^0.0.56",
+    "@vscode/test-web": "^0.0.60",
     "@vscode/v8-heap-parser": "^0.1.0",
     "@vscode/vscode-perf": "^0.0.14",
     "@webgpu/types": "^0.1.44",

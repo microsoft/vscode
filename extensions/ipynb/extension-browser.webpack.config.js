@@ -12,10 +12,10 @@ const withBrowserDefaults = require('../shared.webpack.config').browser;
 const config = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/ipynbMain.ts'
+		extension: './src/ipynbMain.browser.ts'
 	},
 	output: {
-		filename: 'ipynbMain.js'
+		filename: 'ipynbMain.browser.js'
 	}
 });
 

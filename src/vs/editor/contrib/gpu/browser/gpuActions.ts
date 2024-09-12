@@ -17,7 +17,7 @@ import type { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, registerEditorAction, type ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { ensureNonNullable } from '../../../browser/gpu/gpuUtils.js';
 import { GlyphRasterizer } from '../../../browser/gpu/raster/glyphRasterizer.js';
-import { ViewLinesGpu } from '../../../browser/viewParts/linesGpu/viewLinesGpu.js';
+import { ViewLinesGpu } from '../../../browser/viewParts/viewLinesGpu/viewLinesGpu.js';
 
 class DebugEditorGpuRendererAction extends EditorAction {
 

@@ -62,7 +62,6 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -954,7 +953,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
@@ -1376,17 +1374,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					message: nls.localize('invalidExtensions', "Invalid extensions detected. Review them."),
 					severity: Severity.Warning,
 					extensions: invalidExtensions,
-				};
-			}
-		}
-
-		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			const disabledExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByExtensionDependency);
-			if (disabledExtensions.length) {
-				return {
-					message: nls.localize('missingDependencies', "Some extensions are disabled due to missing or disabled dependencies. Review them."),
-					severity: Severity.Warning,
-					extensions: disabledExtensions,
 				};
 			}
 		}
@@ -2632,6 +2619,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
 		if (extension.local) {
 			installOptions.productVersion = this.getProductVersion();
+			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
 		} else {
 			return this.extensionManagementService.installFromGallery(gallery, installOptions);
