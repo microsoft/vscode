@@ -233,8 +233,8 @@ export class NotebookDocumentMetadataElement extends Disposable {
 	private readonly _editor: DiffEditorWidget;
 	private _editorViewStateChanged: boolean;
 	private _toolbar!: ToolBar;
-	private _cellHeaderContainer!: HTMLElement;
-	private _editorContainer!: HTMLElement;
+	private readonly _cellHeaderContainer: HTMLElement;
+	private readonly _editorContainer: HTMLElement;
 	private _cellHeader!: PropertyHeader;
 	private _diffEditorContainer!: HTMLElement;
 
@@ -250,6 +250,10 @@ export class NotebookDocumentMetadataElement extends Disposable {
 	) {
 		super();
 		this._editor = templateData.sourceEditor;
+		this._cellHeaderContainer = this.templateData.cellHeaderContainer;
+		this._editorContainer = this.templateData.editorContainer;
+		this._diffEditorContainer = this.templateData.diffEditorContainer;
+
 		this._editorViewStateChanged = false;
 		// init
 		this._register(viewModel.onDidLayoutChange(e => {
@@ -262,7 +266,6 @@ export class NotebookDocumentMetadataElement extends Disposable {
 
 	buildBody(): void {
 		const body = this.templateData.body;
-		this._diffEditorContainer = this.templateData.diffEditorContainer;
 		body.classList.remove('full');
 		body.classList.add('full');
 
@@ -287,10 +290,8 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		this.templateData.bottomBorder.style.top = `${this.viewModel.layoutInfo.totalHeight - 32}px`;
 	}
 	updateSourceEditor(): void {
-		this._cellHeaderContainer = this.templateData.cellHeaderContainer;
 		this._cellHeaderContainer.style.display = 'flex';
 		this._cellHeaderContainer.innerText = '';
-		this._editorContainer = this.templateData.editorContainer;
 		this._editorContainer.classList.add('diff');
 
 		const updateSourceEditor = () => {
@@ -332,7 +333,7 @@ export class NotebookDocumentMetadataElement extends Disposable {
 			this._editor.updateOptions(options);
 			this._register(this.viewModel.unchangedRegionsService.options.onDidChangeEnablement(() => {
 				options.hideUnchangedRegions = this.viewModel.unchangedRegionsService.options;
-				this._editor?.updateOptions(options);
+				this._editor.updateOptions(options);
 			}));
 			this._editor.layout({
 				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
@@ -410,7 +411,7 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		this._register(originalRef);
 		this._register(modifiedRef);
 
-		const vm = this._register(this._editor!.createViewModel({
+		const vm = this._register(this._editor.createViewModel({
 			original: originalRef.object.textEditorModel,
 			modified: modifiedRef.object.textEditorModel,
 		}));
@@ -419,7 +420,7 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
 		// & that results in flicker.
 		await vm.waitForDiff();
-		this._editor!.setModel(vm);
+		this._editor.setModel(vm);
 
 		const handleViewStateChange = () => {
 			this._editorViewStateChanged = true;
@@ -432,24 +433,21 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		};
 
 		this.updateEditorOptionsForWhitespace();
-		this._register(this._editor!.getOriginalEditor().onDidChangeCursorSelection(handleViewStateChange));
-		this._register(this._editor!.getOriginalEditor().onDidScrollChange(handleScrollChange));
-		this._register(this._editor!.getModifiedEditor().onDidChangeCursorSelection(handleViewStateChange));
-		this._register(this._editor!.getModifiedEditor().onDidScrollChange(handleScrollChange));
+		this._register(this._editor.getOriginalEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor.getOriginalEditor().onDidScrollChange(handleScrollChange));
+		this._register(this._editor.getModifiedEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor.getModifiedEditor().onDidScrollChange(handleScrollChange));
 
 		const editorViewState = this.viewModel.getSourceEditorViewState() as editorCommon.IDiffEditorViewState | null;
 		if (editorViewState) {
-			this._editor!.restoreViewState(editorViewState);
+			this._editor.restoreViewState(editorViewState);
 		}
 
-		const contentHeight = this._editor!.getContentHeight();
+		const contentHeight = this._editor.getContentHeight();
 		this.viewModel.editorHeight = contentHeight;
 	}
 	private updateEditorOptionsForWhitespace() {
 		const editor = this._editor;
-		if (!editor) {
-			return;
-		}
 		const uri = editor.getModel()?.modified.uri || editor.getModel()?.original.uri;
 		if (!uri) {
 			return;
@@ -467,15 +465,15 @@ export class NotebookDocumentMetadataElement extends Disposable {
 	}
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
-			if (state.editorHeight && this._editor) {
+			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this.viewModel.layoutInfo.editorHeight}px`;
 				this._editor.layout({
-					width: this._editor!.getViewWidth(),
+					width: this._editor.getViewWidth(),
 					height: this.viewModel.layoutInfo.editorHeight
 				});
 			}
 
-			if (state.outerWidth && this._editor) {
+			if (state.outerWidth) {
 				this._editorContainer.style.height = `${this.viewModel.layoutInfo.editorHeight}px`;
 				this._editor.layout();
 			}
@@ -485,13 +483,9 @@ export class NotebookDocumentMetadataElement extends Disposable {
 	}
 
 	override dispose() {
-		// The editor isn't disposed yet, it can be re-used.
-		// However the model can be disposed before the editor & that causes issues.
-		if (this._editor) {
-			this._editor.setModel(null);
-		}
+		this._editor.setModel(null);
 
-		if (this._editor && this._editorViewStateChanged) {
+		if (this._editorViewStateChanged) {
 			this.viewModel.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
 
