@@ -23,6 +23,8 @@ import { INotebookService } from '../../common/notebookService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
+import { NotebookDocumentMetadataTextModel } from '../../common/model/notebookMetadataTextModel.js';
 
 const PropertyHeaderHeight = 25;
 
@@ -44,7 +46,7 @@ interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 	recomputeOutput?: boolean;
 }
 
-export type IDiffElementViewModelBase = DiffElementCellViewModelBase | DiffElementPlaceholderViewModel;
+export type IDiffElementViewModelBase = DiffElementCellViewModelBase | DiffElementPlaceholderViewModel | NotebookDocumentMetadataViewModel;
 
 export abstract class DiffElementViewModelBase extends Disposable {
 	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
@@ -101,6 +103,209 @@ export class DiffElementPlaceholderViewModel extends DiffElementViewModelBase {
 		this._unfoldHiddenCells.fire();
 	}
 }
+
+
+export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase {
+	public readonly originalMetadata: NotebookDocumentMetadataTextModel;
+	public readonly modifiedMetadata: NotebookDocumentMetadataTextModel;
+	public cellFoldingState: PropertyFoldingState;
+	protected _layoutInfo!: IDiffElementLayoutInfo;
+	public renderOutput: boolean = false;
+	set editorHeight(height: number) {
+		this._layout({ editorHeight: height });
+	}
+
+	get editorHeight() {
+		throw new Error('Use Cell.layoutInfo.editorHeight');
+	}
+
+	set editorMargin(margin: number) {
+		this._layout({ editorMargin: margin });
+	}
+
+	get editorMargin() {
+		throw new Error('Use Cell.layoutInfo.editorMargin');
+	}
+	get layoutInfo(): IDiffElementLayoutInfo {
+		return this._layoutInfo;
+	}
+
+	get totalHeight() {
+		return this.layoutInfo.totalHeight;
+	}
+
+	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
+	constructor(
+		public readonly originalDocumentTextModel: INotebookTextModel,
+		public readonly modifiedDocumentTextModel: INotebookTextModel,
+		public readonly type: 'unchangedMetadata' | 'modifiedMetadata',
+		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
+		initData: {
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
+			fontInfo: FontInfo | undefined;
+		},
+		notebookService: INotebookService,
+		public readonly unchangedRegionsService: IUnchangedEditorRegionsService,
+		private readonly editorHeightCalculator: IDiffEditorHeightCalculatorService
+	) {
+		super(originalDocumentTextModel, editorEventDispatcher, initData);
+
+		const cellStatusHeight = PropertyHeaderHeight;
+		this._layoutInfo = {
+			width: 0,
+			editorHeight: 0,
+			editorMargin: 0,
+			metadataHeight: 0,
+			cellStatusHeight,
+			metadataStatusHeight: 0,
+			rawOutputHeight: 0,
+			outputTotalHeight: 0,
+			outputStatusHeight: 0,
+			outputMetadataHeight: 0,
+			bodyMargin: 32,
+			totalHeight: 82 + cellStatusHeight + 0,
+			layoutState: CellLayoutState.Uninitialized
+		};
+
+		this.cellFoldingState = type === 'modifiedMetadata' ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
+		this.originalMetadata = this._register(new NotebookDocumentMetadataTextModel(originalDocumentTextModel));
+		this.modifiedMetadata = this._register(new NotebookDocumentMetadataTextModel(modifiedDocumentTextModel));
+	}
+
+	public async computeHeights() {
+		if (this.type === 'unchangedMetadata') {
+			const original = this.editorHeightCalculator.computeHeightFromLines(this.originalMetadata.textBuffer.getLineCount());
+			const modified = this.editorHeightCalculator.computeHeightFromLines(this.modifiedMetadata.textBuffer.getLineCount());
+			this.editorHeight = Math.max(original, modified);
+		} else {
+			const original = this.originalMetadata.uri;
+			const modified = this.modifiedMetadata.uri;
+			this.editorHeight = await this.editorHeightCalculator.diffAndComputeHeight(original, modified);
+		}
+	}
+
+	layoutChange() {
+		this._layout({ recomputeOutput: true });
+	}
+
+	protected _layout(delta: ILayoutInfoDelta) {
+		const width = delta.width !== undefined ? delta.width : this._layoutInfo.width;
+		const editorHeight = delta.editorHeight !== undefined ? delta.editorHeight : this._layoutInfo.editorHeight;
+		const editorMargin = delta.editorMargin !== undefined ? delta.editorMargin : this._layoutInfo.editorMargin;
+		const cellStatusHeight = delta.cellStatusHeight !== undefined ? delta.cellStatusHeight : this._layoutInfo.cellStatusHeight;
+		const bodyMargin = delta.bodyMargin !== undefined ? delta.bodyMargin : this._layoutInfo.bodyMargin;
+
+		const totalHeight = editorHeight
+			+ editorMargin
+			+ cellStatusHeight
+			+ bodyMargin;
+
+		const newLayout: IDiffElementLayoutInfo = {
+			width: width,
+			editorHeight: editorHeight,
+			editorMargin: editorMargin,
+			metadataHeight: 0,
+			cellStatusHeight,
+			metadataStatusHeight: 0,
+			outputTotalHeight: 0,
+			outputStatusHeight: 0,
+			bodyMargin: bodyMargin,
+			rawOutputHeight: 0,
+			outputMetadataHeight: 0,
+			totalHeight: totalHeight,
+			layoutState: CellLayoutState.Measured
+		};
+
+		let somethingChanged = false;
+
+		const changeEvent: CellDiffViewModelLayoutChangeEvent = {};
+
+		if (newLayout.width !== this._layoutInfo.width) {
+			changeEvent.width = true;
+			somethingChanged = true;
+		}
+
+		if (newLayout.editorHeight !== this._layoutInfo.editorHeight) {
+			changeEvent.editorHeight = true;
+			somethingChanged = true;
+		}
+
+		if (newLayout.editorMargin !== this._layoutInfo.editorMargin) {
+			changeEvent.editorMargin = true;
+			somethingChanged = true;
+		}
+
+		if (newLayout.cellStatusHeight !== this._layoutInfo.cellStatusHeight) {
+			changeEvent.cellStatusHeight = true;
+			somethingChanged = true;
+		}
+
+		if (newLayout.bodyMargin !== this._layoutInfo.bodyMargin) {
+			changeEvent.bodyMargin = true;
+			somethingChanged = true;
+		}
+
+		if (newLayout.totalHeight !== this._layoutInfo.totalHeight) {
+			changeEvent.totalHeight = true;
+			somethingChanged = true;
+		}
+
+		if (somethingChanged) {
+			this._layoutInfo = newLayout;
+			this._fireLayoutChangeEvent(changeEvent);
+		}
+	}
+
+	getHeight(lineHeight: number) {
+		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
+			const editorHeight = this.cellFoldingState === PropertyFoldingState.Collapsed ? 0 : this.computeInputEditorHeight(lineHeight);
+			return this._computeTotalHeight(editorHeight);
+		} else {
+			return this._layoutInfo.totalHeight;
+		}
+	}
+
+	private _computeTotalHeight(editorHeight: number) {
+		const totalHeight = editorHeight
+			+ this._layoutInfo.editorMargin
+			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.cellStatusHeight
+			+ this._layoutInfo.metadataStatusHeight
+			+ this._layoutInfo.outputTotalHeight
+			+ this._layoutInfo.outputStatusHeight
+			+ this._layoutInfo.outputMetadataHeight
+			+ this._layoutInfo.bodyMargin;
+
+		return totalHeight;
+	}
+
+	public computeInputEditorHeight(_lineHeight: number): number {
+		return this.editorHeightCalculator.computeHeightFromLines(Math.max(this.originalMetadata.textBuffer.getLineCount(), this.modifiedMetadata.textBuffer.getLineCount()));
+	}
+
+	private _fireLayoutChangeEvent(state: CellDiffViewModelLayoutChangeEvent) {
+		this._layoutInfoEmitter.fire(state);
+		this.editorEventDispatcher.emit([{ type: NotebookDiffViewEventType.CellLayoutChanged, source: this._layoutInfo }]);
+	}
+
+	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
+		if (fullWidth) {
+			return layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0) - 2;
+		}
+
+		return (layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)) / 2 - 18 - 2;
+	}
+
+	getSourceEditorViewState(): editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null {
+		return this._sourceEditorViewState;
+	}
+
+	saveSpirceEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
+		this._sourceEditorViewState = viewState;
+	}
+}
+
 
 export abstract class DiffElementCellViewModelBase extends DiffElementViewModelBase {
 	public cellFoldingState: PropertyFoldingState;

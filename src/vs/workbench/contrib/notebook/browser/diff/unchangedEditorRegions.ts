@@ -35,11 +35,12 @@ export interface IUnchangedEditorRegionsService {
 
 export class UnchangedEditorRegionsService extends Disposable implements IUnchangedEditorRegionsService {
 	public readonly options: Readonly<UnchangedEditorRegionOptions>;
-	constructor(configurationService: IConfigurationService,
-		private readonly editorWorkerService: IEditorWorkerService,
-		private readonly textModelResolverService: ITextModelService,
-		private readonly textConfigurationService: ITextResourceConfigurationService,
-		private readonly lineHeight: number
+	constructor(
+		private readonly lineHeight: number,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextResourceConfigurationService private readonly textConfigurationService: ITextResourceConfigurationService,
 	) {
 		super();
 		this.options = this._register(createHideUnchangedRegionOptions(configurationService));

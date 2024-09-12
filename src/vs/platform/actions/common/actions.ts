@@ -181,6 +181,7 @@ export class MenuId {
 	static readonly NotebookCellExecuteGoTo = new MenuId('NotebookCellExecuteGoTo');
 	static readonly NotebookCellExecutePrimary = new MenuId('NotebookCellExecutePrimary');
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
+	static readonly NotebookDiffDocumentMetadata = new MenuId('NotebookDiffDocumentMetadata');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
