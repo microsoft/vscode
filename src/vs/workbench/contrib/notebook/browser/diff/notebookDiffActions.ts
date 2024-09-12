@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { DiffElementCellViewModelBase, SideBySideDiffElementNotebookMetadataViewModel, SideBySideDiffElementViewModel, SingleSidedDiffElementNotebookMetadataViewModel } from './diffElementViewModel.js';
+import { DiffElementCellViewModelBase, NotebookDocumentMetadataViewModel, SideBySideDiffElementViewModel } from './diffElementViewModel.js';
 import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS, NOTEBOOK_DIFF_ITEM_DIFF_STATE, NOTEBOOK_DIFF_ITEM_KIND, NOTEBOOK_DIFF_METADATA, NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN } from './notebookDiffEditorBrowser.js';
 import { NotebookTextDiffEditor } from './notebookDiffEditor.js';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
@@ -217,11 +217,11 @@ registerAction2(class extends Action2 {
 		super(
 			{
 				id: 'notebook.diff.revertMetadata',
-				title: localize('notebook.diff.revertMetadata', "Revert Metadata"),
+				title: localize('notebook.diff.revertMetadata', "Revert Notebook Metadata"),
 				icon: revertIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffMetadataTitle,
+					id: MenuId.NotebookDiffDocumentMetadata,
 					when: NOTEBOOK_DIFF_METADATA,
 				},
 				precondition: NOTEBOOK_DIFF_METADATA
@@ -229,8 +229,8 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: SingleSidedDiffElementNotebookMetadataViewModel | SideBySideDiffElementNotebookMetadataViewModel) {
-		if (!context || context instanceof SingleSidedDiffElementNotebookMetadataViewModel) {
+	run(accessor: ServicesAccessor, context?: NotebookDocumentMetadataViewModel) {
+		if (!context) {
 			return;
 		}
 

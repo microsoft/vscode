@@ -91,19 +91,8 @@ export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTe
 	readonly outputInfoContainer: HTMLElement;
 }
 
-export interface SingleSidedDiffElementNotebookMetadataRenderTemplate extends CellDiffCommonRenderTemplate {
-	readonly container: HTMLElement;
-	readonly body: HTMLElement;
-	readonly diffEditorContainer: HTMLElement;
-	readonly diagonalFill: HTMLElement;
-	readonly elementDisposables: DisposableStore;
-	readonly cellHeaderContainer: HTMLElement;
-	readonly editorContainer: HTMLElement;
-	readonly sourceEditor: CodeEditorWidget;
-}
 
-
-export interface SideBySideDiffElementNotebookMetadataRenderTemplate extends CellDiffCommonRenderTemplate {
+export interface NotebookDocumentDiffElementRenderTemplate extends CellDiffCommonRenderTemplate {
 	readonly container: HTMLElement;
 	readonly body: HTMLElement;
 	readonly diffEditorContainer: HTMLElement;

@@ -14,9 +14,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementNotebookMetadataViewModel, SideBySideDiffElementViewModel, SingleSidedDiffElementNotebookMetadataViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel.js';
-import { CellDiffPlaceholderRenderTemplate, CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor, SideBySideDiffElementNotebookMetadataRenderTemplate, SingleSidedDiffElementNotebookMetadataRenderTemplate } from './notebookDiffEditorBrowser.js';
-import { CellDiffPlaceholderElement, CollapsedCellOverlayWidget, DeletedElement, DeleteNotebookMetadataDiffElement, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, InsertNotebookMetadataDiffElement, ModifiedElement, ModifiedNotebookMetadataElement, UnchangedCellOverlayWidget } from './diffComponents.js';
+import { DiffElementPlaceholderViewModel, IDiffElementViewModelBase, NotebookDocumentMetadataViewModel, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel.js';
+import { CellDiffPlaceholderRenderTemplate, CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NotebookDocumentDiffElementRenderTemplate } from './notebookDiffEditorBrowser.js';
+import { CellDiffPlaceholderElement, CollapsedCellOverlayWidget, DeletedElement, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, ModifiedElement, NotebookDocumentMetadataElement, UnchangedCellOverlayWidget } from './diffComponents.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -63,12 +63,9 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<ID
 				return CellDiffSideBySideRenderer.TEMPLATE_ID;
 			case 'placeholder':
 				return CellDiffPlaceholderRenderer.TEMPLATE_ID;
-			case 'deleteMetadata':
-			case 'insertMetadata':
-				return NotebookMetadataDiffSingleSideRenderer.TEMPLATE_ID;
 			case 'modifiedMetadata':
 			case 'unchangedMetadata':
-				return NotebookMetadataDiffSideBySideSideRenderer.TEMPLATE_ID;
+				return NotebookDocumentMetadataDiffRenderer.TEMPLATE_ID;
 		}
 	}
 }
@@ -117,83 +114,7 @@ export class CellDiffPlaceholderRenderer implements IListRenderer<DiffElementPla
 	}
 }
 
-export class NotebookMetadataDiffSingleSideRenderer implements IListRenderer<SingleSidedDiffElementNotebookMetadataViewModel, SingleSidedDiffElementNotebookMetadataRenderTemplate> {
-	static readonly TEMPLATE_ID = 'notebook_metadata_diff_single';
-
-	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
-	) { }
-
-	get templateId() {
-		return NotebookMetadataDiffSingleSideRenderer.TEMPLATE_ID;
-	}
-
-	renderTemplate(container: HTMLElement): SingleSidedDiffElementNotebookMetadataRenderTemplate {
-		const body = DOM.$('.cell-body');
-		DOM.append(container, body);
-		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
-		DOM.append(body, diffEditorContainer);
-
-		const diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
-
-		const cellHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.input-header-container'));
-		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
-		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
-		const borderContainer = DOM.append(body, DOM.$('.border-container'));
-		const leftBorder = DOM.append(borderContainer, DOM.$('.left-border'));
-		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
-		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
-		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
-
-		return {
-			body,
-			container,
-			editorContainer,
-			diffEditorContainer,
-			diagonalFill,
-			cellHeaderContainer,
-			sourceEditor: editor,
-			leftBorder,
-			rightBorder,
-			topBorder,
-			bottomBorder,
-			elementDisposables: new DisposableStore()
-		};
-	}
-
-	private _buildSourceEditor(sourceContainer: HTMLElement) {
-		return buildSourceEditor(this.instantiationService, this.notebookEditor, sourceContainer, { readOnly: true });
-	}
-
-	renderElement(element: SingleSidedDiffElementNotebookMetadataViewModel, index: number, templateData: SingleSidedDiffElementNotebookMetadataRenderTemplate, height: number | undefined): void {
-		templateData.body.classList.remove('left', 'right', 'full');
-
-		switch (element.type) {
-			case 'deleteMetadata':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(DeleteNotebookMetadataDiffElement, this.notebookEditor, element, templateData));
-				return;
-			case 'insertMetadata':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(InsertNotebookMetadataDiffElement, this.notebookEditor, element, templateData));
-				return;
-			default:
-				break;
-		}
-	}
-
-	disposeTemplate(templateData: CellDiffSingleSideRenderTemplate): void {
-		templateData.container.innerText = '';
-		templateData.sourceEditor.dispose();
-		templateData.elementDisposables.dispose();
-	}
-
-	disposeElement(element: SingleSidedDiffElementNotebookMetadataViewModel, index: number, templateData: SingleSidedDiffElementNotebookMetadataRenderTemplate): void {
-		templateData.elementDisposables.clear();
-	}
-}
-
-
-export class NotebookMetadataDiffSideBySideSideRenderer implements IListRenderer<SideBySideDiffElementNotebookMetadataViewModel, SideBySideDiffElementNotebookMetadataRenderTemplate> {
+export class NotebookDocumentMetadataDiffRenderer implements IListRenderer<NotebookDocumentMetadataViewModel, NotebookDocumentDiffElementRenderTemplate> {
 	static readonly TEMPLATE_ID = 'notebook_metadata_diff_side_by_side';
 
 	constructor(
@@ -209,10 +130,10 @@ export class NotebookMetadataDiffSideBySideSideRenderer implements IListRenderer
 	) { }
 
 	get templateId() {
-		return NotebookMetadataDiffSideBySideSideRenderer.TEMPLATE_ID;
+		return NotebookDocumentMetadataDiffRenderer.TEMPLATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): SideBySideDiffElementNotebookMetadataRenderTemplate {
+	renderTemplate(container: HTMLElement): NotebookDocumentDiffElementRenderTemplate {
 		const body = DOM.$('.cell-body');
 		DOM.append(container, body);
 		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
@@ -266,19 +187,19 @@ export class NotebookMetadataDiffSideBySideSideRenderer implements IListRenderer
 		return buildDiffEditorWidget(this.instantiationService, this.notebookEditor, sourceContainer, { readOnly: true });
 	}
 
-	renderElement(element: SideBySideDiffElementNotebookMetadataViewModel, index: number, templateData: SideBySideDiffElementNotebookMetadataRenderTemplate, height: number | undefined): void {
+	renderElement(element: NotebookDocumentMetadataViewModel, index: number, templateData: NotebookDocumentDiffElementRenderTemplate, height: number | undefined): void {
 		templateData.body.classList.remove('left', 'right', 'full');
-		templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedNotebookMetadataElement, this.notebookEditor, element, templateData));
+		templateData.elementDisposables.add(this.instantiationService.createInstance(NotebookDocumentMetadataElement, this.notebookEditor, element, templateData));
 	}
 
-	disposeTemplate(templateData: SideBySideDiffElementNotebookMetadataRenderTemplate): void {
+	disposeTemplate(templateData: NotebookDocumentDiffElementRenderTemplate): void {
 		templateData.container.innerText = '';
 		templateData.sourceEditor.dispose();
 		templateData.toolbar?.dispose();
 		templateData.elementDisposables.dispose();
 	}
 
-	disposeElement(element: SideBySideDiffElementNotebookMetadataViewModel, index: number, templateData: SideBySideDiffElementNotebookMetadataRenderTemplate): void {
+	disposeElement(element: NotebookDocumentMetadataViewModel, index: number, templateData: NotebookDocumentDiffElementRenderTemplate): void {
 		if (templateData.toolbar) {
 			templateData.toolbar.context = undefined;
 		}
@@ -509,7 +430,7 @@ export class NotebookTextDiffList extends WorkbenchList<IDiffElementViewModelBas
 		listUser: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<IDiffElementViewModelBase>,
-		renderers: IListRenderer<IDiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate | CellDiffPlaceholderRenderTemplate | SingleSidedDiffElementNotebookMetadataRenderTemplate | SideBySideDiffElementNotebookMetadataRenderTemplate>[],
+		renderers: IListRenderer<IDiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate | CellDiffPlaceholderRenderTemplate | NotebookDocumentDiffElementRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<IDiffElementViewModelBase>,
 		@IListService listService: IListService,

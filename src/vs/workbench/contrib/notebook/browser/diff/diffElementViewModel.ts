@@ -46,7 +46,7 @@ interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 	recomputeOutput?: boolean;
 }
 
-export type IDiffElementViewModelBase = DiffElementCellViewModelBase | DiffElementPlaceholderViewModel | SingleSidedDiffElementNotebookMetadataViewModel | SideBySideDiffElementNotebookMetadataViewModel;
+export type IDiffElementViewModelBase = DiffElementCellViewModelBase | DiffElementPlaceholderViewModel | NotebookDocumentMetadataViewModel;
 
 export abstract class DiffElementViewModelBase extends Disposable {
 	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
@@ -105,7 +105,9 @@ export class DiffElementPlaceholderViewModel extends DiffElementViewModelBase {
 }
 
 
-export abstract class NotebookMetadataViewModelBase extends DiffElementViewModelBase {
+export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase {
+	public readonly originalMetadata: NotebookMetadataTextModel;
+	public readonly modifiedMetadata: NotebookMetadataTextModel;
 	public cellFoldingState: PropertyFoldingState;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 	public renderOutput: boolean = false;
@@ -133,21 +135,21 @@ export abstract class NotebookMetadataViewModelBase extends DiffElementViewModel
 	}
 
 	private _sourceEditorViewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null = null;
-	public readonly metadata: NotebookMetadataTextModel;
 	constructor(
-		mainDocumentTextModel: INotebookTextModel,
+		public readonly originalDocumentTextModel: INotebookTextModel,
+		public readonly modifiedDocumentTextModel: INotebookTextModel,
+		public readonly type: 'unchangedMetadata' | 'modifiedMetadata',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
 			metadataStatusHeight: number;
 			outputStatusHeight: number;
 			fontInfo: FontInfo | undefined;
 		},
-		_notebookService: INotebookService,
+		notebookService: INotebookService,
 		public readonly unchangedRegionsService: IUnchangedEditorRegionsService,
-		protected readonly editorHeightCalculator: IDiffEditorHeightCalculatorService
+		private readonly editorHeightCalculator: IDiffEditorHeightCalculatorService
 	) {
-		super(mainDocumentTextModel, editorEventDispatcher, initData);
-		this.metadata = this._register(new NotebookMetadataTextModel(mainDocumentTextModel));
+		super(originalDocumentTextModel, editorEventDispatcher, initData);
 
 		const cellStatusHeight = PropertyHeaderHeight;
 		this._layoutInfo = {
@@ -166,7 +168,21 @@ export abstract class NotebookMetadataViewModelBase extends DiffElementViewModel
 			layoutState: CellLayoutState.Uninitialized
 		};
 
-		this.cellFoldingState = PropertyFoldingState.Expanded;
+		this.cellFoldingState = type === 'modifiedMetadata' ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
+		this.originalMetadata = this._register(new NotebookMetadataTextModel(originalDocumentTextModel));
+		this.modifiedMetadata = this._register(new NotebookMetadataTextModel(modifiedDocumentTextModel));
+	}
+
+	public async computeHeights() {
+		if (this.type === 'unchangedMetadata') {
+			const original = this.editorHeightCalculator.computeHeightFromLines(this.originalMetadata.textBuffer.getLineCount());
+			const modified = this.editorHeightCalculator.computeHeightFromLines(this.modifiedMetadata.textBuffer.getLineCount());
+			this.editorHeight = Math.max(original, modified);
+		} else {
+			const original = this.originalMetadata.uri;
+			const modified = this.modifiedMetadata.uri;
+			this.editorHeight = await this.editorHeightCalculator.diffAndComputeHeight(original, modified);
+		}
 	}
 
 	layoutChange() {
@@ -264,8 +280,8 @@ export abstract class NotebookMetadataViewModelBase extends DiffElementViewModel
 		return totalHeight;
 	}
 
-	public computeInputEditorHeight(lineHeight: number): number {
-		return this.editorHeightCalculator.computeHeightFromLines(this.metadata.textBuffer.getLineCount());
+	public computeInputEditorHeight(_lineHeight: number): number {
+		return this.editorHeightCalculator.computeHeightFromLines(Math.max(this.originalMetadata.textBuffer.getLineCount(), this.modifiedMetadata.textBuffer.getLineCount()));
 	}
 
 	private _fireLayoutChangeEvent(state: CellDiffViewModelLayoutChangeEvent) {
@@ -287,68 +303,6 @@ export abstract class NotebookMetadataViewModelBase extends DiffElementViewModel
 
 	saveSpirceEditorViewState(viewState: editorCommon.ICodeEditorViewState | editorCommon.IDiffEditorViewState | null) {
 		this._sourceEditorViewState = viewState;
-	}
-}
-
-
-export class SingleSidedDiffElementNotebookMetadataViewModel extends NotebookMetadataViewModelBase {
-	constructor(
-		mainDocumentTextModel: INotebookTextModel,
-		readonly type: 'insertMetadata' | 'deleteMetadata',
-		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
-		initData: {
-			metadataStatusHeight: number;
-			outputStatusHeight: number;
-			fontInfo: FontInfo | undefined;
-		},
-		notebookService: INotebookService,
-		unchangedRegionsService: IUnchangedEditorRegionsService,
-		editorHeightCalculator: IDiffEditorHeightCalculatorService
-	) {
-		super(mainDocumentTextModel, editorEventDispatcher, initData, notebookService, unchangedRegionsService, editorHeightCalculator);
-		this.cellFoldingState = PropertyFoldingState.Expanded;
-	}
-
-	public async computeHeights() {
-		this.editorHeight = this.editorHeightCalculator.computeHeightFromLines(this.metadata.textBuffer.getLineCount());
-	}
-
-}
-
-
-export class SideBySideDiffElementNotebookMetadataViewModel extends NotebookMetadataViewModelBase {
-	public readonly originalMetadata: NotebookMetadataTextModel;
-	public readonly modifiedMetadata: NotebookMetadataTextModel;
-	constructor(
-		public readonly originalDocumentTextModel: INotebookTextModel,
-		public readonly modifiedDocumentTextModel: INotebookTextModel,
-		public readonly type: 'unchangedMetadata' | 'modifiedMetadata',
-		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
-		initData: {
-			metadataStatusHeight: number;
-			outputStatusHeight: number;
-			fontInfo: FontInfo | undefined;
-		},
-		notebookService: INotebookService,
-		unchangedRegionsService: IUnchangedEditorRegionsService,
-		diffEditorHeightCalculatorService: IDiffEditorHeightCalculatorService
-	) {
-		super(originalDocumentTextModel, editorEventDispatcher, initData, notebookService, unchangedRegionsService, diffEditorHeightCalculatorService);
-		this.cellFoldingState = type === 'modifiedMetadata' ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
-		this.originalMetadata = this._register(new NotebookMetadataTextModel(originalDocumentTextModel));
-		this.modifiedMetadata = this._register(new NotebookMetadataTextModel(modifiedDocumentTextModel));
-	}
-
-	public async computeHeights() {
-		if (this.type === 'unchangedMetadata') {
-			const original = this.editorHeightCalculator.computeHeightFromLines(this.originalMetadata.textBuffer.getLineCount());
-			const modified = this.editorHeightCalculator.computeHeightFromLines(this.modifiedMetadata.textBuffer.getLineCount());
-			this.editorHeight = Math.max(original, modified);
-		} else {
-			const original = this.originalMetadata.uri;
-			const modified = this.modifiedMetadata.uri;
-			this.editorHeight = await this.editorHeightCalculator.diffAndComputeHeight(original, modified);
-		}
 	}
 }
 

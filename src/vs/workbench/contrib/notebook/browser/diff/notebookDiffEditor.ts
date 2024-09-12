@@ -16,7 +16,7 @@ import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DiffElementCellViewModelBase, IDiffElementViewModelBase, SideBySideDiffElementViewModel } from './diffElementViewModel.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { CellDiffPlaceholderRenderer, CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookMetadataDiffSideBySideSideRenderer, NotebookMetadataDiffSingleSideRenderer, NotebookTextDiffList } from './notebookDiffList.js';
+import { CellDiffPlaceholderRenderer, CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookDocumentMetadataDiffRenderer, NotebookTextDiffList } from './notebookDiffList.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { diffDiagonalFill, editorBackground, focusBorder, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
@@ -285,8 +285,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.instantiationService.createInstance(CellDiffSingleSideRenderer, this),
 			this.instantiationService.createInstance(CellDiffSideBySideRenderer, this),
 			this.instantiationService.createInstance(CellDiffPlaceholderRenderer, this),
-			this.instantiationService.createInstance(NotebookMetadataDiffSingleSideRenderer, this),
-			this.instantiationService.createInstance(NotebookMetadataDiffSideBySideSideRenderer, this),
+			this.instantiationService.createInstance(NotebookDocumentMetadataDiffRenderer, this),
 		];
 
 		this._listViewContainer = DOM.append(this._rootElement, DOM.$('.notebook-diff-list-view'));

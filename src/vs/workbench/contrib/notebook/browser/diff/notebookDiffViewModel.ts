@@ -13,7 +13,7 @@ import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import type { ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, SideBySideDiffElementNotebookMetadataViewModel, SideBySideDiffElementViewModel, SingleSidedDiffElementNotebookMetadataViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel.js';
+import { DiffElementCellViewModelBase, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, NotebookDocumentMetadataViewModel, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from './diffElementViewModel.js';
 import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
 import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent, NOTEBOOK_DIFF_ITEM_DIFF_STATE, NOTEBOOK_DIFF_ITEM_KIND } from './notebookDiffEditorBrowser.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
@@ -35,7 +35,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	private _onDidChange = this._register(new Emitter<void>());
 	private diffEditorItems: NotebookMultiDiffEditorItem[] = [];
 	public onDidChange = this._onDidChange.event;
-	private notebookMetadataViewModel?: SingleSidedDiffElementNotebookMetadataViewModel | SideBySideDiffElementNotebookMetadataViewModel;
+	private notebookMetadataViewModel?: NotebookDocumentMetadataViewModel;
 	get value(): readonly NotebookMultiDiffEditorItem[] {
 		return this.diffEditorItems
 			.filter(item => item.type !== 'placeholder')
@@ -278,8 +278,8 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 			fontInfo: this.fontInfo
 		};
 
-		const viewModels: (SingleSideDiffElementViewModel | SideBySideDiffElementViewModel | SideBySideDiffElementNotebookMetadataViewModel)[] = [];
-		this.notebookMetadataViewModel = this._register(new SideBySideDiffElementNotebookMetadataViewModel(this.model.original.notebook, this.model.modified.notebook, metadataChanged ? 'modifiedMetadata' : 'unchangedMetadata', this.eventDispatcher, initData, this.notebookService, this.unchangedRegionsService, this.diffEditorHeightCalculator));
+		const viewModels: (SingleSideDiffElementViewModel | SideBySideDiffElementViewModel | NotebookDocumentMetadataViewModel)[] = [];
+		this.notebookMetadataViewModel = this._register(new NotebookDocumentMetadataViewModel(this.model.original.notebook, this.model.modified.notebook, metadataChanged ? 'modifiedMetadata' : 'unchangedMetadata', this.eventDispatcher, initData, this.notebookService, this.unchangedRegionsService, this.diffEditorHeightCalculator));
 		if (!this.ignoreMetadata) {
 			if (metadataChanged) {
 				await this.notebookMetadataViewModel.computeHeights();

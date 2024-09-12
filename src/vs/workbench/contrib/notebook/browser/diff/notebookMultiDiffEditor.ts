@@ -226,8 +226,6 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		}
 		if (uri.scheme === Schemas.vscodeNotebookMetadata) {
 			return this.viewModel?.items.find(item =>
-				item.type === 'deleteMetadata' ||
-				item.type === 'insertMetadata' ||
 				item.type === 'modifiedMetadata' ||
 				item.type === 'unchangedMetadata'
 			);
