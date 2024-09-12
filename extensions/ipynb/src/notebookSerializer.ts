@@ -8,14 +8,22 @@ import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
 import * as fnv from '@enonic/fnv-plus';
+import { DeferredPromise, generateUuid } from './helper';
 import { serializeNotebookToString } from './serializers';
 
 export class NotebookSerializer extends vscode.Disposable implements vscode.NotebookSerializer {
+	private experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', false);
 	private disposed: boolean = false;
 	private worker?: import('node:worker_threads').Worker;
+	private tasks = new Map<string, DeferredPromise<Uint8Array>>();
 
 	constructor(readonly context: vscode.ExtensionContext) {
 		super(() => { });
+		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('ipynb.experimental.serialization')) {
+				this.experimentalSave = vscode.workspace.getConfiguration('ipynb').get('experimental.serialization', false);
+			}
+		}));
 	}
 
 	override dispose() {
@@ -88,8 +96,57 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 			return new Uint8Array(0);
 		}
 
+		if (this.experimentalSave && !this.isBrowser) {
+			return this.serializeViaWorker(data);
+		}
 		const serialized = serializeNotebookToString(data);
 		return new TextEncoder().encode(serialized);
 	}
+
+	private async startWorker() {
+		if (this.disposed) {
+			throw new Error('Serializer disposed');
+		}
+		if (this.worker) {
+			return this.worker;
+		}
+		const { Worker } = await import('node:worker_threads');
+		const outputDir = getOutputDir(this.context);
+		this.worker = new Worker(vscode.Uri.joinPath(this.context.extensionUri, outputDir, 'notebookSerializerWorker.js').fsPath, {});
+		this.worker.on('exit', (exitCode) => {
+			if (!this.disposed) {
+				console.error(`IPynb Notebook Serializer Worker exited unexpectedly`, exitCode);
+			}
+			this.worker = undefined;
+		});
+		this.worker.on('message', (result: { data: Uint8Array; id: string }) => {
+			const task = this.tasks.get(result.id);
+			if (task) {
+				task.complete(result.data);
+				this.tasks.delete(result.id);
+			}
+		});
+		this.worker.on('error', (err) => {
+			if (!this.disposed) {
+				console.error(`IPynb Notebook Serializer Worker errored unexpectedly`, err);
+			}
+		});
+		return this.worker;
+	}
+	private async serializeViaWorker(data: vscode.NotebookData): Promise<Uint8Array> {
+		const worker = await this.startWorker();
+		const id = generateUuid();
+
+		const deferred = new DeferredPromise<Uint8Array>();
+		this.tasks.set(id, deferred);
+		worker.postMessage({ data, id });
+
+		return deferred.p;
+	}
 }
 
+
+function getOutputDir(context: vscode.ExtensionContext): string {
+	const main = context.extension.packageJSON.main as string;
+	return main.indexOf('/dist/') !== -1 ? 'dist' : 'out';
+}
