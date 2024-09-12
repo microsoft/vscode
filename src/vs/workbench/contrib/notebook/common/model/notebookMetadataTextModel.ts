@@ -33,7 +33,7 @@ export function getFormattedNotebookMetadataJSON(transientMetadata: TransientDoc
 	return metadataSource;
 }
 
-export class NotebookMetadataTextModel extends Disposable implements INotebookMetadataTextModel {
+export class NotebookDocumentMetadataTextModel extends Disposable implements INotebookMetadataTextModel {
 	public readonly uri: URI;
 	public get metadata(): NotebookDocumentMetadata {
 		return this.notebookModel.metadata;

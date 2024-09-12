@@ -24,7 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
-import { NotebookMetadataTextModel } from '../../common/model/notebookMetadataTextModel.js';
+import { NotebookDocumentMetadataTextModel } from '../../common/model/notebookMetadataTextModel.js';
 
 const PropertyHeaderHeight = 25;
 
@@ -106,8 +106,8 @@ export class DiffElementPlaceholderViewModel extends DiffElementViewModelBase {
 
 
 export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase {
-	public readonly originalMetadata: NotebookMetadataTextModel;
-	public readonly modifiedMetadata: NotebookMetadataTextModel;
+	public readonly originalMetadata: NotebookDocumentMetadataTextModel;
+	public readonly modifiedMetadata: NotebookDocumentMetadataTextModel;
 	public cellFoldingState: PropertyFoldingState;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 	public renderOutput: boolean = false;
@@ -169,8 +169,8 @@ export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase 
 		};
 
 		this.cellFoldingState = type === 'modifiedMetadata' ? PropertyFoldingState.Expanded : PropertyFoldingState.Collapsed;
-		this.originalMetadata = this._register(new NotebookMetadataTextModel(originalDocumentTextModel));
-		this.modifiedMetadata = this._register(new NotebookMetadataTextModel(modifiedDocumentTextModel));
+		this.originalMetadata = this._register(new NotebookDocumentMetadataTextModel(originalDocumentTextModel));
+		this.modifiedMetadata = this._register(new NotebookDocumentMetadataTextModel(modifiedDocumentTextModel));
 	}
 
 	public async computeHeights() {
