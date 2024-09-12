@@ -7,6 +7,8 @@ import { getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import type { ViewLineOptions } from '../viewParts/lines/viewLineOptions.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 
@@ -34,5 +36,11 @@ export class ViewGpuContext extends Disposable {
 			this.canvas.domNode.height = height;
 			this._onDidChangeCanvasDevicePixelDimensions.fire({ width, height });
 		}));
+	}
+
+	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
+		const d = viewportData.getViewLineRenderingData(lineNumber);
+		// TODO
+		return d.content.indexOf('e') !== -1;
 	}
 }

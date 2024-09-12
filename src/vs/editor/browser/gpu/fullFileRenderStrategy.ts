@@ -19,6 +19,7 @@ import { BindingId, type IGpuRenderStrategy } from './gpu.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
+import { ViewGpuContext } from './viewGpuContext.js';
 
 
 const enum Constants {
@@ -149,6 +150,12 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		let dirtyLineEnd = 0;
 
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
+
+			// Only attempt to render lines that the GPU renderer can handle
+			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+				continue;
+			}
+
 			// TODO: Update on dirty lines; is this known by line before rendering?
 			// if (upToDateLines.has(y)) {
 			// 	continue;
