@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { observableValue, runOnChange, type IObservable } from '../../../base/common/observable.js';
 import { TextureAtlas } from './atlas/textureAtlas.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
@@ -45,6 +46,8 @@ export class ViewGpuContext extends Disposable {
 	private readonly _onDidChangeCanvasDevicePixelDimensions = this._register(new Emitter<{ width: number; height: number }>());
 	readonly onDidChangeCanvasDevicePixelDimensions = this._onDidChangeCanvasDevicePixelDimensions.event;
 
+	readonly devicePixelRatio: IObservable<number>;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -59,8 +62,15 @@ export class ViewGpuContext extends Disposable {
 		this.device.then(device => {
 			if (!ViewGpuContext._atlas) {
 				ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, device.limits.maxTextureDimension2D, undefined);
+				runOnChange(this.devicePixelRatio, () => ViewGpuContext.atlas.clear());
 			}
 		});
+
+		const dprObs = observableValue(this, getActiveWindow().devicePixelRatio);
+		this._register(addDisposableListener(getActiveWindow(), 'resize', () => {
+			dprObs.set(getActiveWindow().devicePixelRatio, undefined);
+		}));
+		this.devicePixelRatio = dprObs;
 
 		this._register(observeDevicePixelDimensions(this.canvas.domNode, getActiveWindow(), (width, height) => {
 			this.canvas.domNode.width = width;
