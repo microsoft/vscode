@@ -5,8 +5,11 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { TextureAtlas } from './atlas/textureAtlas.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 
@@ -16,10 +19,35 @@ export class ViewGpuContext extends Disposable {
 
 	readonly device: Promise<GPUDevice>;
 
+	private static _atlas: TextureAtlas | undefined;
+
+	/**
+	 * The shared texture atlas to use across all views.
+	 *
+	 * @throws if called before the GPU device is resolved
+	 */
+	static get atlas(): TextureAtlas {
+		if (!ViewGpuContext._atlas) {
+			throw new BugIndicatingError('Cannot call ViewGpuContext.textureAtlas before device is resolved');
+		}
+		return ViewGpuContext._atlas;
+	}
+	/**
+	 * The shared texture atlas to use across all views. This is a convenience alias for
+	 * {@link ViewGpuContext.atlas}.
+	 *
+	 * @throws if called before the GPU device is resolved
+	 */
+	get atlas(): TextureAtlas {
+		return ViewGpuContext.atlas;
+	}
+
 	private readonly _onDidChangeCanvasDevicePixelDimensions = this._register(new Emitter<{ width: number; height: number }>());
 	readonly onDidChangeCanvasDevicePixelDimensions = this._onDidChangeCanvasDevicePixelDimensions.event;
 
-	constructor() {
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
 		super();
 
 		this.canvas = createFastDomNode(document.createElement('canvas'));
@@ -28,6 +56,11 @@ export class ViewGpuContext extends Disposable {
 		this.ctx = ensureNonNullable(this.canvas.domNode.getContext('webgpu'));
 
 		this.device = GPULifecycle.requestDevice().then(ref => this._register(ref).object);
+		this.device.then(device => {
+			if (!ViewGpuContext._atlas) {
+				ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, device.limits.maxTextureDimension2D, undefined);
+			}
+		});
 
 		this._register(observeDevicePixelDimensions(this.canvas.domNode, getActiveWindow(), (width, height) => {
 			this.canvas.domNode.width = width;

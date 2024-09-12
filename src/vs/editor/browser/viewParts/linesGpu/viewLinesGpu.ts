@@ -11,13 +11,12 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
-import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
 import { FullFileRenderStrategy } from '../../gpu/fullFileRenderStrategy.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
 import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.js';
-import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../lines/viewLineOptions.js';
@@ -45,8 +44,6 @@ export class ViewLinesGpu extends ViewPart {
 	private _pipeline!: GPURenderPipeline;
 
 	private _vertexBuffer!: GPUBuffer;
-
-	static atlas: TextureAtlas;
 
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _atlasGpuTexture!: GPUTexture;
@@ -77,6 +74,7 @@ export class ViewLinesGpu extends ViewPart {
 		// #region General
 
 		this._device = await this._viewGpuContext.device;
+		const atlas = ViewGpuContext.atlas;
 
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 		this._viewGpuContext.ctx.configure({
@@ -84,14 +82,6 @@ export class ViewLinesGpu extends ViewPart {
 			format: presentationFormat,
 			alphaMode: 'premultiplied',
 		});
-
-		// TODO: Should the texture atlas (shared across all editors) should be part of the gpu context (shared across view parts of this editor)?
-		// Create texture atlas
-		if (!ViewLinesGpu.atlas) {
-			ViewLinesGpu.atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D, undefined);
-		}
-		const atlas = ViewLinesGpu.atlas;
-
 		this._renderPassColorAttachment = {
 			view: null!, // Will be filled at render time
 			loadOp: 'load',
@@ -162,7 +152,7 @@ export class ViewLinesGpu extends ViewPart {
 
 		// #region Storage buffers
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, ViewLinesGpu.atlas));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
@@ -279,9 +269,7 @@ export class ViewLinesGpu extends ViewPart {
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
-		const atlas = ViewLinesGpu.atlas;
-
-		for (const [layerIndex, page] of atlas.pages.entries()) {
+		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
 			// Skip the update if it's already the latest version
 			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;
