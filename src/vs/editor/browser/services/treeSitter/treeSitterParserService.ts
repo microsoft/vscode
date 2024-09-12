@@ -231,14 +231,23 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 
 	private _parseCallback(textModel: ITextModel, index: number): string | null {
-		const chunk = textModel.getTextBuffer().getNearestChunk(index);
-		const position = textModel.getPositionAt(index);
-		if (position.lineNumber < textModel.getLineCount()) {
-			const range = new Range(position.lineNumber, position.column, (position.lineNumber + 1), position.column);
-			const text = textModel.getValueInRange(range);
-			this._logService.debug(`TreeSitter: Requested chunk for ${textModel.uri.toString()} at ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length}) for actual text "${text}"`);
-		} else {
-			this._logService.debug(`TreeSitter: Requested chunk for ${textModel.uri.toString()} at ${index} and got "${chunk.substring(0, 20)}" (length ${chunk.length})`);
+		let chunk: string | null = null;
+		try {
+			chunk = textModel.getTextBuffer().getNearestChunk(index);
+		} catch (e) {
+			this._logService.error(`Error getting nearest chunk for index (${index}), max index is ${textModel.getTextBuffer().getLength()}`, e);
+		}
+		try {
+			const position = textModel.getPositionAt(index);
+			if (position.lineNumber < textModel.getLineCount()) {
+				const range = new Range(position.lineNumber, position.column, (position.lineNumber + 1), position.column);
+				const text = textModel.getValueInRange(range);
+				this._logService.debug(`TreeSitter: Requested chunk for ${textModel.uri.toString()} at ${index} and got "${chunk?.substring(0, 20)}" (length ${chunk?.length}) for actual text "${text}"`);
+			} else {
+				this._logService.debug(`TreeSitter: Requested chunk for ${textModel.uri.toString()} at ${index} and got "${chunk?.substring(0, 20)}" (length ${chunk?.length})`);
+			}
+		} catch (e) {
+			this._logService.error('Error doing chunk logging', e);
 		}
 		return chunk;
 	}
