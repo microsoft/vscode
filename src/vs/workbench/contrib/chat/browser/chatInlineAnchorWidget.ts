@@ -24,10 +24,12 @@ import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../plat
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { ContentRefData } from '../common/annotations.js';
 
 export class InlineAnchorWidget extends Disposable {
@@ -35,15 +37,16 @@ export class InlineAnchorWidget extends Disposable {
 	constructor(
 		element: HTMLAnchorElement,
 		data: ContentRefData,
+		@IContextKeyService originalContextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IFileService fileService: IFileService,
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@ILanguageService languageService: ILanguageService,
-		@IModelService modelService: IModelService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageService languageService: ILanguageService,
 		@IMenuService menuService: IMenuService,
+		@IModelService modelService: IModelService,
 	) {
 		super();
 
@@ -57,7 +60,7 @@ export class InlineAnchorWidget extends Disposable {
 		let location: { readonly uri: URI; readonly range?: IRange };
 		let contextMenuId: MenuId;
 		let contextMenuArg: URI | { readonly uri: URI; readonly range?: IRange };
-		if (data.kind === 'symbol') { // renderLabelWithIcons
+		if (data.kind === 'symbol') {
 			location = data.symbol.location;
 			contextMenuId = MenuId.ChatInlineSymbolAnchorContext;
 			contextMenuArg = location;
@@ -85,6 +88,9 @@ export class InlineAnchorWidget extends Disposable {
 			location = data;
 			contextMenuId = MenuId.ChatInlineResourceAnchorContext;
 			contextMenuArg = location.uri;
+
+			const resourceContextKey = this._register(new ResourceContextKey(contextKeyService, fileService, languageService, modelService));
+			resourceContextKey.set(location.uri);
 
 			const label = labelService.getUriBasenameLabel(location.uri);
 			iconText = location.range && data.kind !== 'symbol' ?
