@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
@@ -38,7 +39,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	) {
 		super();
 
-		this._canvas = new OffscreenCanvas(this._fontSize * 3, this._fontSize * 3);
+		const devicePixelFontSize = Math.ceil(this._fontSize * getActiveWindow().devicePixelRatio);
+		this._canvas = new OffscreenCanvas(devicePixelFontSize * 3, devicePixelFontSize * 3);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
 			willReadFrequently: true
 		}));
@@ -79,6 +81,13 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		metadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
+		const devicePixelFontSize = Math.ceil(this._fontSize * getActiveWindow().devicePixelRatio);
+		const canvasDim = devicePixelFontSize * 3;
+		if (this._canvas.width !== canvasDim) {
+			this._canvas.width = canvasDim;
+			this._canvas.height = canvasDim;
+		}
+
 		// TODO: Support workbench.fontAliasing
 		this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
 
@@ -90,18 +99,19 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		if (fontStyle & FontStyle.Bold) {
 			fontSb.appendString('bold ');
 		}
-		fontSb.appendString(`${this._fontSize}px ${this._fontFamily}`);
+		fontSb.appendString(`${devicePixelFontSize}px ${this._fontFamily}`);
 		this._ctx.font = fontSb.build();
 
 		// TODO: Support FontStyle.Strikethrough and FontStyle.Underline text decorations, these
 		//       need to be drawn manually to the canvas. See xterm.js for "dodging" the text for
 		//       underlines.
 
-		const originX = this._fontSize;
-		const originY = this._fontSize;
+		const originX = devicePixelFontSize;
+		const originY = devicePixelFontSize;
 		this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
 		// TODO: This might actually be slower
 		// const textMetrics = this._ctx.measureText(chars);
+		this._ctx.textBaseline = 'top';
 		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
@@ -120,7 +130,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._workGlyph.source = this._canvas;
 		this._workGlyph.originOffset.x = this._workGlyph.boundingBox.left - originX;
 		this._workGlyph.originOffset.y = this._workGlyph.boundingBox.top - originY;
-
 		// const result2: IRasterizedGlyph = {
 		// 	source: this._canvas,
 		// 	boundingBox: {
