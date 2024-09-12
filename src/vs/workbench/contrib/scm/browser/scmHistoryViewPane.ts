@@ -1156,6 +1156,33 @@ export class SCMHistoryViewPane extends ViewPane {
 						return;
 					}
 
+					// If there are any removed history item references we need to check whether they are
+					// currently being used in the filter. If they are, we need to update the filter which
+					// will result in the graph being refreshed.
+					if (changes.removed.length !== 0) {
+						const historyItemsFilter = this._treeViewModel.historyItemsFilter.get();
+
+						if (historyItemsFilter !== 'all' && historyItemsFilter !== 'auto') {
+							let updateFilter = false;
+							const historyItemRefs = [...historyItemsFilter];
+
+							for (const ref of changes.removed) {
+								const index = historyItemRefs
+									.findIndex(item => item.id === ref.id);
+
+								if (index !== -1) {
+									historyItemRefs.splice(index, 1);
+									updateFilter = true;
+								}
+							}
+
+							if (updateFilter) {
+								this._treeViewModel.setHistoryItemsFilter(historyItemRefs);
+								return;
+							}
+						}
+					}
+
 					this.refresh();
 				}));
 
