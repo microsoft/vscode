@@ -171,11 +171,16 @@ export class ExtHostTask extends ExtHostTaskBase {
 					paths[i] = await resolver.resolveAsync(ws, paths[i]);
 				}
 			}
-			result.process = await findExecutable(
-				await resolver.resolveAsync(ws, toResolve.process.name),
-				toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined,
-				paths
-			);
+			const processName = await resolver.resolveAsync(ws, toResolve.process.name);
+			const cwd = toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined;
+			const foundExecutable = await findExecutable(processName, cwd, paths);
+			if (foundExecutable) {
+				result.process = foundExecutable;
+			} else if (path.isAbsolute(processName)) {
+				result.process = processName;
+			} else {
+				result.process = path.join(cwd ?? '', processName);
+			}
 		}
 		return result;
 	}
