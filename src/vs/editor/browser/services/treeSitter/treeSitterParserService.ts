@@ -210,7 +210,12 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 
 	private _parseCallback(textModel: ITextModel, index: number): string | null {
-		return textModel.getTextBuffer().getNearestChunk(index);
+		try {
+			return textModel.getTextBuffer().getNearestChunk(index);
+		} catch (e) {
+			this._logService.debug('Error getting chunk for tree-sitter parsing', e);
+		}
+		return null;
 	}
 
 	private sendParseTimeTelemetry(parseType: TelemetryParseType, languageId: string, time: number, passes: number): void {
