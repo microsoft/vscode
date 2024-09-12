@@ -39,7 +39,6 @@ import type { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../
 import type { URI } from '../../../../../base/common/uri.js';
 import { type IDiffElementViewModelBase } from './diffElementViewModel.js';
 import { autorun, transaction } from '../../../../../base/common/observable.js';
-import { UnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 import { DiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 
 export class NotebookMultiTextDiffEditor extends EditorPane {
@@ -114,7 +113,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 		}
 		const eventDispatcher = this.modelSpecificResources.add(new NotebookDiffEditorEventDispatcher());
 		const diffEditorHeightCalculator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight);
-		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, UnchangedEditorRegionsService.Empty, diffEditorHeightCalculator, undefined, true));
+		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, diffEditorHeightCalculator, undefined, true));
 		await this.viewModel.computeDiff(this.modelSpecificResources.add(new CancellationTokenSource()).token);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);

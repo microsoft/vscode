@@ -20,7 +20,6 @@ import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
-import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
