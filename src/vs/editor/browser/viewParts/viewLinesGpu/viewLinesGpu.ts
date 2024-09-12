@@ -70,6 +70,14 @@ export class ViewLinesGpu extends ViewPart {
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
 
+		// Rerender when the texture atlas deletes glyphs
+		this._register(ViewLinesGpu.atlas.onDidDeleteGlyphs(() => {
+			this._atlasGpuTextureVersions.length = 0;
+			this._atlasGpuTextureVersions[0] = 0;
+			this._atlasGpuTextureVersions[1] = 0;
+			this._renderStrategy.reset();
+		}));
+
 		this.initWebgpu();
 	}
 
