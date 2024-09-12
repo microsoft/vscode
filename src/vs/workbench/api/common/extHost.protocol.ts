@@ -1555,6 +1555,7 @@ export interface SCMHistoryItemRefsChangeEventDto {
 	readonly added: readonly SCMHistoryItemRefDto[];
 	readonly modified: readonly SCMHistoryItemRefDto[];
 	readonly removed: readonly SCMHistoryItemRefDto[];
+	readonly silent: boolean;
 }
 
 export interface SCMHistoryItemDto {
@@ -2226,7 +2227,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
-	$provideInlineEdits(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
+	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void;
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void;
 	$freeInlineCompletionsList(handle: number, pid: number): void;

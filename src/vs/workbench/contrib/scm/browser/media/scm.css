@@ -527,7 +527,7 @@
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 	border: 1px solid var(--vscode-contrastBorder);
-	margin-left: 6px;
+	margin: 0 6px;
 	padding: 2px 4px;
 }
 

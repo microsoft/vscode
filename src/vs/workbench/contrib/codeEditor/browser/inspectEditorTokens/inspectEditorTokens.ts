@@ -430,7 +430,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, captures[0].name),
+					$('td.tiw-metadata-value', undefined, captures[captures.length - 1].name),
 				));
 			}
 		}

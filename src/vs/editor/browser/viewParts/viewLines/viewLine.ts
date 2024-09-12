@@ -18,7 +18,7 @@ import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
-import { ViewLinesGpu } from '../linesGpu/viewLinesGpu.js';
+import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -98,7 +98,7 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
-		if (this._options.useGpu && ViewLinesGpu.canRender(this._options, viewportData, lineNumber)) {
+		if (this._options.useGpu && ViewGpuContext.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
 			return false;
