@@ -365,6 +365,7 @@ export class NativeEditContext extends AbstractEditContext {
 				}
 			}
 		}
+
 		this._characterBounds = characterBounds.length ? characterBounds : this._characterBounds;
 		const textModel = this._context.viewModel.model;
 		const offsetOfEditContextStart = textModel.getOffsetAt(this._textStartPositionWithinEditor);
