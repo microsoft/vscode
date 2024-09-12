@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import type { ViewLineOptions } from '../viewParts/lines/viewLineOptions.js';
+import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 
 export const enum BindingId {
 	GlyphInfo0,
