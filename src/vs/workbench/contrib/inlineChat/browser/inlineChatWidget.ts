@@ -53,6 +53,7 @@ import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatServ
 import { isResponseVM, isWelcomeVM } from '../../chat/common/chatViewModel.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 
 
 export interface InlineChatWidgetViewState {
@@ -177,6 +178,7 @@ export class InlineChatWidget {
 			{
 				listForeground: inlineChatForeground,
 				listBackground: inlineChatBackground,
+				overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 				inputEditorBackground: inputBackground,
 				resultEditorBackground: editorBackground
 			}

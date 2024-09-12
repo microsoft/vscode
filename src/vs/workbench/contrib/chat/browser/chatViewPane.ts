@@ -148,6 +148,7 @@ export class ChatViewPane extends ViewPane {
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
 					listBackground: locationBasedColors.background,
+					overlayBackground: locationBasedColors.overlayBackground,
 					inputEditorBackground: locationBasedColors.background,
 					resultEditorBackground: editorBackground
 				}));

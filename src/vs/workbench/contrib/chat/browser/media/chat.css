@@ -426,6 +426,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	right: 0;
 }
 
+.interactive-session .chat-dnd-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+
+	display: none;
+}
+
+.interactive-session .chat-dnd-overlay.visible {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.interactive-session .chat-dnd-overlay .attach-context-overlay-text {
+	padding: 0.6em;
+	margin: 0.2em;
+	line-height: 12px;
+	height: 12px;
+	display: flex;
+	align-items: center;
+	text-align: center;
+}
+
+.interactive-session .chat-dnd-overlay .attach-context-overlay-text .codicon {
+	height: 12px;
+	font-size: 12px;
+	margin-right: 3px;
+}
+
 .interactive-session .interactive-input-and-execute-toolbar {
 	box-sizing: border-box;
 	cursor: text;
