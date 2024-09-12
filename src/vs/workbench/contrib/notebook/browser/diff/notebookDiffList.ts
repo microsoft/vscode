@@ -188,7 +188,7 @@ export class NotebookDocumentMetadataDiffRenderer implements IListRenderer<Noteb
 	}
 
 	renderElement(element: NotebookDocumentMetadataViewModel, index: number, templateData: NotebookDocumentDiffElementRenderTemplate, height: number | undefined): void {
-		templateData.body.classList.remove('left', 'right', 'full');
+		templateData.body.classList.remove('full');
 		templateData.elementDisposables.add(this.instantiationService.createInstance(NotebookDocumentMetadataElement, this.notebookEditor, element, templateData));
 	}
 

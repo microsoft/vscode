@@ -260,17 +260,12 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		this.updateBorders();
 	}
 
-	styleContainer(container: HTMLElement): void {
-		container.classList.remove('inserted', 'removed');
-	}
-
 	buildBody(): void {
 		const body = this.templateData.body;
 		this._diffEditorContainer = this.templateData.diffEditorContainer;
-		body.classList.remove('left', 'right', 'full');
+		body.classList.remove('full');
 		body.classList.add('full');
 
-		this.styleContainer(this._diffEditorContainer);
 		this.updateSourceEditor();
 
 		if (this.viewModel instanceof NotebookDocumentMetadataViewModel) {
@@ -377,17 +372,11 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		const inputChanged = NOTEBOOK_DIFF_METADATA.bindTo(scopedContextKeyService);
 		inputChanged.set(this.viewModel.originalMetadata.getHash() !== this.viewModel.modifiedMetadata.getHash());
 
-		const ignoreWhitespace = NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE.bindTo(scopedContextKeyService);
-		const ignore = this.textConfigurationService.getValue<boolean>(this.viewModel.modifiedDocumentTextModel.uri, 'diffEditor.ignoreTrimWhitespace');
-		ignoreWhitespace.set(ignore);
-
 		this._toolbar = this.templateData.toolbar;
 
 		this._toolbar.context = this.viewModel;
 
 		const refreshToolbar = () => {
-			const ignore = this.textConfigurationService.getValue<boolean>(this.viewModel.modifiedDocumentTextModel.uri, 'diffEditor.ignoreTrimWhitespace');
-			ignoreWhitespace.set(ignore);
 			const hasChanges = this.viewModel.originalMetadata.getHash() !== this.viewModel.modifiedMetadata.getHash();
 			inputChanged.set(hasChanges);
 
@@ -403,12 +392,6 @@ export class NotebookDocumentMetadataElement extends Disposable {
 
 		this._register(this.viewModel.modifiedMetadata.onDidChange(() => {
 			refreshToolbar();
-		}));
-		this._register(this.textConfigurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(this.viewModel.modifiedDocumentTextModel.uri, 'diffEditor') &&
-				e.affectedKeys.has('diffEditor.ignoreTrimWhitespace')) {
-				refreshToolbar();
-			}
 		}));
 		refreshToolbar();
 	}
