@@ -188,7 +188,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				this._showCandidatePort = provider.showCandidatePort;
 				this._proxy.$setCandidateFilter();
 			}
-			const tunnelFactory = provider.tunnelFactory ?? (managedRemoteAuthority ? this.makeManagedTunnelFactory(managedRemoteAuthority) : undefined);
+			const tunnelFactory = provider ? provider.tunnelFactory : (managedRemoteAuthority ? this.makeManagedTunnelFactory(managedRemoteAuthority) : undefined);
 			if (tunnelFactory) {
 				this._forwardPortProvider = tunnelFactory;
 				let privacyOptions = provider.tunnelFeatures?.privacyOptions ?? [];
