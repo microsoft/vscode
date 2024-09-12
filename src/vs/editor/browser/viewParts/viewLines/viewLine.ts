@@ -18,7 +18,7 @@ import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
-import { ViewLinesGpu } from '../linesGpu/viewLinesGpu.js';
+import { ViewLinesGpu } from '../viewLinesGpu/viewLinesGpu.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {

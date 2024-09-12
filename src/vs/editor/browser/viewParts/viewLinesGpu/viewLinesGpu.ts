@@ -20,7 +20,7 @@ import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.j
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
-import { ViewLineOptions } from '../lines/viewLineOptions.js';
+import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 
 
 const enum GlyphStorageBufferInfo {
