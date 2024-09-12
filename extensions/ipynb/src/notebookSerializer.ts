@@ -14,7 +14,7 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 	private disposed: boolean = false;
 	private worker?: import('node:worker_threads').Worker;
 
-	constructor(readonly context: vscode.ExtensionContext, private readonly _isBrowser: boolean) {
+	constructor(readonly context: vscode.ExtensionContext, _isBrowser: boolean) {
 		super(() => { });
 	}
 
