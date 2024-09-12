@@ -533,7 +533,7 @@ export class LiveStrategy extends EditModeStrategy {
 							const menu = this._menuService.createMenu(MENU_INLINE_CHAT_ZONE, this._contextService);
 							const makeActions = () => {
 								const actions: IContentWidgetAction[] = [];
-								const tuples = menu.getActions();
+								const tuples = menu.getActions({ arg: hunkData });
 								for (const [, group] of tuples) {
 									for (const item of group) {
 										if (item instanceof MenuItemAction) {
