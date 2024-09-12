@@ -3059,7 +3059,7 @@ export class CommandCenter {
 
 	@command('git.fetchRef', { repository: true })
 	async fetchRef(repository: Repository, ref?: string): Promise<void> {
-		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
+		ref = ref ?? repository?.historyProvider.currentHistoryItemRemoteRef?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3132,7 +3132,7 @@ export class CommandCenter {
 
 	@command('git.pullRef', { repository: true })
 	async pullRef(repository: Repository, ref?: string): Promise<void> {
-		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
+		ref = ref ?? repository?.historyProvider.currentHistoryItemRemoteRef?.id;
 		if (!repository || !ref) {
 			return;
 		}

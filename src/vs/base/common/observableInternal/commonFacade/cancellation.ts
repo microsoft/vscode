@@ -3,10 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-inline-file-link-widget .monaco-icon-label {
-	display: inline-flex;
-}
-
-.chat-inline-file-link-widget .monaco-icon-label .monaco-highlighted-label {
-	white-space: normal;
-}
+export { CancellationError } from '../../errors.js';
+export { CancellationToken, CancellationTokenSource } from '../../cancellation.js';

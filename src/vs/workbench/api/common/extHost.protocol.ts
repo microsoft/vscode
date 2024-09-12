@@ -1542,14 +1542,6 @@ export type SCMRawResourceSplices = [
 	SCMRawResourceSplice[]
 ];
 
-export interface SCMHistoryItemGroupDto {
-	readonly id: string;
-	readonly name: string;
-	readonly revision?: string;
-	readonly base?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
-	readonly remote?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
-}
-
 export interface SCMHistoryItemRefDto {
 	readonly id: string;
 	readonly name: string;
@@ -1557,6 +1549,13 @@ export interface SCMHistoryItemRefDto {
 	readonly category?: string;
 	readonly description?: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+}
+
+export interface SCMHistoryItemRefsChangeEventDto {
+	readonly added: readonly SCMHistoryItemRefDto[];
+	readonly modified: readonly SCMHistoryItemRefDto[];
+	readonly removed: readonly SCMHistoryItemRefDto[];
+	readonly silent: boolean;
 }
 
 export interface SCMHistoryItemDto {
@@ -1600,7 +1599,8 @@ export interface MainThreadSCMShape extends IDisposable {
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): Promise<void>;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): Promise<void>;
 
-	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): Promise<void>;
+	$onDidChangeHistoryProviderCurrentHistoryItemRefs(sourceControlHandle: number, historyItemRef?: SCMHistoryItemRefDto, historyItemRemoteRef?: SCMHistoryItemRefDto, historyItemBaseRef?: SCMHistoryItemRefDto): Promise<void>;
+	$onDidChangeHistoryProviderHistoryItemRefs(sourceControlHandle: number, historyItemRefs: SCMHistoryItemRefsChangeEventDto): Promise<void>;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
@@ -2227,7 +2227,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
-	$provideInlineEdits(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
+	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void;
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void;
 	$freeInlineCompletionsList(handle: number, pid: number): void;

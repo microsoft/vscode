@@ -3,22 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, IReader, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { derivedDisposable, derivedWithSetter } from '../../../../base/common/observableInternal/derived.js';
+import { derived, derivedDisposable, derivedObservableWithCache, derivedWithSetter, IReader, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
-import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { inlineEditVisible, isPinnedContextKey } from './consts.js';
 import { InlineEditsModel } from './inlineEditsModel.js';
 import { InlineEditsWidget } from './inlineEditsWidget.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 export class InlineEditsController extends Disposable {
 	static ID = 'editor.contrib.inlineEditsController';

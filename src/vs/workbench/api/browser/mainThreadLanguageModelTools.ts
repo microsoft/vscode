@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
-import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
+import { ChatModel } from '../../contrib/chat/common/chatModel.js';
+import { IChatService, IChatTask } from '../../contrib/chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
+import { MainThreadChatTask } from './mainThreadChatAgents2.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
@@ -19,6 +23,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 	constructor(
 		extHostContext: IExtHostContext,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageModelTools);
@@ -30,12 +35,27 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
-		return this._languageModelToolsService.invokeTool(
-			dto,
-			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
-			token,
-		);
+	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
+		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
+		// TODO move this to the tools service?
+		let task: IChatTask | undefined;
+		if (dto.context) {
+			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
+			const request = model.getRequests().at(-1)!;
+			const tool = this._languageModelToolsService.getTool(dto.toolId);
+			task = new MainThreadChatTask(new MarkdownString(`Using ${tool?.displayName ?? dto.toolId}`));
+			model.acceptResponseProgress(request, task);
+		}
+
+		try {
+			return await this._languageModelToolsService.invokeTool(
+				dto,
+				(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
+				token,
+			);
+		} finally {
+			task?.complete();
+		}
 	}
 
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number> {

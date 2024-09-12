@@ -29,7 +29,7 @@ import { NotebookEditor } from './notebookEditor.js';
 import { NotebookEditorInput, NotebookEditorInputOptions } from '../common/notebookEditorInput.js';
 import { INotebookService } from '../common/notebookService.js';
 import { NotebookService } from './services/notebookServiceImpl.js';
-import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell, NotebookCellsChangeType } from '../common/notebookCommon.js';
+import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell, NotebookCellsChangeType, NotebookMetadataUri } from '../common/notebookCommon.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { INotebookEditorModelResolverService } from '../common/notebookEditorModelResolverService.js';
@@ -128,6 +128,7 @@ import { NotebookMultiTextDiffEditor } from './diff/notebookMultiDiffEditor.js';
 import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInput.js';
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
+import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetadataTextModel.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -605,6 +606,82 @@ class CellInfoContentProvider {
 	}
 }
 
+class NotebookMetadataContentProvider {
+	static readonly ID = 'workbench.contrib.notebookMetadataContentProvider';
+
+	private readonly _disposables: IDisposable[] = [];
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
+	) {
+		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookMetadata, {
+			provideTextContent: this.provideMetadataTextContent.bind(this)
+		}));
+
+		this._disposables.push(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookMetadata,
+			formatting: {
+				label: '${path} (metadata)',
+				separator: '/'
+			}
+		}));
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
+	}
+
+	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+
+		const data = NotebookMetadataUri.parse(resource);
+		if (!data) {
+			return null;
+		}
+
+		const ref = await this._notebookModelResolverService.resolve(data);
+		let result: ITextModel | null = null;
+
+		const mode = this._languageService.createById('json');
+		const disposables = new DisposableStore();
+		const metadataSource = getFormattedNotebookMetadataJSON(ref.object.notebook.transientOptions.transientDocumentMetadata, ref.object.notebook.metadata);
+		result = this._modelService.createModel(
+			metadataSource,
+			mode,
+			resource
+		);
+
+		if (!result) {
+			ref.dispose();
+			return null;
+		}
+
+		this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
+			if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ChangeDocumentMetadata || event.kind === NotebookCellsChangeType.ModelChange))) {
+				const value = getFormattedNotebookMetadataJSON(ref.object.notebook.transientOptions.transientDocumentMetadata, ref.object.notebook.metadata);
+				if (result.getValue() !== value) {
+					result.setValue(value);
+				}
+			}
+		})));
+
+		const once = result.onWillDispose(() => {
+			disposables.dispose();
+			once.dispose();
+			ref.dispose();
+		});
+
+		return result;
+	}
+}
+
 class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.registerCellSchemas';
@@ -769,6 +846,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 registerWorkbenchContribution2(NotebookContribution.ID, NotebookContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(CellContentProvider.ID, CellContentProvider, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(CellInfoContentProvider.ID, CellInfoContentProvider, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(NotebookMetadataContentProvider.ID, NotebookMetadataContentProvider, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterSchemasContribution.ID, RegisterSchemasContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(NotebookEditorManager.ID, NotebookEditorManager, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NotebookLanguageSelectorScoreRefine.ID, NotebookLanguageSelectorScoreRefine, WorkbenchPhase.BlockRestore);

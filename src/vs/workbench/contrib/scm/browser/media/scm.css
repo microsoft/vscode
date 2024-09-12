@@ -139,8 +139,20 @@
 	height: 22px;
 }
 
+.scm-view .monaco-list-row .history-item > .graph-container.current > .graph > circle:last-child {
+	fill: var(--vscode-sideBar-background);
+}
+
+.scm-view .monaco-list-row:hover .history-item > .graph-container.current > .graph > circle:last-child {
+	fill: var(--vscode-list-hoverBackground);
+}
+
 .scm-view .monaco-list-row .history-item > .graph-container > .graph > circle {
 	stroke: var(--vscode-sideBar-background);
+}
+
+.scm-view .monaco-list-row:hover .history-item > .graph-container > .graph > circle {
+	stroke: var(--vscode-list-hoverBackground);
 }
 
 .scm-view .monaco-list-row .history-item > .label-container {
@@ -473,7 +485,11 @@
 }
 
 .monaco-hover.history-item-hover p:last-child {
-	margin-bottom: 4px;
+	margin-bottom: 0;
+}
+
+.monaco-hover.history-item-hover p:last-child span:not(.codicon) {
+	margin-bottom: 2px !important;
 }
 
 .monaco-hover.history-item-hover hr {
@@ -485,11 +501,35 @@
 	margin: 4px 0;
 }
 
-.monaco-hover.history-item-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span:not(.codicon) {
+.monaco-hover.history-item-hover span:not(.codicon) {
 	margin-bottom: 0 !important;
 }
 
+.monaco-hover.history-item-hover .hover-row.status-bar .action {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-hover.history-item-hover .hover-row.status-bar .action .codicon {
+	color: inherit;
+	font-size: 12px;
+}
+
 /* Graph */
+
+.pane-header .scm-graph-view-badge-container {
+	display: flex;
+	align-items: center;
+	min-width: fit-content;
+}
+
+.pane-header .scm-graph-view-badge-container > .scm-graph-view-badge.monaco-count-badge.long {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border: 1px solid var(--vscode-contrastBorder);
+	margin: 0 6px;
+	padding: 2px 4px;
+}
 
 .monaco-workbench .part.auxiliarybar > .title > .title-actions .action-label.scm-graph-repository-picker {
 	display: flex;
@@ -497,6 +537,7 @@
 
 .monaco-toolbar .action-label.scm-graph-repository-picker,
 .monaco-toolbar .action-label.scm-graph-history-item-picker {
+	color: var(--vscode-icon-foreground);
 	align-items: center;
 	font-weight: normal;
 	line-height: 16px;

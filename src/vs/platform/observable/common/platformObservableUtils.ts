@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { autorunOpts, IObservable, IReader } from '../../../base/common/observable.js';
-import { observableFromEventOpts } from '../../../base/common/observableInternal/utils.js';
+import { autorunOpts, IObservable, IReader, observableFromEventOpts } from '../../../base/common/observable.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 

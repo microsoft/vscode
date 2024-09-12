@@ -36,6 +36,7 @@ import { ISearchService } from '../../../../services/search/common/search.js';
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -374,6 +375,8 @@ class BuiltinDynamicCompletions extends Disposable {
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 	}
 
+	private cacheKey?: { key: string; time: number };
+
 	private async addFileEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
 		const makeFileCompletionItem = (resource: URI): CompletionItem => {
@@ -382,11 +385,12 @@ class BuiltinDynamicCompletions extends Disposable {
 			const insertText = `${chatVariableLeader}file:${basename} `;
 
 			return {
-				label: { label: `${chatVariableLeader}file:${basename}`, description: this.labelService.getUriLabel(resource) },
+				label: { label: basename, description: this.labelService.getUriLabel(resource, { relative: true }) },
+				filterText: `${chatVariableLeader}${basename}`,
 				insertText,
 				range: info,
 				kind: CompletionItemKind.File,
-				sortText: 'zz',
+				sortText: '{', // after `z`
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.file',
@@ -431,9 +435,26 @@ class BuiltinDynamicCompletions extends Disposable {
 		// SEARCH
 		// use file search when having a pattern
 		if (pattern) {
+
+			if (this.cacheKey && Date.now() - this.cacheKey.time > 60000) {
+				this.searchService.clearCache(this.cacheKey.key);
+				this.cacheKey = undefined;
+			}
+
+			if (!this.cacheKey) {
+				this.cacheKey = {
+					key: generateUuid(),
+					time: Date.now()
+				};
+			}
+
+			this.cacheKey.time = Date.now();
+
 			const query = this.queryBuilder.file(this.workspaceContextService.getWorkspace().folders, {
 				filePattern: pattern,
-				maxResults: 25
+				sortByScore: true,
+				maxResults: 250,
+				cacheKey: this.cacheKey.key
 			});
 
 			const data = await this.searchService.fileSearch(query, token);
@@ -444,11 +465,11 @@ class BuiltinDynamicCompletions extends Disposable {
 				}
 				result.suggestions.push(makeFileCompletionItem(match.resource));
 			}
-
-			if (!data.limitHit) {
-				result.incomplete = true;
-			}
 		}
+
+		// mark results as incomplete because further typing might yield
+		// in more search results
+		result.incomplete = true;
 	}
 
 	private cmdAddReference(arg: ReferenceArgument) {

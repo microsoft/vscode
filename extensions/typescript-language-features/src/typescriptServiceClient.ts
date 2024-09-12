@@ -983,7 +983,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						kind: getDiagnosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics,
-						// @ts-expect-error until ts 5.6
 						spans: diagnosticEvent.body.spans,
 					});
 				}
@@ -1079,11 +1078,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				return;
 
 			case EventName.requestCompleted: {
-				// @ts-expect-error until ts 5.6
 				const diagnosticsDuration = (event.body as Proto.RequestCompletedEventBody).performanceData?.diagnosticsDuration;
 				if (diagnosticsDuration) {
 					this.diagnosticsManager.logDiagnosticsPerformanceTelemetry(
-						// @ts-expect-error until ts 5.6
 						diagnosticsDuration.map(fileData => {
 							const resource = this.toResource(fileData.file);
 							return {

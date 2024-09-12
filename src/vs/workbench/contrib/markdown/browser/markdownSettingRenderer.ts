@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../../nls.js';
-import { IPreferencesService, ISetting } from '../../../services/preferences/common/preferences.js';
-import { settingKeyToDisplayFormat } from '../../preferences/browser/settingsTreeModels.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import type { Tokens } from '../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { Tokens } from '../../../../base/common/marked/marked.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IPreferencesService, ISetting } from '../../../services/preferences/common/preferences.js';
+import { settingKeyToDisplayFormat } from '../../preferences/browser/settingsTreeModels.js';
 
 export class SimpleSettingRenderer {
 	private readonly codeSettingRegex: RegExp;
