@@ -67,10 +67,23 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		}
 
 		const results = await Promise.allSettled(promises);
+		let pcasChanged = false;
 		for (const result of results) {
 			if (result.status === 'rejected') {
 				this._logger.error('[initialize] Error getting PCA:', result.reason);
+			} else {
+				if (!result.value.accounts.length) {
+					pcasChanged = true;
+					const pcaKey = JSON.stringify({ clientId: result.value.clientId, authority: result.value.authority });
+					this._pcaDisposables.get(pcaKey)?.dispose();
+					this._pcaDisposables.delete(pcaKey);
+					this._pcas.delete(pcaKey);
+					this._logger.debug(`[initialize] [${result.value.clientId}] [${result.value.authority}] PCA disposed because it's empty.`);
+				}
 			}
+		}
+		if (pcasChanged) {
+			await this._storePublicClientApplications();
 		}
 		this._logger.debug('[initialize] PublicClientApplicationManager initialized');
 	}
@@ -106,6 +119,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 				// The PCA has no more accounts, so we can dispose it so we're not keeping it
 				// around forever.
 				disposable.dispose();
+				this._pcaDisposables.delete(pcasKey);
 				this._pcas.delete(pcasKey);
 				this._logger.debug(`[_doCreatePublicClientApplication] [${clientId}] [${authority}] PCA disposed. Firing off storing of PCAs...`);
 				void this._storePublicClientApplications();
