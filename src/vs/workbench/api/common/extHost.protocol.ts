@@ -1555,6 +1555,7 @@ export interface SCMHistoryItemRefsChangeEventDto {
 	readonly added: readonly SCMHistoryItemRefDto[];
 	readonly modified: readonly SCMHistoryItemRefDto[];
 	readonly removed: readonly SCMHistoryItemRefDto[];
+	readonly silent: boolean;
 }
 
 export interface SCMHistoryItemDto {

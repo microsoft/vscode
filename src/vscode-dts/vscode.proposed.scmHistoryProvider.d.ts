@@ -76,5 +76,13 @@ declare module 'vscode' {
 		readonly added: readonly SourceControlHistoryItemRef[];
 		readonly removed: readonly SourceControlHistoryItemRef[];
 		readonly modified: readonly SourceControlHistoryItemRef[];
+
+		/**
+		 * Flag to indicate if the operation that caused the event to trigger was due
+		 * to a user action or a background operation (ex: Auto Fetch). The flag is used
+		 * to determine whether to automatically refresh the user interface or present
+		 * the user with a visual cue that the user interface is outdated.
+		 */
+		readonly silent: boolean;
 	}
 }
