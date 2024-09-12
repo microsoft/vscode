@@ -34,10 +34,10 @@ export class FocusTracker extends Disposable {
 	}
 
 	public focus(): void {
-		this._domNode.focus();
 		// fixes: https://github.com/microsoft/vscode/issues/228147
 		// Immediately call this method in order to directly set the field isFocused to true so the textInputFocus context key is evaluated correctly
 		this._handleFocusedChanged(true);
+		this._domNode.focus();
 	}
 
 	get isFocused(): boolean {
