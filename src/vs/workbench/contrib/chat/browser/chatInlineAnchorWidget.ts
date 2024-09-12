@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -51,20 +50,20 @@ export class InlineAnchorWidget extends Disposable {
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
 
 		element.classList.add('chat-inline-anchor-widget', 'show-file-icons');
-		element.replaceChildren();
 
-		const resourceLabel = this._register(new IconLabel(element, { supportHighlights: false, supportIcons: true }));
+		let iconText: string;
+		let iconClasses: string[];
 
 		let location: { readonly uri: URI; readonly range?: IRange };
 		let contextMenuId: MenuId;
 		let contextMenuArg: URI | { readonly uri: URI; readonly range?: IRange };
-		if (data.kind === 'symbol') {
+		if (data.kind === 'symbol') { // renderLabelWithIcons
 			location = data.symbol.location;
 			contextMenuId = MenuId.ChatInlineSymbolAnchorContext;
 			contextMenuArg = location;
 
-			const icon = SymbolKinds.toIcon(data.symbol.kind);
-			resourceLabel.setLabel(`$(${icon.id}) ${data.symbol.name}`, undefined, {});
+			iconText = data.symbol.name;
+			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(data.symbol.kind))];
 
 			const model = modelService.getModel(location.uri);
 			if (model) {
@@ -88,14 +87,16 @@ export class InlineAnchorWidget extends Disposable {
 			contextMenuArg = location.uri;
 
 			const label = labelService.getUriBasenameLabel(location.uri);
-			const title = location.range && data.kind !== 'symbol' ?
+			iconText = location.range && data.kind !== 'symbol' ?
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 				label;
 
-			resourceLabel.setLabel(title, undefined, {
-				extraClasses: getIconClasses(modelService, languageService, location.uri)
-			});
+			iconClasses = getIconClasses(modelService, languageService, location.uri);
 		}
+
+		const iconEl = dom.$('span.icon');
+		iconEl.classList.add(...iconClasses);
+		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
 		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
 		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
