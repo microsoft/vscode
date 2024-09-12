@@ -160,6 +160,12 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		let tokenIndex = 0;
 		const lineStartOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
 
+		const increaseSizeOfTokensByOneToken = () => {
+			const newTokens = new Uint32Array(tokens.length + 2);
+			newTokens.set(tokens);
+			tokens = newTokens;
+		};
+
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
 			const metadata = this.findMetadata(capture.name);
@@ -178,17 +184,36 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			}
 			const intermediateTokenOffset = lineRelativeOffset - currentTokenLength;
 			if (previousTokenEnd < intermediateTokenOffset) {
+				// Add en empty token to cover the space where there were no captures
 				tokens[tokenIndex * 2] = intermediateTokenOffset;
 				tokens[tokenIndex * 2 + 1] = 0;
 				tokenIndex++;
-				const newTokens = new Uint32Array(tokens.length + 2);
-				newTokens.set(tokens);
-				tokens = newTokens;
+
+				increaseSizeOfTokensByOneToken();
 			}
 
-			tokens[tokenIndex * 2] = lineRelativeOffset;
-			tokens[tokenIndex * 2 + 1] = metadata;
-			tokenIndex++;
+			const addCurrentTokenToArray = () => {
+				tokens[tokenIndex * 2] = lineRelativeOffset;
+				tokens[tokenIndex * 2 + 1] = metadata;
+				tokenIndex++;
+			};
+
+			if (previousTokenEnd > lineRelativeOffset) {
+				// The current token is within the previous token. Adjust the end of the previous token.
+				const originalPreviousTokenEndOffset = tokens[(tokenIndex - 1) * 2];
+				tokens[(tokenIndex - 1) * 2] = intermediateTokenOffset;
+
+				addCurrentTokenToArray();
+				// Add the rest of the previous token after the current token
+				increaseSizeOfTokensByOneToken();
+				tokens[tokenIndex * 2] = originalPreviousTokenEndOffset;
+				tokens[tokenIndex * 2 + 1] = tokens[(tokenIndex - 2) * 2 + 1];
+				tokenIndex++;
+
+			} else {
+				// Just add the token to the array
+				addCurrentTokenToArray();
+			}
 		}
 
 		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
