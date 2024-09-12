@@ -5,7 +5,7 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { CharCode } from '../../../../base/common/charCode.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { TwoKeyMap } from '../../../../base/common/map.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -45,6 +45,9 @@ export class TextureAtlas extends Disposable {
 	 */
 	private readonly _glyphPageIndex: TwoKeyMap<string, number, number> = new TwoKeyMap();
 
+	private readonly _onDidDeleteGlyphs = this._register(new Emitter<void>());
+	readonly onDidDeleteGlyphs = this._onDidDeleteGlyphs.event;
+
 	constructor(
 		/** The maximum texture size supported by the GPU. */
 		private readonly _maxTextureSize: number,
@@ -64,6 +67,12 @@ export class TextureAtlas extends Disposable {
 		const dprFactor = Math.max(1, Math.floor(getActiveWindow().devicePixelRatio));
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
+		this._initFirstPage();
+
+		this._register(toDisposable(() => dispose(this._pages)));
+	}
+
+	private _initFirstPage() {
 		const firstPage = this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, this._allocatorType);
 		this._pages.push(firstPage);
 
@@ -73,11 +82,26 @@ export class TextureAtlas extends Disposable {
 		const nullRasterizer = new GlyphRasterizer(1, '');
 		firstPage.getGlyph(nullRasterizer, '', 0);
 		nullRasterizer.dispose();
-
-		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
-	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+	clear() {
+		// Clear all pages
+		for (const page of this._pages) {
+			page.dispose();
+		}
+		this._pages.length = 0;
+		this._glyphPageIndex.clear();
+		this._warmedUpRasterizers.clear();
+		this._warmUpTask.clear();
+
+		// Recreate first
+		this._initFirstPage();
+
+		// Tell listeners
+		this._onDidDeleteGlyphs.fire();
+	}
+
+	getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Encode font size and family into key
 		// Ignore metadata that doesn't affect the glyph
 		metadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
