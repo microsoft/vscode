@@ -5,13 +5,10 @@
 
 import * as os from 'os';
 import { FileAccess } from '../../../base/common/network.js';
-import { getCaseInsensitive } from '../../../base/common/objects.js';
 import * as path from '../../../base/common/path.js';
 import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import * as process from '../../../base/common/process.js';
 import { format } from '../../../base/common/strings.js';
-import { isString } from '../../../base/common/types.js';
-import * as pfs from '../../../base/node/pfs.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from '../common/terminal.js';
@@ -26,59 +23,6 @@ export function getWindowsBuildNumber(): number {
 		buildNumber = parseInt(osVersion[3]);
 	}
 	return buildNumber;
-}
-
-export async function findExecutable(command: string, cwd?: string, paths?: string[], env: IProcessEnvironment = process.env as IProcessEnvironment, exists: (path: string) => Promise<boolean> = pfs.Promises.exists): Promise<string | undefined> {
-	// If we have an absolute path then we take it.
-	if (path.isAbsolute(command)) {
-		return await exists(command) ? command : undefined;
-	}
-	if (cwd === undefined) {
-		cwd = process.cwd();
-	}
-	const dir = path.dirname(command);
-	if (dir !== '.') {
-		// We have a directory and the directory is relative (see above). Make the path absolute
-		// to the current working directory.
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	const envPath = getCaseInsensitive(env, 'PATH');
-	if (paths === undefined && isString(envPath)) {
-		paths = envPath.split(path.delimiter);
-	}
-	// No PATH environment. Make path absolute to the cwd.
-	if (paths === undefined || paths.length === 0) {
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	// We have a simple file name. We get the path variable from the env
-	// and try to find the executable on the path.
-	for (const pathEntry of paths) {
-		// The path entry is absolute.
-		let fullPath: string;
-		if (path.isAbsolute(pathEntry)) {
-			fullPath = path.join(pathEntry, command);
-		} else {
-			fullPath = path.join(cwd, pathEntry, command);
-		}
-
-		if (await exists(fullPath)) {
-			return fullPath;
-		}
-		if (isWindows) {
-			let withExtension = fullPath + '.com';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-		}
-	}
-	const fullPath = path.join(cwd, command);
-	return await exists(fullPath) ? fullPath : undefined;
 }
 
 export interface IShellIntegrationConfigInjection {
