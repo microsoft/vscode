@@ -53,7 +53,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 				return true;
 			})
 			.filter(item => item instanceof NotebookMultiDiffEditorOutputItem ? !this.hideOutput : true)
-			.filter(item => item instanceof NotebookMultiDiffEditorMetadataItem ? !this.hideCellMetadata : true);
+			.filter(item => item instanceof NotebookMultiDiffEditorMetadataItem ? !this.ignoreMetadata : true);
 	}
 
 	private _hasUnchangedCells?: boolean;
@@ -69,9 +69,9 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this._onDidChange.fire();
 	}
 	private hideOutput?: boolean;
-	private hideCellMetadata?: boolean;
+	private ignoreMetadata?: boolean;
 
-	private originalCellViewModels: DiffElementCellViewModelBase[] = [];
+	private originalCellViewModels: IDiffElementViewModelBase[] = [];
 	constructor(private readonly model: INotebookDiffEditorModel,
 		private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		private readonly configurationService: IConfigurationService,
@@ -83,15 +83,15 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	) {
 		super();
 		this.hideOutput = this.model.modified.notebook.transientOptions.transientOutputs || this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
-		this.hideCellMetadata = this.configurationService.getValue('notebook.diff.ignoreMetadata');
+		this.ignoreMetadata = this.configurationService.getValue('notebook.diff.ignoreMetadata');
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			let triggerChange = false;
 			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
 				const newValue = this.configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
 
-				if (newValue !== undefined && this.hideCellMetadata !== newValue) {
-					this.hideCellMetadata = newValue;
+				if (newValue !== undefined && this.ignoreMetadata !== newValue) {
+					this.ignoreMetadata = newValue;
 					triggerChange = true;
 				}
 			}
@@ -195,7 +195,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 	}
 
 	private async updateViewModels(cellDiffInfo: CellDiffInfo[]) {
-		const cellViewModels = await createDiffViewModels(this.configurationService, this.model, this.eventDispatcher, cellDiffInfo, this.fontInfo, this.notebookService, this.unchangedRegionsService);
+		const cellViewModels = await this.createDiffViewModels(cellDiffInfo);
 		const oldLength = this._items.length;
 		this.clear();
 		this._items.splice(0, oldLength);
@@ -243,6 +243,90 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		// This is to ensure that the diff editor is not resized multiple times, thereby avoiding flickering.
 		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: this._items });
 	}
+	private async createDiffViewModels(computedCellDiffs: CellDiffInfo[]) {
+		const originalModel = this.model.original.notebook;
+		const modifiedModel = this.model.modified.notebook;
+		const initData = {
+			metadataStatusHeight: this.configurationService.getValue('notebook.diff.ignoreMetadata') ? 0 : 25,
+			outputStatusHeight: this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(modifiedModel.transientOptions.transientOutputs) ? 0 : 25,
+			fontInfo: this.fontInfo
+		};
+
+		const viewModels: (SingleSideDiffElementViewModel | SideBySideDiffElementViewModel)[] = [];
+		const cellViewModels = await Promise.all(computedCellDiffs.map(async (diff) => {
+			switch (diff.type) {
+				case 'delete': {
+					return new SingleSideDiffElementViewModel(
+						originalModel,
+						modifiedModel,
+						originalModel.cells[diff.originalCellIndex],
+						undefined,
+						'delete',
+						this.eventDispatcher,
+						initData,
+						this.notebookService,
+						this.configurationService,
+						this.unchangedRegionsService,
+						diff.originalCellIndex
+					);
+				}
+				case 'insert': {
+					return new SingleSideDiffElementViewModel(
+						modifiedModel,
+						originalModel,
+						undefined,
+						modifiedModel.cells[diff.modifiedCellIndex],
+						'insert',
+						this.eventDispatcher,
+						initData,
+						this.notebookService,
+						this.configurationService,
+						this.unchangedRegionsService,
+						diff.modifiedCellIndex
+					);
+				}
+				case 'modified': {
+					const viewModel = new SideBySideDiffElementViewModel(
+						this.model.modified.notebook,
+						this.model.original.notebook,
+						originalModel.cells[diff.originalCellIndex],
+						modifiedModel.cells[diff.modifiedCellIndex],
+						'modified',
+						this.eventDispatcher,
+						initData,
+						this.notebookService,
+						this.configurationService,
+						diff.originalCellIndex,
+						this.unchangedRegionsService
+					);
+					// Reduces flicker (compute this before setting the model)
+					// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+					// & that results in flicker.
+					await viewModel.computeEditorHeights();
+					return viewModel;
+				}
+				case 'unchanged': {
+					return new SideBySideDiffElementViewModel(
+						this.model.modified.notebook,
+						this.model.original.notebook,
+						originalModel.cells[diff.originalCellIndex],
+						modifiedModel.cells[diff.modifiedCellIndex],
+						'unchanged', this.eventDispatcher,
+						initData,
+						this.notebookService,
+						this.configurationService,
+						diff.originalCellIndex,
+						this.unchangedRegionsService
+					);
+				}
+			}
+		}));
+
+		cellViewModels.forEach(vm => viewModels.push(vm));
+
+		return viewModels;
+	}
+
 }
 
 
@@ -355,7 +439,7 @@ function computeDiff(model: INotebookDiffEditorModel, diffResult: INotebookDiffR
 		firstChangeIndex
 	};
 }
-function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: DiffElementCellViewModelBase[], model: INotebookDiffEditorModel) {
+function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: IDiffElementViewModelBase[], model: INotebookDiffEditorModel) {
 	if (cellDiffInfo.length !== viewModels.length) {
 		return false;
 	}
@@ -393,84 +477,6 @@ function isEqual(cellDiffInfo: CellDiffInfo[], viewModels: DiffElementCellViewMo
 	}
 
 	return true;
-}
-
-async function createDiffViewModels(configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, computedCellDiffs: CellDiffInfo[], fontInfo: FontInfo | undefined, notebookService: INotebookService, unchangedRegionsService: IUnchangedEditorRegionsService) {
-	const originalModel = model.original.notebook;
-	const modifiedModel = model.modified.notebook;
-	const initData = {
-		metadataStatusHeight: configurationService.getValue('notebook.diff.ignoreMetadata') ? 0 : 25,
-		outputStatusHeight: configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(modifiedModel.transientOptions.transientOutputs) ? 0 : 25,
-		fontInfo
-	};
-	return Promise.all(computedCellDiffs.map(async (diff) => {
-		switch (diff.type) {
-			case 'delete': {
-				return new SingleSideDiffElementViewModel(
-					originalModel,
-					modifiedModel,
-					originalModel.cells[diff.originalCellIndex],
-					undefined,
-					'delete',
-					eventDispatcher,
-					initData,
-					notebookService,
-					configurationService,
-					unchangedRegionsService,
-					diff.originalCellIndex
-				);
-			}
-			case 'insert': {
-				return new SingleSideDiffElementViewModel(
-					modifiedModel,
-					originalModel,
-					undefined,
-					modifiedModel.cells[diff.modifiedCellIndex],
-					'insert',
-					eventDispatcher,
-					initData,
-					notebookService,
-					configurationService,
-					unchangedRegionsService,
-					diff.modifiedCellIndex
-				);
-			}
-			case 'modified': {
-				const viewModel = new SideBySideDiffElementViewModel(
-					model.modified.notebook,
-					model.original.notebook,
-					originalModel.cells[diff.originalCellIndex],
-					modifiedModel.cells[diff.modifiedCellIndex],
-					'modified',
-					eventDispatcher,
-					initData,
-					notebookService,
-					configurationService,
-					diff.originalCellIndex,
-					unchangedRegionsService
-				);
-				// Reduces flicker (compute this before setting the model)
-				// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
-				// & that results in flicker.
-				await viewModel.computeEditorHeights();
-				return viewModel;
-			}
-			case 'unchanged': {
-				return new SideBySideDiffElementViewModel(
-					model.modified.notebook,
-					model.original.notebook,
-					originalModel.cells[diff.originalCellIndex],
-					modifiedModel.cells[diff.modifiedCellIndex],
-					'unchanged', eventDispatcher,
-					initData,
-					notebookService,
-					configurationService,
-					diff.originalCellIndex,
-					unchangedRegionsService
-				);
-			}
-		}
-	}));
 }
 
 function computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel) {

@@ -17,10 +17,11 @@
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
 	background: var(--vscode-inlineChat-background);
+	padding-top: 3px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
-	padding: 2px 6px 0 6px;
+	padding: 4px 8px 0 8px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -37,16 +38,18 @@
 	margin: 2px 0 0 4px;
 }
 
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .monaco-scrollable-element {
+	border-top-left-radius: 3px;
+	border-top-right-radius: 3px;
+}
 
-.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list {
-	padding: 4px 0 0 0;
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .monaco-scrollable-element .shadow.top {
+	box-shadow: none;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
-	gap: 6px;
-	padding-top: 2px;
-	padding-right: 20px;
-	padding-left: 6px;
+	gap: 8px;
+	padding: 3px 20px 3px 8px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .header .avatar {
@@ -76,14 +79,14 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding-left: 6px;
-	padding-right: 6px;
+	padding-left: 8px;
+	padding-right: 8px;
 }
 
 .monaco-workbench .inline-chat > .status {
 	.label,
 	.actions {
-		padding-top: 6px;
+		padding-top: 8px;
 	}
 }
 
@@ -106,8 +109,8 @@
 
 .monaco-workbench .inline-chat .status .label.status {
 	margin-left: auto;
-	padding-right: 6px;
-	padding-left: 6px;
+	padding-right: 8px;
+	padding-left: 8px;
 }
 
 .monaco-workbench .inline-chat .status .label.hidden,
@@ -161,7 +164,8 @@
 	}
 
 	.monaco-text-button {
-		padding: 0 2px;
+		padding: 0 6px;
+		font-size: 12px;
 		white-space: nowrap;
 	}
 }

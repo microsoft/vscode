@@ -53,6 +53,7 @@ export interface ISCMHistoryItemRefsChangeEvent {
 	readonly added: readonly ISCMHistoryItemRef[];
 	readonly removed: readonly ISCMHistoryItemRef[];
 	readonly modified: readonly ISCMHistoryItemRef[];
+	readonly silent: boolean;
 }
 
 export interface ISCMHistoryItem {
@@ -74,6 +75,7 @@ export interface ISCMHistoryItemGraphNode {
 
 export interface ISCMHistoryItemViewModel {
 	readonly historyItem: ISCMHistoryItem;
+	readonly isCurrent: boolean;
 	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
 	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
 }

@@ -31,6 +31,8 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { fixedDiffEditorOptions, fixedEditorOptions } from './diffCellEditorOptions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { localize } from '../../../../../nls.js';
+import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
+import { IDiffEditorConstructionOptions } from '../../../../../editor/browser/editorBrowser.js';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<IDiffElementViewModelBase> {
 	private readonly lineHeight: number;
@@ -166,20 +168,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 	}
 
 	private _buildSourceEditor(sourceContainer: HTMLElement) {
-		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
-
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
-			...fixedEditorOptions,
-			glyphMargin: false,
-			dimension: {
-				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
-				height: 0
-			},
-			automaticLayout: false,
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
-		}, {});
-
-		return { editor, editorContainer };
+		return buildSourceEditor(this.instantiationService, this.notebookEditor, sourceContainer);
 	}
 
 	renderElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
@@ -289,29 +278,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 	}
 
 	private _buildSourceEditor(sourceContainer: HTMLElement) {
-		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
-
-		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
-			...fixedDiffEditorOptions,
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-			originalEditable: false,
-			ignoreTrimWhitespace: false,
-			automaticLayout: false,
-			dimension: {
-				height: 0,
-				width: 0
-			},
-			renderSideBySide: true,
-			useInlineViewWhenSpaceIsLimited: false
-		}, {
-			originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
-			modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
-		});
-
-		return {
-			editor,
-			editorContainer
-		};
+		return buildDiffEditorWidget(this.instantiationService, this.notebookEditor, sourceContainer);
 	}
 
 	renderElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate, height: number | undefined): void {
@@ -511,4 +478,50 @@ export class NotebookTextDiffList extends WorkbenchList<IDiffElementViewModelBas
 			this.styleElement.textContent = newStyles;
 		}
 	}
+}
+
+
+function buildDiffEditorWidget(instantiationService: IInstantiationService, notebookEditor: INotebookTextDiffEditor, sourceContainer: HTMLElement, options: IDiffEditorConstructionOptions = {}) {
+	const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+
+	const editor = instantiationService.createInstance(DiffEditorWidget, editorContainer, {
+		...fixedDiffEditorOptions,
+		overflowWidgetsDomNode: notebookEditor.getOverflowContainerDomNode(),
+		originalEditable: false,
+		ignoreTrimWhitespace: false,
+		automaticLayout: false,
+		dimension: {
+			height: 0,
+			width: 0
+		},
+		renderSideBySide: true,
+		useInlineViewWhenSpaceIsLimited: false,
+		...options
+	}, {
+		originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+		modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+	});
+
+	return {
+		editor,
+		editorContainer
+	};
+}
+
+function buildSourceEditor(instantiationService: IInstantiationService, notebookEditor: INotebookTextDiffEditor, sourceContainer: HTMLElement, options: IEditorConstructionOptions = {}) {
+	const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+
+	const editor = instantiationService.createInstance(CodeEditorWidget, editorContainer, {
+		...fixedEditorOptions,
+		glyphMargin: false,
+		dimension: {
+			width: (notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+			height: 0
+		},
+		automaticLayout: false,
+		overflowWidgetsDomNode: notebookEditor.getOverflowContainerDomNode(),
+		readOnly: true,
+	}, {});
+
+	return { editor, editorContainer };
 }

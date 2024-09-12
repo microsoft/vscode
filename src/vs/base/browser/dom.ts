@@ -1951,10 +1951,10 @@ const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED
 /**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
-export function safeInnerHtml(node: HTMLElement, value: string): void {
+export function safeInnerHtml(node: HTMLElement, value: string, extraDomPurifyConfig?: dompurify.Config): void {
 	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
-		const html = dompurify.sanitize(value, defaultDomPurifyConfig);
+		const html = dompurify.sanitize(value, { ...defaultDomPurifyConfig, ...extraDomPurifyConfig });
 		node.innerHTML = html as unknown as string;
 	} finally {
 		hook.dispose();

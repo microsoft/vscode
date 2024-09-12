@@ -351,9 +351,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		}
 	},
 	{
-		id: 'SetupScreenReader',
-		title: localize('gettingStarted.setupScreenReader.title', "Get Started with VS Code using a Screen Reader"),
-		description: localize('gettingStarted.setupScreenReader.description', "Learn the tools and shortcuts that make VS Code accessible. Note that some actions are not actionable from within the context of the walkthrough."),
+		id: 'SetupAccessibility',
+		title: localize('gettingStarted.setupAccessibility.title', "Get Started with Accessibility Features"),
+		description: localize('gettingStarted.setupAccessibility.description', "Learn the tools and shortcuts that make VS Code accessible. Note that some actions are not actionable from within the context of the walkthrough."),
 		isFeatured: true,
 		icon: setupIcon,
 		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
@@ -371,7 +371,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'accessibleView',
-					title: localize('gettingStarted.accessibleView.title', "Use the accessible view to inspect content line by line, character by character"),
+					title: localize('gettingStarted.accessibleView.title', "Screen reader users can inspect content line by line, character by character in the accessible view."),
 					description: localize('gettingStarted.accessibleView.description.interpolated', "The accessible view is available for the terminal, hovers, notifications, comments, notebook output, chat responses, inline completions, and debug console output.\n With focus in any of those features, it can be opened with the Open Accessible View command.\n{0}", Button(localize('openAccessibleView', "Open Accessible View"), 'command:editor.action.accessibleView')),
 					media: {
 						type: 'markdown', path: 'empty'
@@ -380,7 +380,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'verbositySettings',
 					title: localize('gettingStarted.verbositySettings.title', "Control the verbosity of aria labels"),
-					description: localize('gettingStarted.verbositySettings.description.interpolated', "Verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can avoid hearing hints about how to operate it. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
+					description: localize('gettingStarted.verbositySettings.description.interpolated', "Screen reader verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can avoid hearing hints about how to operate it. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}

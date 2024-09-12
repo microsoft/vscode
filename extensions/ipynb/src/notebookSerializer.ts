@@ -6,13 +6,26 @@
 import type * as nbformat from '@jupyterlab/nbformat';
 import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
-import { defaultNotebookFormat } from './constants';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
-import { createJupyterCellFromNotebookCell, pruneCell, sortObjectPropertiesRecursively } from './serializers';
 import * as fnv from '@enonic/fnv-plus';
+import { serializeNotebookToString } from './serializers';
 
-export class NotebookSerializer implements vscode.NotebookSerializer {
-	constructor(readonly context: vscode.ExtensionContext) {
+export class NotebookSerializer extends vscode.Disposable implements vscode.NotebookSerializer {
+	private disposed: boolean = false;
+	private worker?: import('node:worker_threads').Worker;
+
+	constructor(readonly context: vscode.ExtensionContext, _isBrowser: boolean) {
+		super(() => { });
+	}
+
+	override dispose() {
+		this.disposed = true;
+		try {
+			void this.worker?.terminate();
+		} catch {
+			//
+		}
+		super.dispose();
 	}
 
 	public async deserializeNotebook(content: Uint8Array, _token: vscode.CancellationToken): Promise<vscode.NotebookData> {
@@ -70,33 +83,13 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		return data;
 	}
 
-	public serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Uint8Array {
-		return new TextEncoder().encode(this.serializeNotebookToString(data));
-	}
+	public async serializeNotebook(data: vscode.NotebookData, _token: vscode.CancellationToken): Promise<Uint8Array> {
+		if (this.disposed) {
+			return new Uint8Array(0);
+		}
 
-	public serializeNotebookToString(data: vscode.NotebookData): string {
-		const notebookContent = getNotebookMetadata(data);
-		// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
-		const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === vscode.NotebookCellKind.Code)?.languageId;
-
-		notebookContent.cells = data.cells
-			.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
-			.map(pruneCell);
-
-		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
-			data.metadata.indentAmount :
-			' ';
-		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
-		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
+		const serialized = serializeNotebookToString(data);
+		return new TextEncoder().encode(serialized);
 	}
 }
 
-export function getNotebookMetadata(document: vscode.NotebookDocument | vscode.NotebookData) {
-	const existingContent: Partial<nbformat.INotebookContent> = document.metadata || {};
-	const notebookContent: Partial<nbformat.INotebookContent> = {};
-	notebookContent.cells = existingContent.cells || [];
-	notebookContent.nbformat = existingContent.nbformat || defaultNotebookFormat.major;
-	notebookContent.nbformat_minor = existingContent.nbformat_minor ?? defaultNotebookFormat.minor;
-	notebookContent.metadata = existingContent.metadata || {};
-	return notebookContent;
-}

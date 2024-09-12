@@ -979,13 +979,13 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual(testObject.getEnablementStates(installed), [EnablementState.DisabledGlobally, EnablementState.DisabledByExtensionDependency]);
 	});
 
-	test('test extension is disabled by dependency when it has a missing dependency', async () => {
+	test('test extension is not disabled when it has a missing dependency', async () => {
 		const target = aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] });
 		installed.push(target);
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
 
-		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
 	});
 
 	test('test extension is disabled by invalidity', async () => {

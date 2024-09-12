@@ -169,6 +169,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._scrollUp.enable();
 	}
 
+	reveal(position: Position) {
+		this._scrollUp.reset();
+		this.updatePositionAndHeight(position);
+	}
+
 	override updatePositionAndHeight(position: Position): void {
 		const revealZone = this._createZoneAndScrollRestoreFn(position);
 		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
@@ -253,6 +258,10 @@ class ScrollUpState {
 
 	dispose(): void {
 		this._listener.dispose();
+	}
+
+	reset(): void {
+		this._didScrollUpOrDown = undefined;
 	}
 
 	enable(): void {

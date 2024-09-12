@@ -38,7 +38,7 @@ export interface INotebookTextDiffEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 	getScrollTop(): number;
 	getScrollHeight(): number;
-	layoutNotebookCell(cell: DiffElementCellViewModelBase, height: number): void;
+	layoutNotebookCell(cell: IDiffElementViewModelBase, height: number): void;
 	createOutput(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void;
 	showInset(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide): void;
 	removeInset(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: ICellOutputViewModel, diffSide: DiffSide): void;

@@ -76,6 +76,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 
 	constructor(
 		private readonly extension: IExtension,
+		private readonly options: InstallOptions | undefined,
 		private readonly version: string,
 		private readonly installOperation: InstallOperation,
 		private readonly error: Error,
@@ -137,19 +138,21 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
+
 		if (ExtensionManagementErrorCode.Signature === (<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.prompt({
 				type: 'error',
-				message: localize('signature verification failed', "{0} cannot verify the '{1}' extension. Are you sure you want to install it?", this.productService.nameLong, this.extension.displayName || this.extension.identifier.id),
+				message: localize('signature verification failed', "Signature of '{0}' extension could not be verified. Are you sure you want to install?", this.extension.displayName),
+				detail: getErrorMessage(this.error),
 				buttons: [{
 					label: localize('install anyway', "Install Anyway"),
 					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { donotVerifySignature: true });
+						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
 						installAction.extension = this.extension;
 						return installAction.run();
 					}
 				}],
-				cancelButton: localize('cancel', "Cancel")
+				cancelButton: true
 			});
 			return;
 		}
@@ -552,7 +555,7 @@ export class InstallAction extends ExtensionAction {
 		try {
 			return await this.extensionsWorkbenchService.install(extension, this.options);
 		} catch (error) {
-			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, error).run();
+			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, this.options, extension.latestVersion, InstallOperation.Install, error).run();
 			return undefined;
 		}
 	}
@@ -945,11 +948,12 @@ export class UpdateAction extends ExtensionAction {
 	}
 
 	private async install(extension: IExtension): Promise<void> {
+		const options = extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined;
 		try {
-			await this.extensionsWorkbenchService.install(extension, extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined);
+			await this.extensionsWorkbenchService.install(extension, options);
 			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
 		} catch (err) {
-			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err).run();
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, options, extension.latestVersion, InstallOperation.Update, err).run();
 		}
 	}
 }
@@ -1501,10 +1505,11 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			if (this.extension.local?.manifest.version === pick.id) {
 				return;
 			}
+			const options = { installPreReleaseVersion: pick.isPreReleaseVersion, version: pick.id };
 			try {
-				await this.extensionsWorkbenchService.install(this.extension, { installPreReleaseVersion: pick.isPreReleaseVersion, version: pick.id });
+				await this.extensionsWorkbenchService.install(this.extension, options);
 			} catch (error) {
-				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, pick.id, InstallOperation.Install, error).run();
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, options, pick.id, InstallOperation.Install, error).run();
 			}
 		}
 		return null;
@@ -2053,7 +2058,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			try {
 				await this.extensionWorkbenchService.install(extension);
 			} catch (err) {
-				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, err).run();
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, undefined, extension.latestVersion, InstallOperation.Install, err).run();
 			}
 		}
 	}
@@ -2332,7 +2337,13 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 
 		if (currentStatus !== null) {
 			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
-				return canAddExtension() ? this.initialStatus === ExtensionState.Installed && this.version !== currentVersion ? localize('updated', "Updated") : localize('installed', "Installed") : null;
+				if (this.initialStatus === ExtensionState.Uninstalled && canAddExtension()) {
+					return localize('installed', "Installed");
+				}
+				if (this.initialStatus === ExtensionState.Installed && this.version !== currentVersion && canAddExtension()) {
+					return localize('updated', "Updated");
+				}
+				return null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
 				this.initialStatus = this.status;

@@ -1340,53 +1340,54 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private updateExtensionsNotificaiton(): void {
-		let extensionsNotification: IExtensionsNotification | undefined;
-
-		let message = '';
-		const severity = Severity.Warning;
-		const extensions: IExtension[] = [];
-
-		extensions.push(...this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension));
-		if (extensions.length) {
-			if (extensions.some(e => e.local &&
-				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
-			)) {
-				message = nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them.");
-			} else {
-				message = nls.localize('invalidExtensions', "You have invalid extensions installed. Review them.");
-			}
-		}
-
-		else {
-			extensions.push(...this.local.filter(e => e.enablementState === EnablementState.DisabledByExtensionDependency));
-			if (extensions.length) {
-				message = nls.localize('missingDependencies', "Some extensions are disabled due to missing dependencies. Review them.");
-			}
-
-			else {
-				extensions.push(...this.local.filter(e => !!e.deprecationInfo));
-				if (extensions.length) {
-					message = nls.localize('deprecated extensions', "You have deprecated extensions installed. Review them and migrate to alternatives.");
-				}
-			}
-		}
-
-		if (extensions.length && !this.dismissedNotifications.includes(message)) {
-			extensionsNotification = {
-				message,
-				severity,
-				extensions,
+		const computedNotificiation = this.computeExtensionsNotification();
+		const extensionsNotification = computedNotificiation && !this.dismissedNotifications.includes(computedNotificiation.message) ?
+			{
+				...computedNotificiation,
 				dismiss: () => {
-					this.dismissedNotifications.push(message);
+					this.dismissedNotifications.push(computedNotificiation.message);
 					this.updateExtensionsNotificaiton();
 				},
-			};
-		}
+			}
+			: undefined;
 
 		if (this.extensionsNotification?.message !== extensionsNotification?.message) {
 			this.extensionsNotification = extensionsNotification;
 			this._onDidChangeExtensionsNotification.fire(this.extensionsNotification);
 		}
+	}
+
+	private computeExtensionsNotification(): Omit<IExtensionsNotification, 'dismiss'> | undefined {
+
+		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
+		if (invalidExtensions.length) {
+			if (invalidExtensions.some(e => e.local &&
+				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
+			)) {
+				return {
+					message: nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them."),
+					severity: Severity.Warning,
+					extensions: invalidExtensions,
+				};
+			} else {
+				return {
+					message: nls.localize('invalidExtensions', "Invalid extensions detected. Review them."),
+					severity: Severity.Warning,
+					extensions: invalidExtensions,
+				};
+			}
+		}
+
+		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo);
+		if (deprecatedExtensions.length) {
+			return {
+				message: nls.localize('deprecated extensions', "Deprecated extensions detected. Review them and migrate to alternatives."),
+				severity: Severity.Warning,
+				extensions: deprecatedExtensions,
+			};
+		}
+
+		return undefined;
 	}
 
 	getExtensionsNotification(): IExtensionsNotification | undefined {
@@ -2618,6 +2619,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
 		if (extension.local) {
 			installOptions.productVersion = this.getProductVersion();
+			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
 		} else {
 			return this.extensionManagementService.installFromGallery(gallery, installOptions);

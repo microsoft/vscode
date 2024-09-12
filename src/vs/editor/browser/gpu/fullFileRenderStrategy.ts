@@ -11,106 +11,20 @@ import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
-import type { ViewLineOptions } from '../viewParts/lines/viewLineOptions.js';
+import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
 import type { TextureAtlas } from './atlas/textureAtlas.js';
+import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
 import { BindingId, type IGpuRenderStrategy } from './gpu.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
+import { ViewGpuContext } from './viewGpuContext.js';
 
 
 const enum Constants {
 	IndicesPerCell = 6,
 }
-
-const fullFileRenderStrategyWgsl = /*wgsl*/`
-struct GlyphInfo {
-	position: vec2f,
-	size: vec2f,
-	origin: vec2f,
-};
-
-struct Vertex {
-	@location(0) position: vec2f,
-};
-
-struct Cell {
-	position: vec2f,
-	unused1: vec2f,
-	glyphIndex: f32,
-	textureIndex: f32
-};
-
-struct LayoutInfo {
-	canvasDims: vec2f,
-	viewportOffset: vec2f,
-	viewportDims: vec2f,
-}
-
-struct ScrollOffset {
-	offset: vec2f
-}
-
-struct VSOutput {
-	@builtin(position) position:   vec4f,
-	@location(1)       layerIndex: f32,
-	@location(0)       texcoord:   vec2f,
-};
-
-// Uniforms
-@group(0) @binding(${BindingId.ViewportUniform})         var<uniform>       layoutInfo:      LayoutInfo;
-@group(0) @binding(${BindingId.AtlasDimensionsUniform})  var<uniform>       atlasDims:       vec2f;
-@group(0) @binding(${BindingId.ScrollOffset})            var<uniform>       scrollOffset:    ScrollOffset;
-
-// Storage buffers
-@group(0) @binding(${BindingId.GlyphInfo0})              var<storage, read> glyphInfo0:      array<GlyphInfo>;
-@group(0) @binding(${BindingId.GlyphInfo1})              var<storage, read> glyphInfo1:      array<GlyphInfo>;
-@group(0) @binding(${BindingId.Cells})                   var<storage, read> cells:           array<Cell>;
-
-@vertex fn vs(
-	vert: Vertex,
-	@builtin(instance_index) instanceIndex: u32,
-	@builtin(vertex_index) vertexIndex : u32
-) -> VSOutput {
-	let cell = cells[instanceIndex];
-	// TODO: Is there a nicer way to init this?
-	var glyph = glyphInfo0[0];
-	let glyphIndex = u32(cell.glyphIndex);
-	if (u32(cell.textureIndex) == 0) {
-		glyph = glyphInfo0[glyphIndex];
-	} else {
-		glyph = glyphInfo1[glyphIndex];
-	}
-
-	var vsOut: VSOutput;
-	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
-	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / layoutInfo.canvasDims) + (((scrollOffset.offset + layoutInfo.viewportOffset) * 2) / layoutInfo.canvasDims),
-		0.0,
-		1.0
-	);
-
-	vsOut.layerIndex = cell.textureIndex;
-	// Textures are flipped from natural direction on the y-axis, so flip it back
-	vsOut.texcoord = vert.position;
-	vsOut.texcoord = (
-		// Glyph offset (0-1)
-		(glyph.position / atlasDims) +
-		// Glyph coordinate (0-1)
-		(vsOut.texcoord * (glyph.size / atlasDims))
-	);
-
-	return vsOut;
-}
-
-@group(0) @binding(${BindingId.TextureSampler}) var ourSampler: sampler;
-@group(0) @binding(${BindingId.Texture})        var ourTexture: texture_2d_array<f32>;
-
-@fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
-	return textureSample(ourTexture, ourSampler, vsOut.texcoord, u32(vsOut.layerIndex));
-}
-`;
 
 const enum CellBufferInfo {
 	FloatsPerEntry = 6,
@@ -163,9 +77,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		super();
 
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
-		const activeWindow = getActiveWindow();
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
-		const fontSize = Math.ceil(this._context.configuration.options.get(EditorOption.fontSize) * activeWindow.devicePixelRatio);
+		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 
 		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
 
@@ -190,6 +103,17 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			new Float32Array(scrollOffsetBufferSize),
 			new Float32Array(scrollOffsetBufferSize),
 		];
+	}
+
+	reset() {
+		for (const bufferIndex of [0, 1]) {
+			// Zero out buffer and upload to GPU to prevent stale rows from rendering
+			const buffer = new Float32Array(this._cellValueBuffers[bufferIndex]);
+			buffer.fill(0, 0, buffer.length);
+			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
+			this._upToDateLines[bufferIndex].clear();
+		}
+		this._visibleObjectCount = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
@@ -236,6 +160,12 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		let dirtyLineEnd = 0;
 
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
+
+			// Only attempt to render lines that the GPU renderer can handle
+			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+				continue;
+			}
+
 			// TODO: Update on dirty lines; is this known by line before rendering?
 			// if (upToDateLines.has(y)) {
 			// 	continue;
