@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
-import { INotebookMetadataTextModel, INotebookTextModel, NotebookCellMetadata, NotebookCellsChangeType, NotebookDocumentMetadata, NotebookMetadataUri, TransientDocumentMetadata } from '../notebookCommon.js';
+import { INotebookDocumentMetadataTextModel, INotebookTextModel, NotebookCellMetadata, NotebookCellsChangeType, NotebookDocumentMetadata, NotebookMetadataUri, TransientDocumentMetadata } from '../notebookCommon.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -33,7 +33,7 @@ export function getFormattedNotebookMetadataJSON(transientMetadata: TransientDoc
 	return metadataSource;
 }
 
-export class NotebookDocumentMetadataTextModel extends Disposable implements INotebookMetadataTextModel {
+export class NotebookDocumentMetadataTextModel extends Disposable implements INotebookDocumentMetadataTextModel {
 	public readonly uri: URI;
 	public get metadata(): NotebookDocumentMetadata {
 		return this.notebookModel.metadata;

@@ -241,7 +241,7 @@ export interface CellInternalMetadataChangedEvent {
 	readonly lastRunSuccessChanged?: boolean;
 }
 
-export interface INotebookMetadataTextModel {
+export interface INotebookDocumentMetadataTextModel {
 	/**
 	 * Notebook Metadata Uri.
 	 */
