@@ -57,6 +57,7 @@ export interface IChatViewState {
 export interface IChatWidgetStyles {
 	listForeground: string;
 	listBackground: string;
+	overlayBackground: string;
 	inputEditorBackground: string;
 	resultEditorBackground: string;
 }
@@ -355,7 +356,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}).filter(isDefined);
 
-		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart));
+		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart, this.styles));
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {

@@ -8,29 +8,33 @@ import { $, DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { IChatWidgetStyles } from './chatWidget.js';
 
 enum ChatDragAndDropType {
 	FILE,
 }
 
-export class ChatDragAndDrop extends Disposable {
+export class ChatDragAndDrop extends Themable {
 
 	private readonly overlay: HTMLElement;
 	private overlayText?: HTMLElement;
+	private overlayTextBackground: string = '';
 
 	constructor(
 		private readonly contianer: HTMLElement,
 		private readonly inputPart: ChatInputPart,
+		private readonly styles: IChatWidgetStyles,
+		@IThemeService themeService: IThemeService
 	) {
-		super();
+		super(themeService);
 
 		// If the mouse enters and leaves the overlay quickly,
 		// the overlay may stick around due to too many drag enter events
@@ -59,6 +63,8 @@ export class ChatDragAndDrop extends Disposable {
 		this.overlay = document.createElement('div');
 		this.overlay.classList.add('chat-dnd-overlay');
 		this.contianer.appendChild(this.overlay);
+
+		this.updateStyles();
 	}
 
 	private onDragEnter(e: DragEvent): void {
@@ -137,11 +143,27 @@ export class ChatDragAndDrop extends Disposable {
 		if (type !== undefined) {
 			// Render the overlay text
 			const typeName = this.getDropTypeName(type);
-			this.overlayText = $('span.attach-context-overlay-text', undefined, ...renderLabelWithIcons(`$(${Codicon.attach.id}) ${localize('attach', 'Attach')} ${typeName}`));
+
+			const iconAndtextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${localize('attach', 'Attach')} ${typeName}`);
+			const htmlElements = iconAndtextElements.map(element => {
+				if (typeof element === 'string') {
+					return $('span.overlay-text', undefined, element);
+				}
+				return element;
+			});
+
+			this.overlayText = $('span.attach-context-overlay-text', undefined, ...htmlElements);
+			this.overlayText.style.backgroundColor = this.overlayTextBackground;
 			this.overlay.appendChild(this.overlayText);
 		}
 
 		this.overlay.classList.toggle('visible', type !== undefined);
+	}
+
+	override updateStyles(): void {
+		this.overlay.style.backgroundColor = this.getColor(this.styles.overlayBackground) || '';
+		this.overlay.style.color = this.getColor(this.styles.listForeground) || '';
+		this.overlayTextBackground = this.getColor(this.styles.listBackground) || '';
 	}
 }
 
