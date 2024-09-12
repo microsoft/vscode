@@ -26,9 +26,10 @@ import { IFeatureDebounceInformation } from '../../../../common/services/languag
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
-import { computeGhostText, singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEdit.js';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
+import { computeGhostText } from './computeGhostText.js';
 import { SuggestItemInfo } from './suggestWidgetAdaptor.js';
-import { addPositions, subtractPositions } from '../utils.js';
+import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -514,21 +515,4 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 		const range = Range.fromPositions(pos, pos.delta(0, l));
 		return new SingleTextEdit(range, secondaryEditText);
 	});
-}
-
-function substringPos(text: string, pos: Position): string {
-	let subtext = '';
-	const lines = splitLinesIncludeSeparators(text);
-	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
-		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0);
-	}
-	return subtext;
-}
-
-function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
-	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
-	const edit = new TextEdit(sortPerm.apply(edits));
-	const sortedNewRanges = edit.getNewRanges();
-	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
-	return newRanges.map(range => range.getEndPosition());
 }
