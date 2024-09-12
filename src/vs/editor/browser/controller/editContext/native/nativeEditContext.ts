@@ -351,7 +351,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		const characterBounds: DOMRect[] = [];
 		if (this._renderingContext) {
-			// Force the calculation so that we get the correct lines visible range immediately
+			// Force the calculation so that we get the lines visible ranges immediately
 			const linesVisibleRanges = this._renderingContext.linesVisibleRangesForRange(compositionRangeWithinEditor, true, true) ?? [];
 			for (const lineVisibleRanges of linesVisibleRanges) {
 				const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
