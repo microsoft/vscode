@@ -38,9 +38,21 @@ export class ViewGpuContext extends Disposable {
 		}));
 	}
 
+	/**
+	 * This method determines which lines can be and are allowed to be rendered using the GPU
+	 * renderer. Eventually this should trend all lines, except maybe exceptional cases like
+	 * decorations that use class names.
+	 */
 	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
-		const d = viewportData.getViewLineRenderingData(lineNumber);
-		// TODO
-		return d.content.indexOf('e') !== -1;
+		const data = viewportData.getViewLineRenderingData(lineNumber);
+		if (
+			data.containsRTL ||
+			data.maxColumn > 200 ||
+			data.continuesWithWrappedLine ||
+			data.inlineDecorations.length > 0
+		) {
+			return false;
+		}
+		return true;
 	}
 }
