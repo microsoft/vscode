@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { NotebookSerializer } from './notebookSerializer';
 import { activate as keepNotebookModelStoreInSync } from './notebookModelStoreSync';
 import { notebookImagePasteSetup } from './notebookImagePaste';
 import { AttachmentCleaner } from './notebookAttachmentCleaner';
@@ -29,8 +28,7 @@ type NotebookMetadata = {
 	[propName: string]: unknown;
 };
 
-export function activate(context: vscode.ExtensionContext, isBrowser: boolean) {
-	const serializer = new NotebookSerializer(context, isBrowser);
+export function activate(context: vscode.ExtensionContext, serializer: vscode.NotebookSerializer) {
 	keepNotebookModelStoreInSync(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
