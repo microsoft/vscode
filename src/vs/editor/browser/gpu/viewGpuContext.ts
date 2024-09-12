@@ -8,8 +8,10 @@ import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastD
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import { observableValue, runOnChange, type IObservable } from '../../../base/common/observable.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { TextureAtlas } from './atlas/textureAtlas.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
@@ -77,5 +79,23 @@ export class ViewGpuContext extends Disposable {
 			this.canvas.domNode.height = height;
 			this._onDidChangeCanvasDevicePixelDimensions.fire({ width, height });
 		}));
+	}
+
+	/**
+	 * This method determines which lines can be and are allowed to be rendered using the GPU
+	 * renderer. Eventually this should trend all lines, except maybe exceptional cases like
+	 * decorations that use class names.
+	 */
+	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
+		const data = viewportData.getViewLineRenderingData(lineNumber);
+		if (
+			data.containsRTL ||
+			data.maxColumn > 200 ||
+			data.continuesWithWrappedLine ||
+			data.inlineDecorations.length > 0
+		) {
+			return false;
+		}
+		return true;
 	}
 }
