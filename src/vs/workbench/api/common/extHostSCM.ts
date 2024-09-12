@@ -612,7 +612,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				const modified = e.modified.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
 				const removed = e.removed.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
 
-				this.#proxy.$onDidChangeHistoryProviderHistoryItemRefs(this.handle, { added, modified, removed });
+				this.#proxy.$onDidChangeHistoryProviderHistoryItemRefs(this.handle, { added, modified, removed, silent: e.silent });
 			}));
 		}
 	}
