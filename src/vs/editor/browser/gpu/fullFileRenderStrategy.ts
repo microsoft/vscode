@@ -11,7 +11,7 @@ import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
-import type { ViewLineOptions } from '../viewParts/lines/viewLineOptions.js';
+import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
 import type { TextureAtlas } from './atlas/textureAtlas.js';
 import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
