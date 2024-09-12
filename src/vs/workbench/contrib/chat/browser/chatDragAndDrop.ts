@@ -43,6 +43,9 @@ export class ChatDragAndDrop extends Disposable {
 					this.onDragEnter(e);
 				}
 			},
+			onDragOver: (e) => {
+				e.stopPropagation();
+			},
 			onDragLeave: (e) => {
 				this.onDragLeave(e);
 				mouseInside = false;
@@ -89,6 +92,8 @@ export class ChatDragAndDrop extends Disposable {
 	}
 
 	private updateDropFeedback(e: DragEvent, dropType: ChatDragAndDropType | undefined): void {
+		e.stopPropagation();
+
 		const showOverlay = dropType !== undefined;
 		if (e.dataTransfer) {
 			e.dataTransfer.dropEffect = showOverlay ? 'copy' : 'none';
