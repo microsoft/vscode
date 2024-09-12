@@ -413,7 +413,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean, forceCalculation: boolean = false): LineVisibleRanges[] | null {
-		if (this.shouldRender() && !forceCalculation) {
+		console.log('linesVisibleRangesForRange');
+		const shouldRender = this.shouldRender();
+		console.log('shouldRender in linesVisibleRangesForRange : ', shouldRender);
+		if (shouldRender) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;

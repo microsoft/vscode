@@ -20,14 +20,17 @@ export class ViewEventHandler extends Disposable {
 	}
 
 	public forceShouldRender(): void {
+		console.log('forceShouldRender');
 		this._shouldRender = true;
 	}
 
 	protected setShouldRender(): void {
+		console.log('setShouldRender');
 		this._shouldRender = true;
 	}
 
 	public onDidRender(): void {
+		console.log('onDidRender');
 		this._shouldRender = false;
 	}
 
@@ -214,6 +217,7 @@ export class ViewEventHandler extends Disposable {
 		}
 
 		if (shouldRender) {
+			console.log('inside of handle events of shouldRender');
 			this._shouldRender = true;
 		}
 	}
