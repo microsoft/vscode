@@ -157,7 +157,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
 		this.unchangedEditoRegionService = this._register(this.instantiationService.createInstance(UnchangedEditorRegionsService, this.fontInfo.lineHeight));
-		this.diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.unchangedEditoRegionService);
+		this.diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight, this.unchangedEditoRegionService);
 		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, false, undefined);
 		this._register(this._notebookOptions);
 		this._revealFirst = true;

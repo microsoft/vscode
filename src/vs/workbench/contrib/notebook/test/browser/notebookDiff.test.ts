@@ -61,7 +61,7 @@ suite('NotebookDiff', () => {
 		};
 		heightCalculator = new class extends mock<IDiffEditorHeightCalculatorService>() {
 			override diffAndComputeHeight() { return Promise.resolve(0); }
-			override computeHeightFromLines(_lineCount: number, _options: { lineHeight: number }): number {
+			override computeHeightFromLines(_lineCount: number): number {
 				return 0;
 			}
 		};

@@ -113,7 +113,7 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 			this._model = model;
 		}
 		const eventDispatcher = this.modelSpecificResources.add(new NotebookDiffEditorEventDispatcher());
-		const diffEditorHeightCalculator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, UnchangedEditorRegionsService.Empty);
+		const diffEditorHeightCalculator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight, UnchangedEditorRegionsService.Empty);
 		this.viewModel = this.modelSpecificResources.add(new NotebookDiffViewModel(model, this.notebookEditorWorkerService, this.configurationService, eventDispatcher, this.notebookService, UnchangedEditorRegionsService.Empty, diffEditorHeightCalculator, undefined, true));
 		await this.viewModel.computeDiff(this.modelSpecificResources.add(new CancellationTokenSource()).token);
 		this.ctxHasUnchangedCells.set(this.viewModel.hasUnchangedCells);

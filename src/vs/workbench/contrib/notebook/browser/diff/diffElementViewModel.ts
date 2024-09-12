@@ -265,7 +265,7 @@ export abstract class NotebookMetadataViewModelBase extends DiffElementViewModel
 	}
 
 	public computeInputEditorHeight(lineHeight: number): number {
-		return this.editorHeightCalculator.computeHeightFromLines(this.metadata.textBuffer.getLineCount(), { lineHeight });
+		return this.editorHeightCalculator.computeHeightFromLines(this.metadata.textBuffer.getLineCount());
 	}
 
 	private _fireLayoutChangeEvent(state: CellDiffViewModelLayoutChangeEvent) {
@@ -310,7 +310,7 @@ export class SingleSidedDiffElementNotebookMetadataViewModel extends NotebookMet
 	}
 
 	public async computeHeights() {
-		this.editorHeight = this.editorHeightCalculator.computeHeightFromLines(this.metadata.textBuffer.getLineCount(), { lineHeight: this.initData.fontInfo?.lineHeight ?? DefaultLineHeight });
+		this.editorHeight = this.editorHeightCalculator.computeHeightFromLines(this.metadata.textBuffer.getLineCount());
 	}
 
 }
@@ -340,15 +340,14 @@ export class SideBySideDiffElementNotebookMetadataViewModel extends NotebookMeta
 	}
 
 	public async computeHeights() {
-		const lineHeight = this.initData.fontInfo?.lineHeight ?? DefaultLineHeight;
 		if (this.type === 'unchangedMetadata') {
-			const original = this.editorHeightCalculator.computeHeightFromLines(this.originalMetadata.textBuffer.getLineCount(), { lineHeight });
-			const modified = this.editorHeightCalculator.computeHeightFromLines(this.modifiedMetadata.textBuffer.getLineCount(), { lineHeight });
+			const original = this.editorHeightCalculator.computeHeightFromLines(this.originalMetadata.textBuffer.getLineCount());
+			const modified = this.editorHeightCalculator.computeHeightFromLines(this.modifiedMetadata.textBuffer.getLineCount());
 			this.editorHeight = Math.max(original, modified);
 		} else {
 			const original = this.originalMetadata.uri;
 			const modified = this.modifiedMetadata.uri;
-			this.editorHeight = await this.editorHeightCalculator.diffAndComputeHeight({ original, modified }, { lineHeight });
+			this.editorHeight = await this.editorHeightCalculator.diffAndComputeHeight(original, modified);
 		}
 	}
 }
