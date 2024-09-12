@@ -26,8 +26,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 import { NotebookDocumentMetadataTextModel } from '../../common/model/notebookMetadataTextModel.js';
 
-const PropertyHeaderHeight = 25;
-
 // From `.monaco-editor .diff-hidden-lines .center` in src/vs/editor/browser/widget/diffEditor/style.css
 export const HeightOfHiddenLinesRegionInDiffEditor = 24;
 
