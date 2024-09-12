@@ -161,7 +161,8 @@
 	}
 
 	.monaco-text-button {
-		padding: 0 2px;
+		padding: 0 6px;
+		font-size: 12px;
 		white-space: nowrap;
 	}
 }
