@@ -19,6 +19,7 @@ import { BindingId, type IGpuRenderStrategy } from './gpu.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
+import { ViewGpuContext } from './viewGpuContext.js';
 
 
 const enum Constants {
@@ -76,9 +77,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		super();
 
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
-		const activeWindow = getActiveWindow();
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
-		const fontSize = Math.ceil(this._context.configuration.options.get(EditorOption.fontSize) * activeWindow.devicePixelRatio);
+		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 
 		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
 
@@ -103,6 +103,17 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			new Float32Array(scrollOffsetBufferSize),
 			new Float32Array(scrollOffsetBufferSize),
 		];
+	}
+
+	reset() {
+		for (const bufferIndex of [0, 1]) {
+			// Zero out buffer and upload to GPU to prevent stale rows from rendering
+			const buffer = new Float32Array(this._cellValueBuffers[bufferIndex]);
+			buffer.fill(0, 0, buffer.length);
+			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
+			this._upToDateLines[bufferIndex].clear();
+		}
+		this._visibleObjectCount = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
@@ -149,6 +160,12 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		let dirtyLineEnd = 0;
 
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
+
+			// Only attempt to render lines that the GPU renderer can handle
+			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+				continue;
+			}
+
 			// TODO: Update on dirty lines; is this known by line before rendering?
 			// if (upToDateLines.has(y)) {
 			// 	continue;

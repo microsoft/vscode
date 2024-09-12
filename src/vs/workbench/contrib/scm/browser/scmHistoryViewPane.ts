@@ -146,7 +146,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: PICK_REPOSITORY_ACTION_ID,
-			title: '',
+			title: localize('repositoryPicker', "Repository Picker"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
 			menu: {
@@ -167,14 +167,14 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: PICK_HISTORY_ITEM_REFS_ACTION_ID,
-			title: '',
+			title: localize('referencePicker', "History Item Reference Picker"),
 			icon: Codicon.gitBranch,
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryTitle,
 				group: 'navigation',
-				order: 0
+				order: 1
 			}
 		});
 	}

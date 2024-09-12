@@ -224,6 +224,32 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const getInstallExtensionTaskKey = (extension: IGalleryExtension, profileLocation: URI) => `${ExtensionKey.create(extension).toString()}-${profileLocation.toString()}`;
 		const createInstallExtensionTask = (manifest: IExtensionManifest, extension: IGalleryExtension | URI, options: InstallExtensionTaskOptions, root: IInstallExtensionTask | undefined): void => {
+			if (!URI.isUri(extension)) {
+				if (installingExtensionsMap.has(`${extension.identifier.id.toLowerCase()}-${options.profileLocation.toString()}`)) {
+					return;
+				}
+				const existingInstallingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(extension, options.profileLocation));
+				if (existingInstallingExtension) {
+					if (root && this.canWaitForTask(root, existingInstallingExtension.task)) {
+						const identifier = existingInstallingExtension.task.identifier;
+						this.logService.info('Waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
+						existingInstallingExtension.waitingTasks.push(root);
+						// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
+						alreadyRequestedInstallations.push(
+							Event.toPromise(
+								Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
+							).then(results => {
+								this.logService.info('Finished waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
+								const result = results.find(result => areSameExtensions(result.identifier, identifier));
+								if (!result?.local) {
+									// Extension failed to install
+									throw new Error(`Extension ${identifier.id} is not installed`);
+								}
+							}));
+					}
+					return;
+				}
+			}
 			const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
 			const key = `${getGalleryExtensionId(manifest.publisher, manifest.name)}-${options.profileLocation.toString()}`;
 			installingExtensionsMap.set(key, { task: installExtensionTask, root });
@@ -266,31 +292,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const installed = await this.getInstalled(undefined, task.options.profileLocation, task.options.productVersion);
 						const options: InstallExtensionTaskOptions = { ...task.options, context: { ...task.options.context, [EXTENSION_INSTALL_DEP_PACK_CONTEXT]: true } };
 						for (const { gallery, manifest } of distinct(allDepsAndPackExtensionsToInstall, ({ gallery }) => gallery.identifier.id)) {
-							if (installingExtensionsMap.has(`${gallery.identifier.id.toLowerCase()}-${options.profileLocation.toString()}`)) {
+							if (installed.some(({ identifier }) => areSameExtensions(identifier, gallery.identifier))) {
 								continue;
 							}
-							const existingInstallingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(gallery, options.profileLocation));
-							if (existingInstallingExtension) {
-								if (this.canWaitForTask(task, existingInstallingExtension.task)) {
-									const identifier = existingInstallingExtension.task.identifier;
-									this.logService.info('Waiting for already requested installing extension', identifier.id, task.identifier.id, options.profileLocation.toString());
-									existingInstallingExtension.waitingTasks.push(task);
-									// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
-									alreadyRequestedInstallations.push(
-										Event.toPromise(
-											Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
-										).then(results => {
-											this.logService.info('Finished waiting for already requested installing extension', identifier.id, task.identifier.id, options.profileLocation.toString());
-											const result = results.find(result => areSameExtensions(result.identifier, identifier));
-											if (!result?.local) {
-												// Extension failed to install
-												throw new Error(`Extension ${identifier.id} is not installed`);
-											}
-										}));
-								}
-							} else if (!installed.some(({ identifier }) => areSameExtensions(identifier, gallery.identifier))) {
-								createInstallExtensionTask(manifest, gallery, options, task);
-							}
+							createInstallExtensionTask(manifest, gallery, options, task);
 						}
 					} catch (error) {
 						// Installing through VSIX
@@ -309,6 +314,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					}
 				}
 			}));
+
+			const otherProfilesToUpdate = await this.getOtherProfilesToUpdateExtension([...installingExtensionsMap.values()].map(({ task }) => task));
+			for (const [profileLocation, task] of otherProfilesToUpdate) {
+				createInstallExtensionTask(task.manifest, task.source, { ...task.options, profileLocation }, undefined);
+			}
 
 			// Install extensions in parallel and wait until all extensions are installed / failed
 			await this.joinAllSettled([...installingExtensionsMap.entries()].map(async ([key, { task }]) => {
@@ -434,6 +444,36 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				this._onDidInstallExtensions.fire(results);
 			}
 		}
+	}
+
+	private async getOtherProfilesToUpdateExtension(tasks: IInstallExtensionTask[]): Promise<[URI, IInstallExtensionTask][]> {
+		const otherProfilesToUpdate: [URI, IInstallExtensionTask][] = [];
+		const profileExtensionsCache = new ResourceMap<ILocalExtension[]>();
+		for (const task of tasks) {
+			if (task.operation !== InstallOperation.Update
+				|| task.options.isApplicationScoped
+				|| task.options.pinned
+				|| task.options.installGivenVersion
+				|| URI.isUri(task.source)
+			) {
+				continue;
+			}
+			for (const profile of this.userDataProfilesService.profiles) {
+				if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, task.options.profileLocation)) {
+					continue;
+				}
+				let installedExtensions = profileExtensionsCache.get(profile.extensionsResource);
+				if (!installedExtensions) {
+					installedExtensions = await this.getInstalled(ExtensionType.User, profile.extensionsResource);
+					profileExtensionsCache.set(profile.extensionsResource, installedExtensions);
+				}
+				const installedExtension = installedExtensions.find(e => areSameExtensions(e.identifier, task.identifier));
+				if (installedExtension && !installedExtension.pinned) {
+					otherProfilesToUpdate.push([profile.extensionsResource, task]);
+				}
+			}
+		}
+		return otherProfilesToUpdate;
 	}
 
 	private canWaitForTask(taskToWait: IInstallExtensionTask, taskToWaitFor: IInstallExtensionTask): boolean {

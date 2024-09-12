@@ -1359,7 +1359,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private computeExtensionsNotification(): Omit<IExtensionsNotification, 'dismiss'> | undefined {
 
-		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension);
+		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
 		if (invalidExtensions.length) {
 			if (invalidExtensions.some(e => e.local &&
 				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
@@ -2619,6 +2619,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
 		if (extension.local) {
 			installOptions.productVersion = this.getProductVersion();
+			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
 		} else {
 			return this.extensionManagementService.installFromGallery(gallery, installOptions);
