@@ -922,6 +922,7 @@ export interface INotebookCellStatusBarItemProvider {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
+	metadataChanged: boolean;
 	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 
