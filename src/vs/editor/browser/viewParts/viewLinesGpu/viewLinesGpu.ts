@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -66,7 +67,8 @@ export class ViewLinesGpu extends ViewPart {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
-		this._register(this._viewGpuContext.onDidChangeCanvasDevicePixelDimensions(({ width, height }) => {
+		this._register(autorun(reader => {
+			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
 
