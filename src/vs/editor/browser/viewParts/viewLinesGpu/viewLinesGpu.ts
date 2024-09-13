@@ -70,12 +70,14 @@ export class ViewLinesGpu extends ViewPart {
 		}));
 
 		// Rerender when the texture atlas deletes glyphs
-		this._register(ViewGpuContext.atlas.onDidDeleteGlyphs(() => {
-			this._atlasGpuTextureVersions.length = 0;
-			this._atlasGpuTextureVersions[0] = 0;
-			this._atlasGpuTextureVersions[1] = 0;
-			this._renderStrategy.reset();
-		}));
+		if (ViewGpuContext.atlas) {
+			this._register(ViewGpuContext.atlas.onDidDeleteGlyphs(() => {
+				this._atlasGpuTextureVersions.length = 0;
+				this._atlasGpuTextureVersions[0] = 0;
+				this._atlasGpuTextureVersions[1] = 0;
+				this._renderStrategy.reset();
+			}));
+		}
 
 		this.initWebgpu();
 	}
