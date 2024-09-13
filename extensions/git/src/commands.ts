@@ -3310,6 +3310,14 @@ export class CommandCenter {
 		await repository.cherryPick(hash);
 	}
 
+	@command('git.cherryPickRef', { repository: true })
+	async cherryPickRef(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!historyItem) {
+			return;
+		}
+		await repository.cherryPick(historyItem.id);
+	}
+
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream } });

@@ -68,6 +68,7 @@
 	"command.deleteBranch": "Delete Branch...",
 	"command.renameBranch": "Rename Branch...",
 	"command.cherryPick": "Cherry Pick...",
+	"command.cherryPickRef": "Cherry Pick",
 	"command.merge": "Merge...",
 	"command.mergeAbort": "Abort Merge",
 	"command.rebase": "Rebase Branch...",

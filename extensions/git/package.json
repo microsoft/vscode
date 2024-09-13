@@ -625,6 +625,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.cherryPickRef",
+        "title": "%command.cherryPickRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.addRemote",
         "title": "%command.addRemote%",
         "category": "Git",
@@ -1456,6 +1462,10 @@
         {
           "command": "git.checkoutRefDetached",
           "when": "false"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1964,9 +1974,14 @@
           "group": "1_create@2"
         },
         {
-          "command": "git.checkoutRefDetached",
+          "command": "git.cherryPickRef",
           "when": "scmProvider == git",
           "group": "2_modify@1"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "scmProvider == git",
+          "group": "2_modify@2"
         },
         {
           "command": "git.copyCommitId",
