@@ -184,7 +184,7 @@ function fillRequestStats(lines: string[], request: IUniversalWatchRequest, watc
 }
 
 function requestDetailsToString(request: IUniversalWatchRequest): string {
-	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
+	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}${isRecursiveWatchRequest(request) ? `, useNext: ${request.useNext}` : ''}`;
 }
 
 function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatcher): void {
