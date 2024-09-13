@@ -7,7 +7,7 @@
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	margin: 0 1px;
-	padding: 1px 5px 1px 0;
+	padding: 1px 3px;
 	text-wrap: nowrap;
 }
 
@@ -19,14 +19,23 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.chat-inline-anchor-widget .icon::before {
+.chat-inline-anchor-widget .icon {
 	display: inline-block;
-	margin-top: -2px;
 	vertical-align: middle;
 }
 
-.chat-inline-anchor-widget .icon.codicon::before {
-	margin-top: 0;
+.chat-inline-anchor-widget .icon::before {
+	display: inline-block;
+	background-size: 100%;
+	background-position: left center;
+	background-repeat: no-repeat;
+	width: 0.8em !important;
+	height: 0.8em;
+	margin-right: 4px;
+}
+
+.chat-inline-anchor-widget .file-icon::before {
+	font-size: 120%;
 }
 
 .chat-inline-anchor-widget .icon-label {

@@ -24,7 +24,7 @@ import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../plat
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -97,7 +97,8 @@ export class InlineAnchorWidget extends Disposable {
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 				label;
 
-			iconClasses = getIconClasses(modelService, languageService, location.uri);
+			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+			iconClasses = getIconClasses(modelService, languageService, location.uri, fileKind);
 		}
 
 		const iconEl = dom.$('span.icon');
