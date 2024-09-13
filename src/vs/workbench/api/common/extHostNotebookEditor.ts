@@ -25,7 +25,7 @@ export class ExtHostNotebookEditor {
 		private _visibleRanges: vscode.NotebookRange[],
 		private _selections: vscode.NotebookRange[],
 		private _viewColumn: vscode.ViewColumn | undefined,
-		private readonly _isRepl: boolean | undefined
+		private readonly viewType: string
 	) { }
 
 	get apiEditor(): vscode.NotebookEditor {
@@ -65,10 +65,10 @@ export class ExtHostNotebookEditor {
 					return that._viewColumn;
 				},
 				get replOptions() {
-					if (!that._isRepl) {
-						return undefined;
+					if (that.viewType === 'repl') {
+						return { appendIndex: this.notebook.cellCount - 1 };
 					}
-					return { appendIndex: this.notebook.cellCount - 1 };
+					return undefined;
 				},
 				[Symbol.for('debug.description')]() {
 					return `NotebookEditor(${this.notebook.uri.toString()})`;

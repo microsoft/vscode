@@ -593,7 +593,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			data.visibleRanges.map(typeConverters.NotebookRange.to),
 			data.selections.map(typeConverters.NotebookRange.to),
 			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined,
-			data.replView
+			data.viewType
 		);
 
 		this._editors.set(editorId, editor);

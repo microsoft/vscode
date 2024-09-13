@@ -388,7 +388,6 @@ export interface INotebookEditorCreationOptions {
 	};
 	readonly options?: NotebookOptions;
 	readonly codeWindow?: CodeWindow;
-	readonly forRepl?: boolean;
 }
 
 export interface INotebookWebviewMessage {
@@ -456,7 +455,7 @@ export interface INotebookViewModel {
 	notebookDocument: NotebookTextModel;
 	readonly viewCells: ICellViewModel[];
 	layoutInfo: NotebookLayoutInfo | null;
-	replView: boolean;
+	viewType: string;
 	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	onDidChangeSelection: Event<string>;
 	onDidFoldingStateChanged: Event<void>;

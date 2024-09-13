@@ -240,7 +240,7 @@ export class MainThreadNotebooksAndEditors {
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
 			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group),
-			replView: add.getViewModel().replView
+			viewType: add.getViewModel().viewType
 		};
 	}
 }
