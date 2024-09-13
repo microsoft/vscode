@@ -44,7 +44,15 @@ export class DiffEditorHeightCalculatorService {
 				minimumLineCount ?? 3,
 				contextLineCount ?? 3) : [];
 
-			const numberOfNewLines = diffChanges.filter(d => d.original.isEmpty && !d.modified.isEmpty).reduce((prev, curr) => prev + curr.modified.length, 0);
+			const numberOfNewLines = diffChanges.reduce((prev, curr) => {
+				if (curr.original.isEmpty && !curr.modified.isEmpty) {
+					return prev + curr.modified.length;
+				}
+				if (!curr.original.isEmpty && !curr.modified.isEmpty && curr.modified.length > curr.original.length) {
+					return prev + curr.modified.length - curr.original.length;
+				}
+				return prev;
+			}, 0);
 			const orginalNumberOfLines = originalModel.object.textEditorModel.getLineCount();
 			const numberOfHiddenLines = unchanged.reduce((prev, curr) => prev + curr.lineCount, 0);
 			const numberOfHiddenSections = unchanged.length;

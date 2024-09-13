@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Mimes } from '../../../../../base/common/mime.js';
-import { mock } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDiffElementViewModelBase, SideBySideDiffElementViewModel } from '../../browser/diff/diffElementViewModel.js';
-import { NotebookDiffEditorEventDispatcher } from '../../browser/diff/eventDispatcher.js';
-import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from '../../browser/diff/notebookDiffEditorBrowser.js';
-import { NotebookDiffViewModel, prettyChanges } from '../../browser/diff/notebookDiffViewModel.js';
-import { CellKind, INotebookTextModel } from '../../common/notebookCommon.js';
-import { INotebookService } from '../../common/notebookService.js';
-import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
-import { withTestNotebookDiffModel } from './testNotebookEditor.js';
-import { IDiffEditorHeightCalculatorService } from '../../browser/diff/editorHeightCalculator.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IDiffResult, ISequence, LcsDiff } from '../../../../../../base/common/diff/diff.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../../base/common/mime.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDiffElementViewModelBase, SideBySideDiffElementViewModel } from '../../../browser/diff/diffElementViewModel.js';
+import { NotebookDiffEditorEventDispatcher } from '../../../browser/diff/eventDispatcher.js';
+import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from '../../../browser/diff/notebookDiffEditorBrowser.js';
+import { NotebookDiffViewModel, prettyChanges } from '../../../browser/diff/notebookDiffViewModel.js';
+import { CellKind, INotebookTextModel } from '../../../common/notebookCommon.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
+import { withTestNotebookDiffModel } from '../testNotebookEditor.js';
+import { IDiffEditorHeightCalculatorService } from '../../../browser/diff/editorHeightCalculator.js';
 
 class CellSequence implements ISequence {
 
