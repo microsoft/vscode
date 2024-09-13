@@ -211,7 +211,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				preserveFocus: options.preserveFocus,
 				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-				label: options.asRepl === 'string' ?
+				label: typeof options.asRepl === 'string' ?
 					options.asRepl :
 					typeof options.asRepl === 'object' ?
 						options.asRepl.label :
