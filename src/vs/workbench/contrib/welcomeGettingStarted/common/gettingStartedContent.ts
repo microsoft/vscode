@@ -3,12 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import themePickerContent from './media/theme_picker.js';
+import notebookProfileContent from './media/notebookProfile.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { URI } from '../../../../base/common/uri.js';
+
+interface IGettingStartedContentProvider {
+	(): string;
+}
+
+class GettingStartedContentProviderRegistry {
+
+	private readonly providers = new Map<string, IGettingStartedContentProvider>();
+
+	registerProvider(moduleId: string, provider: IGettingStartedContentProvider): void {
+		this.providers.set(moduleId, provider);
+	}
+
+	getProvider(moduleId: string): IGettingStartedContentProvider | undefined {
+		return this.providers.get(moduleId);
+	}
+}
+export const gettingStartedContentRegistry = new GettingStartedContentProviderRegistry();
+
+export async function moduleToContent(resource: URI): Promise<string> {
+	if (!resource.query) {
+		throw new Error('Getting Started: invalid resource');
+	}
+
+	const query = JSON.parse(resource.query);
+	if (!query.moduleId) {
+		throw new Error('Getting Started: invalid resource');
+	}
+
+	const provider = gettingStartedContentRegistry.getProvider(query.moduleId);
+	if (!provider) {
+		throw new Error(`Getting Started: no provider registered for ${query.moduleId}`);
+	}
+
+	return provider();
+}
+
+gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker', themePickerContent);
+gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile', notebookProfileContent);
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of welcome page"));

@@ -7,6 +7,7 @@ import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
+import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
@@ -19,6 +20,7 @@ import { BindingId, type IGpuRenderStrategy } from './gpu.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
+import { ViewGpuContext } from './viewGpuContext.js';
 
 
 const enum Constants {
@@ -159,6 +161,12 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		let dirtyLineEnd = 0;
 
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
+
+			// Only attempt to render lines that the GPU renderer can handle
+			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+				continue;
+			}
+
 			// TODO: Update on dirty lines; is this known by line before rendering?
 			// if (upToDateLines.has(y)) {
 			// 	continue;
@@ -220,8 +228,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 						continue;
 					}
 					if (chars === '\t') {
-						// TODO: Pull actual tab size
-						xOffset += 3;
+						xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
 						continue;
 					}
 

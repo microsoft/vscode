@@ -453,6 +453,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRefDetached",
+        "title": "%command.checkoutRefDetached%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.branch",
         "title": "%command.branch%",
         "category": "Git",
@@ -615,6 +621,12 @@
       {
         "command": "git.cherryPick",
         "title": "%command.cherryPick%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.cherryPickRef",
+        "title": "%command.cherryPickRef%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1446,6 +1458,14 @@
         {
           "command": "git.copyCommitMessage",
           "when": "false"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "false"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1938,20 +1958,40 @@
       "scm/history/title": [
         {
           "command": "git.fetchAll",
-          "group": "navigation@1",
+          "group": "navigation@2",
           "when": "scmProvider == git"
         }
       ],
       "scm/historyItem/context": [
         {
+          "command": "git.createTag",
+          "when": "scmProvider == git",
+          "group": "1_create@1"
+        },
+        {
+          "command": "git.branch",
+          "when": "scmProvider == git",
+          "group": "1_create@2"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "scmProvider == git",
+          "group": "2_modify@1"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "scmProvider == git",
+          "group": "2_modify@2"
+        },
+        {
           "command": "git.copyCommitId",
           "when": "scmProvider == git && !listMultiSelection",
-          "group": "1_copy@1"
+          "group": "9_copy@1"
         },
         {
           "command": "git.copyCommitMessage",
           "when": "scmProvider == git && !listMultiSelection",
-          "group": "1_copy@2"
+          "group": "9_copy@2"
         }
       ],
       "editor/title": [

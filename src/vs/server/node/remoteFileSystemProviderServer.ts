@@ -15,6 +15,7 @@ import { posix, delimiter } from '../../base/common/path.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
 import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISessionFileWatcher } from '../../platform/files/node/diskFileSystemProviderServer.js';
 import { IRecursiveWatcherOptions } from '../../platform/files/common/watcher.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 
 export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<RemoteAgentConnectionContext> {
 
@@ -22,7 +23,8 @@ export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystem
 
 	constructor(
 		logService: ILogService,
-		private readonly environmentService: IServerEnvironmentService
+		private readonly environmentService: IServerEnvironmentService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super(new DiskFileSystemProvider(logService), logService);
 
@@ -52,7 +54,7 @@ export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystem
 	//#region File Watching
 
 	protected createSessionFileWatcher(uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>): ISessionFileWatcher {
-		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService);
+		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService, this.configurationService);
 	}
 
 	//#endregion
@@ -64,23 +66,26 @@ class SessionFileWatcher extends AbstractSessionFileWatcher {
 		uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
 		logService: ILogService,
-		environmentService: IServerEnvironmentService
+		environmentService: IServerEnvironmentService,
+		configurationService: IConfigurationService
 	) {
-		super(uriTransformer, sessionEmitter, logService, environmentService);
+		super(uriTransformer, sessionEmitter, logService, environmentService, configurationService);
 	}
 
 	protected override getRecursiveWatcherOptions(environmentService: IServerEnvironmentService): IRecursiveWatcherOptions | undefined {
+		const options = super.getRecursiveWatcherOptions(environmentService);
+
 		const fileWatcherPolling = environmentService.args['file-watcher-polling'];
 		if (fileWatcherPolling) {
 			const segments = fileWatcherPolling.split(delimiter);
 			const pollingInterval = Number(segments[0]);
 			if (pollingInterval > 0) {
 				const usePolling = segments.length > 1 ? segments.slice(1) : true;
-				return { usePolling, pollingInterval };
+				return { ...options, usePolling, pollingInterval };
 			}
 		}
 
-		return undefined;
+		return options;
 	}
 
 	protected override getExtraExcludes(environmentService: IServerEnvironmentService): string[] | undefined {

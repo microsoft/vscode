@@ -1807,13 +1807,17 @@ export class Repository {
 		await this.exec(['merge', '--abort']);
 	}
 
-	async tag(name: string, message?: string): Promise<void> {
+	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
 		let args = ['tag'];
 
-		if (message) {
-			args = [...args, '-a', name, '-m', message];
+		if (options.message) {
+			args = [...args, '-a', options.name, '-m', options.message];
 		} else {
-			args = [...args, name];
+			args = [...args, options.name];
+		}
+
+		if (options.ref) {
+			args.push(options.ref);
 		}
 
 		await this.exec(args);

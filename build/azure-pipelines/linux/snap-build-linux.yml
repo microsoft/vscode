@@ -5,11 +5,11 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - task: DownloadPipelineArtifact@0
+  - task: DownloadPipelineArtifact@2
     displayName: "Download Pipeline Artifact"
     inputs:
-      artifactName: snap-$(VSCODE_ARCH)
-      targetPath: .build/linux/snap-tarball
+      artifact: snap-$(VSCODE_ARCH)
+      path: .build/linux/snap-tarball
 
   - script: |
       set -e

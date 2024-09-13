@@ -12,6 +12,7 @@ import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 import { loopbackTemplate } from './loopbackTemplate';
 import { ScopeData } from '../common/scopeData';
+import { EventBufferer } from '../common/event';
 
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -21,6 +22,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	private readonly _disposables: { dispose(): void }[];
 	private readonly _publicClientManager: CachedPublicClientApplicationManager;
+	private readonly _eventBufferer = new EventBufferer();
 
 	/**
 	 * Event to signal a change in authentication sessions for this provider.
@@ -49,15 +51,37 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	) {
 		this._disposables = context.subscriptions;
 		this._publicClientManager = new CachedPublicClientApplicationManager(context.globalState, context.secrets, this._logger);
+		const accountChangeEvent = this._eventBufferer.wrapEvent(
+			this._publicClientManager.onDidAccountsChange,
+			(last, newEvent) => {
+				if (!last) {
+					return newEvent;
+				}
+				const mergedEvent = {
+					added: [...(last.added ?? []), ...(newEvent.added ?? [])],
+					deleted: [...(last.deleted ?? []), ...(newEvent.deleted ?? [])],
+					changed: [...(last.changed ?? []), ...(newEvent.changed ?? [])]
+				};
+
+				const dedupedEvent = {
+					added: Array.from(new Map(mergedEvent.added.map(item => [item.username, item])).values()),
+					deleted: Array.from(new Map(mergedEvent.deleted.map(item => [item.username, item])).values()),
+					changed: Array.from(new Map(mergedEvent.changed.map(item => [item.username, item])).values())
+				};
+
+				return dedupedEvent;
+			},
+			{ added: new Array<AccountInfo>(), deleted: new Array<AccountInfo>(), changed: new Array<AccountInfo>() }
+		)(e => this._handleAccountChange(e));
 		this._disposables.push(
 			this._onDidChangeSessionsEmitter,
 			this._publicClientManager,
-			this._publicClientManager.onDidAccountsChange(e => this._handleAccountChange(e))
+			accountChangeEvent
 		);
 	}
 
 	async initialize(): Promise<void> {
-		await this._publicClientManager.initialize();
+		await this._eventBufferer.bufferEventsAsync(() => this._publicClientManager.initialize());
 
 		// Send telemetry for existing accounts
 		for (const cachedPca of this._publicClientManager.getAll()) {
@@ -77,6 +101,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	 * @param param0 Event that contains the added and removed accounts
 	 */
 	private _handleAccountChange({ added, changed, deleted }: { added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }) {
+		this._logger.debug(`[_handleAccountChange] added: ${added.length}, changed: ${changed.length}, deleted: ${deleted.length}`);
 		this._onDidChangeSessionsEmitter.fire({
 			added: added.map(this.sessionFromAccountInfo),
 			changed: changed.map(this.sessionFromAccountInfo),
@@ -225,17 +250,19 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
 			: cachedPca.accounts;
 		const sessions: AuthenticationSession[] = [];
-		for (const account of accounts) {
-			try {
-				const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
-				sessions.push(this.sessionFromAuthenticationResult(result, originalScopes));
-			} catch (e) {
-				// If we can't get a token silently, the account is probably in a bad state so we should skip it
-				// MSAL will log this already, so we don't need to log it again
-				continue;
+		return this._eventBufferer.bufferEventsAsync(async () => {
+			for (const account of accounts) {
+				try {
+					const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
+					sessions.push(this.sessionFromAuthenticationResult(result, originalScopes));
+				} catch (e) {
+					// If we can't get a token silently, the account is probably in a bad state so we should skip it
+					// MSAL will log this already, so we don't need to log it again
+					continue;
+				}
 			}
-		}
-		return sessions;
+			return sessions;
+		});
 	}
 
 	private sessionFromAuthenticationResult(result: AuthenticationResult, scopes: readonly string[]): AuthenticationSession & { idToken: string } {

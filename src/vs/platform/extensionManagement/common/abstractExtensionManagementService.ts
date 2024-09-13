@@ -11,7 +11,6 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { isWeb } from '../../../base/common/platform.js';
-import { isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import {
@@ -21,7 +20,8 @@ import {
 	IProductVersion, ExtensionGalleryErrorCode,
 	EXTENSION_INSTALL_SOURCE_CONTEXT,
 	DidUpdateExtensionMetadata,
-	UninstallExtensionInfo
+	UninstallExtensionInfo,
+	ExtensionSignatureVerificationCode
 } from './extensionManagement.js';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from './extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
@@ -32,7 +32,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
-export type ExtensionVerificationStatus = boolean | string;
 export type InstallableExtension = { readonly manifest: IExtensionManifest; extension: IGalleryExtension | URI; options: InstallOptions };
 
 export type InstallExtensionTaskOptions = InstallOptions & { readonly profileLocation: URI; readonly productVersion: IProductVersion };
@@ -42,7 +41,7 @@ export interface IInstallExtensionTask {
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
 	readonly options: InstallExtensionTaskOptions;
-	readonly verificationStatus?: ExtensionVerificationStatus;
+	readonly verificationStatus?: ExtensionSignatureVerificationCode;
 	run(): Promise<ILocalExtension>;
 	waitUntilTaskIsFinished(): Promise<ILocalExtension>;
 	cancel(): void;
@@ -889,34 +888,12 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 		durationSinceUpdate
 	}: {
 		extensionData: any;
-		verificationStatus?:
-		ExtensionVerificationStatus;
+		verificationStatus?: ExtensionSignatureVerificationCode;
 		duration?: number;
 		durationSinceUpdate?: number;
 		source?: string;
 		error?: ExtensionManagementError | ExtensionGalleryError;
 	}): void {
-	let errorcode: string | undefined;
-	let errorcodeDetail: string | undefined;
-
-	if (isDefined(verificationStatus)) {
-		if (verificationStatus === true) {
-			verificationStatus = 'Verified';
-		} else if (verificationStatus === false) {
-			verificationStatus = 'Unverified';
-		} else {
-			errorcode = ExtensionManagementErrorCode.Signature;
-			errorcodeDetail = verificationStatus;
-			verificationStatus = 'Unverified';
-		}
-	}
-
-	if (error) {
-		errorcode = error.code;
-		if (error.code === ExtensionManagementErrorCode.Signature) {
-			errorcodeDetail = error.message;
-		}
-	}
 
 	/* __GDPR__
 		"extensionGallery:install" : {
@@ -925,7 +902,6 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"durationSinceUpdate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -951,7 +927,6 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
@@ -959,7 +934,15 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			]
 		}
 	*/
-	telemetryService.publicLog(eventName, { ...extensionData, verificationStatus, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate, source });
+	telemetryService.publicLog(eventName, {
+		...extensionData,
+		source,
+		duration,
+		durationSinceUpdate,
+		success: !error,
+		errorcode: error?.code,
+		verificationStatus: verificationStatus === ExtensionSignatureVerificationCode.Success ? 'Verified' : (verificationStatus ?? 'Unverified')
+	});
 }
 
 export abstract class AbstractExtensionTask<T> {

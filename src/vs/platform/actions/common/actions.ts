@@ -181,6 +181,7 @@ export class MenuId {
 	static readonly NotebookCellExecuteGoTo = new MenuId('NotebookCellExecuteGoTo');
 	static readonly NotebookCellExecutePrimary = new MenuId('NotebookCellExecutePrimary');
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
+	static readonly NotebookDiffDocumentMetadata = new MenuId('NotebookDiffDocumentMetadata');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
@@ -367,7 +368,7 @@ export interface IMenuRegistry {
 	 */
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
-	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
+	getMenuItems(loc: MenuId | undefined): Array<IMenuItem | ISubmenuItem>;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -423,9 +424,14 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
+	getMenuItems(id: MenuId | undefined): Array<IMenuItem | ISubmenuItem> {
 		let result: Array<IMenuItem | ISubmenuItem>;
-		if (this._menuItems.has(id)) {
+		if (id === undefined) {
+			result = [];
+			for (const items of this._menuItems.values()) {
+				result.push(...items);
+			}
+		} else if (this._menuItems.has(id)) {
 			result = [...this._menuItems.get(id)!];
 		} else {
 			result = [];

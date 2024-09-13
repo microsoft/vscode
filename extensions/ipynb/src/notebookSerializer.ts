@@ -10,21 +10,14 @@ import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './dese
 import * as fnv from '@enonic/fnv-plus';
 import { serializeNotebookToString } from './serializers';
 
-export class NotebookSerializer extends vscode.Disposable implements vscode.NotebookSerializer {
-	private disposed: boolean = false;
-	private worker?: import('node:worker_threads').Worker;
-
-	constructor(readonly context: vscode.ExtensionContext, _isBrowser: boolean) {
+export abstract class NotebookSerializerBase extends vscode.Disposable implements vscode.NotebookSerializer {
+	protected disposed: boolean = false;
+	constructor(protected readonly context: vscode.ExtensionContext) {
 		super(() => { });
 	}
 
 	override dispose() {
 		this.disposed = true;
-		try {
-			void this.worker?.terminate();
-		} catch {
-			//
-		}
 		super.dispose();
 	}
 
@@ -91,5 +84,5 @@ export class NotebookSerializer extends vscode.Disposable implements vscode.Note
 		const serialized = serializeNotebookToString(data);
 		return new TextEncoder().encode(serialized);
 	}
-}
 
+}
