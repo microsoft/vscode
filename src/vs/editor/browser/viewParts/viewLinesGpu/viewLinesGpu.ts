@@ -69,16 +69,6 @@ export class ViewLinesGpu extends ViewPart {
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
 
-		// Rerender when the texture atlas deletes glyphs
-		if (ViewGpuContext.atlas) {
-			this._register(ViewGpuContext.atlas.onDidDeleteGlyphs(() => {
-				this._atlasGpuTextureVersions.length = 0;
-				this._atlasGpuTextureVersions[0] = 0;
-				this._atlasGpuTextureVersions[1] = 0;
-				this._renderStrategy.reset();
-			}));
-		}
-
 		this.initWebgpu();
 	}
 
@@ -86,7 +76,20 @@ export class ViewLinesGpu extends ViewPart {
 		// #region General
 
 		this._device = await this._viewGpuContext.device;
+
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		const atlas = ViewGpuContext.atlas;
+
+		// Rerender when the texture atlas deletes glyphs
+		this._register(atlas.onDidDeleteGlyphs(() => {
+			this._atlasGpuTextureVersions.length = 0;
+			this._atlasGpuTextureVersions[0] = 0;
+			this._atlasGpuTextureVersions[1] = 0;
+			this._renderStrategy.reset();
+		}));
 
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 		this._viewGpuContext.ctx.configure({
@@ -94,6 +97,7 @@ export class ViewLinesGpu extends ViewPart {
 			format: presentationFormat,
 			alphaMode: 'premultiplied',
 		});
+
 		this._renderPassColorAttachment = {
 			view: null!, // Will be filled at render time
 			loadOp: 'load',
