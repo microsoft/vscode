@@ -49,6 +49,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { getFormattedMetadataJSON } from '../../common/model/notebookCellTextModel.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { getUnchangedRegionSettings } from './unchangedEditorRegions.js';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -247,6 +248,7 @@ export class NotebookDocumentMetadataElement extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITextResourceConfigurationService private readonly textConfigurationService: ITextResourceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._editor = templateData.sourceEditor;
@@ -327,12 +329,13 @@ export class NotebookDocumentMetadataElement extends Disposable {
 			const options: IDiffEditorOptions = {
 				padding: getEditorPadding(lineCount)
 			};
-			if (this.viewModel.unchangedRegionsService.options.enabled) {
-				options.hideUnchangedRegions = this.viewModel.unchangedRegionsService.options;
+			const unchangedRegions = this._register(getUnchangedRegionSettings(this.configurationService));
+			if (unchangedRegions.options.enabled) {
+				options.hideUnchangedRegions = unchangedRegions.options;
 			}
 			this._editor.updateOptions(options);
-			this._register(this.viewModel.unchangedRegionsService.options.onDidChangeEnablement(() => {
-				options.hideUnchangedRegions = this.viewModel.unchangedRegionsService.options;
+			this._register(unchangedRegions.onDidChangeEnablement(() => {
+				options.hideUnchangedRegions = unchangedRegions.options;
 				this._editor.updateOptions(options);
 			}));
 			this._editor.layout({
@@ -781,12 +784,13 @@ abstract class AbstractElementRenderer extends Disposable {
 				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 			});
 
-			if (this.cell.unchangedRegionsService.options.enabled) {
-				this._metadataEditor.updateOptions({ hideUnchangedRegions: this.cell.unchangedRegionsService.options });
+			const unchangedRegions = this._register(getUnchangedRegionSettings(this.configurationService));
+			if (unchangedRegions.options.enabled) {
+				this._metadataEditor.updateOptions({ hideUnchangedRegions: unchangedRegions.options });
 			}
-			this._metadataEditorDisposeStore.add(this.cell.unchangedRegionsService.options.onDidChangeEnablement(() => {
+			this._metadataEditorDisposeStore.add(unchangedRegions.onDidChangeEnablement(() => {
 				if (this._metadataEditor) {
-					this._metadataEditor.updateOptions({ hideUnchangedRegions: this.cell.unchangedRegionsService.options });
+					this._metadataEditor.updateOptions({ hideUnchangedRegions: unchangedRegions.options });
 				}
 			}));
 
@@ -1885,12 +1889,13 @@ export class ModifiedElement extends AbstractElementRenderer {
 			const options: IDiffEditorOptions = {
 				padding: getEditorPadding(lineCount)
 			};
-			if (this.cell.unchangedRegionsService.options.enabled) {
-				options.hideUnchangedRegions = this.cell.unchangedRegionsService.options;
+			const unchangedRegions = this._register(getUnchangedRegionSettings(this.configurationService));
+			if (unchangedRegions.options.enabled) {
+				options.hideUnchangedRegions = unchangedRegions.options;
 			}
 			this._editor.updateOptions(options);
-			this._register(this.cell.unchangedRegionsService.options.onDidChangeEnablement(() => {
-				options.hideUnchangedRegions = this.cell.unchangedRegionsService.options;
+			this._register(unchangedRegions.onDidChangeEnablement(() => {
+				options.hideUnchangedRegions = unchangedRegions.options;
 				this._editor?.updateOptions(options);
 			}));
 			this._editor.layout({

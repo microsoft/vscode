@@ -20,7 +20,6 @@ import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
-import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
@@ -79,7 +78,6 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		private readonly configurationService: IConfigurationService,
 		private readonly eventDispatcher: NotebookDiffEditorEventDispatcher,
 		private readonly notebookService: INotebookService,
-		private readonly unchangedRegionsService: IUnchangedEditorRegionsService,
 		private readonly diffEditorHeightCalculator: IDiffEditorHeightCalculatorService,
 		private readonly fontInfo?: FontInfo,
 		private readonly excludeUnchangedPlaceholder?: boolean,
@@ -279,7 +277,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		};
 
 		const viewModels: (SingleSideDiffElementViewModel | SideBySideDiffElementViewModel | NotebookDocumentMetadataViewModel)[] = [];
-		this.notebookMetadataViewModel = this._register(new NotebookDocumentMetadataViewModel(this.model.original.notebook, this.model.modified.notebook, metadataChanged ? 'modifiedMetadata' : 'unchangedMetadata', this.eventDispatcher, initData, this.notebookService, this.unchangedRegionsService, this.diffEditorHeightCalculator));
+		this.notebookMetadataViewModel = this._register(new NotebookDocumentMetadataViewModel(this.model.original.notebook, this.model.modified.notebook, metadataChanged ? 'modifiedMetadata' : 'unchangedMetadata', this.eventDispatcher, initData, this.notebookService, this.diffEditorHeightCalculator));
 		if (!this.ignoreMetadata) {
 			if (metadataChanged) {
 				await this.notebookMetadataViewModel.computeHeights();
@@ -299,7 +297,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 						initData,
 						this.notebookService,
 						this.configurationService,
-						this.unchangedRegionsService,
+						this.diffEditorHeightCalculator,
 						diff.originalCellIndex
 					);
 				}
@@ -314,7 +312,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 						initData,
 						this.notebookService,
 						this.configurationService,
-						this.unchangedRegionsService,
+						this.diffEditorHeightCalculator,
 						diff.modifiedCellIndex
 					);
 				}
@@ -330,7 +328,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 						this.notebookService,
 						this.configurationService,
 						diff.originalCellIndex,
-						this.unchangedRegionsService
+						this.diffEditorHeightCalculator
 					);
 					// Reduces flicker (compute this before setting the model)
 					// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
@@ -349,7 +347,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 						this.notebookService,
 						this.configurationService,
 						diff.originalCellIndex,
-						this.unchangedRegionsService
+						this.diffEditorHeightCalculator
 					);
 				}
 			}

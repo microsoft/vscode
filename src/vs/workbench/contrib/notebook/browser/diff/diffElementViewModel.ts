@@ -21,7 +21,6 @@ import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { CellUri, ICellOutput, INotebookTextModel, IOutputDto, IOutputItemDto } from '../../common/notebookCommon.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IUnchangedEditorRegionsService } from './unchangedEditorRegions.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 import { NotebookDocumentMetadataTextModel } from '../../common/model/notebookMetadataTextModel.js';
@@ -146,7 +145,6 @@ export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase 
 			fontInfo: FontInfo | undefined;
 		},
 		notebookService: INotebookService,
-		public readonly unchangedRegionsService: IUnchangedEditorRegionsService,
 		private readonly editorHeightCalculator: IDiffEditorHeightCalculatorService
 	) {
 		super(originalDocumentTextModel, editorEventDispatcher, initData);
@@ -175,9 +173,7 @@ export class NotebookDocumentMetadataViewModel extends DiffElementViewModelBase 
 
 	public async computeHeights() {
 		if (this.type === 'unchangedMetadata') {
-			const original = this.editorHeightCalculator.computeHeightFromLines(this.originalMetadata.textBuffer.getLineCount());
-			const modified = this.editorHeightCalculator.computeHeightFromLines(this.modifiedMetadata.textBuffer.getLineCount());
-			this.editorHeight = Math.max(original, modified);
+			this.editorHeight = this.editorHeightCalculator.computeHeightFromLines(this.originalMetadata.textBuffer.getLineCount());
 		} else {
 			const original = this.originalMetadata.uri;
 			const modified = this.modifiedMetadata.uri;
@@ -426,7 +422,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 		notebookService: INotebookService,
 		public readonly index: number,
 		private readonly configurationService: IConfigurationService,
-		public readonly unchangedRegionsService: IUnchangedEditorRegionsService
+		public readonly diffEditorHeightCalculator: IDiffEditorHeightCalculatorService
 	) {
 		super(mainDocumentTextModel, editorEventDispatcher, initData);
 		this.original = original ? this._register(new DiffNestedCellViewModel(original, notebookService)) : undefined;
@@ -607,7 +603,7 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 
 	public computeInputEditorHeight(lineHeight: number): number {
 		const lineCount = Math.max(this.original?.textModel.textBuffer.getLineCount() ?? 1, this.modified?.textModel.textBuffer.getLineCount() ?? 1);
-		return lineCount * lineHeight + getEditorPadding(lineCount).top + getEditorPadding(lineCount).bottom;
+		return this.diffEditorHeightCalculator.computeHeightFromLines(lineCount);
 	}
 
 	private _getOutputTotalHeight(rawOutputHeight: number, metadataHeight: number) {
@@ -707,7 +703,7 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		notebookService: INotebookService,
 		configurationService: IConfigurationService,
 		index: number,
-		unchangedRegionsService: IUnchangedEditorRegionsService
+		diffEditorHeightCalculator: IDiffEditorHeightCalculatorService
 	) {
 		super(
 			mainDocumentTextModel,
@@ -719,7 +715,7 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 			notebookService,
 			index,
 			configurationService,
-			unchangedRegionsService);
+			diffEditorHeightCalculator);
 
 		this.type = type;
 
@@ -855,7 +851,6 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 	public override computeInputEditorHeight(lineHeight: number): number {
 		if (this.type === 'modified' &&
 			typeof this.editorHeightWithUnchangedLinesCollapsed === 'number' &&
-			this.unchangedRegionsService.options.enabled &&
 			this.checkIfInputModified()) {
 			return this.editorHeightWithUnchangedLinesCollapsed;
 		}
@@ -863,26 +858,26 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		return super.computeInputEditorHeight(lineHeight);
 	}
 
-	private async computeInputEditorHeightWithUnchangedLinesHidden() {
+	private async computeModifiedInputEditorHeight() {
 		if (this.checkIfInputModified()) {
-			this.editorHeightWithUnchangedLinesCollapsed = this._layoutInfo.editorHeight = await this.unchangedRegionsService.computeEditorHeight(this.original.uri, this.modified.uri);
+			this.editorHeightWithUnchangedLinesCollapsed = this._layoutInfo.editorHeight = await this.diffEditorHeightCalculator.diffAndComputeHeight(this.original.uri, this.modified.uri);
 		}
 	}
 
-	private async computeMetadataEditorHeightWithUnchangedLinesHidden() {
+	private async computeModifiedMetadataEditorHeight() {
 		if (this.checkMetadataIfModified()) {
 			const originalMetadataUri = CellUri.generateCellPropertyUri(this.originalDocument.uri, this.original.handle, Schemas.vscodeNotebookCellMetadata);
 			const modifiedMetadataUri = CellUri.generateCellPropertyUri(this.modifiedDocument.uri, this.modified.handle, Schemas.vscodeNotebookCellMetadata);
-			this._layoutInfo.metadataHeight = await this.unchangedRegionsService.computeEditorHeight(originalMetadataUri, modifiedMetadataUri);
+			this._layoutInfo.metadataHeight = await this.diffEditorHeightCalculator.diffAndComputeHeight(originalMetadataUri, modifiedMetadataUri);
 		}
 	}
 
 	public async computeEditorHeights() {
-		if (this.type === 'unchanged' || !this.unchangedRegionsService.options.enabled) {
+		if (this.type === 'unchanged') {
 			return;
 		}
 
-		await Promise.all([this.computeInputEditorHeightWithUnchangedLinesHidden(), this.computeMetadataEditorHeightWithUnchangedLinesHidden()]);
+		await Promise.all([this.computeModifiedInputEditorHeight(), this.computeModifiedMetadataEditorHeight()]);
 	}
 
 }
@@ -924,10 +919,10 @@ export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase
 		},
 		notebookService: INotebookService,
 		configurationService: IConfigurationService,
-		unchangedRegionsService: IUnchangedEditorRegionsService,
+		diffEditorHeightCalculator: IDiffEditorHeightCalculatorService,
 		index: number
 	) {
-		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService, index, configurationService, unchangedRegionsService);
+		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData, notebookService, index, configurationService, diffEditorHeightCalculator);
 		this.type = type;
 
 		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {
