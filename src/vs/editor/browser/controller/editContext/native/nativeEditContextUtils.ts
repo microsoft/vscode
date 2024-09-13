@@ -43,6 +43,13 @@ export class FocusTracker extends Disposable {
 	get isFocused(): boolean {
 		return this._isFocused;
 	}
+
+	override dispose(): void {
+		// Need to explicitly blur the edit dom node, so that the edit context no longer relies on its events
+		this._domNode.blur();
+		this._handleFocusedChanged(false);
+		super.dispose();
+	}
 }
 
 export function editContextAddDisposableListener<K extends keyof EditContextEventHandlersEventMap>(target: EventTarget, type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): IDisposable {

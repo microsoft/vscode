@@ -434,6 +434,7 @@ export class View extends ViewEventHandler {
 		this._context.removeEventHandler(this);
 		this._viewGpuContext?.dispose();
 
+		this._editContext.dispose();
 		this._viewLines.dispose();
 		this._viewLinesGpu?.dispose();
 

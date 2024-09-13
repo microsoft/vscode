@@ -56,7 +56,14 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.setClassName(`native-edit-context`);
 		this._updateDomAttributes();
 
-		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
+		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
+			this._context.viewModel.setHasFocus(newFocusValue);
+			// Added in order to not have the edit context fire when not focused
+			if (!newFocusValue) {
+				this.domNode.domNode.focus();
+				this.domNode.domNode.blur();
+			}
+		}));
 
 		this._editContext = new EditContext();
 		this.domNode.domNode.editContext = this._editContext;
@@ -97,10 +104,6 @@ export class NativeEditContext extends AbstractEditContext {
 				this._compositionRangeWithinEditor = newCompositionRangeWithinEditor;
 			}
 			this._emitTypeEvent(viewController, e);
-
-			// TODO @aiday-mar calling write screen reader content so that the document selection is immediately set
-			// remove the following when electron will be upgraded
-			this._screenReaderSupport.writeScreenReaderContent();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
