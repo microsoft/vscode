@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../base/common/charCode.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
@@ -19,6 +20,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../nls.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -88,7 +90,8 @@ export class ApplyCodeBlockOperation {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 	}
 
@@ -96,7 +99,13 @@ export class ApplyCodeBlockOperation {
 
 		if (context.codemapperUri) {
 			// If the code block is from a code mapper, first reveal the target file
-			await this.editorService.openEditor({ resource: context.codemapperUri });
+			try {
+				// If the file doesn't exist yet, create it
+				if (!(await this.fileService.exists(context.codemapperUri))) {
+					await this.fileService.writeFile(context.codemapperUri, VSBuffer.fromString(''));
+				}
+				await this.editorService.openEditor({ resource: context.codemapperUri });
+			} catch { }
 		}
 
 		let result;
