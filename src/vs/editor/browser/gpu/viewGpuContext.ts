@@ -53,7 +53,11 @@ export class ViewGpuContext extends Disposable {
 		this._register(observeDevicePixelDimensions(
 			this.canvas.domNode,
 			getActiveWindow(),
-			(width, height) => canvasDevicePixelDimensions.set({ width, height }, undefined)
+			(width, height) => {
+				this.canvas.domNode.width = width;
+				this.canvas.domNode.height = height;
+				canvasDevicePixelDimensions.set({ width, height }, undefined);
+			}
 		));
 		this.canvasDevicePixelDimensions = canvasDevicePixelDimensions;
 	}
