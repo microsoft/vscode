@@ -50,7 +50,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		private readonly _env: Environment = Environment.AzureCloud
 	) {
 		this._disposables = context.subscriptions;
-		this._publicClientManager = new CachedPublicClientApplicationManager(context.globalState, context.secrets, this._logger);
+		this._publicClientManager = new CachedPublicClientApplicationManager(
+			context.globalState,
+			context.secrets,
+			this._logger,
+			this._env.name
+		);
 		const accountChangeEvent = this._eventBufferer.wrapEvent(
 			this._publicClientManager.onDidAccountsChange,
 			(last, newEvent) => {
@@ -148,40 +153,52 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
 		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
-		let result: AuthenticationResult;
-		try {
-			result = await cachedPca.acquireTokenInteractive({
-				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
-				scopes: scopeData.scopesToSend,
-				// The logic for rendering one or the other of these templates is in the
-				// template itself, so we pass the same one for both.
-				successTemplate: loopbackTemplate,
-				errorTemplate: loopbackTemplate
-			});
-		} catch (e) {
-			if (e instanceof CancellationError) {
-				const yes = l10n.t('Yes');
-				const result = await window.showErrorMessage(
-					l10n.t('Having trouble logging in?'),
-					{
-						modal: true,
-						detail: l10n.t('Would you like to try a different way to sign in to your Microsoft account? ({0})', 'protocol handler')
-					},
-					yes
-				);
-				if (!result) {
+		let result: AuthenticationResult | undefined;
+
+		// Currently, the http://localhost redirect URI is only in the AzureCloud environment... even though I did make the change in the SovereignCloud environments...
+		// TODO: Remove this check when the change is in all environments.
+		let useLoopBack = this._env !== Environment.AzureCloud && scopeData.clientId === 'aebc6443-996d-45c2-90f0-388ff96faa56';
+		if (!useLoopBack) {
+			try {
+				result = await cachedPca.acquireTokenInteractive({
+					openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
+					scopes: scopeData.scopesToSend,
+					// The logic for rendering one or the other of these templates is in the
+					// template itself, so we pass the same one for both.
+					successTemplate: loopbackTemplate,
+					errorTemplate: loopbackTemplate
+				});
+			} catch (e) {
+				if (e instanceof CancellationError) {
+					const yes = l10n.t('Yes');
+					const result = await window.showErrorMessage(
+						l10n.t('Having trouble logging in?'),
+						{
+							modal: true,
+							detail: l10n.t('Would you like to try a different way to sign in to your Microsoft account? ({0})', 'protocol handler')
+						},
+						yes
+					);
+					if (!result) {
+						this._telemetryReporter.sendLoginFailedEvent();
+						throw e;
+					}
+				}
+				// This error comes from the backend and is likely not due to the user's machine
+				// failing to open a port or something local that would require us to try the
+				// URL handler loopback client.
+				if (e instanceof ServerError) {
 					this._telemetryReporter.sendLoginFailedEvent();
 					throw e;
 				}
+
+				// The user wants to try the loopback client or we got an error likely due to spinning up the server
+				useLoopBack = true;
 			}
-			// This error comes from the backend and is likely not due to the user's machine
-			// failing to open a port or something local that would require us to try the
-			// URL handler loopback client.
-			if (e instanceof ServerError) {
-				this._telemetryReporter.sendLoginFailedEvent();
-				throw e;
-			}
-			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri);
+		}
+
+		if (useLoopBack) {
+			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri, this._logger);
 			try {
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
@@ -192,6 +209,11 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				this._telemetryReporter.sendLoginFailedEvent();
 				throw e;
 			}
+		}
+
+		if (!result) {
+			this._telemetryReporter.sendLoginFailedEvent();
+			throw new Error('No result returned from MSAL');
 		}
 
 		const session = this.sessionFromAuthenticationResult(result, scopeData.originalScopes);
