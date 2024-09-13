@@ -16,6 +16,7 @@ import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFi
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IRecursiveWatcherOptions } from '../common/watcher.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -278,7 +279,8 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 		private readonly uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
 		private readonly logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -303,7 +305,11 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	}
 
 	protected getRecursiveWatcherOptions(environmentService: IEnvironmentService): IRecursiveWatcherOptions | undefined {
-		return undefined; // subclasses can override
+		if (this.configurationService.getValue<boolean>('files.experimentalWatcherNext') === true) {
+			return { useNext: true, usePolling: false };
+		}
+
+		return undefined;
 	}
 
 	protected getExtraExcludes(environmentService: IEnvironmentService): string[] | undefined {
