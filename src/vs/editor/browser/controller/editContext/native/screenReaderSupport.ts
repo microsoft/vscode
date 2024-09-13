@@ -157,7 +157,6 @@ export class ScreenReaderSupport {
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
-		// Causes jumping of IME, reproduced on the example from the DEMO
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
 	}
