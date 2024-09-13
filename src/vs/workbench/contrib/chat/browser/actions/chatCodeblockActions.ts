@@ -27,7 +27,7 @@ import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { InsertCodeBlockOperation, ApplyCodeBlockOperation } from './InsertCodeBlockOperation.js';
+import { InsertCodeBlockOperation, ApplyCodeBlockOperation } from './codeBlockOperations.js';
 
 const shellLangIds = [
 	'fish',
