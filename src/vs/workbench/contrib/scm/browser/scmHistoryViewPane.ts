@@ -1104,17 +1104,15 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this._createTree(this._treeContainer);
 
-		this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
-		this._register(this._treeViewModel);
-
 		this.onDidChangeBodyVisibility(async visible => {
 			if (!visible) {
 				this._visibilityDisposables.clear();
 				return;
 			}
 
-			// Clear repository state
-			this._treeViewModel.clearRepositoryState();
+			// Create view model
+			this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
+			this._visibilityDisposables.add(this._treeViewModel);
 
 			// Initial rendering
 			await this._progressService.withProgress({ location: this.id }, async () => {
