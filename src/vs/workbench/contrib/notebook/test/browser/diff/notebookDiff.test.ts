@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Mimes } from '../../../../../base/common/mime.js';
-import { mock } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDiffElementViewModelBase, SideBySideDiffElementViewModel } from '../../browser/diff/diffElementViewModel.js';
-import { NotebookDiffEditorEventDispatcher } from '../../browser/diff/eventDispatcher.js';
-import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from '../../browser/diff/notebookDiffEditorBrowser.js';
-import { NotebookDiffViewModel, prettyChanges } from '../../browser/diff/notebookDiffViewModel.js';
-import { CellKind, INotebookTextModel } from '../../common/notebookCommon.js';
-import { INotebookService } from '../../common/notebookService.js';
-import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
-import { withTestNotebookDiffModel } from './testNotebookEditor.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IDiffResult, ISequence, LcsDiff } from '../../../../../../base/common/diff/diff.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../../base/common/mime.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDiffElementViewModelBase, SideBySideDiffElementViewModel } from '../../../browser/diff/diffElementViewModel.js';
+import { NotebookDiffEditorEventDispatcher } from '../../../browser/diff/eventDispatcher.js';
+import { INotebookDiffViewModel, INotebookDiffViewModelUpdateEvent } from '../../../browser/diff/notebookDiffEditorBrowser.js';
+import { NotebookDiffViewModel, prettyChanges } from '../../../browser/diff/notebookDiffViewModel.js';
+import { CellKind, INotebookTextModel } from '../../../common/notebookCommon.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
+import { withTestNotebookDiffModel } from '../testNotebookEditor.js';
+import { IDiffEditorHeightCalculatorService } from '../../../browser/diff/editorHeightCalculator.js';
 
 class CellSequence implements ISequence {
 
@@ -43,9 +44,10 @@ suite('NotebookDiff', () => {
 	let diffViewModel: NotebookDiffViewModel;
 	let diffResult: IDiffResult;
 	let notebookEditorWorkerService: INotebookEditorWorkerService;
+	let heightCalculator: IDiffEditorHeightCalculatorService;
 	teardown(() => disposables.dispose());
 
-	const configurationService = new TestConfigurationService();
+	const configurationService = new TestConfigurationService({ notebook: { diff: { ignoreMetadata: true } } });
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
@@ -54,7 +56,13 @@ suite('NotebookDiff', () => {
 		eventDispatcher = disposables.add(new NotebookDiffEditorEventDispatcher());
 		token = cancellation.token;
 		notebookEditorWorkerService = new class extends mock<INotebookEditorWorkerService>() {
-			override computeDiff() { return Promise.resolve({ cellsDiff: diffResult }); }
+			override computeDiff() { return Promise.resolve({ cellsDiff: diffResult, metadataChanged: false }); }
+		};
+		heightCalculator = new class extends mock<IDiffEditorHeightCalculatorService>() {
+			override diffAndComputeHeight() { return Promise.resolve(0); }
+			override computeHeightFromLines(_lineCount: number): number {
+				return 0;
+			}
 		};
 	});
 
@@ -87,7 +95,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 1);
@@ -116,7 +124,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			await diffViewModel.computeDiff(token);
 
 			await verifyChangeEventIsNotFired(diffViewModel);
@@ -146,7 +154,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -195,7 +203,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 1);
@@ -234,7 +242,7 @@ suite('NotebookDiff', () => {
 				modifiedLength: 1
 			}]);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 1);
@@ -257,7 +265,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -287,7 +295,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -325,7 +333,7 @@ suite('NotebookDiff', () => {
 				quitEarly: false
 			};
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			const result = await diffViewModel.computeDiff(token);
@@ -379,7 +387,7 @@ suite('NotebookDiff', () => {
 				quitEarly: false
 			};
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			const result = await diffViewModel.computeDiff(token);
@@ -441,7 +449,7 @@ suite('NotebookDiff', () => {
 				quitEarly: false
 			};
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
 			await diffViewModel.computeDiff(token);
@@ -611,7 +619,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 2);
@@ -635,7 +643,7 @@ suite('NotebookDiff', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			diffResult = diff.ComputeDiff(false);
 
-			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), undefined));
+			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
 			await diffViewModel.computeDiff(token);
 
 			assert.strictEqual(diffViewModel.items.length, 2);

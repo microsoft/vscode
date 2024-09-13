@@ -201,6 +201,9 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	protected abstract _renderOne(ctx: RenderingContext, exact: boolean): string;
 }
 
+/**
+ * Emphasizes the current line by drawing a border around it.
+ */
 export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
@@ -215,6 +218,9 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 	}
 }
 
+/**
+ * Emphasizes the current line margin/gutter by drawing a border around it.
+ */
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
 		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '') + (this._shouldRenderInMargin() && exact ? ' current-line-exact-margin' : '');

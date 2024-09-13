@@ -1542,12 +1542,20 @@ export type SCMRawResourceSplices = [
 	SCMRawResourceSplice[]
 ];
 
-export interface SCMHistoryItemGroupDto {
+export interface SCMHistoryItemRefDto {
 	readonly id: string;
 	readonly name: string;
 	readonly revision?: string;
-	readonly base?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
-	readonly remote?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
+	readonly category?: string;
+	readonly description?: string;
+	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+}
+
+export interface SCMHistoryItemRefsChangeEventDto {
+	readonly added: readonly SCMHistoryItemRefDto[];
+	readonly modified: readonly SCMHistoryItemRefDto[];
+	readonly removed: readonly SCMHistoryItemRefDto[];
+	readonly silent: boolean;
 }
 
 export interface SCMHistoryItemDto {
@@ -1562,10 +1570,7 @@ export interface SCMHistoryItemDto {
 		readonly insertions: number;
 		readonly deletions: number;
 	};
-	readonly labels?: {
-		readonly title: string;
-		readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
-	}[];
+	readonly references?: SCMHistoryItemRefDto[];
 }
 
 export interface SCMHistoryItemChangeDto {
@@ -1594,7 +1599,8 @@ export interface MainThreadSCMShape extends IDisposable {
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): Promise<void>;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): Promise<void>;
 
-	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): Promise<void>;
+	$onDidChangeHistoryProviderCurrentHistoryItemRefs(sourceControlHandle: number, historyItemRef?: SCMHistoryItemRefDto, historyItemRemoteRef?: SCMHistoryItemRefDto, historyItemBaseRef?: SCMHistoryItemRefDto): Promise<void>;
+	$onDidChangeHistoryProviderHistoryItemRefs(sourceControlHandle: number, historyItemRefs: SCMHistoryItemRefsChangeEventDto): Promise<void>;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
@@ -2221,7 +2227,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
-	$provideInlineEdits(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
+	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void;
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void;
 	$freeInlineCompletionsList(handle: number, pid: number): void;
@@ -2358,9 +2364,10 @@ export interface ExtHostSCMShape {
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
+	$provideHistoryItemRefs(sourceControlHandle: number, token: CancellationToken): Promise<SCMHistoryItemRefDto[] | undefined>;
 	$provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined>;
 	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
-	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupIds: string[], token: CancellationToken): Promise<string | undefined>;
+	$resolveHistoryItemRefsCommonAncestor(sourceControlHandle: number, historyItemRefs: string[], token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface ExtHostQuickDiffShape {

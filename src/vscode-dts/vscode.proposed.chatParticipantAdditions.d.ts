@@ -36,6 +36,11 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
+	export class ChatResponseCodeblockUriPart {
+		value: Uri;
+		constructor(value: Uri);
+	}
+
 	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
@@ -129,6 +134,18 @@ declare module 'vscode' {
 		constructor(uri: Uri, range: Range);
 	}
 
+	// Extended to add `SymbolInformation`. Would also be added to `constructor`.
+	export interface ChatResponseAnchorPart {
+		/**
+		 * The target of this anchor.
+		 *
+		 * If this is a {@linkcode Uri} or {@linkcode Location}, this is rendered as a normal link.
+		 *
+		 * If this is a {@linkcode SymbolInformation}, this is rendered as a symbol link.
+		 */
+		value2: Uri | Location | SymbolInformation;
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -143,6 +160,7 @@ declare module 'vscode' {
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
+		codeblockUri(uri: Uri): void;
 		detectedParticipant(participant: string, command?: ChatCommand): void;
 		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
@@ -230,6 +248,10 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	export interface ChatRequest {
+		toolInvocationToken: ChatParticipantToolToken;
+	}
+
 	export interface ChatResult {
 		nextQuestion?: {
 			prompt: string;
@@ -288,7 +310,14 @@ declare module 'vscode' {
 		codeBlockIndex: number;
 		totalCharacters: number;
 		newFile?: boolean;
-		userAction?: string;
+	}
+
+	export interface ChatApplyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'apply';
+		codeBlockIndex: number;
+		totalCharacters: number;
+		newFile?: boolean;
 		codeMapper?: string;
 	}
 
@@ -323,7 +352,7 @@ declare module 'vscode' {
 
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
 	}
 
 	export interface ChatPromptReference {

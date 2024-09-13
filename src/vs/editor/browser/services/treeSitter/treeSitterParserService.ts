@@ -21,7 +21,7 @@ import { CancellationToken, cancelOnDispose } from '../../../../base/common/canc
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { canASAR } from '../../../../base/common/amd.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { PromiseResult } from '../../../../base/common/observableInternal/promise.js';
+import { PromiseResult } from '../../../../base/common/observable.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -210,7 +210,12 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	}
 
 	private _parseCallback(textModel: ITextModel, index: number): string | null {
-		return textModel.getTextBuffer().getNearestChunk(index);
+		try {
+			return textModel.getTextBuffer().getNearestChunk(index);
+		} catch (e) {
+			this._logService.debug('Error getting chunk for tree-sitter parsing', e);
+		}
+		return null;
 	}
 
 	private sendParseTimeTelemetry(parseType: TelemetryParseType, languageId: string, time: number, passes: number): void {

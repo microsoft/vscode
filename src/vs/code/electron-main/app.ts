@@ -97,8 +97,6 @@ import { IWorkspacesManagementMainService, WorkspacesManagementMainService } fro
 import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
 import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
-import { RequestChannel } from '../../platform/request/common/requestIpc.js';
-import { IRequestService } from '../../platform/request/common/request.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { IExtensionsScannerService } from '../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionsScannerService } from '../../platform/extensionManagement/node/extensionsScannerService.js';
@@ -121,6 +119,7 @@ import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/ele
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1105,6 +1104,11 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
+		if (this.productService.quality !== 'stable') {
+			// extensions signature verification service
+			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		}
+
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1137,7 +1141,7 @@ export class CodeApplication extends Disposable {
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
-		const fileSystemProviderChannel = disposables.add(new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService));
+		const fileSystemProviderChannel = disposables.add(new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService, this.configurationService));
 		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
@@ -1146,9 +1150,12 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
-		// Request
-		const requestService = new RequestChannel(accessor.get(IRequestService));
-		sharedProcessClient.then(client => client.registerChannel('request', requestService));
+		if (this.productService.quality !== 'stable') {
+			// Extension signature verification service
+			const extensionSignatureVerificationService = accessor.get(IExtensionSignatureVerificationService);
+			sharedProcessClient.then(client => client.registerChannel('signatureVerificationService',
+				ProxyChannel.fromService(extensionSignatureVerificationService, disposables)));
+		}
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));

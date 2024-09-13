@@ -14,6 +14,7 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
@@ -96,7 +97,7 @@ export interface IChatCodeCitation {
 }
 
 export interface IChatContentInlineReference {
-	inlineReference: URI | Location;
+	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';
 }
@@ -153,6 +154,11 @@ export interface IChatAgentVulnerabilityDetails {
 	description: string;
 }
 
+export interface IChatResponseCodeblockUriPart {
+	kind: 'codeblockUri';
+	uri: URI;
+}
+
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
 	vulnerabilities: IChatAgentVulnerabilityDetails[];
@@ -201,6 +207,7 @@ export type IChatProgress =
 	| IChatWarningMessage
 	| IChatTextEdit
 	| IChatMoveMessage
+	| IChatResponseCodeblockUriPart
 	| IChatConfirmation;
 
 export interface IChatFollowup {
@@ -255,9 +262,17 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
-	userAction?: string;
-	codeMapper?: string;
 }
+
+export interface IChatApplyAction {
+	kind: 'apply';
+	codeBlockIndex: number;
+	totalCharacters: number;
+	newFile?: boolean;
+	codeMapper?: string;
+	editsProposed: boolean;
+}
+
 
 export interface IChatTerminalAction {
 	kind: 'runInTerminal';
@@ -284,7 +299,7 @@ export interface IChatInlineChatCodeAction {
 	action: 'accepted' | 'discarded';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

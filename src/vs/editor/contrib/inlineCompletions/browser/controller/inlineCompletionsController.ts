@@ -8,11 +8,8 @@ import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { readHotReloadableExport } from '../../../../../base/common/hotReloadHelpers.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, constObservable, derived, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
-import { ISettableObservable } from '../../../../../base/common/observableInternal/base.js';
-import { derivedDisposable } from '../../../../../base/common/observableInternal/derived.js';
-import { derivedObservableWithCache, mapObservableArrayCached, runOnChange, runOnChangeWithStore } from '../../../../../base/common/observableInternal/utils.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ITransaction, autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, mapObservableArrayCached, observableFromEvent, observableSignal, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -34,6 +31,7 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
+import { convertItemsToStableObservables } from '../utils.js';
 import { GhostTextView } from '../view/ghostTextView.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
@@ -158,7 +156,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 
-		this._register(runOnChange(this._editorObs.selections, (_value, changes) => {
+		this._register(runOnChange(this._editorObs.selections, (_value, _, changes) => {
 			if (changes.some(e => e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
 				this.model.get()?.stop();
 			}
@@ -206,7 +204,7 @@ export class InlineCompletionsController extends Disposable {
 			this._playAccessibilitySignal.read(reader);
 			currentInlineCompletionBySemanticId.read(reader);
 			return {};
-		}), async (_value, _deltas, store) => {
+		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
 			const model = this.model.get();
 			const state = model?.state.get();
@@ -275,28 +273,4 @@ export class InlineCompletionsController extends Disposable {
 			this.model.get()?.stop(tx);
 		});
 	}
-}
-
-function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {
-	const result = observableValue<IObservable<T>[]>('result', []);
-	const innerObservables: ISettableObservable<T>[] = [];
-
-	store.add(autorun(reader => {
-		const itemsValue = items.read(reader);
-
-		transaction(tx => {
-			if (itemsValue.length !== innerObservables.length) {
-				innerObservables.length = itemsValue.length;
-				for (let i = 0; i < innerObservables.length; i++) {
-					if (!innerObservables[i]) {
-						innerObservables[i] = observableValue<T>('item', itemsValue[i]);
-					}
-				}
-				result.set([...innerObservables], tx);
-			}
-			innerObservables.forEach((o, i) => o.set(itemsValue[i], tx));
-		});
-	}));
-
-	return result;
 }

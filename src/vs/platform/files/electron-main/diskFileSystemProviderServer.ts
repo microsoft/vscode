@@ -17,13 +17,15 @@ import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISes
 import { DefaultURITransformer, IURITransformer } from '../../../base/common/uriIpc.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<unknown> {
 
 	constructor(
 		provider: DiskFileSystemProvider,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super(provider, logService);
 	}
@@ -57,7 +59,7 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 	//#region File Watching
 
 	protected createSessionFileWatcher(uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>): ISessionFileWatcher {
-		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService);
+		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService, this.configurationService);
 	}
 
 	//#endregion

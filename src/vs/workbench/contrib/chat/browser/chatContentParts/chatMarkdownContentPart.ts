@@ -25,6 +25,7 @@ import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const $ = dom.$;
 
@@ -66,6 +67,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
 				let vulns: readonly IMarkdownVulnerability[] | undefined;
+				let codemapperUri: URI | undefined;
 				if (equalsIgnoreCase(languageId, localFileLanguageId)) {
 					try {
 						const parsedBody = parseLocalFileData(text);
@@ -83,11 +85,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
 					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
 					vulns = modelEntry.vulns;
+					codemapperUri = modelEntry.codemapperUri;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns }, text, currentWidth, rendererOptions.editableCodeBlock);
+				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri }, text, currentWidth, rendererOptions.editableCodeBlock);
 				this.allRefs.push(ref);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
@@ -100,7 +103,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					focus() {
 						ref.object.focus();
 					},
-					uri: ref.object.uri
+					uri: ref.object.uri,
+					codemapperUri: undefined
 				};
 				this.codeblocks.push(info);
 				orderedDisposablesList.push(ref);
@@ -119,7 +123,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const ref = this.editorPool.get();
 		const editorInfo = ref.object;
 		if (isResponseVM(data.element)) {
-			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId });
+			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId }).then((e) => {
+				this.codeblocks[data.codeBlockIndex] = { ...this.codeblocks[data.codeBlockIndex]!, codemapperUri: e.codemapperUri };
+			});
 		}
 
 		editorInfo.render(data, currentWidth, editableCodeBlock);

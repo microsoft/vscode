@@ -1231,6 +1231,35 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 }
 
 
+class ToggleImportFoldAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.toggleImportFold',
+			label: nls.localize('toggleImportFold.label', "Toggle Import Fold"),
+			alias: 'Toggle Import Fold',
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	async invoke(foldingController: FoldingController, foldingModel: FoldingModel): Promise<void> {
+		const regionsToToggle: FoldingRegion[] = [];
+		const regions = foldingModel.regions;
+		for (let i = regions.length - 1; i >= 0; i--) {
+			if (regions.getType(i) === FoldingRangeKind.Imports.value) {
+				regionsToToggle.push(regions.toRegion(i));
+			}
+		}
+		foldingModel.toggleCollapseState(regionsToToggle);
+		foldingController.triggerFoldingModelChanged();
+	}
+}
+
+
 registerEditorContribution(FoldingController.ID, FoldingController, EditorContributionInstantiation.Eager); // eager because it uses `saveViewState`/`restoreViewState`
 registerEditorAction(UnfoldAction);
 registerEditorAction(UnFoldRecursivelyAction);
@@ -1250,6 +1279,7 @@ registerEditorAction(GotoPreviousFoldAction);
 registerEditorAction(GotoNextFoldAction);
 registerEditorAction(FoldRangeFromSelectionAction);
 registerEditorAction(RemoveFoldRangeFromSelectionAction);
+registerEditorAction(ToggleImportFoldAction);
 
 for (let i = 1; i <= 7; i++) {
 	registerInstantiatedEditorAction(

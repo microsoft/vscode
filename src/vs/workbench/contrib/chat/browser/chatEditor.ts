@@ -23,6 +23,7 @@ import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
@@ -69,6 +70,7 @@ export class ChatEditor extends EditorPane {
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
+					overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));

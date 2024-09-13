@@ -1287,7 +1287,7 @@ class InlineCompletionAdapterBase {
 		return undefined;
 	}
 
-	async provideInlineEdits(resource: URI, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+	async provideInlineEditsForRange(resource: URI, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		return undefined;
 	}
 
@@ -1396,8 +1396,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		};
 	}
 
-	override async provideInlineEdits(resource: URI, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		if (!this._provider.provideInlineEdits) {
+	override async provideInlineEditsForRange(resource: URI, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+		if (!this._provider.provideInlineEditsForRange) {
 			return undefined;
 		}
 		checkProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
@@ -1405,7 +1405,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		const doc = this._documents.getDocument(resource);
 		const r = typeConvert.Range.to(range);
 
-		const result = await this._provider.provideInlineEdits(doc, r, {
+		const result = await this._provider.provideInlineEditsForRange(doc, r, {
 			selectedCompletionInfo:
 				context.selectedSuggestionInfo
 					? {
@@ -2674,8 +2674,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, InlineCompletionAdapterBase, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, token);
 	}
 
-	$provideInlineEdits(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		return this._withAdapter(handle, InlineCompletionAdapterBase, adapter => adapter.provideInlineEdits(URI.revive(resource), range, context, token), undefined, token);
+	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+		return this._withAdapter(handle, InlineCompletionAdapterBase, adapter => adapter.provideInlineEditsForRange(URI.revive(resource), range, context, token), undefined, token);
 	}
 
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void {

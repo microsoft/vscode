@@ -4,24 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as nbformat from '@jupyterlab/nbformat';
-import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
+import type { NotebookCell, NotebookCellData, NotebookCellOutput, NotebookData, NotebookDocument } from 'vscode';
 import { CellOutputMetadata, type CellMetadata } from './common';
-import { textMimeTypes } from './deserializers';
+import { textMimeTypes, NotebookCellKindMarkup, CellOutputMimeTypes, defaultNotebookFormat } from './constants';
 
 const textDecoder = new TextDecoder();
 
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
-}
-
 export function createJupyterCellFromNotebookCell(
 	vscCell: NotebookCellData,
-	preferredLanguage: string | undefined
+	preferredLanguage: string | undefined,
 ): nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell {
 	let cell: nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell;
-	if (vscCell.kind === NotebookCellKind.Markup) {
+	if (vscCell.kind === NotebookCellKindMarkup) {
 		cell = createMarkdownCellFromNotebookCell(vscCell);
 	} else if (vscCell.languageId === 'raw') {
 		cell = createRawCellFromNotebookCell(vscCell);
@@ -97,7 +91,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 		removeVSCodeCellLanguageId(cellMetadata);
 	}
 
-	const codeCell: any = {
+	const codeCell: nbformat.ICodeCell = {
 		cell_type: 'code',
 		// Metadata should always contain the execution_count.
 		// When ever execution summary data changes we will update the metadata to contain the execution count.
@@ -450,4 +444,37 @@ function fixupOutput(output: nbformat.IOutput): nbformat.IOutput {
 		}
 	}
 	return result;
+}
+
+
+export function serializeNotebookToString(data: NotebookData): string {
+	const notebookContent = getNotebookMetadata(data);
+	// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
+	const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === 2)?.languageId;
+
+	notebookContent.cells = data.cells
+		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
+		.map(pruneCell);
+
+	const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
+		data.metadata.indentAmount :
+		' ';
+
+	return serializeNotebookToJSON(notebookContent, indentAmount);
+}
+function serializeNotebookToJSON(notebookContent: Partial<nbformat.INotebookContent>, indentAmount: string): string {
+	// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
+	const sorted = sortObjectPropertiesRecursively(notebookContent);
+
+	return JSON.stringify(sorted, undefined, indentAmount) + '\n';
+}
+
+export function getNotebookMetadata(document: NotebookDocument | NotebookData) {
+	const existingContent: Partial<nbformat.INotebookContent> = document.metadata || {};
+	const notebookContent: Partial<nbformat.INotebookContent> = {};
+	notebookContent.cells = existingContent.cells || [];
+	notebookContent.nbformat = existingContent.nbformat || defaultNotebookFormat.major;
+	notebookContent.nbformat_minor = existingContent.nbformat_minor ?? defaultNotebookFormat.minor;
+	notebookContent.metadata = existingContent.metadata || {};
+	return notebookContent;
 }
