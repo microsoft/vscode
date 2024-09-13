@@ -832,7 +832,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
-	padding: 6px 8px;
+	padding: 4px 6px;
 }
 
 .interactive-item-container .chat-notification-widget {
@@ -857,10 +857,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* unset Button styles */
 	display: inline-flex;
 	gap: 4px;
-	width: 100%;
+	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	padding: 4px 8px 4px 0;
+	padding: 3px 8px 3px 0;
 	text-align: initial;
 	justify-content: initial;
 }
