@@ -7,6 +7,7 @@ import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
+import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
@@ -227,8 +228,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 						continue;
 					}
 					if (chars === '\t') {
-						// TODO: Pull actual tab size
-						xOffset += 3;
+						xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
 						continue;
 					}
 
