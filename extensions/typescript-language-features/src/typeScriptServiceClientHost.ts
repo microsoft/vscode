@@ -9,7 +9,6 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
-import { URI } from 'vscode-uri';
 import { CommandManager } from './commands/commandManager';
 import { ServiceConfigurationProvider } from './configuration/configuration';
 import { DiagnosticLanguage, LanguageDescription } from './configuration/languageDescription';
@@ -195,11 +194,11 @@ export default class TypeScriptServiceClientHost extends Disposable {
 						}
 						// TODO: This compiles but will never cancel; this needs a token that somebody might actually cancel.
 						const cancel = new vscode.CancellationTokenSource();
-						const response = await this.client.execute('getImports', { file, }, cancel.token);
+						const response = await this.client.execute('copilotRelated', { file, }, cancel.token);
 						if (response.type !== 'response' || !response.body) {
 							return [];
 						}
-						return response.body.map(URI.file);
+						return response.body.map(vscode.Uri.file);
 					});
 				}
 			}
