@@ -453,6 +453,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRefDetached",
+        "title": "%command.checkoutRefDetached%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.branch",
         "title": "%command.branch%",
         "category": "Git",
@@ -1446,6 +1452,10 @@
         {
           "command": "git.copyCommitMessage",
           "when": "false"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1952,6 +1962,11 @@
           "command": "git.branch",
           "when": "scmProvider == git",
           "group": "1_create@2"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "scmProvider == git",
+          "group": "2_modify@1"
         },
         {
           "command": "git.copyCommitId",
