@@ -241,6 +241,24 @@ export interface CellInternalMetadataChangedEvent {
 	readonly lastRunSuccessChanged?: boolean;
 }
 
+export interface INotebookDocumentMetadataTextModel {
+	/**
+	 * Notebook Metadata Uri.
+	 */
+	readonly uri: URI;
+	/**
+	 * Triggered when the Notebook Metadata changes.
+	 */
+	readonly onDidChange: Event<void>;
+	readonly metadata: Readonly<NotebookDocumentMetadata>;
+	readonly textBuffer: IReadonlyTextBuffer;
+	/**
+	 * Text representation of the Notebook Metadata
+	 */
+	getValue(): string;
+	getHash(): string;
+}
+
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
@@ -922,6 +940,7 @@ export interface INotebookCellStatusBarItemProvider {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
+	metadataChanged: boolean;
 	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 

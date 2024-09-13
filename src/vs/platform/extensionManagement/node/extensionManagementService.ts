@@ -26,12 +26,13 @@ import { extract, IFile, zip } from '../../../base/node/zip.js';
 import * as nls from '../../../nls.js';
 import { IDownloadService } from '../../download/common/download.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../common/abstractExtensionManagementService.js';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../common/abstractExtensionManagementService.js';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
 	Metadata, InstallOptions,
 	IProductVersion,
 	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT,
+	ExtensionSignatureVerificationCode,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -61,7 +62,7 @@ export interface INativeServerExtensionManagementService extends IExtensionManag
 	markAsUninstalled(...extensions: IExtension[]): Promise<void>;
 }
 
-type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verificationStatus?: ExtensionVerificationStatus };
+type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verificationStatus?: ExtensionSignatureVerificationCode };
 
 const DELETED_FOLDER_POSTFIX = '.vsctmp';
 
@@ -342,15 +343,37 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
-	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
+	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		if (verifySignature) {
 			const value = this.configurationService.getValue('extensions.verifySignature');
 			verifySignature = isBoolean(value) ? value : true;
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
 
-		if (verificationStatus !== true && verifySignature && this.environmentService.isBuilt && !isLinux) {
-			throw new ExtensionManagementError(nls.localize('download failed', "Signature verification failed with '{0}' error.", verificationStatus === false ? 'NotExecuted' : verificationStatus), ExtensionManagementErrorCode.Signature);
+		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verifySignature && this.environmentService.isBuilt && !isLinux) {
+			if (!extension.isSigned) {
+				throw new ExtensionManagementError(nls.localize('not signed', "Extension is not signed."), ExtensionManagementErrorCode.PackageNotSigned);
+			}
+
+			if (!verificationStatus) {
+				throw new ExtensionManagementError(nls.localize('signature verification not executed', "Signature verification was not executed."), ExtensionManagementErrorCode.SignatureVerificationInternal);
+			}
+
+			switch (verificationStatus) {
+				case ExtensionSignatureVerificationCode.PackageIntegrityCheckFailed:
+				case ExtensionSignatureVerificationCode.SignatureIsInvalid:
+				case ExtensionSignatureVerificationCode.SignatureManifestIsInvalid:
+				case ExtensionSignatureVerificationCode.SignatureIntegrityCheckFailed:
+				case ExtensionSignatureVerificationCode.EntryIsMissing:
+				case ExtensionSignatureVerificationCode.EntryIsTampered:
+				case ExtensionSignatureVerificationCode.Untrusted:
+				case ExtensionSignatureVerificationCode.CertificateRevoked:
+				case ExtensionSignatureVerificationCode.SignatureIsNotValid:
+				case ExtensionSignatureVerificationCode.SignatureArchiveHasTooManyEntries:
+					throw new ExtensionManagementError(nls.localize('signature verification failed', "Signature verification failed with '{0}' error.", verificationStatus), ExtensionManagementErrorCode.SignatureVerificationFailed);
+			}
+
+			throw new ExtensionManagementError(nls.localize('signature verification failed', "Signature verification failed with '{0}' error.", verificationStatus), ExtensionManagementErrorCode.SignatureVerificationInternal);
 		}
 
 		return { location, verificationStatus };
@@ -932,7 +955,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 	private _operation = InstallOperation.Install;
 	get operation() { return this.options.operation ?? this._operation; }
 
-	private _verificationStatus: ExtensionVerificationStatus | undefined;
+	private _verificationStatus: ExtensionSignatureVerificationCode | undefined;
 	get verificationStatus() { return this._verificationStatus; }
 
 	readonly identifier: IExtensionIdentifier;

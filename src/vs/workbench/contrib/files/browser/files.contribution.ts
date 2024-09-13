@@ -312,7 +312,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'markdownDescription': nls.localize('experimentalWatcherNext', "Enables a newer, experimental version of the file watcher."),
-			scope: ConfigurationScope.APPLICATION
+			scope: ConfigurationScope.MACHINE
 		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {

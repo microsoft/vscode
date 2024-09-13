@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -101,6 +101,10 @@ export class ScreenReaderSupport {
 	public setAriaOptions(): void { }
 
 	public writeScreenReaderContent(): void {
+		const focusedElement = getActiveWindow().document.activeElement;
+		if (!focusedElement || focusedElement !== this._domNode.domNode) {
+			return;
+		}
 		this._screenReaderContentState = this._getScreenReaderContentState();
 		if (!this._screenReaderContentState) {
 			return;
@@ -112,13 +116,9 @@ export class ScreenReaderSupport {
 	}
 
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
-		// Make the screen reader content always be visible because of the bug and also set the selection
-
-		// TODO @aiday-mar Ultimately uncomment this code when Electron will be upgraded
-		// if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-		// 	return;
-		// }
-		const accessibilityPageSize = this._accessibilitySupport === AccessibilitySupport.Disabled ? 1 : this._accessibilityPageSize;
+		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+			return;
+		}
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -136,7 +136,7 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
@@ -149,14 +149,10 @@ export class ScreenReaderSupport {
 		if (!textContent) {
 			return;
 		}
-		const focusedElement = getActiveWindow().document.activeElement;
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
-		if (isHTMLElement(focusedElement)) {
-			focusedElement.focus();
-		}
 	}
 }

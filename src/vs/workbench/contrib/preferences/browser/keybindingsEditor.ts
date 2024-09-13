@@ -38,7 +38,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { MenuRegistry, MenuId, isIMenuItem } from '../../../../platform/actions/common/actions.js';
+import { MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { IKeybindingItemEntry, IKeybindingsEditorPane } from '../../../services/preferences/common/preferences.js';
@@ -563,7 +563,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		for (const editorAction of EditorExtensionsRegistry.getEditorActions()) {
 			actionsLabels.set(editorAction.id, editorAction.label);
 		}
-		for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+		for (const menuItem of MenuRegistry.getMenuItems(undefined /* all menus */)) {
 			if (isIMenuItem(menuItem)) {
 				const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;
 				const category = menuItem.command.category ? typeof menuItem.command.category === 'string' ? menuItem.command.category : menuItem.command.category.value : undefined;
