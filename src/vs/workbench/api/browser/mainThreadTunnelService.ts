@@ -205,7 +205,6 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		if (isResolver) {
 			this.contextKeyService.createKey(forwardedPortsFeaturesEnabled.key, true);
 		}
-		this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
 	}
 
 	async $setCandidateFilter(): Promise<void> {
