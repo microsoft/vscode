@@ -18,6 +18,7 @@
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
 	background: var(--vscode-inlineChat-background);
 	padding-top: 3px;
+	position: relative;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
