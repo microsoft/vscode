@@ -7,15 +7,22 @@ import type { IReference } from '../../../base/common/lifecycle.js';
 import { isFunction } from '../../../base/common/types.js';
 
 export namespace GPULifecycle {
-	export async function requestDevice(): Promise<IReference<GPUDevice>> {
-		if (!navigator.gpu) {
-			throw new Error('This browser does not support WebGPU');
+	export async function requestDevice(fallback?: (message: string) => void): Promise<IReference<GPUDevice>> {
+		try {
+			if (!navigator.gpu) {
+				throw new Error('This browser does not support WebGPU');
+			}
+			const adapter = (await navigator.gpu.requestAdapter())!;
+			if (!adapter) {
+				throw new Error('This browser supports WebGPU but it appears to be disabled');
+			}
+			return wrapDestroyableInDisposable(await adapter.requestDevice());
+		} catch (e) {
+			if (fallback) {
+				fallback(e.message);
+			}
+			throw e;
 		}
-		const adapter = (await navigator.gpu.requestAdapter())!;
-		if (!adapter) {
-			throw new Error('This browser supports WebGPU but it appears to be disabled');
-		}
-		return wrapDestroyableInDisposable(await adapter.requestDevice());
 	}
 
 	export function createBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor, initialValues?: Float32Array | (() => Float32Array)): IReference<GPUBuffer> {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from '../../../nls.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -12,6 +13,8 @@ import { observableValue, runOnChange, type IObservable } from '../../../base/co
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 import { TextureAtlas } from './atlas/textureAtlas.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../platform/notification/common/notification.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 
@@ -26,7 +29,9 @@ export class ViewGpuContext extends Disposable {
 	readonly devicePixelRatio: IObservable<number>;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -35,7 +40,13 @@ export class ViewGpuContext extends Disposable {
 
 		this.ctx = ensureNonNullable(this.canvas.domNode.getContext('webgpu'));
 
-		this.device = GPULifecycle.requestDevice().then(ref => this._register(ref).object);
+		this.device = GPULifecycle.requestDevice((message) => {
+			const choices: IPromptChoice[] = [{
+				label: nls.localize('editor.dom.render', "Use DOM-based rendering"),
+				run: () => this.configurationService.updateValue('editor.experimentalGpuAcceleration', 'off'),
+			}];
+			this._notificationService.prompt(Severity.Warning, message, choices);
+		}).then(ref => this._register(ref).object);
 		this.device.then(device => {
 			if (!ViewLinesGpu.atlas) {
 				ViewLinesGpu.atlas = this._instantiationService.createInstance(TextureAtlas, device.limits.maxTextureDimension2D, undefined);
