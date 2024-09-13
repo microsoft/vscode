@@ -475,7 +475,8 @@ export function registerChatCodeBlockActions() {
 				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
-				icon: Codicon.sparkle,
+				icon: Codicon.gitPullRequestGoToChanges,
+
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
