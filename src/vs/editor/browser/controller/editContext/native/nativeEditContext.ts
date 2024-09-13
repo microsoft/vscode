@@ -358,7 +358,6 @@ export class NativeEditContext extends AbstractEditContext {
 				const roundedTypicalHalfwidthCharacterWidth = Math.floor(typicalHalfWidthCharacterWidth);
 				for (const visibleRange of lineVisibleRanges.ranges) {
 					const numberOfCharactersInComposition = this._compositionRangeWithinEditor.endColumn - this._compositionRangeWithinEditor.startColumn;
-					console.log('numberOfCharactersInComposition : ', numberOfCharactersInComposition);
 					for (let i = 0; i < numberOfCharactersInComposition; i++) {
 						const x = parentBounds.left + contentLeft + visibleRange.left + i * roundedTypicalHalfwidthCharacterWidth;
 						characterBounds.push(new DOMRect(x, top, roundedTypicalHalfwidthCharacterWidth, lineHeight));
@@ -379,7 +378,6 @@ export class NativeEditContext extends AbstractEditContext {
 		const offsetOfEditContextStart = textModel.getOffsetAt(this._textStartPositionWithinEditor);
 		const offsetOfCompositionStart = textModel.getOffsetAt(this._compositionRangeWithinEditor.getStartPosition());
 		const offsetOfCompositionStartInEditContext = offsetOfCompositionStart - offsetOfEditContextStart;
-		console.log('this._characterBounds.length : ', this._characterBounds.length);
 		this._editContext.updateCharacterBounds(offsetOfCompositionStartInEditContext, this._characterBounds);
 	}
 
