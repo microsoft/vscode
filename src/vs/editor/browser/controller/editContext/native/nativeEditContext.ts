@@ -97,10 +97,6 @@ export class NativeEditContext extends AbstractEditContext {
 				this._compositionRangeWithinEditor = newCompositionRangeWithinEditor;
 			}
 			this._emitTypeEvent(viewController, e);
-
-			// TODO @aiday-mar calling write screen reader content so that the document selection is immediately set
-			// remove the following when electron will be upgraded
-			this._screenReaderSupport.writeScreenReaderContent();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
