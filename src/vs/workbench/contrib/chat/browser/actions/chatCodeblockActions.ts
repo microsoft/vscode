@@ -27,7 +27,7 @@ import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { InsertCodeBlockOperation, ApplyCodeBlockOperation } from './InsertCodeBlockOperation.js';
+import { InsertCodeBlockOperation, ApplyCodeBlockOperation } from './codeBlockOperations.js';
 
 const shellLangIds = [
 	'fish',
@@ -178,6 +178,9 @@ export function registerChatCodeBlockActions() {
 	});
 
 	registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
+
+		private operation: ApplyCodeBlockOperation | undefined;
+
 		constructor() {
 			super({
 				id: 'workbench.action.chat.applyInEditor',
@@ -206,8 +209,10 @@ export function registerChatCodeBlockActions() {
 		}
 
 		override runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
-			const operation = accessor.get(IInstantiationService).createInstance(ApplyCodeBlockOperation);
-			return operation.run(context);
+			if (!this.operation) {
+				this.operation = accessor.get(IInstantiationService).createInstance(ApplyCodeBlockOperation);
+			}
+			return this.operation.run(context);
 		}
 	});
 
