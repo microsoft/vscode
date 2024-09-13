@@ -6,7 +6,7 @@
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "2.1.0",
-    "@bpasero/watcher": "https://github.com/bpasero/watcher.git#b863d44bd235d1e07d6068354eeecf6fa7a57edd",
+    "@bpasero/watcher": "https://github.com/bpasero/watcher.git#3e5e50c275590703f3eb46fac777b720e515d0d5",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/proxy-agent": "^0.23.0",

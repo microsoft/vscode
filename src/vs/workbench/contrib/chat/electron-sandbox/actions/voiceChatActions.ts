@@ -1299,7 +1299,7 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 
 export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
 
-	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
+	static readonly ID = '_workbench.action.chat.installProviderForVoiceChat';
 
 	constructor() {
 		super({
@@ -1328,7 +1328,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 
 export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
 
-	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
+	static readonly ID = '_workbench.action.chat.installProviderForSynthesis';
 
 	constructor() {
 		super({
