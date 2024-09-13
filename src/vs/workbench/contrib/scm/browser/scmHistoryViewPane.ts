@@ -16,7 +16,7 @@ import { fromNow } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableValue, waitForState, constObservable, latestChangedValue, observableFromEvent, runOnChange, ISettableObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -60,6 +60,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { compare } from '../../../../base/common/strings.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -684,16 +685,28 @@ class SCMHistoryViewModel extends Disposable {
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
 	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
-	readonly historyItemsFilter = observableValue<HistoryItemRefsFilter>(this, 'auto');
+	readonly historyItemsFilter: ISettableObservable<HistoryItemRefsFilter>;
 
 	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISCMService private readonly _scmService: ISCMService,
-		@ISCMViewService private readonly _scmViewService: ISCMViewService
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
+
+		try {
+			// Restore references filter from workspace storage
+			const filterData = this._storageService.get('scm.graphView.referencesFiler', StorageScope.WORKSPACE) ?? 'auto';
+			const filter = filterData === 'auto' || filterData === 'all' ? filterData : JSON.parse(filterData) as ISCMHistoryItemRef[];
+
+			this.historyItemsFilter = observableValue<HistoryItemRefsFilter>(this, filter);
+		} catch {
+			// Default to `auto` in case the storage value is invalid
+			this.historyItemsFilter = observableValue<HistoryItemRefsFilter>(this, 'auto');
+		}
 
 		// Closed repository cleanup
 		this._register(autorun(reader => {
@@ -797,6 +810,7 @@ class SCMHistoryViewModel extends Disposable {
 	}
 
 	setHistoryItemsFilter(filter: 'all' | 'auto' | ISCMHistoryItemRef[]): void {
+		this._storageService.store('scm.graphView.referencesFiler', filter, StorageScope.WORKSPACE, StorageTarget.USER);
 		this.historyItemsFilter.set(filter, undefined);
 	}
 
@@ -1090,17 +1104,15 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this._createTree(this._treeContainer);
 
-		this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
-		this._register(this._treeViewModel);
-
 		this.onDidChangeBodyVisibility(async visible => {
 			if (!visible) {
 				this._visibilityDisposables.clear();
 				return;
 			}
 
-			// Clear repository state
-			this._treeViewModel.clearRepositoryState();
+			// Create view model
+			this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
+			this._visibilityDisposables.add(this._treeViewModel);
 
 			// Initial rendering
 			await this._progressService.withProgress({ location: this.id }, async () => {
