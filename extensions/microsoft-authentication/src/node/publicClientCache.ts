@@ -27,9 +27,10 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	constructor(
 		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
-		private readonly _logger: LogOutputChannel
+		private readonly _logger: LogOutputChannel,
+		cloudName: string
 	) {
-		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage);
+		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, cloudName);
 		this._disposable = Disposable.from(
 			this._pcasSecretStorage,
 			this._registerSecretStorageHandler(),
@@ -190,18 +191,18 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 }
 
 class PublicClientApplicationsSecretStorage {
-	private static key = 'publicClientApplications';
-
 	private _disposable: Disposable;
 
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	constructor(private readonly _secretStorage: SecretStorage) {
+	private readonly _key = `publicClientApplications-${this._cloudName}`;
+
+	constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {
-				if (e.key === PublicClientApplicationsSecretStorage.key) {
+				if (e.key === this._key) {
 					this._onDidChangeEmitter.fire();
 				}
 			})
@@ -209,7 +210,7 @@ class PublicClientApplicationsSecretStorage {
 	}
 
 	async get(): Promise<string[] | undefined> {
-		const value = await this._secretStorage.get(PublicClientApplicationsSecretStorage.key);
+		const value = await this._secretStorage.get(this._key);
 		if (!value) {
 			return undefined;
 		}
@@ -217,11 +218,11 @@ class PublicClientApplicationsSecretStorage {
 	}
 
 	store(value: string[]): Thenable<void> {
-		return this._secretStorage.store(PublicClientApplicationsSecretStorage.key, JSON.stringify(value));
+		return this._secretStorage.store(this._key, JSON.stringify(value));
 	}
 
 	delete(): Thenable<void> {
-		return this._secretStorage.delete(PublicClientApplicationsSecretStorage.key);
+		return this._secretStorage.delete(this._key);
 	}
 
 	dispose() {
