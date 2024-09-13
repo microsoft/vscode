@@ -498,13 +498,14 @@ export class TunnelModel extends Disposable {
 				});
 			}
 			await this.storeForwarded();
+			this.checkExtensionActivationEvents(true);
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
 			return this.onTunnelClosed(address, TunnelCloseReason.Other);
 		}));
-		this.checkExtensionActivationEvents();
+		this.checkExtensionActivationEvents(false);
 	}
 
 	private extensionHasActivationEvent() {
@@ -515,7 +516,19 @@ export class TunnelModel extends Disposable {
 		return false;
 	}
 
-	private checkExtensionActivationEvents() {
+	private hasCheckedExtensionsOnTunnelOpened = false;
+	private checkExtensionActivationEvents(tunnelOpened: boolean) {
+		if (this.hasCheckedExtensionsOnTunnelOpened) {
+			return;
+		}
+		if (tunnelOpened) {
+			this.hasCheckedExtensionsOnTunnelOpened = true;
+		}
+		const hasRemote = this.environmentService.remoteAuthority !== undefined;
+		if (hasRemote && !tunnelOpened) {
+			// We don't activate extensions on startup if there is a remote
+			return;
+		}
 		if (this.extensionHasActivationEvent()) {
 			return;
 		}
