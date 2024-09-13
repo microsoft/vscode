@@ -183,7 +183,12 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityLeft',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals('focusedView', 'workbench.panel.output')),
+				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 
@@ -198,7 +203,12 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityLeftSelect',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals('focusedView', 'workbench.panel.output')),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 
@@ -291,7 +301,12 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityRight',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals('focusedView', 'workbench.panel.output')),
+				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 
@@ -306,7 +321,12 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityRightSelect',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals('focusedView', 'workbench.panel.output')),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 
