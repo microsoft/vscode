@@ -1958,7 +1958,7 @@
       "scm/history/title": [
         {
           "command": "git.fetchAll",
-          "group": "navigation@2",
+          "group": "navigation@999",
           "when": "scmProvider == git"
         }
       ],

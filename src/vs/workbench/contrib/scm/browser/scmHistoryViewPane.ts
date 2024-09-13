@@ -185,6 +185,26 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	}
 });
 
+registerAction2(class extends ViewAction<SCMHistoryViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.revealCurrentHistoryItem',
+			title: localize('goToCurrentHistoryItem', "Go to Current History Item"),
+			viewId: HISTORY_VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.target,
+			menu: {
+				id: MenuId.SCMHistoryTitle,
+				group: 'navigation',
+				order: 2
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.revealCurrentHistoryItem();
+	}
+});
 
 registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
@@ -652,7 +672,11 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 }
 
 type HistoryItemRefsFilter = 'all' | 'auto' | ISCMHistoryItemRef[];
-type HistoryItemState = { historyItemRefs: ISCMHistoryItemRef[]; items: ISCMHistoryItem[]; loadMore: boolean };
+type HistoryItemState = {
+	historyItemRefs: ISCMHistoryItemRef[];
+	viewModels: SCMHistoryItemViewModelTreeElement[];
+	loadMore: boolean;
+};
 
 class SCMHistoryViewModel extends Disposable {
 
@@ -732,6 +756,15 @@ class SCMHistoryViewModel extends Disposable {
 		this._state.delete(repository);
 	}
 
+	getRepositoryState(): HistoryItemState | undefined {
+		const repository = this.repository.get();
+		if (!repository) {
+			return;
+		}
+
+		return this._state.get(repository);
+	}
+
 	setLoadMore(repository: ISCMRepository, loadMore: boolean): void {
 		const state = this._state.get(repository);
 		if (!state) {
@@ -743,20 +776,18 @@ class SCMHistoryViewModel extends Disposable {
 
 	async getHistoryItems(): Promise<SCMHistoryItemViewModelTreeElement[]> {
 		const repository = this.repository.get();
-		if (!repository) {
+		const historyProvider = repository?.provider.historyProvider.get();
+
+		if (!repository || !historyProvider) {
 			return [];
 		}
 
 		let state = this._state.get(repository);
-		const historyProvider = repository.provider.historyProvider.get();
-
-		if (!historyProvider) {
-			return [];
-		}
 
 		if (!state || state.loadMore) {
-			const existingHistoryItems = state?.items ?? [];
 			let historyItemRefs = state?.historyItemRefs;
+			const historyItems = state?.viewModels
+				.map(vm => vm.historyItemViewModel.historyItem) ?? [];
 
 			if (!historyItemRefs) {
 				const historyItemsFilter = this.historyItemsFilter.get();
@@ -781,28 +812,26 @@ class SCMHistoryViewModel extends Disposable {
 			const limit = clamp(this._configurationService.getValue<number>('scm.graph.pageSize'), 1, 1000);
 			const historyItemRefIds = historyItemRefs.map(ref => ref.revision ?? ref.id);
 
-			const historyItems = await historyProvider.provideHistoryItems({
-				historyItemRefs: historyItemRefIds, limit, skip: existingHistoryItems.length
-			}) ?? [];
+			// Fetch the next page of history items
+			historyItems.push(...(await historyProvider.provideHistoryItems({
+				historyItemRefs: historyItemRefIds, limit, skip: historyItems.length
+			}) ?? []));
 
-			state = {
-				historyItemRefs,
-				items: [...existingHistoryItems, ...historyItems],
-				loadMore: false
-			};
+			// Create the color map
+			const colorMap = this._getGraphColorMap(historyItemRefs);
 
+			const viewModels = toISCMHistoryItemViewModelArray(historyItems, colorMap, historyProvider.historyItemRef.get())
+				.map(historyItemViewModel => ({
+					repository,
+					historyItemViewModel,
+					type: 'historyItemViewModel'
+				}) satisfies SCMHistoryItemViewModelTreeElement);
+
+			state = { historyItemRefs, viewModels, loadMore: false };
 			this._state.set(repository, state);
 		}
 
-		// Create the color map
-		const colorMap = this._getGraphColorMap(state.historyItemRefs);
-
-		return toISCMHistoryItemViewModelArray(state.items, colorMap, historyProvider.historyItemRef.get())
-			.map(historyItemViewModel => ({
-				repository,
-				historyItemViewModel,
-				type: 'historyItemViewModel'
-			}) satisfies SCMHistoryItemViewModelTreeElement);
+		return state.viewModels;
 	}
 
 	setRepository(repository: ISCMRepository | 'auto'): void {
@@ -1266,17 +1295,51 @@ export class SCMHistoryViewPane extends ViewPane {
 	async pickHistoryItemRef(): Promise<void> {
 		const repository = this._treeViewModel.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
-		const historyItemsFilter = this._treeViewModel.historyItemsFilter.get();
 
 		if (!historyProvider) {
 			return;
 		}
 
+		const historyItemsFilter = this._treeViewModel.historyItemsFilter.get();
 		const picker = this._instantiationService.createInstance(HistoryItemRefPicker, historyProvider, historyItemsFilter);
 		const result = await picker.pickHistoryItemRef();
 
 		if (result) {
 			this._treeViewModel.setHistoryItemsFilter(result);
+		}
+	}
+
+	async revealCurrentHistoryItem(): Promise<void> {
+		const repository = this._treeViewModel.repository.get();
+		const historyProvider = repository?.provider.historyProvider.get();
+		const historyItemRef = historyProvider?.historyItemRef.get();
+
+		if (!historyItemRef) {
+			return;
+		}
+
+		const historyItemFilter = this._treeViewModel.historyItemsFilter.get();
+
+		// Filter is `all`, `auto` or it contains the current history item
+		if (Array.isArray(historyItemFilter) &&
+			!historyItemFilter.find(r => r.id === historyItemRef.id)) {
+			return;
+		}
+
+		const state = this._treeViewModel.getRepositoryState();
+		if (!state) {
+			return;
+		}
+
+		const historyItemViewModel = state.viewModels.find(item =>
+			item.historyItemViewModel.historyItem.id === historyItemRef.revision);
+
+		// Current history item is part of the tree so we can reveal it
+		if (historyItemViewModel && this._tree.hasNode(historyItemViewModel)) {
+			this._tree.reveal(historyItemViewModel);
+
+			this._tree.setSelection([historyItemViewModel]);
+			this._tree.setFocus([historyItemViewModel]);
 		}
 	}
 
