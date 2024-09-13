@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { memoize } from '../../../../base/common/decorators.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
@@ -14,6 +15,11 @@ let nextId = 0;
 
 export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	public readonly id = nextId++;
+
+	@memoize
+	public get cacheKey(): string {
+		return `${this._fontFamily}_${this._fontSize}px`;
+	}
 
 	private _canvas: OffscreenCanvas;
 	private _ctx: OffscreenCanvasRenderingContext2D;
