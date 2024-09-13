@@ -2575,6 +2575,7 @@ export interface INotebookEditorAddData {
 	selections: ICellRange[];
 	visibleRanges: ICellRange[];
 	viewColumn?: number;
+	replView?: boolean;
 }
 
 export interface INotebookDocumentsAndEditorsDelta {

@@ -109,7 +109,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
 	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
 	private _viewCells: CellViewModel[] = [];
-	private readonly replView: boolean;
+	private readonly _replView: boolean;
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
@@ -129,6 +129,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	get metadata() {
 		return this._notebook.metadata;
+	}
+
+	get replView() {
+		return this._replView;
 	}
 
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
@@ -204,7 +208,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
-		this.replView = !!this.options.inRepl;
+		this._replView = !!this.options.inRepl;
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -337,7 +341,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}));
 
 
-		const viewCellCount = this.replView ? this._notebook.cells.length - 1 : this._notebook.cells.length;
+		const viewCellCount = this._replView ? this._notebook.cells.length - 1 : this._notebook.cells.length;
 		for (let i = 0; i < viewCellCount; i++) {
 			this._viewCells.push(createCellViewModel(this._instantiationService, this, this._notebook.cells[i], this._viewContext));
 		}

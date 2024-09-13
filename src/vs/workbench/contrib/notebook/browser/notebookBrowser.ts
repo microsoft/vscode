@@ -456,6 +456,7 @@ export interface INotebookViewModel {
 	notebookDocument: NotebookTextModel;
 	readonly viewCells: ICellViewModel[];
 	layoutInfo: NotebookLayoutInfo | null;
+	replView: boolean;
 	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	onDidChangeSelection: Event<string>;
 	onDidFoldingStateChanged: Event<void>;
