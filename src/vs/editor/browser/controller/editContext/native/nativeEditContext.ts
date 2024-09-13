@@ -101,10 +101,6 @@ export class NativeEditContext extends AbstractEditContext {
 				const newCompositionRangeWithinEditor = Range.fromPositions(compositionRangeWithinEditor.getStartPosition(), position);
 				this._compositionRangeWithinEditor = newCompositionRangeWithinEditor;
 			}
-
-			// TODO @aiday-mar calling write screen reader content so that the document selection is immediately set
-			// remove the following when electron will be upgraded
-			this._screenReaderSupport.writeScreenReaderContent();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
@@ -357,7 +353,6 @@ export class NativeEditContext extends AbstractEditContext {
 		if (this._renderingContext) {
 			const linesVisibleRanges = this._renderingContext.lastLinesVisibleRangesForRange(this._compositionRangeWithinEditor, true) ?? [];
 			this._linesVisibleRanges = linesVisibleRanges.length > 0 ? linesVisibleRanges : this._linesVisibleRanges;
-			console.log('this._linesVisibleRanges : ', this._linesVisibleRanges);
 			for (const lineVisibleRanges of this._linesVisibleRanges) {
 				const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 				const roundedTypicalHalfwidthCharacterWidth = Math.floor(typicalHalfWidthCharacterWidth);
