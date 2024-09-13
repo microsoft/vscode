@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -140,6 +140,11 @@ export class ScreenReaderSupport {
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
+		const focusedElement = getActiveWindow().document.activeElement;
+		if (!focusedElement || focusedElement !== this._domNode.domNode) {
+			return;
+		}
+		console.log('_setSelectionOfScreenReaderContent');
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
@@ -149,14 +154,11 @@ export class ScreenReaderSupport {
 		if (!textContent) {
 			return;
 		}
-		const focusedElement = getActiveWindow().document.activeElement;
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
+		// Causes jumping of IME, reproduced on the example from the DEMO
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
-		if (isHTMLElement(focusedElement)) {
-			focusedElement.focus();
-		}
 	}
 }

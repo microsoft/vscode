@@ -412,16 +412,20 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return result;
 	}
 
-	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean, forceCalculation: boolean = false): LineVisibleRanges[] | null {
-		console.log('linesVisibleRangesForRange');
-		const shouldRender = this.shouldRender();
-		console.log('shouldRender in linesVisibleRangesForRange : ', shouldRender);
-		if (shouldRender) {
+	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
 		}
 
+		const linesVisibleRangesForRange = this.lastLinesVisibleRangesForRange(_range, includeNewLines);
+		const domReadingContext = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
+		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
+		return linesVisibleRangesForRange;
+	}
+
+	public lastLinesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		const originalEndLineNumber = _range.endLineNumber;
 		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
@@ -465,8 +469,6 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, HorizontalRange.from(visibleRangesForLine.ranges), continuesInNextLine);
 		}
-
-		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
 
 		if (visibleRangesLen === 0) {
 			return null;

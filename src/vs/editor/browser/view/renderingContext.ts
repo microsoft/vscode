@@ -9,7 +9,8 @@ import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
 
 export interface IViewLines {
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean, forceCalculation?: boolean): LineVisibleRanges[] | null;
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
+	lastLinesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
 
@@ -77,8 +78,12 @@ export class RenderingContext extends RestrictedRenderingContext {
 		this._viewLines = viewLines;
 	}
 
-	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean, forceCalculation: boolean = false): LineVisibleRanges[] | null {
-		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines, forceCalculation);
+	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
+	}
+
+	public lastLinesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		return this._viewLines.lastLinesVisibleRangesForRange(range, includeNewLines);
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
