@@ -66,7 +66,7 @@ export class NativeEditContext extends AbstractEditContext {
 		// First of all the write text is an async function, it returns a promise at the end it just calls writeText on the electron package
 		// Maybe the text has not had enough time to be stored in electron?
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', async () => {
-			await this._ensureClipboardGetsEditorSelection(clipboardService);
+			this._ensureClipboardGetsEditorSelection(clipboardService);
 			console.log('copy after _ensureClipboardGetsEditorSelection ', await clipboardService.readText());
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', async () => {
@@ -109,7 +109,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 			// TODO @aiday-mar calling write screen reader content so that the document selection is immediately set
 			// remove the following when electron will be upgraded
-			this._screenReaderSupport.writeScreenReaderContent();
+			// this._screenReaderSupport.writeScreenReaderContent();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
@@ -376,7 +376,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateCharacterBounds(offsetOfCompositionStartInEditContext, characterBounds);
 	}
 
-	private async _ensureClipboardGetsEditorSelection(clipboardService: IClipboardService): Promise<void> {
+	private _ensureClipboardGetsEditorSelection(clipboardService: IClipboardService): void {
 		console.log('NativeEditContext#_ensureClipboardGetsEditorSelection');
 		const options = this._context.configuration.options;
 		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
@@ -397,6 +397,6 @@ export class NativeEditContext extends AbstractEditContext {
 		);
 		console.log('dataToCopy', dataToCopy);
 		console.log('dataToCopy.text', dataToCopy.text);
-		return clipboardService.writeText(dataToCopy.text);
+		clipboardService.writeText(dataToCopy.text);
 	}
 }

@@ -29,6 +29,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 	}
 
 	override async writeText(text: string, type?: string): Promise<void> {
+		console.log('write text of brower clipboard service');
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}

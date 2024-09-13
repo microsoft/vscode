@@ -249,6 +249,7 @@ if (PasteAction) {
 				return (async () => {
 					// Does it have to be reading text from the clipboard? What does readText from the selection mean?
 					const clipboardText = await clipboardService.readText();
+					console.log('clipboardText : ', clipboardText);
 					if (clipboardText !== '') {
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
 						let pasteOnNewLine = false;
@@ -278,6 +279,7 @@ if (PasteAction) {
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
 	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
+		console.log('default implementation 2');
 		getActiveDocument().execCommand('paste');
 		return true;
 	});

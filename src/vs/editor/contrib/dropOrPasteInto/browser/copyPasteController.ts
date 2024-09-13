@@ -223,6 +223,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			for (const result of results) {
 				for (const [mime, value] of result) {
+					console.log('value : ', value);
 					dataTransfer.replace(mime, value);
 				}
 			}
@@ -541,6 +542,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			}
 
 			for (const [key, value] of toMergeDataTransfer) {
+				console.log('value in mergeInDataFromCopy : ', value);
 				dataTransfer.replace(key, value);
 			}
 		}

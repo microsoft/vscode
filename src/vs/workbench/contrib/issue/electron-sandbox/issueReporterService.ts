@@ -1034,6 +1034,7 @@ export class IssueReporter extends Disposable {
 			throw new CancellationError();
 		}
 
+		console.log('issueBody : ', issueBody);
 		await this.nativeHostService.writeClipboardText(issueBody);
 
 		return baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;

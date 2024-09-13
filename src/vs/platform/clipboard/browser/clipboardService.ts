@@ -92,6 +92,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	async writeText(text: string, type?: string): Promise<void> {
 
+		console.log('write text of browser clipboard service');
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 

@@ -106,6 +106,7 @@ export class ScreenReaderSupport {
 			return;
 		}
 		this._screenReaderContentState = this._getScreenReaderContentState();
+		console.log('this._screenReaderContentState : ', this._screenReaderContentState);
 		if (!this._screenReaderContentState) {
 			return;
 		}
@@ -119,10 +120,10 @@ export class ScreenReaderSupport {
 		// Make the screen reader content always be visible because of the bug and also set the selection
 
 		// TODO @aiday-mar Ultimately uncomment this code when Electron will be upgraded
-		// if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-		// 	return;
-		// }
-		const accessibilityPageSize = this._accessibilitySupport === AccessibilitySupport.Disabled ? 1 : this._accessibilityPageSize;
+		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+			return;
+		}
+		const accessibilityPageSize = this._accessibilityPageSize;
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -144,14 +145,21 @@ export class ScreenReaderSupport {
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
+		console.log('_setSelectionOfScreenReaderContent');
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
+		console.log('activeDocumentSelection : ', activeDocumentSelection);
 		if (!activeDocumentSelection) {
 			return;
 		}
 		const textContent = this._domNode.domNode.firstChild;
 		if (!textContent) {
 			return;
+		}
+		const rangeCount = activeDocumentSelection.rangeCount;
+		for (let i = 0; i < rangeCount; i++) {
+			const range = activeDocumentSelection.getRangeAt(i);
+			console.log('range : ', range);
 		}
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
