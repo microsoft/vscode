@@ -176,7 +176,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 		if (keybinding) {
 			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
-		} else {
+		} else if (verbose) {
 			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
 		}
 		this._body.container.ariaLabel = ariaLabel;

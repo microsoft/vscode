@@ -101,6 +101,10 @@ export class ScreenReaderSupport {
 	public setAriaOptions(): void { }
 
 	public writeScreenReaderContent(): void {
+		const focusedElement = getActiveWindow().document.activeElement;
+		if (!focusedElement || focusedElement !== this._domNode.domNode) {
+			return;
+		}
 		this._screenReaderContentState = this._getScreenReaderContentState();
 		if (!this._screenReaderContentState) {
 			return;

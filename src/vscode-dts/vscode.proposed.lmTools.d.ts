@@ -103,7 +103,11 @@ declare module 'vscode' {
 		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
+	export type ChatParticipantToolToken = unknown;
+
 	export interface LanguageModelToolInvocationOptions {
+		toolInvocationToken: ChatParticipantToolToken | undefined;
+
 		/**
 		 * Parameters with which to invoke the tool.
 		 */

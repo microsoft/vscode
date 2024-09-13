@@ -903,7 +903,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let responseType = InlineChatResponseType.None;
 		for (const request of this._session.chatModel.getRequests()) {
-			if (!request.response || request.response.isCanceled) {
+			if (!request.response) {
 				continue;
 			}
 			responseType = InlineChatResponseType.Messages;

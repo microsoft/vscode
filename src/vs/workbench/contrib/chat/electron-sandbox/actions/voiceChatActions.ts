@@ -39,7 +39,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
@@ -47,7 +47,7 @@ import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../.
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from '../../../speech/common/speechService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { TerminalChatContextKeys, TerminalChatController } from '../../../terminal/browser/terminalContribExports.js';
+import { TerminalChatContextKeys, TerminalChatController } from '../../../terminal/terminalContribExports.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -209,7 +209,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
 			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
-			acceptInput: () => chatWidget.acceptInput(),
+			acceptInput: () => chatWidget.acceptInput(undefined, true),
 			updateInput: text => chatWidget.setInput(text),
 			getInput: () => chatWidget.getInput(),
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
@@ -226,7 +226,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
 			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
-			acceptInput: () => terminalChat.acceptInput(),
+			acceptInput: () => terminalChat.acceptInput(true),
 			updateInput: text => terminalChat.updateInput(text, false),
 			getInput: () => terminalChat.getInput(),
 			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
@@ -901,9 +901,42 @@ export class ReadChatResponseAloud extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const instantiationService = accessor.get(IInstantiationService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const response = args[0];
-		if (!isResponseVM(response)) {
+		let response: IChatResponseViewModel | undefined = undefined;
+		if (args.length > 0) {
+			const responseArg = args[0];
+			if (isResponseVM(response)) {
+				response = responseArg;
+			}
+		} else {
+			const chatWidget = chatWidgetService.lastFocusedWidget;
+			if (chatWidget) {
+
+				// pick focused response
+				const focus = chatWidget.getFocus();
+				if (focus instanceof ChatResponseViewModel) {
+					response = focus;
+				}
+
+				// pick the last response
+				else {
+					const chatViewModel = chatWidget.viewModel;
+					if (chatViewModel) {
+						const items = chatViewModel.getItems();
+						for (let i = items.length - 1; i >= 0; i--) {
+							const item = items[i];
+							if (isResponseVM(item)) {
+								response = item;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (!response) {
 			return;
 		}
 
@@ -1266,7 +1299,7 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 
 export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
 
-	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
+	static readonly ID = '_workbench.action.chat.installProviderForVoiceChat';
 
 	constructor() {
 		super({
@@ -1295,7 +1328,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 
 export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
 
-	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
+	static readonly ID = '_workbench.action.chat.installProviderForSynthesis';
 
 	constructor() {
 		super({

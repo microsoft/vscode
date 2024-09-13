@@ -12,7 +12,6 @@ const path = require('path');
 const fs = require('fs');
 const merge = require('merge-options');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
 const { DefinePlugin, optimize } = require('webpack');
 
 const tsLoaderOptions = {
@@ -40,13 +39,6 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 				test: /\.ts$/,
 				exclude: /node_modules/,
 				use: [{
-					// vscode-nls-dev loader:
-					// * rewrite nls-calls
-					loader: 'vscode-nls-dev/lib/webpack-loader',
-					options: {
-						base: path.join(extConfig.context, 'src')
-					}
-				}, {
 					// configure TypeScript loader:
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
@@ -97,8 +89,7 @@ function nodePlugins(context) {
 			patterns: [
 				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
 			]
-		}),
-		new NLSBundlePlugin(id)
+		})
 	];
 }
 /**
@@ -117,6 +108,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 			extensions: ['.ts', '.js'], // support ts-files and js-files
 			fallback: {
 				'path': require.resolve('path-browserify'),
+				'os': require.resolve('os-browserify'),
 				'util': require.resolve('util')
 			}
 		},
@@ -195,9 +187,7 @@ function browserPlugins(context) {
 			'process.platform': JSON.stringify('web'),
 			'process.env': JSON.stringify({}),
 			'process.env.BROWSER_ENV': JSON.stringify('true')
-		}),
-		// TODO: bring this back once vscode-nls-dev supports browser
-		// new NLSBundlePlugin(id)
+		})
 	];
 }
 

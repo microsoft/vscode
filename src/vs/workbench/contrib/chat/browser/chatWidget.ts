@@ -40,6 +40,7 @@ import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatSe
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
+import { ChatDragAndDrop } from './chatDragAndDrop.js';
 
 const $ = dom.$;
 
@@ -56,6 +57,7 @@ export interface IChatViewState {
 export interface IChatWidgetStyles {
 	listForeground: string;
 	listBackground: string;
+	overlayBackground: string;
 	inputEditorBackground: string;
 	resultEditorBackground: string;
 }
@@ -353,6 +355,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return undefined;
 			}
 		}).filter(isDefined);
+
+		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart, this.styles));
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
@@ -533,6 +537,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listInactiveSelectionForeground: this.styles.listForeground,
 					listActiveSelectionForeground: this.styles.listForeground,
 					listFocusAndSelectionForeground: this.styles.listForeground,
+					listActiveSelectionIconForeground: undefined,
+					listInactiveSelectionIconForeground: undefined,
 				}
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -762,8 +768,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.logInputHistory();
 	}
 
-	async acceptInput(query?: string): Promise<IChatResponseModel | undefined> {
-		return this._acceptInput(query ? { query } : undefined);
+	async acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+		return this._acceptInput(query ? { query } : undefined, isVoiceInput);
 	}
 
 	async acceptInputWithPrefix(prefix: string): Promise<void> {
@@ -780,7 +786,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 
@@ -803,7 +809,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					this.chatAccessibilityService.acceptResponse(lastResponse, requestId);
+					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, isVoiceInput);
 					if (lastResponse?.result?.nextQuestion) {
 						const { prompt, participant, command } = lastResponse.result.nextQuestion;
 						const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);

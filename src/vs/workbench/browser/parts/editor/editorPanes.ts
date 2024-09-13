@@ -84,6 +84,7 @@ export class EditorPanes extends Disposable {
 	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
 
 	private readonly editorPanes: EditorPane[] = [];
+	private readonly mapEditorPaneToPendingSetInput = new Map<EditorPane, Promise<void>>();
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private pagePosition: IDomNodePagePosition | undefined;
@@ -409,11 +410,23 @@ export class EditorPanes extends Disposable {
 		// If the input did not change, return early and only
 		// apply the options unless the options instruct us to
 		// force open it even if it is the same
-		const inputMatches = editorPane.input?.matches(editor);
+		let inputMatches = editorPane.input?.matches(editor);
 		if (inputMatches && !options?.forceReload) {
-			editorPane.setOptions(options);
 
-			return { changed: false, cancelled: false };
+			// We have to await a pending `setInput()` call for this
+			// pane before we can call into `setOptions()`, otherwise
+			// we risk calling when the input is not yet fully applied.
+			if (this.mapEditorPaneToPendingSetInput.has(editorPane)) {
+				await this.mapEditorPaneToPendingSetInput.get(editorPane);
+			}
+
+			// At this point, the input might have changed, so we check again
+			inputMatches = editorPane.input?.matches(editor);
+			if (inputMatches) {
+				editorPane.setOptions(options);
+			}
+
+			return { changed: false, cancelled: !inputMatches };
 		}
 
 		// Start a new editor input operation to report progress
@@ -430,8 +443,10 @@ export class EditorPanes extends Disposable {
 			// load (https://github.com/microsoft/vscode/issues/34697)
 			editorPane.clearInput();
 
-			// Set the input to the editor pane
-			await editorPane.setInput(editor, options, context, operation.token);
+			// Set the input to the editor pane and keep track of it
+			const pendingSetInput = editorPane.setInput(editor, options, context, operation.token);
+			this.mapEditorPaneToPendingSetInput.set(editorPane, pendingSetInput);
+			await pendingSetInput;
 
 			if (!operation.isCurrent()) {
 				cancelled = true;
@@ -443,6 +458,9 @@ export class EditorPanes extends Disposable {
 				throw error;
 			}
 		} finally {
+			if (operation.isCurrent()) {
+				this.mapEditorPaneToPendingSetInput.delete(editorPane);
+			}
 			operation.stop();
 		}
 
@@ -462,6 +480,9 @@ export class EditorPanes extends Disposable {
 		// might depend on still being the active DOM element.
 		this.safeRun(() => this._activeEditorPane?.clearInput());
 		this.safeRun(() => this._activeEditorPane?.setVisible(false));
+
+		// Clear any pending setInput promise
+		this.mapEditorPaneToPendingSetInput.delete(this._activeEditorPane);
 
 		// Remove editor pane from parent
 		const editorPaneContainer = this._activeEditorPane.getContainer();

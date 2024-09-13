@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore } from '../../common/lifecycle.js';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from '../../common/observable.js';
-import { BaseObservable, IObservable, IObserver } from '../../common/observableInternal/base.js';
-import { derivedDisposable } from '../../common/observableInternal/derived.js';
+import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
+import { BaseObservable } from '../../common/observableInternal/base.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { setUnexpectedErrorHandler } from '../../common/errors.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();

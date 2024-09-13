@@ -39,7 +39,7 @@ interface AgentData {
 	hasFollowups?: boolean;
 }
 
-class MainThreadChatTask implements IChatTask {
+export class MainThreadChatTask implements IChatTask {
 	public readonly kind = 'progressTask';
 
 	public readonly deferred = new DeferredPromise<string | void>();

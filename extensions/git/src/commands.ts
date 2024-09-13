@@ -2610,8 +2610,8 @@ export class CommandCenter {
 	}
 
 	@command('git.branch', { repository: true })
-	async branch(repository: Repository): Promise<void> {
-		await this._branch(repository);
+	async branch(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		await this._branch(repository, undefined, false, historyItem?.id);
 	}
 
 	@command('git.branchFrom', { repository: true })
@@ -2738,8 +2738,8 @@ export class CommandCenter {
 		return sanitizeBranchName(branchName || '', branchWhitespaceChar);
 	}
 
-	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		let target = 'HEAD';
+	private async _branch(repository: Repository, defaultName?: string, from = false, target?: string): Promise<void> {
+		target = target ?? 'HEAD';
 
 		if (from) {
 			const getRefPicks = async () => {
@@ -2907,7 +2907,7 @@ export class CommandCenter {
 	}
 
 	@command('git.createTag', { repository: true })
-	async createTag(repository: Repository): Promise<void> {
+	async createTag(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
 		const inputTagName = await window.showInputBox({
 			placeHolder: l10n.t('Tag name'),
 			prompt: l10n.t('Please provide a tag name'),
@@ -2925,7 +2925,7 @@ export class CommandCenter {
 		});
 
 		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		await repository.tag(name, inputMessage);
+		await repository.tag({ name, message: inputMessage, ref: historyItem?.id });
 	}
 
 	@command('git.deleteTag', { repository: true })
@@ -3059,7 +3059,7 @@ export class CommandCenter {
 
 	@command('git.fetchRef', { repository: true })
 	async fetchRef(repository: Repository, ref?: string): Promise<void> {
-		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
+		ref = ref ?? repository?.historyProvider.currentHistoryItemRemoteRef?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3132,7 +3132,7 @@ export class CommandCenter {
 
 	@command('git.pullRef', { repository: true })
 	async pullRef(repository: Repository, ref?: string): Promise<void> {
-		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
+		ref = ref ?? repository?.historyProvider.currentHistoryItemRemoteRef?.id;
 		if (!repository || !ref) {
 			return;
 		}

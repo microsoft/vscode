@@ -396,7 +396,7 @@ function sanitizeRenderedMarkdown(
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
-					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
+					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
 					return;
 				} else if (e.attrName === 'class') {
 					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
@@ -545,9 +545,8 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlo
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
-
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString().replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 }
 
 const unescapeInfo = new Map<string, string>([

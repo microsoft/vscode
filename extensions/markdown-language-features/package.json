@@ -770,6 +770,7 @@
     "markdown-it-front-matter": "^0.2.4",
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
+    "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-markdown-languageserver": "^0.5.0-alpha.8",
