@@ -1047,7 +1047,6 @@ class FindController<T, TFilterData> implements IDisposable {
 
 	constructor(
 		private tree: AbstractTree<T, TFilterData, any>,
-		private view: List<ITreeNode<T, TFilterData>>,
 		private filter: FindFilter<T>,
 		private readonly contextViewProvider: IContextViewProvider,
 		private readonly options: IFindControllerOptions = {}
@@ -1077,7 +1076,7 @@ class FindController<T, TFilterData> implements IDisposable {
 			return;
 		}
 
-		this.widget = new FindWidget(this.view.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, this.matchType, { ...this.options, history: this._history });
+		this.widget = new FindWidget(this.tree.getHTMLElement(), this.tree, this.contextViewProvider, this.mode, this.matchType, { ...this.options, history: this._history });
 		this.enabledDisposables.add(this.widget);
 
 		this.widget.onDidChangeValue(this.onDidChangeValue, this, this.enabledDisposables);
@@ -2574,7 +2573,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		if ((_options.findWidgetEnabled ?? true) && _options.keyboardNavigationLabelProvider && _options.contextViewProvider) {
 			const opts = this.options.findWidgetStyles ? { styles: this.options.findWidgetStyles } : undefined;
-			this.findController = new FindController(this, this.view, filter!, _options.contextViewProvider, opts);
+			this.findController = new FindController(this, filter!, _options.contextViewProvider, opts);
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
 			this.disposables.add(this.findController);
