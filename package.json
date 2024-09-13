@@ -75,7 +75,7 @@
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "2.1.0",
-    "@bpasero/watcher": "https://github.com/bpasero/watcher.git#f8e301af83372b60bfd7df6d4de8c6ba3b981de5",
+    "@bpasero/watcher": "https://github.com/bpasero/watcher.git#3e5e50c275590703f3eb46fac777b720e515d0d5",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",

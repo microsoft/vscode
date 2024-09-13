@@ -15,14 +15,21 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { InputFocusedContextKey } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType } from '../../../../inlineChat/common/inlineChat.js';
+import { CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, EditMode, InlineChatResponseType, MENU_INLINE_CHAT_WIDGET_STATUS } from '../../../../inlineChat/common/inlineChat.js';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_HAS_AGENT, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS } from './notebookChatContext.js';
 import { NotebookChatController } from './notebookChatController.js';
-import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from '../coreActions.js';
+import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getContextFromActiveEditor, getEditorFromArgsOrActivePane } from '../coreActions.js';
 import { insertNewCell } from '../insertCellActions.js';
 import { CellEditState } from '../../notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from '../../../common/notebookCommon.js';
 import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from '../../../common/notebookContextKeys.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { CONTEXT_CHAT_INPUT_HAS_TEXT } from '../../../../chat/common/chatContextKeys.js';
+import { AbstractInlineChatAction } from '../../../../inlineChat/browser/inlineChatActions.js';
+import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
+import { HunkInformation } from '../../../../inlineChat/browser/inlineChatSession.js';
 
 registerAction2(class extends NotebookAction {
 	constructor() {
@@ -662,3 +669,54 @@ registerAction2(class extends NotebookCellAction {
 		}
 	}
 });
+
+
+export class AcceptChangesAndRun extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'notebook.inlineChat.acceptChangesAndRun',
+			title: localize2('notebook.apply1', "Accept and Run"),
+			shortTitle: localize('notebook.apply2', 'Accept & Run'),
+			tooltip: localize('notebook.apply3', 'Accept the changes and run the cell'),
+			icon: Codicon.check,
+			f1: true,
+			precondition: ContextKeyExpr.and(
+				NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+				CTX_INLINE_CHAT_VISIBLE,
+				ContextKeyExpr.or(CTX_INLINE_CHAT_DOCUMENT_CHANGED.toNegated(), CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview))
+			),
+			keybinding: undefined,
+			menu: [{
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				group: '0_main',
+				order: 2,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
+					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
+				)
+			}]
+		});
+	}
+
+	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, codeEditor: ICodeEditor, hunk?: HunkInformation | any): Promise<void> {
+		const editor = getContextFromActiveEditor(accessor.get(IEditorService));
+
+		if (!editor) {
+			return;
+		}
+
+		const matchedCell = editor.notebookEditor.codeEditors.find(e => e[1] === codeEditor);
+		const cell = matchedCell?.[0];
+
+		if (!cell) {
+			return;
+		}
+
+		ctrl.acceptSession();
+		return editor.notebookEditor.executeNotebookCells(Iterable.single(cell));
+	}
+}
+registerAction2(AcceptChangesAndRun);

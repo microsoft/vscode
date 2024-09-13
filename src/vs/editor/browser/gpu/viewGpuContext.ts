@@ -6,7 +6,6 @@
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
@@ -45,9 +44,7 @@ export class ViewGpuContext extends Disposable {
 		return ViewGpuContext.atlas;
 	}
 
-	private readonly _onDidChangeCanvasDevicePixelDimensions = this._register(new Emitter<{ width: number; height: number }>());
-	readonly onDidChangeCanvasDevicePixelDimensions = this._onDidChangeCanvasDevicePixelDimensions.event;
-
+	readonly canvasDevicePixelDimensions: IObservable<{ width: number; height: number }>;
 	readonly devicePixelRatio: IObservable<number>;
 
 	constructor(
@@ -74,11 +71,13 @@ export class ViewGpuContext extends Disposable {
 		}));
 		this.devicePixelRatio = dprObs;
 
-		this._register(observeDevicePixelDimensions(this.canvas.domNode, getActiveWindow(), (width, height) => {
-			this.canvas.domNode.width = width;
-			this.canvas.domNode.height = height;
-			this._onDidChangeCanvasDevicePixelDimensions.fire({ width, height });
-		}));
+		const canvasDevicePixelDimensions = observableValue(this, { width: this.canvas.domNode.width, height: this.canvas.domNode.height });
+		this._register(observeDevicePixelDimensions(
+			this.canvas.domNode,
+			getActiveWindow(),
+			(width, height) => canvasDevicePixelDimensions.set({ width, height }, undefined)
+		));
+		this.canvasDevicePixelDimensions = canvasDevicePixelDimensions;
 	}
 
 	/**

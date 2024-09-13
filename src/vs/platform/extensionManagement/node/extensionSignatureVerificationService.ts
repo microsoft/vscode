@@ -5,7 +5,6 @@
 
 import { importAMDNodeModule } from '../../../amdX.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
-import { IGalleryExtension } from '../common/extensionManagement.js';
 import { TargetPlatform } from '../../extensions/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
@@ -22,6 +21,7 @@ export interface IExtensionSignatureVerificationService {
 	/**
 	 * Verifies an extension file (.vsix) against a signature archive file.
 	 * @param { string } extensionId The extension identifier.
+	 * @param { string } version The extension version.
 	 * @param { string } vsixFilePath The extension file path.
 	 * @param { string } signatureArchiveFilePath The signature archive file path.
 	 * @returns { Promise<boolean> } A promise with `true` if the extension is validly signed and trusted;
@@ -29,7 +29,7 @@ export interface IExtensionSignatureVerificationService {
 	 * @throws { ExtensionSignatureVerificationError } An error with a code indicating the validity, integrity, or trust issue
 	 * found during verification or a more fundamental issue (e.g.:  a required dependency was not found).
 	 */
-	verify(extension: IGalleryExtension, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<boolean>;
+	verify(extensionId: string, version: string, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<boolean>;
 }
 
 declare module vsceSign {
@@ -114,9 +114,8 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		// ESM-comment-end
 	}
 
-	public async verify(extension: IGalleryExtension, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<boolean> {
+	public async verify(extensionId: string, version: string, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<boolean> {
 		let module: typeof vsceSign;
-		const extensionId = extension.identifier.id;
 
 		try {
 			module = await this.vsceSign();
@@ -167,7 +166,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		};
 		this.telemetryService.publicLog2<ExtensionSignatureVerificationEvent, ExtensionSignatureVerificationClassification>('extensionsignature:verification', {
 			extensionId,
-			extensionVersion: extension.version,
+			extensionVersion: version,
 			code: result.code,
 			internalCode: result.internalCode,
 			duration,

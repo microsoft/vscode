@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ILogMessage, IUniversalWatcher, IUniversalWatchRequest } from '../../common/watcher.js';
+import { ILogMessage, isRecursiveWatchRequest, IUniversalWatcher, IUniversalWatchRequest } from '../../common/watcher.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ParcelWatcher } from './parcel/parcelWatcher.js';
 import { NodeJSWatcher } from './nodejs/nodejsWatcher.js';
@@ -33,13 +33,13 @@ export class UniversalWatcher extends Disposable implements IUniversalWatcher {
 
 		let error: Error | undefined;
 		try {
-			await this.recursiveWatcher.watch(requests.filter(request => request.recursive));
+			await this.recursiveWatcher.watch(requests.filter(request => isRecursiveWatchRequest(request)));
 		} catch (e) {
 			error = e;
 		}
 
 		try {
-			await this.nonRecursiveWatcher.watch(requests.filter(request => !request.recursive));
+			await this.nonRecursiveWatcher.watch(requests.filter(request => !isRecursiveWatchRequest(request)));
 		} catch (e) {
 			if (!error) {
 				error = e;

@@ -44,7 +44,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 
 	constructor(
 		protected readonly logService: ILogService,
-		private readonly options?: IDiskFileSystemProviderOptions
+		protected options?: IDiskFileSystemProviderOptions
 	) {
 		super();
 	}
@@ -71,16 +71,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private readonly universalWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
-
-		// Add to list of paths to watch universally
-		const request: IUniversalWatchRequest = {
-			path: this.toWatchPath(resource),
-			excludes: opts.excludes,
-			includes: opts.includes,
-			recursive: opts.recursive,
-			filter: opts.filter,
-			correlationId: opts.correlationId
-		};
+		const request = this.toWatchRequest(resource, opts);
 		const remove = insert(this.universalWatchRequests, request);
 
 		// Trigger update
@@ -94,6 +85,37 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			// Trigger update
 			this.refreshUniversalWatchers();
 		});
+	}
+
+	private toWatchRequest(resource: URI, opts: IWatchOptions): IUniversalWatchRequest {
+		const request: IUniversalWatchRequest = {
+			path: this.toWatchPath(resource),
+			excludes: opts.excludes,
+			includes: opts.includes,
+			recursive: opts.recursive,
+			filter: opts.filter,
+			correlationId: opts.correlationId
+		};
+
+		if (isRecursiveWatchRequest(request)) {
+
+			// Adjust for polling
+			const usePolling = this.options?.watcher?.recursive?.usePolling;
+			if (usePolling === true) {
+				request.pollingInterval = this.options?.watcher?.recursive?.pollingInterval ?? 5000;
+			} else if (Array.isArray(usePolling)) {
+				if (usePolling.includes(request.path)) {
+					request.pollingInterval = this.options?.watcher?.recursive?.pollingInterval ?? 5000;
+				}
+			}
+
+			// Adjust for next version
+			if (this.options?.watcher?.recursive?.useNext) {
+				request.useNext = true;
+			}
+		}
+
+		return request;
 	}
 
 	private refreshUniversalWatchers(): void {
@@ -119,24 +141,6 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			this._register(this.logService.onDidChangeLogLevel(() => {
 				this.universalWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
 			}));
-		}
-
-		// Adjust for polling
-		const usePolling = this.options?.watcher?.recursive?.usePolling;
-		if (usePolling === true) {
-			for (const request of this.universalWatchRequests) {
-				if (isRecursiveWatchRequest(request)) {
-					request.pollingInterval = this.options?.watcher?.recursive?.pollingInterval ?? 5000;
-				}
-			}
-		} else if (Array.isArray(usePolling)) {
-			for (const request of this.universalWatchRequests) {
-				if (isRecursiveWatchRequest(request)) {
-					if (usePolling.includes(request.path)) {
-						request.pollingInterval = this.options?.watcher?.recursive?.pollingInterval ?? 5000;
-					}
-				}
-			}
 		}
 
 		// Ask to watch the provided paths
