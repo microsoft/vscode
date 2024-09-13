@@ -154,8 +154,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] currentHistoryItemBaseRef: ${JSON.stringify(this._currentHistoryItemBaseRef)}`);
 
 		// Refs (alphabetically)
-		const refs = await this.repository.getRefs({ sort: 'alphabetically' });
-		const historyItemRefs = refs.map(ref => toSourceControlHistoryItemRef(ref));
+		const historyItemRefs = this.repository.refs
+			.map(ref => toSourceControlHistoryItemRef(ref))
+			.sort((a, b) => a.id.localeCompare(b.id));
 
 		// Auto-fetch
 		const silent = result.operation.kind === OperationKind.Fetch && result.operation.showProgress === false;
@@ -227,7 +228,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			await ensureEmojis();
 
 			return commits.map(commit => {
-				const references = this.resolveHistoryItemRefs(commit);
+				const references = this._resolveHistoryItemRefs(commit);
 
 				return {
 					id: commit.hash,
@@ -320,7 +321,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRef[] {
+	private _resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRef[] {
 		const references: SourceControlHistoryItemRef[] = [];
 
 		for (const ref of commit.refNames) {
