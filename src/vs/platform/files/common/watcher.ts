@@ -80,6 +80,11 @@ export interface IRecursiveWatchRequest extends IWatchRequest {
 	 * be used in any other case.
 	 */
 	pollingInterval?: number;
+
+	/**
+	 * TODO@bpasero Temporary flag to test the new watcher implementation
+	 */
+	useNext?: boolean;
 }
 
 export function isRecursiveWatchRequest(request: IWatchRequest): request is IRecursiveWatchRequest {
@@ -169,6 +174,11 @@ export interface IRecursiveWatcherOptions {
 	 * be used in any other case.
 	 */
 	readonly pollingInterval?: number;
+
+	/**
+	 * TODO@bpasero Temporary flag to test the new watcher implementation
+	 */
+	readonly useNext?: boolean;
 }
 
 export interface INonRecursiveWatcher extends IWatcher {
