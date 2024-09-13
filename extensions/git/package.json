@@ -1949,6 +1949,11 @@
           "group": "1_create@1"
         },
         {
+          "command": "git.branch",
+          "when": "scmProvider == git",
+          "group": "1_create@2"
+        },
+        {
           "command": "git.copyCommitId",
           "when": "scmProvider == git && !listMultiSelection",
           "group": "9_copy@1"

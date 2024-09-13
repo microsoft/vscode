@@ -2610,8 +2610,8 @@ export class CommandCenter {
 	}
 
 	@command('git.branch', { repository: true })
-	async branch(repository: Repository): Promise<void> {
-		await this._branch(repository);
+	async branch(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		await this._branch(repository, undefined, false, historyItem?.id);
 	}
 
 	@command('git.branchFrom', { repository: true })
@@ -2738,8 +2738,8 @@ export class CommandCenter {
 		return sanitizeBranchName(branchName || '', branchWhitespaceChar);
 	}
 
-	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		let target = 'HEAD';
+	private async _branch(repository: Repository, defaultName?: string, from = false, target?: string): Promise<void> {
+		target = target ?? 'HEAD';
 
 		if (from) {
 			const getRefPicks = async () => {
