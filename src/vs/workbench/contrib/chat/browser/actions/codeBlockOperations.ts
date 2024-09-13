@@ -20,6 +20,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { localize } from '../../../../../nls.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
@@ -81,6 +82,9 @@ export class InsertCodeBlockOperation {
 type IComputeEditsResult = { readonly edits?: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>; readonly codeMapper?: string };
 
 export class ApplyCodeBlockOperation {
+
+	private inlineChatPreview: InlineChatPreview | undefined;
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -92,10 +96,17 @@ export class ApplyCodeBlockOperation {
 		@IProgressService private readonly progressService: IProgressService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 	}
 
 	public async run(context: ICodeBlockActionContext): Promise<void> {
+		if (this.inlineChatPreview && this.inlineChatPreview.isOpen()) {
+			await this.dialogService.info(
+				localize('overlap', "Another code change is being previewed. Please first apply or discard the pending changes."),
+			);
+			return;
+		}
 
 		if (context.codemapperUri) {
 			// If the code block is from a code mapper, first reveal the target file
@@ -213,7 +224,7 @@ export class ApplyCodeBlockOperation {
 		return { edits: [], codeMapper: undefined };
 	}
 
-	private async applyWithInlinePreview(edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, codeEditor: IActiveCodeEditor) {
+	private async applyWithInlinePreview(edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>, codeEditor: IActiveCodeEditor): Promise<boolean> {
 		const firstEdit = edits[0];
 		if (!ResourceTextEdit.is(firstEdit)) {
 			return false;
@@ -227,17 +238,30 @@ export class ApplyCodeBlockOperation {
 		if (editorToApply) {
 			const inlineChatController = InlineChatController.get(editorToApply);
 			if (inlineChatController) {
-				const cancellationTokenSource = new CancellationTokenSource();
-				try {
-					return await inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), cancellationTokenSource.token);
-				} finally {
-					cancellationTokenSource.dispose();
-				}
+				const tokenSource = new CancellationTokenSource();
+				let isOpen = true;
+				const promise = inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), tokenSource.token);
+				promise.finally(() => {
+					isOpen = false;
+					tokenSource.dispose();
+				});
+				this.inlineChatPreview = {
+					promise,
+					isOpen: () => isOpen,
+					cancel: () => tokenSource.cancel(),
+				};
+				return true;
 			}
 		}
 		return false;
 	}
 }
+
+type InlineChatPreview = {
+	isOpen(): boolean;
+	cancel(): void;
+	readonly promise: Promise<boolean>;
+};
 
 function notifyUserAction(chatService: IChatService, context: ICodeBlockActionContext, action: ChatUserAction) {
 	if (isResponseVM(context.element)) {
