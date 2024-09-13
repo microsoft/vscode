@@ -17,7 +17,7 @@ import type { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, registerEditorAction, type ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { ensureNonNullable } from '../../../browser/gpu/gpuUtils.js';
 import { GlyphRasterizer } from '../../../browser/gpu/raster/glyphRasterizer.js';
-import { ViewLinesGpu } from '../../../browser/viewParts/viewLinesGpu/viewLinesGpu.js';
+import { ViewGpuContext } from '../../../browser/gpu/viewGpuContext.js';
 
 class DebugEditorGpuRendererAction extends EditorAction {
 
@@ -56,8 +56,8 @@ class DebugEditorGpuRendererAction extends EditorAction {
 				instantiationService.invokeFunction(accessor => {
 					const logService = accessor.get(ILogService);
 
-					const atlas = ViewLinesGpu.atlas;
-					if (!ViewLinesGpu.atlas) {
+					const atlas = ViewGpuContext.atlas;
+					if (!ViewGpuContext.atlas) {
 						logService.error('No texture atlas found');
 						return;
 					}
@@ -72,7 +72,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					const fileService = accessor.get(IFileService);
 					const folders = workspaceContextService.getWorkspace().folders;
 					if (folders.length > 0) {
-						const atlas = ViewLinesGpu.atlas;
+						const atlas = ViewGpuContext.atlas;
 						const promises = [];
 						for (const [layerIndex, page] of atlas.pages.entries()) {
 							promises.push(...[
@@ -94,7 +94,6 @@ class DebugEditorGpuRendererAction extends EditorAction {
 				instantiationService.invokeFunction(async accessor => {
 					const configurationService = accessor.get(IConfigurationService);
 					const fileService = accessor.get(IFileService);
-					const logService = accessor.get(ILogService);
 					const quickInputService = accessor.get(IQuickInputService);
 					const workspaceContextService = accessor.get(IWorkspaceContextService);
 
@@ -103,12 +102,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 						return;
 					}
 
-					const atlas = ViewLinesGpu.atlas;
-					if (!ViewLinesGpu.atlas) {
-						logService.error('No texture atlas found');
-						return;
-					}
-
+					const atlas = ViewGpuContext.atlas;
 					const fontFamily = configurationService.getValue<string>('editor.fontFamily');
 					const fontSize = configurationService.getValue<number>('editor.fontSize');
 					const rasterizer = new GlyphRasterizer(fontSize, fontFamily);
