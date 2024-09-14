@@ -15,7 +15,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from '../../browser/searchModel.js';
+import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult, TextSearchResult } from '../../browser/searchModel.js';
 import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from '../../../../services/search/common/search.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
@@ -123,8 +123,8 @@ suite('Search - Viewlet', () => {
 	test('Cross-type Comparer', () => {
 
 		const searchResult = aSearchResult();
-		const folderMatch1 = aFolderMatch('/voo', 0, searchResult);
-		const folderMatch2 = aFolderMatch('/with', 1, searchResult);
+		const folderMatch1 = aFolderMatch('/voo', 0, searchResult.plainTextSearchResult);
+		const folderMatch2 = aFolderMatch('/with', 1, searchResult.plainTextSearchResult);
 
 		const fileMatch1 = aFileMatch('/voo/foo.a', folderMatch1);
 		const fileMatch2 = aFileMatch('/with/path.c', folderMatch2);
@@ -188,7 +188,7 @@ suite('Search - Viewlet', () => {
 		return fileMatch;
 	}
 
-	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
+	function aFolderMatch(path: string, index: number, parent?: TextSearchResult): FolderMatch {
 		const searchModel = instantiation.createInstance(SearchModel);
 		store.add(searchModel);
 		const folderMatch = instantiation.createInstance(FolderMatch, createFileUriFromPathFromRoot(path), path, index, {

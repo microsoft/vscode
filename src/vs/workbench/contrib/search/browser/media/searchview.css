@@ -186,6 +186,7 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.search-view .textsearchresult,
 .search-view .foldermatch,
 .search-view .filematch {
 	display: flex;
