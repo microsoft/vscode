@@ -11,12 +11,6 @@
   "categories": ["Themes"],
   "contributes": {
     "themes": [
-      {
-        "id": "Solarized Light",
-        "label": "%themeLabel%",
-        "uiTheme": "vs",
-        "path": "./themes/solarized-light-color-theme.json"
-      }
     ]
   },
   "repository": {
