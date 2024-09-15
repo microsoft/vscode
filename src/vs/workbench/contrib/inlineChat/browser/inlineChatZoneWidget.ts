@@ -66,7 +66,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 			chatWidgetViewOptions: {
 				menus: {
-					executeToolbar: MenuId.ChatExecute,
 					telemetrySource: 'interactiveEditorWidget-toolbar',
 				},
 				rendererOptions: {

@@ -126,7 +126,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
 
-	private toolbar!: MenuWorkbenchToolBar;
+	private executeToolbar!: MenuWorkbenchToolBar;
+	private inputActionsToolbar!: MenuWorkbenchToolBar;
 
 	get inputEditor() {
 		return this._inputEditor;
@@ -371,18 +372,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.container = dom.append(container, $('.interactive-input-part'));
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 
-		let inputContainer: HTMLElement;
-		let inputAndSideToolbar: HTMLElement;
+		let inputAndSideToolbar: HTMLElement; // The chat input and toolbar to the right
+		let inputContainer: HTMLElement; // The chat editor, attachments, and toolbars
+		let editorContainer: HTMLElement;
+		let toolbarsContainer: HTMLElement;
 		if (this.options.renderStyle === 'compact') {
 			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
 			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
+			toolbarsContainer = inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
 			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
 		} else {
 			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
-			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
-			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
+			const elements = dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+				dom.h('.chat-input-container@inputContainer', [
+					dom.h('.chat-editor-container@editorContainer'),
+					dom.h('.chat-attached-context@attachedContextContainer'),
+					dom.h('.chat-input-toolbars@inputToolbars'),
+				]),
+			]);
+			inputAndSideToolbar = elements.inputAndSideToolbar;
+			inputContainer = elements.inputContainer;
+			editorContainer = elements.editorContainer;
+			this.attachedContextContainer = elements.attachedContextContainer;
+			toolbarsContainer = elements.inputToolbars;
+			this.container.appendChild(elements.root);
 		}
 		this.initAttachedContext(this.attachedContextContainer);
 
@@ -415,7 +428,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 		options.stickyScroll = { enabled: false };
 
-		this._inputEditorElement = dom.append(inputContainer, $(chatInputEditorContainerSelector));
+		this._inputEditorElement = dom.append(editorContainer!, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
@@ -443,7 +456,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidBlur.fire();
 		}));
 
-		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, this.options.menus.executeToolbar, {
+		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, MenuId.ChatInput, {
+			telemetrySource: this.options.menus.telemetrySource,
+			menuOptions: { shouldForwardArgs: true },
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+		}));
+		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
 				shouldForwardArgs: true
@@ -460,14 +479,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return undefined;
 			}
 		}));
-		this.toolbar.getElement().classList.add('interactive-execute-toolbar');
-		this.toolbar.context = { widget } satisfies IChatExecuteActionContext;
-		this._register(this.toolbar.onDidChangeMenuItems(() => {
-			if (this.cachedDimensions && typeof this.cachedToolbarWidth === 'number' && this.cachedToolbarWidth !== this.toolbar.getItemsWidth()) {
+		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions && typeof this.cachedToolbarWidth === 'number' && this.cachedToolbarWidth !== this.executeToolbar.getItemsWidth()) {
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 			}
 		}));
-
 		if (this.options.menus.inputSideToolbar) {
 			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, this.options.menus.inputSideToolbar, {
 				telemetrySource: this.options.menus.telemetrySource,
@@ -598,7 +615,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight + data.executeToolbarHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.inputToolbarsHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -613,15 +630,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const data = this.getLayoutData();
 
-		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.inputPartVerticalPadding);
+		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.inputToolbarsHeight);
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.followupsHeight + inputEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight + data.executeToolbarHeight;
+		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.inputToolbarsHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.editorPadding - data.executeToolbarWidth - data.sideToolbarWidth;
+		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.executeToolbarWidth - data.sideToolbarWidth;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
@@ -637,19 +654,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getLayoutData() {
-		const executeToolbarWidth = this.cachedToolbarWidth = this.toolbar.getItemsWidth();
-		const executeToolbarPadding = (this.toolbar.getItemsLength() - 1) * 4;
+		const executeToolbarWidth = this.cachedToolbarWidth = this.executeToolbar.getItemsWidth();
+		const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 32,
-			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
-			implicitContextHeight: this.attachedContextContainer.offsetHeight,
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 30,
+			attachmentsHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
-			editorPadding: 12,
+			inputPartHorizontalPaddingInside: 12,
 			executeToolbarWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding : 0,
-			executeToolbarHeight: this.options.renderStyle === 'compact' ? 0 : 22,
+			inputToolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
 		};
 	}
