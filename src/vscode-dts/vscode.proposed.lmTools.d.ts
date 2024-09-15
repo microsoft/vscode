@@ -188,6 +188,7 @@ declare module 'vscode' {
 		 * string-manipulation of the prompt.
 		 */
 		readonly toolReferences: readonly ChatLanguageModelToolReference[];
+		readonly toolInvocationToken: ChatParticipantToolToken;
 	}
 
 	export interface ChatRequestTurn {
