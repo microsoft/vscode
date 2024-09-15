@@ -143,7 +143,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasFocus: IContextKey<boolean>;
 
 	private cachedDimensions: dom.Dimension | undefined;
-	private cachedToolbarWidth: number | undefined;
+	private cachedExecuteToolbarWidth: number | undefined;
+	private cachedInputToolbarWidth: number | undefined;
 
 	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
@@ -369,34 +370,39 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
-		this.container = dom.append(container, $('.interactive-input-part'));
-		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
-
-		let inputAndSideToolbar: HTMLElement; // The chat input and toolbar to the right
-		let inputContainer: HTMLElement; // The chat editor, attachments, and toolbars
-		let editorContainer: HTMLElement;
-		let toolbarsContainer: HTMLElement;
+		let elements;
 		if (this.options.renderStyle === 'compact') {
-			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
-			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-			toolbarsContainer = inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
-			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+			elements = dom.h('.interactive-input-part', [
+				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+					dom.h('.chat-input-container@inputContainer', [
+						dom.h('.chat-editor-container@editorContainer'),
+						dom.h('.chat-input-toolbars@inputToolbars'),
+					]),
+				]),
+				dom.h('.chat-attached-context@attachedContextContainer'),
+				dom.h('.interactive-input-followups@followupsContainer'),
+			]);
 		} else {
-			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-			const elements = dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
-				dom.h('.chat-input-container@inputContainer', [
-					dom.h('.chat-editor-container@editorContainer'),
-					dom.h('.chat-attached-context@attachedContextContainer'),
-					dom.h('.chat-input-toolbars@inputToolbars'),
+			elements = dom.h('.interactive-input-part', [
+				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+					dom.h('.chat-input-container@inputContainer', [
+						dom.h('.chat-editor-container@editorContainer'),
+						dom.h('.chat-attached-context@attachedContextContainer'),
+						dom.h('.chat-input-toolbars@inputToolbars'),
+					]),
 				]),
 			]);
-			inputAndSideToolbar = elements.inputAndSideToolbar;
-			inputContainer = elements.inputContainer;
-			editorContainer = elements.editorContainer;
-			this.attachedContextContainer = elements.attachedContextContainer;
-			toolbarsContainer = elements.inputToolbars;
-			this.container.appendChild(elements.root);
 		}
+		this.container = elements.root;
+		container.append(this.container);
+		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
+		this.followupsContainer = elements.followupsContainer;
+		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
+		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
+		const editorContainer = elements.editorContainer;
+		this.attachedContextContainer = elements.attachedContextContainer;
+		const toolbarsContainer = elements.inputToolbars;
 		this.initAttachedContext(this.attachedContextContainer);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -456,12 +462,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidBlur.fire();
 		}));
 
+		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 		}));
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
+				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+			}
+		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
@@ -481,7 +493,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
-			if (this.cachedDimensions && typeof this.cachedToolbarWidth === 'number' && this.cachedToolbarWidth !== this.executeToolbar.getItemsWidth()) {
+			if (this.cachedDimensions && typeof this.cachedExecuteToolbarWidth === 'number' && this.cachedExecuteToolbarWidth !== this.executeToolbar.getItemsWidth()) {
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 			}
 		}));
@@ -615,7 +627,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.inputToolbarsHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -629,16 +641,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initAttachedContext(this.attachedContextContainer, true);
 
 		const data = this.getLayoutData();
-
-		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.inputToolbarsHeight);
+		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight);
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.inputToolbarsHeight;
+		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.executeToolbarWidth - data.sideToolbarWidth;
+		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
@@ -654,8 +665,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getLayoutData() {
-		const executeToolbarWidth = this.cachedToolbarWidth = this.executeToolbar.getItemsWidth();
+		const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
+		const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
 		const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
+		const inputToolbarPadding = (this.inputActionsToolbar.getItemsLength() - 1) * 4;
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
@@ -665,8 +678,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			attachmentsHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,
-			executeToolbarWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding : 0,
-			inputToolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
+			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,
+			toolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
 		};
 	}

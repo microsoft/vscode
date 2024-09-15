@@ -469,9 +469,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
 	display: flex;
-	align-items: flex-end;
 	justify-content: space-between;
-	margin-bottom: 0;
+	padding-bottom: 0;
 	border-radius: 2px;
 }
 
