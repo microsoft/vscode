@@ -2133,6 +2133,12 @@ class DocumentDropEditAdapter {
 	}
 }
 
+const reviveContextItem = (item: extHostProtocol.IDocumentContextItemDto) => ({
+	uri: URI.revive(item.uri),
+	version: item.version,
+	ranges: item.ranges.map(r => typeConvert.Range.to(r)),
+} satisfies vscode.DocumentContextItem);
+
 class MappedEditsAdapter {
 
 	constructor(
@@ -2149,14 +2155,6 @@ class MappedEditsAdapter {
 
 		const uri = URI.revive(resource);
 		const doc = this._documents.getDocument(uri);
-
-		const reviveContextItem = (item: extHostProtocol.IDocumentContextItemDto) => ({
-			uri: URI.revive(item.uri),
-			version: item.version,
-			ranges: item.ranges.map(r => typeConvert.Range.to(r)),
-		} satisfies vscode.DocumentContextItem);
-
-
 		const usedContext = context.documents.map(docSubArray => docSubArray.map(reviveContextItem));
 
 		const ctx = {
@@ -2184,6 +2182,41 @@ class MappedEditsAdapter {
 	}
 }
 
+class MappedEditsAdapter2 {
+
+	constructor(
+		private readonly _provider: vscode.MappedEditsProvider2,
+	) { }
+
+	async provideMappedEdits(
+		request: extHostProtocol.IMappedEditsRequestDto,
+		response: extHostProtocol.IMappedEditsResponseDto,
+		token: CancellationToken
+	): Promise<extHostProtocol.IMappedEditsResultDto | null | undefined> {
+
+		const revivedRequest = {
+			resource: URI.revive(request.resource),
+			codeBlock: request.codeBlock,
+			conversation: request.conversation?.map(c => {
+				if (c.type === 'response') {
+					return {
+						type: 'response',
+						message: c.message,
+						references: c.references?.map(reviveContextItem)
+					} satisfies vscode.ConversationResponse;
+				} else {
+					return {
+						type: 'request',
+						message: c.message,
+					} satisfies vscode.ConversationRequest;
+				}
+			})
+		} satisfies vscode.MappedEditsRequest;
+
+		return this._provider.provideMappedEdits(revivedRequest, response, token);
+	}
+}
+
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
 	| DocumentHighlightAdapter | MultiDocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter
 	| DocumentPasteEditProvider | DocumentFormattingAdapter | RangeFormattingAdapter
@@ -2194,7 +2227,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
+	| DocumentDropEditAdapter | MappedEditsAdapter | MappedEditsAdapter2 | NewSymbolNamesAdapter | InlineEditAdapter;
 
 class AdapterData {
 	constructor(
@@ -2918,6 +2951,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: extHostProtocol.IMappedEditsContextDto, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | null> {
 		return this._withAdapter(handle, MappedEditsAdapter, adapter =>
 			Promise.resolve(adapter.provideMappedEdits(document, codeBlocks, context, token)), null, token);
+	}
+
+	registerMappedEditsProvider2(extension: IExtensionDescription, provider: vscode.MappedEditsProvider2): vscode.Disposable {
+		const handle = this._addNewAdapter(new MappedEditsAdapter2(provider), extension);
+		this._proxy.$registerMappedEditsProvider2(handle, extension.displayName ?? extension.name);
+		return this._createDisposable(handle);
 	}
 
 	// --- copy/paste actions

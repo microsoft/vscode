@@ -52,7 +52,34 @@ declare module 'vscode' {
 		): ProviderResult<WorkspaceEdit | null>;
 	}
 
+	export interface MappedEditsRequest {
+		readonly resource: Uri;
+		readonly codeBlock: string;
+		readonly conversation?: (ConversationRequest | ConversationResponse)[];
+	}
+
+	export interface MappedEditsResposeStream {
+		edit(value: TextEdit, resource: Uri): void;
+	}
+
+	export interface MappedEditsResult {
+		readonly errorMessage?: string;
+	}
+
+	/**
+	 * Interface for providing mapped edits for a given document.
+	 */
+	export interface MappedEditsProvider2 {
+		provideMappedEdits(
+			request: MappedEditsRequest,
+			result: MappedEditsResposeStream,
+			token: CancellationToken
+		): ProviderResult<MappedEditsResult>;
+	}
+
 	namespace chat {
 		export function registerMappedEditsProvider(documentSelector: DocumentSelector, provider: MappedEditsProvider): Disposable;
+
+		export function registerMappedEditsProvider2(provider: MappedEditsProvider2): Disposable;
 	}
 }

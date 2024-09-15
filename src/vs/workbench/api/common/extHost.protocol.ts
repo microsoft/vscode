@@ -392,6 +392,16 @@ export interface IMappedEditsContextDto {
 	conversation?: IConversationItemDto[];
 }
 
+export interface IMappedEditsRequestDto {
+	readonly resource: UriComponents;
+	readonly codeBlock: string;
+	readonly conversation?: IConversationItemDto[];
+}
+
+export interface IMappedEditsResultDto {
+	readonly errorMessage?: string;
+}
+
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
@@ -455,6 +465,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void;
+	$registerMappedEditsProvider2(handle: number, displayName: string): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
