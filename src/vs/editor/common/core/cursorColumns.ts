@@ -40,6 +40,7 @@ export class CursorColumns {
 	 */
 	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
 		const textLen = Math.min(column - 1, lineContent.length);
+		const extra = column - 1 - textLen;
 		const text = lineContent.substring(0, textLen);
 		const iterator = new strings.GraphemeIterator(text);
 
@@ -51,7 +52,7 @@ export class CursorColumns {
 			result = this._nextVisibleColumn(codePoint, result, tabSize);
 		}
 
-		return result;
+		return result + extra;
 	}
 
 	/**
@@ -59,7 +60,9 @@ export class CursorColumns {
 	 * @see {@link CursorColumns}
 	 */
 	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
-		const text = lineContent.substring(0, Math.min(column - 1, lineContent.length));
+		const toInspect = Math.min(column - 1, lineContent.length);
+		const extra = Math.max(0, column - 1 - lineContent.length);
+		const text = lineContent.substring(0, toInspect);
 		const iterator = new strings.CodePointIterator(text);
 
 		let result = 0;
@@ -73,7 +76,7 @@ export class CursorColumns {
 			}
 		}
 
-		return result + 1;
+		return result + 1 + extra;
 	}
 
 	/**
@@ -112,7 +115,8 @@ export class CursorColumns {
 		}
 
 		// walked the entire string
-		return lineContentLength + 1;
+		const extra = visibleColumn - beforeVisibleColumn;
+		return lineContentLength + 1 + extra;
 	}
 
 	/**

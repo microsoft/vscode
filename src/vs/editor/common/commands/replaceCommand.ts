@@ -21,7 +21,20 @@ export class ReplaceCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._range, this._text);
+		let range = this._range;
+		let text = this._text;
+		let lineLen = model.getLineMaxColumn(range.startLineNumber);
+		if (range.startColumn > lineLen) {
+			text = ' '.repeat(range.startColumn - lineLen) + text;
+			range = new Range(range.startLineNumber, lineLen, range.endLineNumber, range.endColumn);
+		}
+		if (range.endColumn !== range.startColumn) {
+			lineLen = model.getLineMaxColumn(range.endLineNumber);
+			if (range.endColumn > lineLen) {
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, lineLen);
+			}
+		}
+		builder.addTrackedEditOperation(range, text);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {

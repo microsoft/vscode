@@ -420,7 +420,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 		}
 
 		const originalEndLineNumber = _range.endLineNumber;
-		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
+		const _visibleRange = this._lastRenderedData.getCurrentVisibleRange();
+		const visibleRange = new Range(_visibleRange.startLineNumber, _visibleRange.startColumn, _visibleRange.endLineNumber, Infinity);
+		const range = Range.intersectRanges(_range, visibleRange);
 		if (!range) {
 			return null;
 		}

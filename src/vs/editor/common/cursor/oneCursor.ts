@@ -27,8 +27,8 @@ export class Cursor {
 
 		this._setState(
 			context,
-			new SingleCursorState(new Range(1, 1, 1, 1), SelectionStartKind.Simple, 0, new Position(1, 1), 0),
-			new SingleCursorState(new Range(1, 1, 1, 1), SelectionStartKind.Simple, 0, new Position(1, 1), 0)
+			new SingleCursorState(new Range(1, 1, 1, 1), SelectionStartKind.Simple, new Position(1, 1), null),
+			new SingleCursorState(new Range(1, 1, 1, 1), SelectionStartKind.Simple, new Position(1, 1), null)
 		);
 	}
 
@@ -105,9 +105,8 @@ export class Cursor {
 		return new SingleCursorState(
 			Range.fromPositions(validSStartPosition, validSEndPosition),
 			viewState.selectionStartKind,
-			viewState.selectionStartLeftoverVisibleColumns + sStartPosition.column - validSStartPosition.column,
 			validPosition,
-			viewState.leftoverVisibleColumns + position.column - validPosition.column,
+			null
 		);
 	}
 
@@ -129,18 +128,16 @@ export class Cursor {
 				context.coordinatesConverter.convertViewPositionToModelPosition(viewState.position)
 			);
 
-			modelState = new SingleCursorState(selectionStart, viewState.selectionStartKind, viewState.selectionStartLeftoverVisibleColumns, position, viewState.leftoverVisibleColumns);
+			modelState = new SingleCursorState(selectionStart, viewState.selectionStartKind, position, viewState.columnHint);
 		} else {
 			// Validate new model state
 			const selectionStart = context.model.validateRange(modelState.selectionStart);
-			const selectionStartLeftoverVisibleColumns = modelState.selectionStart.equalsRange(selectionStart) ? modelState.selectionStartLeftoverVisibleColumns : 0;
 
 			const position = context.model.validatePosition(
 				modelState.position
 			);
-			const leftoverVisibleColumns = modelState.position.equals(position) ? modelState.leftoverVisibleColumns : 0;
 
-			modelState = new SingleCursorState(selectionStart, modelState.selectionStartKind, selectionStartLeftoverVisibleColumns, position, leftoverVisibleColumns);
+			modelState = new SingleCursorState(selectionStart, modelState.selectionStartKind, position, modelState.columnHint);
 		}
 
 		if (!viewState) {
@@ -149,12 +146,12 @@ export class Cursor {
 			const viewSelectionStart2 = context.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelState.selectionStart.endLineNumber, modelState.selectionStart.endColumn));
 			const viewSelectionStart = new Range(viewSelectionStart1.lineNumber, viewSelectionStart1.column, viewSelectionStart2.lineNumber, viewSelectionStart2.column);
 			const viewPosition = context.coordinatesConverter.convertModelPositionToViewPosition(modelState.position);
-			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartKind, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
+			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartKind, viewPosition, modelState.columnHint);
 		} else {
 			// Validate new view state
 			const viewSelectionStart = context.coordinatesConverter.validateViewRange(viewState.selectionStart, modelState.selectionStart);
 			const viewPosition = context.coordinatesConverter.validateViewPosition(viewState.position, modelState.position);
-			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartKind, modelState.selectionStartLeftoverVisibleColumns, viewPosition, modelState.leftoverVisibleColumns);
+			viewState = new SingleCursorState(viewSelectionStart, modelState.selectionStartKind, viewPosition, modelState.columnHint);
 		}
 
 		this.modelState = modelState;

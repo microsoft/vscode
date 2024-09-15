@@ -224,11 +224,20 @@ export class CharacterMapping {
 	}
 
 	public getHorizontalOffset(column: number): number {
-		if (this._horizontalOffset.length === 0) {
+		const line_len = this._horizontalOffset.length;
+		if (line_len === 0) {
 			// No characters on this line
-			return 0;
+			const extra = column - 1;
+			return extra;
 		}
-		return this._horizontalOffset[column - 1];
+		if (column > line_len) {
+			const extra = column - line_len;
+			const result = this._horizontalOffset[line_len - 1] + extra;
+			return result;
+		} else {
+			const result = this._horizontalOffset[column - 1];
+			return result;
+		}
 	}
 
 	private charOffsetToPartData(charOffset: number): number {

@@ -308,7 +308,7 @@ export class WordOperations {
 		let column = position.column;
 
 		let movedDown = false;
-		if (column === model.getLineMaxColumn(lineNumber)) {
+		if (column >= model.getLineMaxColumn(lineNumber)) {
 			if (lineNumber < model.getLineCount()) {
 				movedDown = true;
 				lineNumber = lineNumber + 1;
@@ -767,8 +767,9 @@ export class WordOperations {
 			}
 
 			return new SingleCursorState(
-				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), SelectionStartKind.Word, 0,
-				new Position(position.lineNumber, endColumn), 0
+				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), SelectionStartKind.Word,
+				new Position(position.lineNumber, endColumn),
+				null
 			);
 		}
 
@@ -806,7 +807,7 @@ export class WordOperations {
 			}
 		}
 
-		return cursor.move(true, lineNumber, column, 0);
+		return cursor.move(true, lineNumber, column, null);
 	}
 }
 
