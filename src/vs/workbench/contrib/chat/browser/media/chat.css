@@ -458,22 +458,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: 3px;
 }
 
-.interactive-session .interactive-input-and-execute-toolbar {
+.interactive-session .chat-input-container {
 	box-sizing: border-box;
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
-	position: relative;
-	padding: 0 6px;
-	margin-bottom: 4px;
+	padding: 0 6px 6px 6px; /* top padding is inside the editor widget */
 }
 
-.interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
+.interactive-session .interactive-input-part.compact .chat-input-container {
 	display: flex;
-	align-items: flex-end;
 	justify-content: space-between;
-	margin-bottom: 0;
+	padding-bottom: 0;
 	border-radius: 2px;
 }
 
@@ -483,40 +480,37 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 }
 
-.interactive-session .interactive-input-and-execute-toolbar.focused {
+.interactive-session .chat-input-container.focused {
 	border-color: var(--vscode-focusBorder);
 }
 
-.interactive-input-and-execute-toolbar .monaco-editor .mtk1 {
+.chat-editor-container .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
 }
 
-.interactive-session .interactive-input-and-execute-toolbar .monaco-editor,
-.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .monaco-editor-background {
+.interactive-session .chat-editor-container .monaco-editor,
+.interactive-session .chat-editor-container .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background) !important;
 }
 
-.interactive-session .interactive-input-and-execute-toolbar .monaco-editor .cursors-layer {
+.interactive-session .chat-editor-container .monaco-editor .cursors-layer {
 	padding-left: 4px;
 }
 
-.interactive-session .interactive-input-part .interactive-execute-toolbar {
-	height: 22px;
-
-	/* It's bottom-aligned, make it appear centered within the container */
-	margin-bottom: 7px;
+.interactive-session .chat-input-toolbars {
+	display: flex;
 }
 
-.interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar {
-	float: right;
+.interactive-session .chat-input-toolbars :first-child {
+	margin-right: auto;
 }
 
-.interactive-session .interactive-input-part .interactive-execute-toolbar .monaco-action-bar .actions-container {
+.interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
 }
 
-.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
+.interactive-session .chat-input-toolbars .codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
 }
 
@@ -601,7 +595,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 16px;
-	padding: 0 0 12px 0;
+	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
 }
@@ -741,11 +735,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0 3px;
 }
 
-.quick-input-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars {
 	margin-bottom: 1px;
 }
 
-.quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
+.quick-input-widget .interactive-session .chat-input-container {
 	margin: 0;
 	border-radius: 2px;
 	padding: 0 4px 0 6px;
