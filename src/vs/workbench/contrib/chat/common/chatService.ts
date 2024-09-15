@@ -262,9 +262,17 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
-	userAction?: string;
-	codeMapper?: string;
 }
+
+export interface IChatApplyAction {
+	kind: 'apply';
+	codeBlockIndex: number;
+	totalCharacters: number;
+	newFile?: boolean;
+	codeMapper?: string;
+	editsProposed: boolean;
+}
+
 
 export interface IChatTerminalAction {
 	kind: 'runInTerminal';
@@ -291,7 +299,7 @@ export interface IChatInlineChatCodeAction {
 	action: 'accepted' | 'discarded';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

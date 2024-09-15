@@ -182,7 +182,7 @@
 ; Special identifiers
 
 (type_identifier) @entity.name.type
-(predefined_type (["string" "boolean" "number"])) @support.type.primitive
+(predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
 (predefined_type) @support.type
 
 (("const")

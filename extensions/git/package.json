@@ -453,6 +453,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRefDetached",
+        "title": "%command.checkoutRefDetached%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.branch",
         "title": "%command.branch%",
         "category": "Git",
@@ -615,6 +621,12 @@
       {
         "command": "git.cherryPick",
         "title": "%command.cherryPick%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.cherryPickRef",
+        "title": "%command.cherryPickRef%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1446,6 +1458,14 @@
         {
           "command": "git.copyCommitMessage",
           "when": "false"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "false"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1938,7 +1958,7 @@
       "scm/history/title": [
         {
           "command": "git.fetchAll",
-          "group": "navigation@2",
+          "group": "navigation@999",
           "when": "scmProvider == git"
         }
       ],
@@ -1952,6 +1972,16 @@
           "command": "git.branch",
           "when": "scmProvider == git",
           "group": "1_create@2"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "scmProvider == git",
+          "group": "2_modify@1"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "scmProvider == git",
+          "group": "2_modify@2"
         },
         {
           "command": "git.copyCommitId",

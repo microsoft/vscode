@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from '../../../nls.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { createFastDomNode, type FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import { observableValue, runOnChange, type IObservable } from '../../../base/common/observable.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 import { TextureAtlas } from './atlas/textureAtlas.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../platform/notification/common/notification.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 
@@ -21,12 +24,36 @@ export class ViewGpuContext extends Disposable {
 
 	readonly device: Promise<GPUDevice>;
 
-	readonly canvasDevicePixelDimensions: IObservable<{ width: number; height: number }>;
+	private static _atlas: TextureAtlas | undefined;
 
+	/**
+	 * The shared texture atlas to use across all views.
+	 *
+	 * @throws if called before the GPU device is resolved
+	 */
+	static get atlas(): TextureAtlas {
+		if (!ViewGpuContext._atlas) {
+			throw new BugIndicatingError('Cannot call ViewGpuContext.textureAtlas before device is resolved');
+		}
+		return ViewGpuContext._atlas;
+	}
+	/**
+	 * The shared texture atlas to use across all views. This is a convenience alias for
+	 * {@link ViewGpuContext.atlas}.
+	 *
+	 * @throws if called before the GPU device is resolved
+	 */
+	get atlas(): TextureAtlas {
+		return ViewGpuContext.atlas;
+	}
+
+	readonly canvasDevicePixelDimensions: IObservable<{ width: number; height: number }>;
 	readonly devicePixelRatio: IObservable<number>;
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -35,11 +62,17 @@ export class ViewGpuContext extends Disposable {
 
 		this.ctx = ensureNonNullable(this.canvas.domNode.getContext('webgpu'));
 
-		this.device = GPULifecycle.requestDevice().then(ref => this._register(ref).object);
+		this.device = GPULifecycle.requestDevice((message) => {
+			const choices: IPromptChoice[] = [{
+				label: nls.localize('editor.dom.render', "Use DOM-based rendering"),
+				run: () => this.configurationService.updateValue('editor.experimentalGpuAcceleration', 'off'),
+			}];
+			this._notificationService.prompt(Severity.Warning, message, choices);
+		}).then(ref => this._register(ref).object);
 		this.device.then(device => {
-			if (!ViewLinesGpu.atlas) {
-				ViewLinesGpu.atlas = this._instantiationService.createInstance(TextureAtlas, device.limits.maxTextureDimension2D, undefined);
-				runOnChange(this.devicePixelRatio, () => ViewLinesGpu.atlas.clear());
+			if (!ViewGpuContext._atlas) {
+				ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, device.limits.maxTextureDimension2D, undefined);
+				runOnChange(this.devicePixelRatio, () => ViewGpuContext.atlas.clear());
 			}
 		});
 
@@ -53,7 +86,11 @@ export class ViewGpuContext extends Disposable {
 		this._register(observeDevicePixelDimensions(
 			this.canvas.domNode,
 			getActiveWindow(),
-			(width, height) => canvasDevicePixelDimensions.set({ width, height }, undefined)
+			(width, height) => {
+				this.canvas.domNode.width = width;
+				this.canvas.domNode.height = height;
+				canvasDevicePixelDimensions.set({ width, height }, undefined);
+			}
 		));
 		this.canvasDevicePixelDimensions = canvasDevicePixelDimensions;
 	}

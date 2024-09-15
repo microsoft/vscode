@@ -2608,7 +2608,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				defaultFindMatchType: _options.defaultFindMatchType,
 			};
 			this.findController = this.disposables.add(new FindController(this, filter!, _options.contextViewProvider, findOptions));
-
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
 			this.onDidChangeFindMode = this.findController.onDidChangeMode;

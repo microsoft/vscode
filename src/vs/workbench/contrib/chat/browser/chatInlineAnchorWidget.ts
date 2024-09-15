@@ -8,6 +8,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -30,7 +31,10 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { ExplorerFolderContext } from '../../files/common/files.js';
 import { ContentRefData } from '../common/annotations.js';
+import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatWidgetService } from './chat.js';
 
 export class InlineAnchorWidget extends Disposable {
 
@@ -99,6 +103,13 @@ export class InlineAnchorWidget extends Disposable {
 
 			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			iconClasses = getIconClasses(modelService, languageService, location.uri, fileKind);
+
+			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
+			fileService.stat(location.uri)
+				.then(stat => {
+					isFolderContext.set(stat.isDirectory);
+				})
+				.catch(() => { });
 		}
 
 		const iconEl = dom.$('span.icon');
@@ -138,6 +149,49 @@ export class InlineAnchorWidget extends Disposable {
 		}));
 	}
 }
+
+//#region Resource context menu
+
+registerAction2(class GoToDefinitionAction extends Action2 {
+
+	static readonly id = 'chat.inlineResourceAnchor.attachToContext';
+
+	constructor() {
+		super({
+			id: GoToDefinitionAction.id,
+			title: {
+				...nls.localize2('actions.attach.label', "Attach File as Context"),
+			},
+			menu: [{
+				id: MenuId.ChatInlineResourceAnchorContext,
+				group: 'chat',
+				order: 1,
+				when: ExplorerFolderContext.negate(),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		const context: IChatRequestVariableEntry = {
+			value: resource,
+			id: resource.toString(),
+			name: basename(resource),
+			isFile: true,
+			isDynamic: true
+		};
+		widget.setContext(true, context);
+	}
+});
+
+//#endregion
+
+//#region Symbol context menu
 
 registerAction2(class GoToDefinitionAction extends Action2 {
 
@@ -212,3 +266,5 @@ registerAction2(class GoToReferencesAction extends Action2 {
 		await commandService.executeCommand('editor.action.goToReferences');
 	}
 });
+
+//#endregion
