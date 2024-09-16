@@ -14,7 +14,7 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -278,8 +278,12 @@ export function registerChatCodeBlockActions() {
 				task.report({ message: localize2('chatCodeBlock.generating', 'Generating edits...').value });
 				await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
 				task.report({ message: localize2('chatCodeBlock.applyAllEdits', 'Applying edits to workspace...').value });
-				await bulkEditService.apply(resources);
 			}, () => tokenSource.cancel());
+
+			await bulkEditService.apply(resources, {
+				showPreview: true,
+				label: localize('label', "Applying edits"),
+			});
 		}
 	});
 
