@@ -30,7 +30,6 @@ import { MarshalledCommentThread } from '../../common/comments.js';
 import { revealCommentThread } from '../../contrib/comments/browser/commentsController.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
