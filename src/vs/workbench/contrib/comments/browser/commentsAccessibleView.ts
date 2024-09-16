@@ -125,8 +125,6 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 	) {
 		super();
 	}
-	// TODO: actions
-	public actions = [];
 	provideContent(): string {
 		if (!this._commentService.lastAtiveCommentInfo) {
 			throw new Error('No current comment thread');
@@ -153,7 +151,7 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		if (!commentInfo) {
 			return;
 		}
-		// TODO: is there a way to focus the comment not the thread?
+		// TODO @alexr00, focus the comment specifically
 		this._commentService.setActiveCommentAndThread(commentInfo.controller.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
 		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, commentInfo.thread, commentInfo.comment);
 	}
