@@ -18,7 +18,6 @@ import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
@@ -238,7 +237,6 @@ export function registerChatCodeBlockActions() {
 		override async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const codemapperService = accessor.get(ICodeMapperService);
-			const fileService = accessor.get(IFileService);
 			const progressService = accessor.get(IProgressService);
 			const bulkEditService = accessor.get(IBulkEditService);
 
@@ -256,8 +254,8 @@ export function registerChatCodeBlockActions() {
 			const request: ICodeMapperCodeBlock[] = [];
 			for (const codeblock of codeblocks) {
 				if (codeblock.codemapperUri && codeblock.uri) {
-					const code = await fileService.readFile(codeblock.uri);
-					request.push({ resource: codeblock.codemapperUri, code: code.value.toString() });
+					const code = codeblock.getContent();
+					request.push({ resource: codeblock.codemapperUri, code });
 				}
 			}
 
