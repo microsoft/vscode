@@ -17,13 +17,12 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommentService } from './commentService.js';
 import { CommentMenus as ThreadCommentMenus } from './commentMenus.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
-import { CommentController, revealCommentThread } from './commentsController.js';
+import { revealCommentThread } from './commentsController.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;
@@ -62,12 +61,11 @@ export class CommentThreadAccessibleView extends Disposable implements IAccessib
 		const uriIdentityService = accessor.get(IUriIdentityService);
 		const threads = commentService.commentsModel.hasCommentThreads();
 		const menuService = accessor.get(IMenuService);
-		const codeEditorService = accessor.get(ICodeEditorService);
 		const menus = this._register(new ThreadCommentMenus(menuService));
 		if (!threads) {
 			return;
 		}
-		return new CommentsThreadWidgetAccessibleContentProvider(menus, commentService, editorService, uriIdentityService, codeEditorService);
+		return new CommentsThreadWidgetAccessibleContentProvider(menus, commentService, editorService, uriIdentityService);
 	}
 	constructor() {
 		super();
@@ -129,7 +127,6 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		@ICommentService private readonly _commentService: ICommentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 	}
@@ -144,16 +141,7 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		return this._menus.getCommentThreadActions(contextKeyService).getActions().flat().map(action => action[1]).filter(i => i instanceof MenuItemAction);
 	}
 	private _getContextKeyService(): IContextKeyService | undefined {
-		const activeEditor = this._codeEditorService.getFocusedCodeEditor();
-		if (!activeEditor || !activeEditor.hasModel()) {
-			return;
-		}
-
-		const controller = CommentController.get(activeEditor);
-		if (!controller) {
-			return;
-		}
-		return this._commentService.lastActiveCommentInfo?.thread ? controller.getThreadContext(this._commentService.lastActiveCommentInfo.thread) : undefined;
+		return this._commentService.lastActiveCommentInfo?.thread ? this._commentService.lastActiveCommentInfo?.controller.getThreadContext(this._commentService.lastActiveCommentInfo.thread) : undefined;
 	}
 	provideContent(): string {
 		if (!this._commentService.lastActiveCommentInfo) {
