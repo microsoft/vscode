@@ -339,8 +339,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables.add(scopedInstaService.createInstance(CellContextKeyPart, this.notebookEditor)),
 		];
 
-		if (this.notebookEditor.creationOptions.menuIds.cellExecutePrimary) {
-			contentParts.push(templateDisposables.add(scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)));
+		const { cellExecutePrimary, cellExecuteToolbar } = this.notebookEditor.creationOptions.menuIds;
+		if (cellExecutePrimary && cellExecuteToolbar) {
+			contentParts.push(templateDisposables.add(
+				scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer, cellExecutePrimary, cellExecuteToolbar)
+			));
 		}
 
 		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), contentParts, [
