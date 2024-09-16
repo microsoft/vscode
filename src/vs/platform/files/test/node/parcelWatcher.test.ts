@@ -69,7 +69,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 suite('File Watcher (parcel)', function () {
 
-	this.timeout(1000000);
+	this.timeout(10000);
 
 	let testDir: string;
 	let watcher: TestParcelWatcher;
