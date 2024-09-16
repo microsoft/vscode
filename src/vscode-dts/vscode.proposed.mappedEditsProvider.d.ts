@@ -58,7 +58,7 @@ declare module 'vscode' {
 	}
 
 	export interface MappedEditsResponseStream {
-		textEdit(value: TextEdit, resource: Uri): void;
+		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 	}
 
 	export interface MappedEditsResult {

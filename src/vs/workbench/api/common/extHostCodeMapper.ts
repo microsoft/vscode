@@ -32,10 +32,11 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 
 		// Construct a response object to pass to the provider
 		const stream: vscode.MappedEditsResponseStream = {
-			textEdit: (textEdit: vscode.TextEdit, resource: vscode.Uri) => {
+			textEdit: (target: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) => {
+				edits = (Array.isArray(edits) ? edits : [edits]);
 				this._proxy.$handleProgress(internalRequest.requestId, {
-					uri: resource,
-					edits: [TextEdit.from(textEdit)]
+					uri: target,
+					edits: edits.map(TextEdit.from)
 				});
 			}
 		};
