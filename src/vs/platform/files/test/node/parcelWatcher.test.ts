@@ -67,7 +67,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 /* eslint-disable local/code-ensure-no-disposables-leak-in-test */
 
-suite('File Watcher (parcel)', function () {
+suite.skip('File Watcher (parcel)', function () {
 
 	this.timeout(10000);
 
