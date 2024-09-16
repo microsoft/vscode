@@ -106,6 +106,8 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 				resolve();
 			}, 1000));
 		}
+
+		assert.ok(notebookEditor.visibleRanges[0].start > 0, 'first cell should not be visible');
 	});
 
 	test('Interactive window has the correct kernel', async () => {
