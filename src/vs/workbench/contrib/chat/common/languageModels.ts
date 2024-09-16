@@ -16,7 +16,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
-import { CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL } from './chatContextKeys.js';
+import { CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from './chatContextKeys.js';
 
 export const enum ChatMessageRole {
 	System,
@@ -76,6 +76,7 @@ export interface ILanguageModelChatMetadata {
 	readonly targetExtensions?: string[];
 
 	readonly isDefault?: boolean;
+	readonly isUserSelectable?: boolean;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
@@ -177,14 +178,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
 	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
 
-	private readonly _hasDefaultModel: IContextKey<boolean>;
+	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
-		this._hasDefaultModel = CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL.bindTo(this._contextKeyService);
+		this._hasUserSelectableModels = CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE.bindTo(this._contextKeyService);
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 
@@ -282,15 +283,21 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		this._providers.set(identifier, provider);
 		this._onDidChangeProviders.fire({ added: [{ identifier, metadata: provider.metadata }] });
-		// if (provider.metadata.isDefault) {
-		// }
-		this._hasDefaultModel.set(true);
+		this.updateUserSelectableModelsContext();
 		return toDisposable(() => {
+			this.updateUserSelectableModelsContext();
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });
 				this._logService.trace('[LM] UNregistered language model chat', identifier, provider.metadata);
 			}
 		});
+	}
+
+	private updateUserSelectableModelsContext() {
+		// This context key to enable the picker is set when there is a default model, and there is at least one other model that is user selectable
+		const hasUserSelectableModels = Array.from(this._providers.values()).some(p => p.metadata.isUserSelectable && !p.metadata.isDefault);
+		const hasDefaultModel = Array.from(this._providers.values()).some(p => p.metadata.isDefault);
+		this._hasUserSelectableModels.set(hasUserSelectableModels && hasDefaultModel);
 	}
 
 	async sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {

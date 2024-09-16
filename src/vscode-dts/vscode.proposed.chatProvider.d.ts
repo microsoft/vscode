@@ -64,7 +64,9 @@ declare module 'vscode' {
 		 */
 		auth?: true | { label: string };
 
-		isDefault?: boolean;
+		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
+		readonly isDefault?: boolean;
+		readonly isUserSelectable?: boolean;
 	}
 
 	export interface ChatResponseProviderMetadata {

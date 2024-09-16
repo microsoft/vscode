@@ -7,15 +7,15 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL, CONTEXT_IN_CHAT_INPUT, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -50,6 +50,7 @@ export class SubmitAction extends Action2 {
 				},
 				{
 					id: MenuId.ChatExecute,
+					order: 2,
 					when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
 					group: 'navigation',
 				},
@@ -66,30 +67,16 @@ export class SubmitAction extends Action2 {
 	}
 }
 
-// appendMenuItem?
-export class ChatModelPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.pickModel';
-
-	constructor() {
-		super({
-			id: ChatModelPickerAction.ID,
-			title: localize2('chat.pickModel.label', "Pick Model"),
-			f1: false,
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
-					group: 'navigation',
-				},
-			]
-		});
-	}
-
-	run(accessor: ServicesAccessor, ...args: any[]) {
-	}
-}
-
+export const ChatModelPickerActionId = 'workbench.action.chat.pickModel';
+MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
+	command: {
+		id: ChatModelPickerActionId,
+		title: localize2('chat.pickModel.label', "Pick Model"),
+	},
+	order: 1,
+	group: 'navigation',
+	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
+});
 
 export class ChatSubmitSecondaryAgentAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
@@ -180,6 +167,7 @@ export class CancelAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
+				order: 2,
 				group: 'navigation',
 			},
 			keybinding: {
@@ -211,5 +199,4 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitSecondaryAgentAction);
-	registerAction2(ChatModelPickerAction);
 }

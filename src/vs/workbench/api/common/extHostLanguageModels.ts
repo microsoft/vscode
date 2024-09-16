@@ -177,6 +177,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			auth,
 			targetExtensions: metadata.extensions,
 			isDefault: metadata.isDefault,
+			isUserSelectable: metadata.isUserSelectable,
 		});
 
 		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ extensionId, participant, tokenCount }) => {
