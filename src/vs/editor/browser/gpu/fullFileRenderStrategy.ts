@@ -146,9 +146,11 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 		const activeWindow = getActiveWindow();
 
+		// TODO: Only update on scroll change
 		// Update scroll offset
 		const scrollTop = this._context.viewLayout.getCurrentScrollTop() * activeWindow.devicePixelRatio;
 		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
+		// TODO: Add scroll left
 		scrollOffsetBuffer[1] = scrollTop;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
 

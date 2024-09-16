@@ -35,6 +35,9 @@ export class RectangleRenderer extends Disposable {
 	private _vertexBuffer!: GPUBuffer;
 	private _shapeBindBuffer!: GPUBuffer;
 
+	private _scrollOffsetBindBuffer!: GPUBuffer;
+	private _scrollOffsetValueBuffer!: Float32Array;
+
 	private _initialized: boolean = false;
 
 	private readonly _shapeCollection: IObjectCollectionBuffer<RectangleRendererEntrySpec> = this._register(createObjectCollectionBuffer([
@@ -122,6 +125,14 @@ export class RectangleRenderer extends Disposable {
 			}));
 		}
 
+		const scrollOffsetBufferSize = 2;
+		this._scrollOffsetBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
+			label: 'Monaco scroll offset buffer',
+			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		})).object;
+		this._scrollOffsetValueBuffer = new Float32Array(scrollOffsetBufferSize);
+
 		// #endregion Uniforms
 
 		// #region Storage buffers
@@ -199,6 +210,7 @@ export class RectangleRenderer extends Disposable {
 			entries: [
 				{ binding: RectangleRendererBindingId.Shapes, resource: { buffer: this._shapeBindBuffer } },
 				{ binding: RectangleRendererBindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
+				{ binding: RectangleRendererBindingId.ScrollOffset, resource: { buffer: this._scrollOffsetBindBuffer } },
 			],
 		});
 
@@ -215,6 +227,16 @@ export class RectangleRenderer extends Disposable {
 	private _update() {
 		// TODO: Only write dirty range
 		this._device.queue.writeBuffer(this._shapeBindBuffer, 0, this._shapeCollection.buffer);
+
+		// TODO: Only update on scroll change
+		// Update scroll offset
+		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft() * getActiveWindow().devicePixelRatio;
+		const scrollTop = this._context.viewLayout.getCurrentScrollTop() * getActiveWindow().devicePixelRatio;
+		// TODO: Double buffer?
+		const scrollOffsetBuffer = this._scrollOffsetValueBuffer;
+		scrollOffsetBuffer[0] = scrollLeft;
+		scrollOffsetBuffer[1] = scrollTop;
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
 	}
 
 	draw(viewportData: ViewportData) {

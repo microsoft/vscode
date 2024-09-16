@@ -6,6 +6,7 @@
 export const enum RectangleRendererBindingId {
 	Shapes,
 	LayoutInfoUniform,
+	ScrollOffset,
 }
 
 export const rectangleRendererWgsl = /*wgsl*/ `
@@ -18,6 +19,10 @@ struct LayoutInfo {
 	canvasDims: vec2f,
 	viewportOffset: vec2f,
 	viewportDims: vec2f,
+}
+
+struct ScrollOffset {
+	offset: vec2f
 }
 
 struct Shape {
@@ -36,6 +41,7 @@ struct VSOutput {
 
 // Storage buffers
 @group(0) @binding(${RectangleRendererBindingId.Shapes})            var<storage, read> shapes:          array<Shape>;
+@group(0) @binding(${RectangleRendererBindingId.ScrollOffset})      var<uniform>       scrollOffset:    ScrollOffset;
 
 @vertex fn vs(
 	vert: Vertex,
@@ -52,7 +58,7 @@ struct VSOutput {
 			// Convert pixel position to clipspace
 			vec2f( 2, -2) / layoutInfo.canvasDims *
 			// Shape position and size
-			(layoutInfo.viewportOffset + shape.position + vert.position * shape.size)
+			(layoutInfo.viewportOffset - scrollOffset.offset + shape.position + vert.position * shape.size)
 		),
 		0.0,
 		1.0
