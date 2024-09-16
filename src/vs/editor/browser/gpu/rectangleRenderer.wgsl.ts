@@ -22,7 +22,13 @@ struct LayoutInfo {
 
 struct Shape {
 	position: vec2f,
-	size: vec2f
+	size: vec2f,
+	color: vec4f,
+};
+
+struct VSOutput {
+	@builtin(position) position: vec4f,
+	@location(1)       color:    vec4f,
 };
 
 // Uniforms
@@ -35,10 +41,11 @@ struct Shape {
 	vert: Vertex,
 	@builtin(instance_index) instanceIndex: u32,
 	@builtin(vertex_index) vertexIndex : u32
-) -> @builtin(position) vec4f {
+) -> VSOutput {
 	let shape = shapes[instanceIndex];
 
-	return vec4f(
+	var vsOut: VSOutput;
+	vsOut.position = vec4f(
 		(
 			// Top left corner
 			vec2f(-1, 1) +
@@ -50,9 +57,11 @@ struct Shape {
 		0.0,
 		1.0
 	);
+	vsOut.color = shape.color;
+	return vsOut;
 }
 
-@fragment fn fs() -> @location(0) vec4f {
-	return vec4(1, 0, 0, 1);
+@fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
+	return vsOut.color;
 }
 `;

@@ -15,7 +15,11 @@ export type RectangleRendererEntrySpec = [
 	{ name: 'x' },
 	{ name: 'y' },
 	{ name: 'width' },
-	{ name: 'height' }
+	{ name: 'height' },
+	{ name: 'red' },
+	{ name: 'green' },
+	{ name: 'blue' },
+	{ name: 'alpha' }
 ];
 
 export class RectangleRenderer extends Disposable {
@@ -35,7 +39,11 @@ export class RectangleRenderer extends Disposable {
 		{ name: 'x' },
 		{ name: 'y' },
 		{ name: 'width' },
-		{ name: 'height' }
+		{ name: 'height' },
+		{ name: 'red' },
+		{ name: 'green' },
+		{ name: 'blue' },
+		{ name: 'alpha' }
 	], 32));
 
 	constructor(
@@ -46,7 +54,7 @@ export class RectangleRenderer extends Disposable {
 		super();
 
 		// TODO: Add color
-		this._shapeCollection.createEntry({ x: 200, y: 100, width: 100, height: 25 });
+		this._shapeCollection.createEntry({ x: 200, y: 100, width: 100, height: 25, red: 0, green: 1, blue: 0, alpha: 1 });
 
 		this._initWebgpu(device);
 	}
@@ -200,9 +208,9 @@ export class RectangleRenderer extends Disposable {
 		this._initialized = true;
 	}
 
-	register(x: number, y: number, width: number, height: number): IObjectCollectionBufferEntry<RectangleRendererEntrySpec> {
+	register(x: number, y: number, width: number, height: number, red: number, green: number, blue: number, alpha: number): IObjectCollectionBufferEntry<RectangleRendererEntrySpec> {
 		// TODO: Expand buffer if needed
-		return this._shapeCollection.createEntry({ x, y, width, height });
+		return this._shapeCollection.createEntry({ x, y, width, height, red, green, blue, alpha });
 	}
 
 	private _update(): number {
