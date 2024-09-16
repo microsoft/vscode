@@ -17,11 +17,12 @@
 
 ("typeof") @keyword.operator.expression.typeof
 
+(binary_expression "instanceof" @keyword.operator.expression.instanceof)
+
 [
   "delete"
   "in"
   "infer"
-  "instanceof"
   "keyof"
   "of"
 ] @keyword.operator.expression
@@ -181,7 +182,7 @@
 ; Special identifiers
 
 (type_identifier) @entity.name.type
-(predefined_type (["string" "boolean" "number"])) @support.type.primitive
+(predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
 (predefined_type) @support.type
 
 (("const")

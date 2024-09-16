@@ -707,7 +707,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		clearNode(this.notificationContainer);
 		this.notificationDisposables.value = new DisposableStore();
 		const status = this.extensionsWorkbenchService.getExtensionsNotification();
-		if (status && !this.searchMarketplaceExtensionsContextKey.get()) {
+		const query = status?.extensions.map(extension => `@id:${extension.identifier.id}`).join(' ');
+		if (status && (query === this.searchBox?.getValue() || !this.searchMarketplaceExtensionsContextKey.get())) {
 			this.notificationContainer.setAttribute('aria-label', status.message);
 			this.notificationContainer.classList.remove('hidden');
 			const messageContainer = append(this.notificationContainer, $('.message-container'));
@@ -719,12 +720,11 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 					'role': 'button',
 					'aria-label': `${status.message}. ${localize('click show', "Click to Show")}`
 				}, localize('show', "Show")));
-			const showExtensions = () => this.search(status.extensions.map(extension => `@id:${extension.identifier.id}`).join(' '));
-			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => showExtensions()));
+			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
 			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				const standardKeyboardEvent = new StandardKeyboardEvent(e);
 				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-					showExtensions();
+					this.search(query ?? '');
 				}
 				standardKeyboardEvent.stopPropagation();
 			}));

@@ -200,13 +200,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 									? {
 										type: 'svg',
 										altText: step.media.altText,
-										// built-in interactive media are in modules in the common/media folder
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: '../common/media/' + step.media.path + '.js' }) })
+										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) })
 									}
 									: {
 										type: 'markdown',
-										// built-in interactive media are in modules in the common/media folder
-										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: '../common/media/' + step.media.path + '.js' }) }),
+										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
 										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
 										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
 									},

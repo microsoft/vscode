@@ -156,7 +156,7 @@ export interface IExtensionsWorkbenchService {
 	updateAll(): Promise<InstallExtensionResult[]>;
 	updateRunningExtensions(): Promise<void>;
 
-	onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
+	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;
 
 	// Sync APIs

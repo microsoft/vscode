@@ -10,7 +10,8 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { EditorConfiguration } from '../../../../../../editor/browser/config/editorConfiguration.js';
-import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { PastePayload, ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { RedoCommand, UndoCommand } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IEditorConfiguration } from '../../../../../../editor/common/config/editorConfiguration.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
@@ -21,6 +22,7 @@ import { CommandExecutor, CursorsController } from '../../../../../../editor/com
 import { DeleteOperations } from '../../../../../../editor/common/cursor/cursorDeleteOperations.js';
 import { CursorConfiguration, ICursorSimpleModel } from '../../../../../../editor/common/cursorCommon.js';
 import { CursorChangeReason } from '../../../../../../editor/common/cursorEvents.js';
+import { Handler, ReplacePreviousCharPayload, CompositionTypePayload } from '../../../../../../editor/common/editorCommon.js';
 import { ILanguageConfigurationService } from '../../../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { IModelDeltaDecoration, ITextModel, PositionAffinity } from '../../../../../../editor/common/model.js';
 import { indentOfLine } from '../../../../../../editor/common/model/textModel.js';
@@ -34,14 +36,13 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../.
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IPastFutureElements, IUndoRedoElement, IUndoRedoService, UndoRedoElementType } from '../../../../../../platform/undoRedo/common/undoRedo.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
 import { INotebookActionContext, NotebookAction } from '../../controller/coreActions.js';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { CellEditorOptions } from '../../view/cellParts/cellEditorOptions.js';
-import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { RedoCommand, UndoCommand } from '../../../../../../editor/browser/editorExtensions.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
 
@@ -248,6 +249,74 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			});
 
 			this.updateLazyDecorations();
+		}));
+
+		// arrow key navigation
+		this.anchorDisposables.add(this.anchorCell[1].onDidChangeCursorSelection((e) => {
+			if (e.source !== 'keyboard') {
+				return;
+			}
+
+			this.trackedMatches.forEach(match => {
+				const controller = this.cursorsControllers.get(match.cellViewModel.uri);
+				if (!controller) {
+					return;
+				}
+				controller.setSelections(new ViewModelEventsCollector(), e.source, [e.selection], CursorChangeReason.Explicit);
+				this.updateLazyDecorations();
+			});
+		}));
+
+		// core actions
+		this.anchorDisposables.add(this.anchorCell[1].onWillTriggerEditorOperationEvent((e) => {
+			this.trackedMatches.forEach(match => {
+				if (match.cellViewModel.handle === this.anchorCell?.[0].handle) {
+					return;
+				}
+
+				const eventsCollector = new ViewModelEventsCollector();
+				const controller = this.cursorsControllers.get(match.cellViewModel.uri);
+				if (!controller) {
+					return;
+				}
+				switch (e.handlerId) {
+					case Handler.CompositionStart:
+						controller.startComposition(eventsCollector);
+						return;
+					case Handler.CompositionEnd:
+						controller.endComposition(eventsCollector, e.source);
+						return;
+					case Handler.ReplacePreviousChar: {
+						const args = <Partial<ReplacePreviousCharPayload>>e.payload;
+						controller.compositionType(eventsCollector, args.text || '', args.replaceCharCnt || 0, 0, 0, e.source);
+						return;
+					}
+					case Handler.CompositionType: {
+						const args = <Partial<CompositionTypePayload>>e.payload;
+						controller.compositionType(eventsCollector, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0, e.source);
+						return;
+					}
+					case Handler.Paste: {
+						const args = <Partial<PastePayload>>e.payload;
+						controller.paste(eventsCollector, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, e.source);
+						return;
+
+						// ! this code is for firing the paste event, not sure what that would enable, trace the event listener
+						// const startPos = XYZ
+						// const endPos = XYZ
+						// if (source === 'keyboard') {
+						// 	this._onDidPaste.fire({
+						// 		clipboardEvent,
+						// 		range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+						// 		languageId: mode
+						// 	});
+						// }
+					}
+					case Handler.Cut:
+						controller.cut(eventsCollector, e.source);
+						return;
+				}
+			});
 		}));
 
 		// exit mode
@@ -531,6 +600,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		);
 	}
 
+	//TODO: make sure nothing happens for the anchor cell ONCE THE DECORATIONS ARE PRETTY-IFIED
 	private updateLazyDecorations() {
 		// for every tracked match that is not in the visible range, dispose of their decorations and update them based off the cursorcontroller
 		this.trackedMatches.forEach(match => {

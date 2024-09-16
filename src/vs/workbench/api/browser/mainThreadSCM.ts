@@ -190,7 +190,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}, undefined);
 	get historyItemBaseRef(): IObservable<ISCMHistoryItemRef | undefined> { return this._historyItemBaseRef; }
 
-	private readonly _historyItemRefChanges = observableValue<ISCMHistoryItemRefsChangeEvent>(this, { added: [], modified: [], removed: [] });
+	private readonly _historyItemRefChanges = observableValue<ISCMHistoryItemRefsChangeEvent>(this, { added: [], modified: [], removed: [], silent: false });
 	get historyItemRefChanges(): IObservable<ISCMHistoryItemRefsChangeEvent> { return this._historyItemRefChanges; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
@@ -232,7 +232,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		const modified = historyItemRefs.modified.map(ref => toISCMHistoryItemRef(ref)!);
 		const removed = historyItemRefs.removed.map(ref => toISCMHistoryItemRef(ref)!);
 
-		this._historyItemRefChanges.set({ added, modified, removed }, undefined);
+		this._historyItemRefChanges.set({ added, modified, removed, silent: historyItemRefs.silent }, undefined);
 	}
 }
 

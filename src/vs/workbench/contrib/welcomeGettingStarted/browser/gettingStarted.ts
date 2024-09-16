@@ -131,6 +131,7 @@ export class GettingStartedPage extends EditorPane {
 	private gettingStartedCategories!: IResolvedWalkthrough[];
 
 	private currentWalkthrough: IResolvedWalkthrough | undefined;
+	private prevWalkthrough: IResolvedWalkthrough | undefined;
 
 	private categoriesPageScrollbar: DomScrollableElement | undefined;
 	private detailsPageScrollbar: DomScrollableElement | undefined;
@@ -434,6 +435,7 @@ export class GettingStartedPage extends EditorPane {
 			case 'nextSection': {
 				const next = this.currentWalkthrough?.next;
 				if (next) {
+					this.prevWalkthrough = this.currentWalkthrough;
 					this.scrollToCategory(next);
 				} else {
 					console.error('Error scrolling to next section of', this.currentWalkthrough);
@@ -750,7 +752,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('goBack', "Go Back")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
@@ -1491,20 +1493,26 @@ export class GettingStartedPage extends EditorPane {
 
 	private async scrollPrev() {
 		this.inProgressScroll = this.inProgressScroll.then(async () => {
-			this.currentWalkthrough = undefined;
-			this.editorInput.selectedCategory = undefined;
-			this.editorInput.selectedStep = undefined;
-			this.editorInput.showTelemetryNotice = false;
+			if (this.prevWalkthrough && this.prevWalkthrough !== this.currentWalkthrough) {
+				this.currentWalkthrough = this.prevWalkthrough;
+				this.prevWalkthrough = undefined;
+				this.makeCategoryVisibleWhenAvailable(this.currentWalkthrough.id);
+			} else {
+				this.currentWalkthrough = undefined;
+				this.editorInput.selectedCategory = undefined;
+				this.editorInput.selectedStep = undefined;
+				this.editorInput.showTelemetryNotice = false;
 
-			if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
-				// extensions may have changed in the time since we last displayed the walkthrough list
-				// rebuild the list
-				this.buildCategoriesSlide();
+				if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
+					// extensions may have changed in the time since we last displayed the walkthrough list
+					// rebuild the list
+					this.buildCategoriesSlide();
+				}
+
+				this.selectStep(undefined);
+				this.setSlide('categories');
+				this.container.focus();
 			}
-
-			this.selectStep(undefined);
-			this.setSlide('categories');
-			this.container.focus();
 		});
 	}
 
