@@ -1443,12 +1443,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.install',
+			id: 'workbench.extensions.action.installUnsigned',
 			title: localize('install', "Install"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall')),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned')),
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
