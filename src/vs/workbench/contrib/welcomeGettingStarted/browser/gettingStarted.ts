@@ -1540,7 +1540,8 @@ export class GettingStartedPage extends EditorPane {
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
-			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = 'block';
+			const showGoBackButton = this.editorInput.showWelcome || this.prevWalkthrough;
+			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = showGoBackButton ? 'block' : 'none';
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);
