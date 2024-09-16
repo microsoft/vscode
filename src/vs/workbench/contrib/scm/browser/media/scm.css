@@ -164,7 +164,7 @@
 .scm-view .monaco-list-row .history-item > .label-container > .label {
 	display: flex;
 	align-items: center;
-	border-radius: 2px;
+	border-radius: 10px;
 	line-height: 18px;
 }
 
@@ -176,7 +176,7 @@
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .description {
 	font-size: 0.9em;
-	padding-right: 2px;
+	padding-right: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	max-width: 100px;
@@ -503,6 +503,14 @@
 
 .monaco-hover.history-item-hover span:not(.codicon) {
 	margin-bottom: 0 !important;
+}
+
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-cloud,
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-git-branch,
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-tag,
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-target {
+	font-size: 14px;
+	margin-bottom: 1px !important;
 }
 
 .monaco-hover.history-item-hover .hover-row.status-bar .action {

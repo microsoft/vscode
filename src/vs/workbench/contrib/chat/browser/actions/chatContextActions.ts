@@ -170,7 +170,7 @@ class AttachContextAction extends Action2 {
 			menu: [
 				{
 					when: AttachContextAction._cdt,
-					id: MenuId.ChatExecute,
+					id: MenuId.ChatInput,
 					group: 'navigation',
 				},
 			]
