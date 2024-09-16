@@ -678,7 +678,7 @@
         },
         "js/ts.implicitProjectConfig.target": {
           "type": "string",
-          "default": "ES2020",
+          "default": "ES2022",
           "markdownDescription": "%configuration.implicitProjectConfig.target%",
           "enum": [
             "ES3",
@@ -692,6 +692,8 @@
             "ES2020",
             "ES2021",
             "ES2022",
+            "ES2023",
+            "ES2024",
             "ESNext"
           ],
           "scope": "window"
