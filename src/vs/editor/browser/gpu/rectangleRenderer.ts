@@ -53,9 +53,6 @@ export class RectangleRenderer extends Disposable {
 	) {
 		super();
 
-		// TODO: Add color
-		this._shapeCollection.createEntry({ x: 200, y: 100, width: 100, height: 25, red: 0, green: 1, blue: 0, alpha: 1 });
-
 		this._initWebgpu(device);
 	}
 
