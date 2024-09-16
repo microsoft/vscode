@@ -1488,6 +1488,10 @@ export class TextSearchResult extends Disposable {
 			}
 		}));
 	}
+
+	get isAIContributed() {
+		return this.id() === AI_TEXT_SEARCH_RESULT_ID;
+	}
 	id() {
 		return this._id;
 	}
@@ -1511,7 +1515,7 @@ export class TextSearchResult extends Disposable {
 	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent: boolean = false): void {
 		// Split up raw into a list per folder so we can do a batch add per folder.
 
-		const { byFolder, other } = this.groupFilesByFolder(allRaw, ai);
+		const { byFolder, other } = this.groupFilesByFolder(allRaw);
 		byFolder.forEach(raw => {
 			if (!raw.length) {
 				return;
@@ -1519,7 +1523,7 @@ export class TextSearchResult extends Disposable {
 
 			// ai results go into the respective folder
 			const folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch?.addFileMatch(raw, silent, searchInstanceID, ai);
+			folderMatch?.addFileMatch(raw, silent, searchInstanceID, this.isAIContributed);
 		});
 
 		if (!ai) {
@@ -1541,7 +1545,7 @@ export class TextSearchResult extends Disposable {
 
 		const fileMatches: FileMatch[] = matches.filter(m => m instanceof FileMatch) as FileMatch[];
 
-		const { byFolder, other } = this.groupFilesByFolder(fileMatches, ai);
+		const { byFolder, other } = this.groupFilesByFolder(fileMatches);
 		byFolder.forEach(matches => {
 			if (!matches.length) {
 				return;
@@ -1555,7 +1559,7 @@ export class TextSearchResult extends Disposable {
 		}
 	}
 
-	groupFilesByFolder(fileMatches: IFileMatch[], ai: boolean): { byFolder: ResourceMap<IFileMatch[]>; other: IFileMatch[] } {
+	groupFilesByFolder(fileMatches: IFileMatch[]): { byFolder: ResourceMap<IFileMatch[]>; other: IFileMatch[] } {
 		const rawPerFolder = new ResourceMap<IFileMatch[]>();
 		const otherFileMatches: IFileMatch[] = [];
 		this._folderMatches.forEach(fm => rawPerFolder.set(fm.resource, []));
