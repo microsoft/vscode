@@ -66,10 +66,6 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			if (!this.isDirty()) {
-				return;
-			}
-
 			e.veto(true, localize('vetoExtHostRestart', "A custom text editor for '{0}' is open.", this.resource.path));
 		}));
 	}
