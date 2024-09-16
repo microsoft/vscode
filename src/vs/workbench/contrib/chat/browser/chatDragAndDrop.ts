@@ -7,11 +7,13 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
@@ -32,7 +34,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly contianer: HTMLElement,
 		private readonly inputPart: ChatInputPart,
 		private readonly styles: IChatWidgetStyles,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(themeService);
 
@@ -76,10 +79,10 @@ export class ChatDragAndDrop extends Themable {
 		this.updateDropFeedback(e, undefined);
 	}
 
-	private onDrop(e: DragEvent): void {
+	private async onDrop(e: DragEvent): Promise<void> {
 		this.updateDropFeedback(e, undefined);
 
-		const contexts = this.getAttachContext(e);
+		const contexts = await this.getAttachContext(e);
 		if (contexts.length === 0) {
 			return;
 		}
@@ -88,7 +91,7 @@ export class ChatDragAndDrop extends Themable {
 		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
 		const filteredContext = [];
 		for (const context of contexts) {
-			if (!currentContextIds.has(context.id)) {
+			if (!currentContextIds.has(context.id) || context.id === 'image') {
 				currentContextIds.add(context.id);
 				filteredContext.push(context);
 			}
@@ -122,12 +125,20 @@ export class ChatDragAndDrop extends Themable {
 		}
 	}
 
-	private getAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
+	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		switch (this.getActiveDropType(e)) {
 
 			case ChatDragAndDropType.FILE: {
 				const data = extractEditorsDropData(e);
-				const contexts = data.map(editorInput => getEditorAttachContext(editorInput));
+				const contexts = await Promise.all(data.map(async editorInput => {
+					// if (editorInput.resource && /\.(png|jpg|jpeg)$/i.test(editorInput.resource.path)) {
+					if (editorInput.resource) {
+						const fileBuffer = await this.fileService.readFile(editorInput.resource);
+						return getImageAttachContext(editorInput.resource, fileBuffer.value);
+					}
+
+					return getEditorAttachContext(editorInput);
+				}));
 				return coalesce(contexts);
 			}
 
@@ -181,6 +192,18 @@ function getFileAttachContext(resource: URI): IChatRequestVariableEntry | undefi
 		id: resource.toString(),
 		name: basename(resource),
 		isFile: true,
+		isDynamic: true
+	};
+}
+
+function getImageAttachContext(resource: URI, fileBuffer?: VSBuffer): IChatRequestVariableEntry | undefined {
+	const fileName = basename(resource);
+	return {
+		id: 'image',
+		name: fileName,
+		fullName: resource.path,
+		value: fileBuffer?.buffer,
+		icon: Codicon.deviceCamera,
 		isDynamic: true
 	};
 }

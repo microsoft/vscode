@@ -35,6 +35,9 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { isImage } from '../chatImagePaste.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -50,7 +53,15 @@ export interface IFileQuickPickItem extends IQuickPickItem {
 	name: string;
 	value: URI;
 	isDynamic: true;
+	resource: URI;
+}
 
+export interface ImageQuickPickItem extends IQuickPickItem {
+	kind: 'image';
+	id: string;
+	name: 'image';
+	value: Uint8Array;
+	isDynamic: true;
 	resource: URI;
 }
 
@@ -187,7 +198,7 @@ class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, fileService: IFileService, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (pick && typeof pick === 'object' && 'command' in pick && pick.command) {
@@ -216,15 +227,30 @@ class AttachContextAction extends Action2 {
 					isDynamic: true
 				});
 			} else if (pick && typeof pick === 'object' && 'resource' in pick && pick.resource) {
-				// #file variable
-				toAttach.push({
-					...pick,
-					id: this._getFileContextId({ resource: pick.resource }),
-					value: pick.resource,
-					name: pick.label,
-					isFile: true,
-					isDynamic: true
-				});
+				if (/\.(png|jpg|jpeg)$/i.test(pick.resource.path)) {
+					// checks if the file is an image
+					const fileBuffer = await fileService.readFile(pick.resource);
+					toAttach.push({
+						id: 'image',
+						name: pick.label,
+						fullName: pick.label,
+						value: fileBuffer.value.buffer,
+						icon: Codicon.deviceCamera,
+						isDynamic: true
+					});
+				} else {
+					// #file variable
+					toAttach.push({
+						...pick,
+						id: this._getFileContextId({ resource: pick.resource }),
+						value: pick.resource,
+						name: pick.label,
+						isFile: true,
+						isDynamic: true
+					});
+				}
+
+
 			} else if ('symbolName' in pick && pick.uri && pick.range) {
 				// Symbol
 				toAttach.push({
@@ -244,6 +270,15 @@ class AttachContextAction extends Action2 {
 					value: undefined,
 					icon: pick.icon,
 					isTool: true
+				});
+			} else if ('name' in pick && pick.name === 'image') {
+				toAttach.push({
+					id: 'image',
+					name: 'Image from Clipboard',
+					fullName: 'Image from Clipboard',
+					value: await clipboardService.readImage(),
+					icon: Codicon.deviceCamera,
+					isDynamic: true
 				});
 			} else {
 				// All other dynamic variables and static variables
@@ -270,17 +305,25 @@ class AttachContextAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const quickChatService = accessor.get(IQuickChatService);
+		const clipboardService = accessor.get(IClipboardService);
+		const fileService = accessor.get(IFileService);
 		const context: { widget?: IChatWidget } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
+		const imageData = await clipboardService.readImage();
+
 		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] = [];
 		for (const variable of chatVariablesService.getVariables(widget.location)) {
 			if (variable.fullName && (!variable.isSlow || slowSupported)) {
+				if (variable.id === 'copilot.image' && !isImage(imageData)) {
+					continue;
+				}
+
 				quickPickItems.push({
 					label: variable.fullName,
 					name: variable.name,
@@ -353,10 +396,10 @@ class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}));
+		}), '', clipboardService, fileService);
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '') {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '', clipboardService?: IClipboardService, fileService?: IFileService,) {
 
 		quickInputService.quickAccess.show(query, {
 			enabledProviderPrefixes: [
@@ -370,7 +413,10 @@ class AttachContextAction extends Action2 {
 					if ('prefix' in item) {
 						this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, item.prefix);
 					} else {
-						this._attachContext(widget, commandService, item);
+						if (!clipboardService || !fileService) {
+							return;
+						}
+						this._attachContext(widget, commandService, clipboardService, fileService, item);
 						if (isQuickChat(widget)) {
 							quickChatService.open();
 						}

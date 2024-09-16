@@ -45,7 +45,22 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
+	async readImage(): Promise<Uint8Array> {
+		try {
+			const clipboardItem = await getActiveWindow().navigator.clipboard.read();
+			return clipboardItem[0].getType('image/png').then(async blob => {
+				const buffer = await blob.arrayBuffer();
+				return new Uint8Array(buffer);
+			});
+		} catch (error) {
+			console.error(error);
+		}
+
+		return new Uint8Array(0);
+	}
+
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
+	private webKitPendingClipboardReadPromise: DeferredPromise<string> | undefined;
 
 	// In Safari, it has the following note:
 	//
@@ -81,6 +96,36 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 				}
 			});
 		};
+
+
+		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+			disposables.add(addDisposableListener(container, 'click', handler));
+			disposables.add(addDisposableListener(container, 'keydown', handler));
+		}, { container: this.layoutService.mainContainer, disposables: this._store }));
+	}
+
+
+	private installWebKitReadWorkaround(): void {
+		const handler = () => {
+			const currentReadPromise = new DeferredPromise<string>();
+
+			// Cancel the previous promise since we just created a new one in response to this new event
+			if (this.webKitPendingClipboardReadPromise && !this.webKitPendingClipboardReadPromise.isSettled) {
+				this.webKitPendingClipboardReadPromise.cancel();
+			}
+			this.webKitPendingClipboardReadPromise = currentReadPromise;
+
+			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
+			// This allows us to pass in a Promise that will either be cancelled by another event or
+			// resolved with the contents of the first call to this.writeText.
+			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
+			getActiveWindow().navigator.clipboard.read().catch(async err => {
+				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentReadPromise.isRejected) {
+					this.logService.error(err);
+				}
+			});
+		};
+
 
 		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 			disposables.add(addDisposableListener(container, 'click', handler));

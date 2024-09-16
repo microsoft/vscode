@@ -939,3 +939,35 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0;
 	color: var(--vscode-textLink-foreground);
 }
+
+.chat-attached-context-hover .chat-attached-context-image {
+	height: auto;
+	max-height: 500px;
+	width: 100%;
+	display: block;
+}
+
+.chat-attached-context-attachment .chat-attached-context-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 6px;
+	border-radius: 12px;
+	background-color: #e0e0e0;
+	margin-right: 3px;
+	user-select: none;
+	outline: none;
+	border: none;
+}
+
+.chat-attached-context-attachment .chat-attached-context-pill-image {
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+}
+
+.chat-attached-context-attachment .chat-attached-context-custom-text {
+	vertical-align: middle;
+	user-select: none;
+	outline: none;
+	border: none;
+}

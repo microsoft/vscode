@@ -58,6 +58,9 @@ import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidg
 import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
 import { ChatFollowups } from './chatFollowups.js';
+import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const $ = dom.$;
 
@@ -161,6 +164,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILogService private readonly logService: ILogService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 
@@ -415,6 +419,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
+		options.pasteAs = EditorOptions.pasteAs.defaultValue;
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
@@ -436,7 +441,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(editorContainer!, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
@@ -511,7 +516,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this.modelService.createModel('', null, this.inputUri, true);
+			inputModel = this.modelService.createModel('', null, this.inputUri, false);
 			this._register(inputModel);
 		}
 
@@ -556,6 +561,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		[...this.attachedContext.values()].forEach((attachment, index) => {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
+			const isImage = attachment.id === 'image';
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (file && attachment.isFile) {
@@ -571,6 +577,71 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
+			} else if (isImage) {
+				const blob = new Blob([attachment.value as Uint8Array], { type: 'image/png' });
+				const url = URL.createObjectURL(blob);
+
+				const img = document.createElement('img');
+				img.classList.add('chat-attached-context-image');
+				img.src = url;
+				img.alt = 'Image from Uint8Array';
+
+				// Pill with tiny image
+				const pill = document.createElement('div');
+				pill.classList.add('chat-attached-context-pill');
+				pill.tabIndex = -1;
+
+				const pillImg = document.createElement('img');
+				pillImg.src = url;
+				pillImg.alt = 'Image description';
+				pillImg.classList.add('chat-attached-context-pill-image');
+
+				pill.appendChild(pillImg);
+
+				// Custom label
+				const textLabel = document.createElement('span');
+				textLabel.textContent = localize('chat.imageLabel', '{0}: Hover to Preview', attachment.name);
+				textLabel.classList.add('chat-attached-context-custom-text');
+				textLabel.tabIndex = -1;
+
+
+				widget.style.position = 'relative';
+				widget.appendChild(pill);
+				widget.appendChild(textLabel);
+
+				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+				widget.ariaLabel = ariaLabel;
+				widget.tabIndex = 0;
+
+				// Hover
+				const hoverElement = document.createElement('div');
+				hoverElement.appendChild(img);
+				hoverElement.classList.add('chat-attached-context-hover');
+				hoverElement.setAttribute('aria-label', ariaLabel);
+
+				widget.addEventListener('mouseenter', () => {
+					this.hoverService.showHover({
+						target: widget,
+						content: hoverElement,
+					});
+				});
+
+				widget.addEventListener('mouseleave', () => {
+					this.hoverService.hideHover();
+				});
+
+				widget.addEventListener('keydown', (event) => {
+					if (event.key === 'Enter' || event.key === ' ') {
+						this.hoverService.showHover({
+							target: widget,
+							content: hoverElement,
+						});
+					}
+				});
+
+				widget.addEventListener('blur', () => {
+					this.hoverService.hideHover();
+				});
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;

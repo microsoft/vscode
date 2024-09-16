@@ -53,4 +53,6 @@ export interface IClipboardService {
 	 * Used for implementations such as web which do not always support using the real clipboard.
 	 */
 	clearInternalState?(): void;
+
+	readImage(): Promise<Uint8Array>;
 }
