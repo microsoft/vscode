@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event, AsyncEmitter, IWaitUntil, IWaitUntilData } from '../../../base/common/event.js';
-import { GLOBSTAR, GLOB_SPLIT, parse } from '../../../base/common/glob.js';
+import { GLOBSTAR, GLOB_SPLIT, IRelativePattern, parse } from '../../../base/common/glob.js';
 import { URI } from '../../../base/common/uri.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import type * as vscode from 'vscode';
@@ -137,7 +137,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		}
 
 		const excludes = options.excludes ?? [];
-		const includes = [];
+		let includes: Array<string | IRelativePattern> | undefined = undefined;
 		let filter: FileChangeFilter | undefined;
 
 		// Correlated: adjust filter based on arguments
@@ -195,6 +195,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 						for (const key in watcherExcludes) {
 							if (key && watcherExcludes[key] === true) {
 								const includePattern = `${rtrim(key, '/')}/${GLOBSTAR}`;
+								if (!includes) {
+									includes = [];
+								}
+
 								includes.push(normalizeWatcherPattern(workspaceUri.fsPath, includePattern));
 							}
 						}
@@ -203,7 +207,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 					// Still ignore watch request if there are actually no configured
 					// exclude rules, because in that case our default recursive watcher
 					// should be able to take care of all events.
-					if (includes.length === 0) {
+					if (!includes || includes.length === 0) {
 						return disposable;
 					}
 				}
