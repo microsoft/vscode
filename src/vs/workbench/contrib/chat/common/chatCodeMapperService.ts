@@ -54,7 +54,7 @@ export const ICodeMapperService = createDecorator<ICodeMapperService>('codeMappe
 export interface ICodeMapperService {
 	readonly _serviceBrand: undefined;
 	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable;
-	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): void;
+	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
 }
 
 export class CodeMapperService implements ICodeMapperService {
