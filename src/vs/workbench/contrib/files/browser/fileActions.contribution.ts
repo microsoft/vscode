@@ -770,7 +770,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
 	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
-	when: ResourceContextKey.HasResource
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {

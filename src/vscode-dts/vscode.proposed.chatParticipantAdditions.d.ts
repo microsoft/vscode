@@ -248,10 +248,6 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
-	export interface ChatRequest {
-		toolInvocationToken: ChatParticipantToolToken;
-	}
-
 	export interface ChatResult {
 		nextQuestion?: {
 			prompt: string;
