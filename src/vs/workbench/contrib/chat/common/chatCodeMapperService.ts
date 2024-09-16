@@ -1,0 +1,84 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IRange } from '../../../../base/common/range.js';
+import { URI } from '../../../../base/common/uri.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+
+export interface DocumentContextItem {
+	readonly uri: URI;
+	readonly version: number;
+	readonly ranges: IRange[];
+}
+
+export interface ICodeMapperResponse {
+	textEdit: (textEdit: TextEdit, resource: URI) => void;
+}
+
+export interface ICodeMapperCodeBlock {
+	code: string;
+	resource: URI;
+}
+
+export interface ConversationRequest {
+	readonly type: 'request';
+	readonly message: string;
+}
+
+export interface ConversationResponse {
+	readonly type: 'response';
+	readonly message: string;
+	// readonly references?: DocumentContextItem[];
+}
+
+export interface ICodeMapperRequest {
+	codeBlocks: ICodeMapperCodeBlock[];
+	conversation: (ConversationRequest | ConversationResponse)[];
+}
+
+export interface ICodeMapperResult {
+	errorMessage?: string;
+}
+
+export interface ICodeMapperProvider extends IDisposable {
+	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
+}
+
+export const ICodeMapperService = createDecorator<ICodeMapperService>('codeMapperService');
+
+export interface ICodeMapperService {
+	readonly _serviceBrand: undefined;
+	registerCodeMapperProvider(handle: number, response: ICodeMapperResponse, provider: ICodeMapperProvider): void;
+	mapCode(request: ICodeMapperRequest, token: CancellationToken): void;
+	dispose(): void;
+}
+
+export class CodeMapperService implements ICodeMapperService {
+	_serviceBrand: undefined;
+
+	private readonly providers: ICodeMapperProvider[] = [];
+
+	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): void {
+		this.providers.push(provider);
+	}
+
+	async mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) {
+		for (const provider of this.providers) {
+			const result = await provider.mapCode(request, response, token);
+			if (result) {
+				return result;
+			}
+		}
+		return undefined;
+	}
+
+	dispose(): void {
+		this.providers.forEach((p) => p.dispose());
+	}
+
+}

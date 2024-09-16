@@ -14,6 +14,9 @@ import { IMarkdownString } from '../../base/common/htmlContent.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI, UriComponents } from '../../base/common/uri.js';
+import { localize } from '../../nls.js';
+import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
+import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { EditOperation, ISingleEditOperation } from './core/editOperation.js';
 import { IPosition, Position } from './core/position.js';
 import { IRange, Range } from './core/range.js';
@@ -23,9 +26,6 @@ import { LanguageSelector } from './languageSelector.js';
 import * as model from './model.js';
 import { TokenizationRegistry as TokenizationRegistryImpl } from './tokenizationRegistry.js';
 import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js';
-import { localize } from '../../nls.js';
-import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
-import { IMarkerData } from '../../platform/markers/common/markers.js';
 
 /**
  * @internal

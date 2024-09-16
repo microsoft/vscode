@@ -53,13 +53,12 @@ declare module 'vscode' {
 	}
 
 	export interface MappedEditsRequest {
-		readonly resource: Uri;
-		readonly codeBlock: string;
-		readonly conversation?: (ConversationRequest | ConversationResponse)[];
+		readonly codeBlocks: { code: string; resource: Uri }[];
+		readonly conversation: (ConversationRequest | ConversationResponse)[]; // for every prior response that contains codeblocks, make sure we pass the code as well as the resources based on the reported codemapper URIs
 	}
 
-	export interface MappedEditsResposeStream {
-		edit(value: TextEdit, resource: Uri): void;
+	export interface MappedEditsResponseStream {
+		textEdit(value: TextEdit, resource: Uri): void;
 	}
 
 	export interface MappedEditsResult {
@@ -72,7 +71,7 @@ declare module 'vscode' {
 	export interface MappedEditsProvider2 {
 		provideMappedEdits(
 			request: MappedEditsRequest,
-			result: MappedEditsResposeStream,
+			result: MappedEditsResponseStream,
 			token: CancellationToken
 		): ProviderResult<MappedEditsResult>;
 	}

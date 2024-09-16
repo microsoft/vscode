@@ -21,13 +21,14 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { CONTEXT_CHAT_EDIT_APPLIED, CONTEXT_CHAT_ENABLED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { InsertCodeBlockOperation, ApplyCodeBlockOperation } from './codeBlockOperations.js';
+import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
 
 const shellLangIds = [
 	'fish',
@@ -213,6 +214,31 @@ export function registerChatCodeBlockActions() {
 				this.operation = accessor.get(IInstantiationService).createInstance(ApplyCodeBlockOperation);
 			}
 			return this.operation.run(context);
+		}
+	});
+
+	registerAction2(class ApplyAllAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.applyAll',
+				title: localize2('chat.applyAll.label', "Apply All Edits"),
+				precondition: CONTEXT_CHAT_ENABLED, // improve this condition
+				f1: true,
+				category: CHAT_CATEGORY,
+				icon: Codicon.edit
+			});
+		}
+
+		override async run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) { // make sure that there are multiple codeblocks with codemapper URIs
+				return;
+			}
+
+			// Invoke the code mapper for all the code blocks in this response
+			const codemapperService = accessor.get(ICodeMapperService);
+
+			await codemapperService.apply();
 		}
 	});
 
