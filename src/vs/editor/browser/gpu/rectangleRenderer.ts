@@ -5,7 +5,9 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { GPULifecycle } from './gpuDisposable.js';
 import { observeDevicePixelDimensions, quadVertices } from './gpuUtils.js';
 import { createObjectCollectionBuffer, type IObjectCollectionBuffer, type IObjectCollectionBufferEntry } from './objectCollectionBuffer.js';
@@ -47,6 +49,7 @@ export class RectangleRenderer extends Disposable {
 	], 32));
 
 	constructor(
+		private readonly _context: ViewContext,
 		private readonly _canvas: HTMLCanvasElement,
 		private readonly _ctx: GPUCanvasContext,
 		device: Promise<GPUDevice>,
@@ -103,8 +106,7 @@ export class RectangleRenderer extends Disposable {
 			const updateBufferValues = (canvasDevicePixelWidth: number = this._canvas.width, canvasDevicePixelHeight: number = this._canvas.height) => {
 				bufferValues[Info.Offset_CanvasWidth____] = canvasDevicePixelWidth;
 				bufferValues[Info.Offset_CanvasHeight___] = canvasDevicePixelHeight;
-				// TODO: Set viewport offset
-				bufferValues[Info.Offset_ViewportOffsetX] = 0; // Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
+				bufferValues[Info.Offset_ViewportOffsetX] = Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
 				bufferValues[Info.Offset_ViewportOffsetY] = 0;
 				bufferValues[Info.Offset_ViewportWidth__] = bufferValues[Info.Offset_CanvasWidth____] - bufferValues[Info.Offset_ViewportOffsetX];
 				bufferValues[Info.Offset_ViewportHeight_] = bufferValues[Info.Offset_CanvasHeight___] - bufferValues[Info.Offset_ViewportOffsetY];
@@ -210,10 +212,9 @@ export class RectangleRenderer extends Disposable {
 		return this._shapeCollection.createEntry({ x, y, width, height, red, green, blue, alpha });
 	}
 
-	private _update(): number {
+	private _update() {
 		// TODO: Only write dirty range
 		this._device.queue.writeBuffer(this._shapeBindBuffer, 0, this._shapeCollection.buffer);
-		return this._shapeCollection.entryCount;
 	}
 
 	draw(viewportData: ViewportData) {
@@ -221,10 +222,9 @@ export class RectangleRenderer extends Disposable {
 			return;
 		}
 
-		const visibleObjectCount = this._update();
-		console.log('draw rectangle count', visibleObjectCount);
+		this._update();
 
-		const encoder = this._device.createCommandEncoder({ label: 'our encoder' });
+		const encoder = this._device.createCommandEncoder({ label: 'Monaco rectangle renderer command encoder' });
 
 		this._renderPassColorAttachment.view = this._ctx.getCurrentTexture().createView();
 		const pass = encoder.beginRenderPass(this._renderPassDescriptor);
@@ -232,7 +232,7 @@ export class RectangleRenderer extends Disposable {
 		pass.setVertexBuffer(0, this._vertexBuffer);
 		pass.setBindGroup(0, this._bindGroup);
 
-		pass.draw(quadVertices.length / 2, visibleObjectCount);
+		pass.draw(quadVertices.length / 2, this._shapeCollection.entryCount);
 		pass.end();
 
 		const commandBuffer = encoder.finish();

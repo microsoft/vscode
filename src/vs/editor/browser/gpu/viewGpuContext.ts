@@ -18,6 +18,7 @@ import { INotificationService, IPromptChoice, Severity } from '../../../platform
 import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
+import type { ViewContext } from '../../common/viewModel/viewContext.js';
 
 export class ViewGpuContext extends Disposable {
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
@@ -55,6 +56,7 @@ export class ViewGpuContext extends Disposable {
 	readonly devicePixelRatio: IObservable<number>;
 
 	constructor(
+		context: ViewContext,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -80,7 +82,7 @@ export class ViewGpuContext extends Disposable {
 			}
 		});
 
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, this.canvas.domNode, this.ctx, this.device);
+		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, context, this.canvas.domNode, this.ctx, this.device);
 
 		const dprObs = observableValue(this, getActiveWindow().devicePixelRatio);
 		this._register(addDisposableListener(getActiveWindow(), 'resize', () => {

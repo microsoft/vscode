@@ -151,7 +151,7 @@ export class View extends ViewEventHandler {
 		this.domNode.setAttribute('role', 'code');
 
 		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
-			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext);
+			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
 		}
 
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));

@@ -52,7 +52,7 @@ struct VSOutput {
 			// Convert pixel position to clipspace
 			vec2f( 2, -2) / layoutInfo.canvasDims *
 			// Shape position and size
-			(shape.position + vert.position * shape.size)
+			(layoutInfo.viewportOffset + shape.position + vert.position * shape.size)
 		),
 		0.0,
 		1.0
