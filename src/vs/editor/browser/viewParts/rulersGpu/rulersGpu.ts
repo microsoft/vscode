@@ -11,6 +11,8 @@ import { EditorOption, IRulerOption } from '../../../common/config/editorOptions
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { IObjectCollectionBufferEntry } from '../../gpu/objectCollectionBuffer.js';
 import type { RectangleRendererEntrySpec } from '../../gpu/rectangleRenderer.js';
+import { Color } from '../../../../base/common/color.js';
+import { editorRuler } from '../../../common/core/editorColorRegistry.js';
 
 /**
  * Rulers are vertical lines that appear at certain columns in the editor. There can be >= 0 rulers
@@ -51,6 +53,7 @@ export class RulersGpu extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
+		// TODO: Shapes live across renders, we should only do this when the rulers have changed
 		for (let i = 0, len = this._rulers.length; i < len; i++) {
 			const ruler = this._rulers[i];
 			const shape = this._gpuShapes[i];
@@ -75,16 +78,17 @@ export class RulersGpu extends ViewPart {
 	}
 
 	private _getRulerData(ruler: IRulerOption): [number, number, number, number, number, number, number, number] {
+		const color = ruler.color ? Color.fromHex(ruler.color) : this._context.theme.getColor(editorRuler) ?? Color.white;
 		return [
 			// TODO: The x should be relative to the left side of the viewport
 			ruler.column * this._typicalHalfwidthCharacterWidth * this._viewGpuContext.devicePixelRatio.get(),
 			0,
-			1,
+			Math.max(1, Math.ceil(this._viewGpuContext.devicePixelRatio.get())),
 			this._viewGpuContext.canvasDevicePixelDimensions.get().height,
-			1,
-			0,
-			0,
-			1
+			color.rgba.r / 255,
+			color.rgba.g / 255,
+			color.rgba.b / 255,
+			color.rgba.a,
 		];
 	}
 }
