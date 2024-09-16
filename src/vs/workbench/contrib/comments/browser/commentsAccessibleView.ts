@@ -128,13 +128,13 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 	// TODO: actions
 	public actions = [];
 	provideContent(): string {
-		if (!this._commentService.activeCommentInfo) {
+		if (!this._commentService.lastAtiveCommentInfo) {
 			throw new Error('No current comment thread');
 		}
-		const comment = this._commentService.activeCommentInfo.comment?.body;
+		const comment = this._commentService.lastAtiveCommentInfo.comment?.body;
 		const commentLabel = typeof comment === 'string' ? comment : comment?.value ?? '';
-		const resource = this._commentService.activeCommentInfo.thread.resource;
-		const range = this._commentService.activeCommentInfo.thread.range;
+		const resource = this._commentService.lastAtiveCommentInfo.thread.resource;
+		const range = this._commentService.lastAtiveCommentInfo.thread.range;
 		let contentLabel = '';
 		if (resource && range) {
 			const editor = this._editorService.findEditors(URI.parse(resource)) || [];
@@ -149,12 +149,12 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		return commentLabel + contentLabel;
 	}
 	onClose(): void {
-		const commentInfo = this._commentService.activeCommentInfo;
+		const commentInfo = this._commentService.lastAtiveCommentInfo;
 		if (!commentInfo) {
 			return;
 		}
 		// TODO: is there a way to focus the comment not the thread?
-		this._commentService.setActiveCommentAndThread(commentInfo.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
+		this._commentService.setActiveCommentAndThread(commentInfo.controller.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
 		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, commentInfo.thread, commentInfo.comment);
 	}
 	provideNextContent(): string | undefined {
