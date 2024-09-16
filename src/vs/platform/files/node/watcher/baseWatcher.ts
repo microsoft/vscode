@@ -29,8 +29,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected readonly _onDidWatchFail = this._register(new Emitter<IUniversalWatchRequest>());
 	private readonly onDidWatchFail = this._onDidWatchFail.event;
 
-	private readonly allNonCorrelatedWatchRequests = new Map<number /* request ID */, IUniversalWatchRequest>();
-	private readonly allCorrelatedWatchRequests = new Map<number /* request ID */, IWatchRequestWithCorrelation>();
+	private readonly correlatedWatchRequests = new Map<number /* request ID */, IWatchRequestWithCorrelation>();
+	private readonly nonCorrelatedWatchRequests = new Map<number /* request ID */, IUniversalWatchRequest>();
 
 	private readonly suspendedWatchRequests = this._register(new DisposableMap<number /* request ID */>());
 	private readonly suspendedWatchRequestsWithPolling = new Set<number /* request ID */>();
@@ -73,21 +73,21 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		this.joinWatch = new DeferredPromise<void>();
 
 		try {
-			this.allCorrelatedWatchRequests.clear();
-			this.allNonCorrelatedWatchRequests.clear();
+			this.correlatedWatchRequests.clear();
+			this.nonCorrelatedWatchRequests.clear();
 
 			// Figure out correlated vs. non-correlated requests
 			for (const request of requests) {
 				if (this.isCorrelated(request)) {
-					this.allCorrelatedWatchRequests.set(request.correlationId, request);
+					this.correlatedWatchRequests.set(request.correlationId, request);
 				} else {
-					this.allNonCorrelatedWatchRequests.set(this.computeId(request), request);
+					this.nonCorrelatedWatchRequests.set(this.computeId(request), request);
 				}
 			}
 
 			// Remove all suspended watch requests that are no longer watched
 			for (const [id] of this.suspendedWatchRequests) {
-				if (!this.allNonCorrelatedWatchRequests.has(id) && !this.allCorrelatedWatchRequests.has(id)) {
+				if (!this.nonCorrelatedWatchRequests.has(id) && !this.correlatedWatchRequests.has(id)) {
 					this.suspendedWatchRequests.deleteAndDispose(id);
 					this.suspendedWatchRequestsWithPolling.delete(id);
 				}
@@ -101,7 +101,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	private updateWatchers(delayed: boolean): Promise<void> {
 		const nonSuspendedRequests: IUniversalWatchRequest[] = [];
-		for (const [id, request] of [...this.allNonCorrelatedWatchRequests, ...this.allCorrelatedWatchRequests]) {
+		for (const [id, request] of [...this.nonCorrelatedWatchRequests, ...this.correlatedWatchRequests]) {
 			if (!this.suspendedWatchRequests.has(id)) {
 				nonSuspendedRequests.push(request);
 			}
@@ -219,7 +219,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 		}));
 	}
 
-	private onMonitoredPathAdded(request: ISuspendedWatchRequest) {
+	private onMonitoredPathAdded(request: ISuspendedWatchRequest): void {
 		this.trace(`detected ${request.path} exists again, resuming watcher (correlationId: ${request.correlationId})`);
 
 		// Emit as event
