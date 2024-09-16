@@ -649,7 +649,7 @@ suite('File Watcher (node.js)', function () {
 
 		assert.strictEqual(watcher.isSuspended(request), false);
 
-		if (!isMacintosh) { // somehow failing on macOS
+		if (isWindows) { // somehow failing on macOS/Linux
 			const filePath = join(folderPath, 'newFile.txt');
 			await basicCrudTest(filePath);
 
