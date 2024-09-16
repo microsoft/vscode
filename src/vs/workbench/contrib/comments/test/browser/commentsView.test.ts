@@ -8,7 +8,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { CommentsPanel } from '../../browser/commentsView.js';
 import { CommentService, ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../browser/commentService.js';
-import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../../editor/common/languages.js';
+import { Comment, CommentInput, CommentOptions, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../../editor/common/languages.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
@@ -21,6 +21,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -49,6 +50,8 @@ class TestCommentThread implements CommentThread<IRange> {
 }
 
 class TestCommentController implements ICommentController {
+	options?: CommentOptions | undefined;
+	contextValue?: string | undefined;
 	id: string = 'test';
 	label: string = 'Test Comments';
 	owner: string = 'test';
@@ -72,6 +75,9 @@ class TestCommentController implements ICommentController {
 		throw new Error('Method not implemented.');
 	}
 	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment: Comment } | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getThreadContext(thread: CommentThread): IContextKeyService | undefined {
 		throw new Error('Method not implemented.');
 	}
 

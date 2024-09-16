@@ -8,19 +8,21 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { COMMENTS_VIEW_ID, CommentsMenus } from './commentsTreeViewer.js';
 import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from './commentsView.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommentService } from './commentService.js';
+import { CommentMenus as ThreadCommentMenus } from './commentMenus.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
 import { revealCommentThread } from './commentsController.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IAction } from '../../../../base/common/actions.js';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;
@@ -58,10 +60,12 @@ export class CommentThreadAccessibleView extends Disposable implements IAccessib
 		const editorService = accessor.get(IEditorService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
 		const threads = commentService.commentsModel.hasCommentThreads();
+		const menuService = accessor.get(IMenuService);
+		const menus = this._register(new ThreadCommentMenus(menuService));
 		if (!threads) {
 			return;
 		}
-		return new CommentsThreadWidgetAccessibleContentProvider(commentService, editorService, uriIdentityService);
+		return new CommentsThreadWidgetAccessibleContentProvider(menus, commentService, editorService, uriIdentityService);
 	}
 	constructor() {
 		super();
@@ -119,22 +123,34 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 	readonly id = AccessibleViewProviderId.CommentThread;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Comments;
 	readonly options = { type: AccessibleViewType.View };
-	constructor(@ICommentService private readonly _commentService: ICommentService,
+	constructor(private readonly _menus: ThreadCommentMenus,
+		@ICommentService private readonly _commentService: ICommentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
-	// TODO: actions
-	public actions = [];
+
+
+	public actions = this._getActions();
+	private _getActions(): IAction[] {
+		const contextKeyService = this._getContextKeyService();
+		if (!contextKeyService) {
+			return [];
+		}
+		return this._menus.getCommentThreadActions(contextKeyService).getActions().flat().map(action => action[1]).filter(i => i instanceof MenuItemAction);
+	}
+	private _getContextKeyService(): IContextKeyService | undefined {
+		return this._commentService.lastActiveCommentInfo?.thread ? this._commentService.lastActiveCommentInfo?.controller.getThreadContext(this._commentService.lastActiveCommentInfo.thread) : undefined;
+	}
 	provideContent(): string {
-		if (!this._commentService.activeCommentInfo) {
+		if (!this._commentService.lastActiveCommentInfo) {
 			throw new Error('No current comment thread');
 		}
-		const comment = this._commentService.activeCommentInfo.comment?.body;
+		const comment = this._commentService.lastActiveCommentInfo.comment?.body;
 		const commentLabel = typeof comment === 'string' ? comment : comment?.value ?? '';
-		const resource = this._commentService.activeCommentInfo.thread.resource;
-		const range = this._commentService.activeCommentInfo.thread.range;
+		const resource = this._commentService.lastActiveCommentInfo.thread?.resource;
+		const range = this._commentService.lastActiveCommentInfo.thread?.range;
 		let contentLabel = '';
 		if (resource && range) {
 			const editor = this._editorService.findEditors(URI.parse(resource)) || [];
@@ -149,12 +165,12 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		return commentLabel + contentLabel;
 	}
 	onClose(): void {
-		const commentInfo = this._commentService.activeCommentInfo;
-		if (!commentInfo) {
+		const commentInfo = this._commentService.lastActiveCommentInfo;
+		if (!commentInfo?.thread) {
 			return;
 		}
 		// TODO: is there a way to focus the comment not the thread?
-		this._commentService.setActiveCommentAndThread(commentInfo.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
+		this._commentService.setActiveCommentAndThread(commentInfo.controller.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
 		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, commentInfo.thread, commentInfo.comment);
 	}
 	provideNextContent(): string | undefined {

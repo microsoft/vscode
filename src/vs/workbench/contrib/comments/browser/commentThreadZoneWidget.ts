@@ -122,6 +122,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return this._isExpanded;
 	}
 
+	public getContext(): IContextKeyService {
+		return this._contextKeyService;
+	}
+
 	private _commentOptions: languages.CommentOptions | undefined;
 
 	constructor(
