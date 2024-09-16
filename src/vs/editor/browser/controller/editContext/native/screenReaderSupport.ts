@@ -140,10 +140,6 @@ export class ScreenReaderSupport {
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
-		const focusedElement = getActiveWindow().document.activeElement;
-		if (!focusedElement || focusedElement !== this._domNode.domNode) {
-			return;
-		}
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
