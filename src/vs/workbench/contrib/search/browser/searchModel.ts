@@ -1914,6 +1914,12 @@ export class SearchResult extends Disposable {
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();
+		this._plainTextSearchResult = this._register(this.instantiationService.createInstance(ReplaceableTextSearchResult, true, this, PLAIN_TEXT_SEARCH__RESULT_ID));
+		this._aiTextSearchResult = this._register(this.instantiationService.createInstance(TextSearchResult, true, this, AI_TEXT_SEARCH_RESULT_ID));
+
+		this._register(this._plainTextSearchResult.onChange((e) => this._onChange.fire(e)));
+		this._register(this._aiTextSearchResult.onChange((e) => this._onChange.fire(e)));
+
 		this.modelService.getModels().forEach(model => this.onModelAdded(model));
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 
@@ -1923,10 +1929,6 @@ export class SearchResult extends Disposable {
 			}
 		}));
 
-		this._plainTextSearchResult = this._register(this.instantiationService.createInstance(ReplaceableTextSearchResult, true, this, PLAIN_TEXT_SEARCH__RESULT_ID));
-		this._aiTextSearchResult = this._register(this.instantiationService.createInstance(TextSearchResult, true, this, AI_TEXT_SEARCH_RESULT_ID));
-		this._register(this._plainTextSearchResult.onChange((e) => this._onChange.fire(e)));
-		this._register(this._aiTextSearchResult.onChange((e) => this._onChange.fire(e)));
 	}
 
 	get plainTextSearchResult(): ReplaceableTextSearchResult {
