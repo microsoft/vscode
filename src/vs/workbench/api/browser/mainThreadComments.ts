@@ -287,10 +287,6 @@ export class MainThreadCommentController implements ICommentController {
 		private _features: CommentProviderFeatures
 	) { }
 
-	getThreadContext(thread: languages.CommentThread): IContextKeyService | undefined {
-		return undefined;
-	}
-
 	async setActiveCommentAndThread(commentInfo: { thread: languages.CommentThread; comment?: languages.Comment } | undefined) {
 		return this._proxy.$setActiveComment(this._handle, commentInfo ? { commentThreadHandle: commentInfo.thread.commentThreadHandle, uniqueIdInThread: commentInfo.comment?.uniqueIdInThread } : undefined);
 	}
