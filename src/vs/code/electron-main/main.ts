@@ -45,7 +45,7 @@ import { ServiceCollection } from '../../platform/instantiation/common/serviceCo
 import { ILaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
 import { ILifecycleMainService, LifecycleMainService } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
 import { BufferLogger } from '../../platform/log/common/bufferLog.js';
-import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService } from '../../platform/log/common/log.js';
+import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, isLogLevel } from '../../platform/log/common/log.js';
 import product from '../../platform/product/common/product.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
@@ -171,6 +171,11 @@ class CodeMain {
 		// we are the only instance running, otherwise we'll have concurrent
 		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogger = new BufferLogger(loggerService.getLogLevel());
+		disposables.add(loggerService.onDidChangeLogLevel(level => {
+			if (isLogLevel(level)) {
+				bufferLogger.setLevel(level);
+			}
+		}));
 		const logService = disposables.add(new LogService(bufferLogger, [new ConsoleMainLogger(loggerService.getLogLevel())]));
 		services.set(ILogService, logService);
 
