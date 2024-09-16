@@ -7,12 +7,13 @@ import { ViewPart } from '../../view/viewPart.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { EditorOption, IRulerOption } from '../../../common/config/editorOptions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { IObjectCollectionBufferEntry } from '../../gpu/objectCollectionBuffer.js';
 import type { RectangleRendererEntrySpec } from '../../gpu/rectangleRenderer.js';
 import { Color } from '../../../../base/common/color.js';
 import { editorRuler } from '../../../common/core/editorColorRegistry.js';
+import { autorun, type IReader } from '../../../../base/common/observable.js';
 
 /**
  * Rulers are vertical lines that appear at certain columns in the editor. There can be >= 0 rulers
@@ -21,29 +22,20 @@ import { editorRuler } from '../../../common/core/editorColorRegistry.js';
 export class RulersGpu extends ViewPart {
 
 	private readonly _gpuShapes: IObjectCollectionBufferEntry<RectangleRendererEntrySpec>[] = [];
-	private _rulers: IRulerOption[];
-	private _typicalHalfwidthCharacterWidth: number;
 
 	constructor(
 		context: ViewContext,
 		private readonly _viewGpuContext: ViewGpuContext
 	) {
 		super(context);
-		const options = this._context.configuration.options;
-		this._rulers = options.get(EditorOption.rulers);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		this._register(autorun(reader => this._updateEntries(reader)));
 	}
 
 	// --- begin event handlers
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		this._rulers = options.get(EditorOption.rulers);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		this._updateEntries(undefined);
 		return true;
-	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollHeightChanged;
 	}
 
 	// --- end event handlers
@@ -53,42 +45,37 @@ export class RulersGpu extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		// TODO: Shapes live across renders, we should only do this when the rulers have changed
-		for (let i = 0, len = this._rulers.length; i < len; i++) {
-			const ruler = this._rulers[i];
+		// Rendering is handled by RectangleRenderer
+	}
+
+	private _updateEntries(reader: IReader | undefined) {
+		const options = this._context.configuration.options;
+		const rulers = options.get(EditorOption.rulers);
+		const typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.read(reader);
+		for (let i = 0, len = rulers.length; i < len; i++) {
+			const ruler = rulers[i];
 			const shape = this._gpuShapes[i];
-			const rulerData = this._getRulerData(ruler);
+			const color = ruler.color ? Color.fromHex(ruler.color) : this._context.theme.getColor(editorRuler) ?? Color.white;
+			const rulerData = [
+				// TODO: The x should be relative to the left side of the viewport
+				ruler.column * typicalHalfwidthCharacterWidth * devicePixelRatio,
+				0,
+				Math.max(1, Math.ceil(devicePixelRatio)),
+				this._viewGpuContext.canvasDevicePixelDimensions.read(reader).height,
+				color.rgba.r / 255,
+				color.rgba.g / 255,
+				color.rgba.b / 255,
+				color.rgba.a,
+			] as const;
 			if (!shape) {
 				this._gpuShapes[i] = this._viewGpuContext.rectangleRenderer.register(...rulerData);
 			} else {
-				// TODO: Setting ruler data directly would be nicer (eg. `shape.setData(rulerData)`)
-				shape.set('x', rulerData[0]);
-				shape.set('y', rulerData[1]);
-				shape.set('width', rulerData[2]);
-				shape.set('height', rulerData[3]);
-				shape.set('red', rulerData[4]);
-				shape.set('green', rulerData[5]);
-				shape.set('blue', rulerData[6]);
-				shape.set('alpha', rulerData[7]);
+				shape.setRaw(rulerData);
 			}
 		}
-		while (this._gpuShapes.length > this._rulers.length) {
+		while (this._gpuShapes.length > rulers.length) {
 			this._gpuShapes.splice(-1, 1)[0].dispose();
 		}
-	}
-
-	private _getRulerData(ruler: IRulerOption): [number, number, number, number, number, number, number, number] {
-		const color = ruler.color ? Color.fromHex(ruler.color) : this._context.theme.getColor(editorRuler) ?? Color.white;
-		return [
-			// TODO: The x should be relative to the left side of the viewport
-			ruler.column * this._typicalHalfwidthCharacterWidth * this._viewGpuContext.devicePixelRatio.get(),
-			0,
-			Math.max(1, Math.ceil(this._viewGpuContext.devicePixelRatio.get())),
-			this._viewGpuContext.canvasDevicePixelDimensions.get().height,
-			color.rgba.r / 255,
-			color.rgba.g / 255,
-			color.rgba.b / 255,
-			color.rgba.a,
-		];
 	}
 }

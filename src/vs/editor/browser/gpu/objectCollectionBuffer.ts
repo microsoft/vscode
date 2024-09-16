@@ -57,6 +57,7 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 export interface IObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]> extends IDisposable {
 	set(propertyName: T[number]['name'], value: number): void;
 	get(propertyName: T[number]['name']): number;
+	setRaw(data: ArrayLike<number>): void;
 }
 
 export function createObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]>(
@@ -165,5 +166,12 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 
 	get(propertyName: T[number]['name']): number {
 		return this._view[this.i * this._propertySpecsMap.size + this._propertySpecsMap.get(propertyName)!.offset];
+	}
+
+	setRaw(data: ArrayLike<number>): void {
+		if (data.length !== this._propertySpecsMap.size) {
+			throw new Error(`Data length ${data.length} does not match the number of properties in the collection (${this._propertySpecsMap.size})`);
+		}
+		this._view.set(data, this.i * this._propertySpecsMap.size);
 	}
 }
