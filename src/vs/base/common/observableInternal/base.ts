@@ -119,7 +119,7 @@ export interface IObservableWithChange<T, TChange = unknown> {
 export interface IObserver {
 	/**
 	 * Signals that the given observable might have changed and a transaction potentially modifying that observable started.
-	 * Before the given observable can call this method again, is must call {@link IObserver.endUpdate}.
+	 * Every call of this method must be eventually accompanied with the corresponding {@link IObserver.endUpdate} call.
 	 *
 	 * Implementations must not get/read the value of other observables, as they might not have received this event yet!
 	 * The method {@link IObservable.reportChanges} can be used to force the observable to report the changes.
@@ -172,8 +172,8 @@ export interface ISettable<T, TChange = void> {
 
 export interface ITransaction {
 	/**
-	 * Calls {@link Observer.beginUpdate} immediately
-	 * and {@link Observer.endUpdate} when the transaction ends.
+	 * Calls {@link IObserver.beginUpdate} immediately
+	 * and {@link IObserver.endUpdate} when the transaction ends.
 	 */
 	updateObserver(observer: IObserver, observable: IObservableWithChange<any, any>): void;
 }
