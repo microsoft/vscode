@@ -2010,9 +2010,13 @@ export class SearchResult extends Disposable {
 		);
 	}
 
-	folderMatches(): FolderMatch[] {
-		return [...this._plainTextSearchResult.folderMatches(), ...this._aiTextSearchResult.folderMatches()];
+	folderMatches(ai: boolean = false): FolderMatch[] {
+		if (ai) {
+			return this._aiTextSearchResult.folderMatches();
+		}
+		return this._plainTextSearchResult.folderMatches();
 	}
+
 	private onModelAdded(model: ITextModel): void {
 		const folderMatch = this._plainTextSearchResult.findFolderSubstr(model.uri);
 		folderMatch?.bindModel(model);

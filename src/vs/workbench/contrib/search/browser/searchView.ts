@@ -70,12 +70,12 @@ import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from '../common/search.js';
 import { ISearchHistoryService, ISearchHistoryValues, SearchHistoryService } from '../common/searchHistoryService.js';
-import { AI_TEXT_SEARCH_RESULT_ID, FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchModelLocation, SearchResult, TextSearchResult } from './searchModel.js';
+import { AI_TEXT_SEARCH_RESULT_ID, FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchModelLocation, SearchResult } from './searchModel.js';
 import { createEditorFromSearchResult } from '../../searchEditor/browser/searchEditorActions.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, QueryType, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from '../../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -780,17 +780,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private createSearchResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const textSearchMatches = this.searchResult.textSearchResults;
-
-		const iterable = Iterable.map(textSearchMatches, (textSearchMatch): ICompressedTreeElement<RenderableMatch> => {
-			const children = this.createTextSearchResultIterator(textSearchMatch, collapseResults);
-			return { element: textSearchMatch, children, incompressible: true }; // roots should always be incompressible
-		});
-		return iterable;
-	}
-
-	private createTextSearchResultIterator(textSearchMatch: TextSearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const folderMatches = textSearchMatch.folderMatches()
+		const folderMatches = this.searchResult.folderMatches(this.aiResultsVisible)
 			.filter(fm => !fm.isEmpty())
 			.sort(searchMatchComparer);
 
@@ -798,11 +788,10 @@ export class SearchView extends ViewPane {
 			return this.createFolderIterator(folderMatches[0], collapseResults, true);
 		}
 
-		const iterable = Iterable.map(folderMatches, (folderMatch): ICompressedTreeElement<RenderableMatch> => {
+		return Iterable.map(folderMatches, (folderMatch): ICompressedTreeElement<RenderableMatch> => {
 			const children = this.createFolderIterator(folderMatch, collapseResults, true);
 			return { element: folderMatch, children, incompressible: true }; // roots should always be incompressible
 		});
-		return iterable;
 	}
 
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
@@ -1675,31 +1664,6 @@ export class SearchView extends ViewPane {
 			return undefined;
 		});
 	}
-	// private onAISearchTriggered() {
-	// 	const pattern = this.searchWidget.searchInput?.getValue();
-
-	// 	if (!pattern || pattern.length === 0) {
-	// 		return;
-	// 	}
-
-	// 	this.runAISearch(pattern, '', '', false);
-	// }
-
-	// private runAISearch(pattern: string, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
-	// 	this.addToSearchHistoryDelayer.trigger(() => {
-	// 		this.searchWidget.searchInput?.onSearchSubmit();
-	// 		this.inputPatternExcludes.onSearchSubmit();
-	// 		this.inputPatternIncludes.onSearchSubmit();
-	// 	});
-
-	// 	this.viewModel.cancelSearch(true);
-	// 	this.viewModel.cancelAISearch(true);
-
-	// 	const query: IAITextQuery = this.queryBuilder.aiText(pattern, this.contextService.getWorkspace().folders.map(folder => folder.uri));
-	// 	this.currentSearchQ = this.currentSearchQ
-	// 		.then(() => this.doAISearch(query, excludePatternText, includePatternText, triggeredOnType))
-	// 		.then(() => undefined, () => undefined);
-	// }
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => {
@@ -1849,39 +1813,6 @@ export class SearchView extends ViewPane {
 			return Promise.resolve();
 		}
 	}
-	// private doAISearch(query: IAITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
-	// 	let progressComplete: () => void;
-	// 	this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
-	// 		return new Promise<void>(resolve => progressComplete = resolve);
-	// 	});
-
-	// 	this.searchWidget.searchInput?.clearMessage();
-	// 	this.state = SearchUIState.Searching;
-	// 	this.showEmptyStage();
-
-	// 	const slowTimer = setTimeout(() => {
-	// 		this.state = SearchUIState.SlowSearch;
-	// 	}, 2000);
-
-
-	// 	this._refreshResultsScheduler.schedule();
-
-	// 	this.searchWidget.setReplaceAllActionState(false);
-
-	// 	this.tree.setSelection([]);
-	// 	this.tree.setFocus([]);
-
-	// 	const aiResult = this.viewModel.aiSearch(query);
-	// 	return aiResult.then(
-	// 		(complete) => {
-	// 			clearTimeout(slowTimer);
-	// 			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
-	// 		}, (e) => {
-	// 			clearTimeout(slowTimer);
-	// 			this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
-	// 		}
-	// 	);
-	// }
 
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
@@ -1908,6 +1839,20 @@ export class SearchView extends ViewPane {
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
+		if (this.aiResultsVisible) {
+			const aiResult = this.viewModel.aiSearch({ ...query, contentPattern: query.contentPattern.pattern, type: QueryType.aiText });
+			return result.asyncResults.then(
+				() => aiResult.then(
+					(complete) => {
+						clearTimeout(slowTimer);
+						this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+					}, (e) => {
+						clearTimeout(slowTimer);
+						this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+					}
+				)
+			);
+		}
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
