@@ -167,9 +167,7 @@ export class RectangleRenderer extends Disposable {
 
 	private _update(): number {
 		this._device.queue.writeBuffer(this._shapeBindBuffer, 0, this._shapeCollection.buffer);
-
-		// TODO: Expose entry size on collection
-		return this._shapeCollection.viewUsedSize / 4;
+		return this._shapeCollection.entryCount;
 	}
 
 	draw(viewportData: ViewportData) {

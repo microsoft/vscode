@@ -32,6 +32,10 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	 * The size of the used portion of the view (in float32s).
 	 */
 	readonly viewUsedSize: number;
+	/**
+	 * The number of entries in the buffer.
+	 */
+	readonly entryCount: number;
 
 	/**
 	 * Fires when the buffer is modified.
@@ -71,6 +75,9 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 	}
 	get viewUsedSize() {
 		return this._entries.size * this._entrySize;
+	}
+	get entryCount() {
+		return this._entries.size;
 	}
 
 	private readonly _propertySpecsMap: Map<string, ObjectCollectionBufferPropertySpec & { offset: number }> = new Map();
