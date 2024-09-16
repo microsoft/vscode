@@ -13,7 +13,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_HAS_LANGUAGE_MODELS, CONTEXT_IN_CHAT_INPUT, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL, CONTEXT_IN_CHAT_INPUT, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER } from '../../common/chatContextKeys.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 
@@ -79,7 +79,7 @@ export class ChatModelPickerAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(CONTEXT_HAS_LANGUAGE_MODELS, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
+					when: ContextKeyExpr.and(CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
 					group: 'navigation',
 				},
 			]

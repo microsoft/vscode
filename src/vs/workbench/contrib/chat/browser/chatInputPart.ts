@@ -174,7 +174,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	) {
 		super();
 
-		this._currentLanguageModel = this.languageModelsService.getLanguageModelIds()[0];
+		this._currentLanguageModel = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
 		this.inputEditorHasText = CONTEXT_CHAT_INPUT_HAS_TEXT.bindTo(contextKeyService);
@@ -504,7 +504,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				if (!this._currentLanguageModel) {
-					this._currentLanguageModel = this.languageModelsService.getLanguageModelIds()[0];
+					this._currentLanguageModel = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 				}
 
 				if (action.id === ChatModelPickerAction.ID && action instanceof MenuItemAction && this._currentLanguageModel) {
