@@ -551,20 +551,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			// Filtering
 			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
-			if (
-				isFiltered(event, filter) ||
-				// Explicitly exclude changes to root if we have any
-				// to avoid VS Code closing all opened editors which
-				// can happen e.g. in case of network connectivity
-				// issues
-				// (https://github.com/microsoft/vscode/issues/136673)
-				//
-				// Update 2024: with the new correlated events, we
-				// really do not want to skip over file events any
-				// more, so we only ignore this event for non-correlated
-				// watch requests.
-				(rootDeleted && !this.isCorrelated(watcher.request))
-			) {
+			if (isFiltered(event, filter)) {
 				if (this.verboseLogging) {
 					this.traceWithCorrelation(` >> ignored (filtered) ${event.resource.fsPath}`, watcher.request);
 				}
