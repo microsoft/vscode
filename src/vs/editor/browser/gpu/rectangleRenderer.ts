@@ -214,6 +214,7 @@ export class RectangleRenderer extends Disposable {
 	}
 
 	private _update(): number {
+		// TODO: Only write dirty range
 		this._device.queue.writeBuffer(this._shapeBindBuffer, 0, this._shapeCollection.buffer);
 		return this._shapeCollection.entryCount;
 	}

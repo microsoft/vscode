@@ -49,10 +49,13 @@ struct VSOutput {
 		(
 			// Top left corner
 			vec2f(-1, 1) +
-			// Shape position
-			(shape.position * vec2f(2, -2)) / layoutInfo.canvasDims +
-			// Shape size
-			((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims) * shape.size
+			// Convert pixel position to clipspace
+			vec2f(2, -2) * (
+				// Shape position
+				(shape.position) / layoutInfo.canvasDims +
+				// Shape size
+				((vert.position) / layoutInfo.canvasDims) * shape.size
+			)
 		),
 		0.0,
 		1.0
