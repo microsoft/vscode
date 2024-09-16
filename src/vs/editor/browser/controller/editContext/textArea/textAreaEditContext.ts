@@ -22,7 +22,7 @@ import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
-import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
+import { RenderingContext, RestrictedRenderingContext, HorizontalPosition, LineVisibleRanges } from '../../../view/renderingContext.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../../common/viewEvents.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -43,6 +43,7 @@ import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
 }
 
 class VisibleTextAreaData {

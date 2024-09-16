@@ -14,7 +14,7 @@ import { IPointerHandlerHelper } from './controller/mouseHandler.js';
 import { PointerHandlerLastRenderData } from './controller/mouseTarget.js';
 import { PointerHandler } from './controller/pointerHandler.js';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from './editorBrowser.js';
-import { RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
+import { LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
 import { ICommandDelegate, ViewController } from './view/viewController.js';
 import { ContentViewOverlays, MarginViewOverlays } from './view/viewOverlays.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from './view/viewPart.js';
@@ -263,9 +263,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
-		return experimentalEditContextEnabled
-			? this._instantiationService.createInstance(NativeEditContext, this._context, this._viewController)
-			: this._instantiationService.createInstance(TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
+		return this._instantiationService.createInstance(experimentalEditContextEnabled ? NativeEditContext : TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
 	}
 
 	private _updateEditContext(): void {
@@ -366,6 +364,10 @@ export class View extends ViewEventHandler {
 			visibleRangeForPosition: (position: Position) => {
 				this._flushAccumulatedAndRenderNow();
 				return this._viewLines.visibleRangeForPosition(position);
+			},
+			linesVisibleRangesForRange: (range: Range, includeNewLines: boolean): LineVisibleRanges[] | null => {
+				this._flushAccumulatedAndRenderNow();
+				return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 			}
 		};
 	}

@@ -10,7 +10,6 @@ import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
-	lastLinesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
 
@@ -80,10 +79,6 @@ export class RenderingContext extends RestrictedRenderingContext {
 
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
-	}
-
-	public lastLinesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		return this._viewLines.lastLinesVisibleRangesForRange(range, includeNewLines);
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {

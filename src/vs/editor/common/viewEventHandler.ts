@@ -214,7 +214,6 @@ export class ViewEventHandler extends Disposable {
 		}
 
 		if (shouldRender) {
-			console.log('inside of handle events of shouldRender');
 			this._shouldRender = true;
 		}
 	}
