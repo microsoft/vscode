@@ -5,19 +5,19 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
-import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
 import { FullFileRenderStrategy } from '../../gpu/fullFileRenderStrategy.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
 import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.js';
-import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import type { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
@@ -46,8 +46,6 @@ export class ViewLinesGpu extends ViewPart {
 
 	private _vertexBuffer!: GPUBuffer;
 
-	static atlas: TextureAtlas;
-
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _atlasGpuTexture!: GPUTexture;
 	private readonly _atlasGpuTextureVersions: number[] = [];
@@ -66,7 +64,8 @@ export class ViewLinesGpu extends ViewPart {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
-		this._register(this._viewGpuContext.onDidChangeCanvasDevicePixelDimensions(({ width, height }) => {
+		this._register(autorun(reader => {
+			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
 
@@ -78,19 +77,26 @@ export class ViewLinesGpu extends ViewPart {
 
 		this._device = await this._viewGpuContext.device;
 
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const atlas = ViewGpuContext.atlas;
+
+		// Rerender when the texture atlas deletes glyphs
+		this._register(atlas.onDidDeleteGlyphs(() => {
+			this._atlasGpuTextureVersions.length = 0;
+			this._atlasGpuTextureVersions[0] = 0;
+			this._atlasGpuTextureVersions[1] = 0;
+			this._renderStrategy.reset();
+		}));
+
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 		this._viewGpuContext.ctx.configure({
 			device: this._device,
 			format: presentationFormat,
 			alphaMode: 'premultiplied',
 		});
-
-		// TODO: Should the texture atlas (shared across all editors) should be part of the gpu context (shared across view parts of this editor)?
-		// Create texture atlas
-		if (!ViewLinesGpu.atlas) {
-			ViewLinesGpu.atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D, undefined);
-		}
-		const atlas = ViewLinesGpu.atlas;
 
 		this._renderPassColorAttachment = {
 			view: null!, // Will be filled at render time
@@ -162,7 +168,7 @@ export class ViewLinesGpu extends ViewPart {
 
 		// #region Storage buffers
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, ViewLinesGpu.atlas));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
@@ -279,9 +285,7 @@ export class ViewLinesGpu extends ViewPart {
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
-		const atlas = ViewLinesGpu.atlas;
-
-		for (const [layerIndex, page] of atlas.pages.entries()) {
+		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
 			// Skip the update if it's already the latest version
 			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;

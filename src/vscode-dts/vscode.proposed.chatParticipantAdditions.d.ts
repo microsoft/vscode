@@ -248,10 +248,6 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
-	export interface ChatRequest {
-		toolInvocationToken: ChatParticipantToolToken;
-	}
-
 	export interface ChatResult {
 		nextQuestion?: {
 			prompt: string;
@@ -310,7 +306,14 @@ declare module 'vscode' {
 		codeBlockIndex: number;
 		totalCharacters: number;
 		newFile?: boolean;
-		userAction?: string;
+	}
+
+	export interface ChatApplyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'apply';
+		codeBlockIndex: number;
+		totalCharacters: number;
+		newFile?: boolean;
 		codeMapper?: string;
 	}
 
@@ -345,7 +348,7 @@ declare module 'vscode' {
 
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
 	}
 
 	export interface ChatPromptReference {

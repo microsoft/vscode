@@ -307,6 +307,10 @@ export class DesktopMain extends Disposable {
 			})
 		]);
 
+		if (configurationService.getValue<boolean>('files.experimentalWatcherNext') === true) {
+			diskFileSystemProvider.setUseNextWatcher();
+		}
+
 		// Workspace Trust Service
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
