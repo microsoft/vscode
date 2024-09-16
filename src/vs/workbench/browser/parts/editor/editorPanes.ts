@@ -305,6 +305,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
+		console.log('getEditorPaneDescriptor');
 		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkspaceTrusted()) {
 			// Workspace trust: if an editor signals it needs workspace trust
 			// but the current workspace is untrusted, we fallback to a generic
@@ -317,6 +318,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
+		console.log('doShowEditorPane');
 
 		// Return early if the currently active editor pane can handle the input
 		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
@@ -487,6 +489,7 @@ export class EditorPanes extends Disposable {
 		// Remove editor pane from parent
 		const editorPaneContainer = this._activeEditorPane.getContainer();
 		if (editorPaneContainer) {
+			// before removing active editor pane
 			editorPaneContainer.remove();
 			hide(editorPaneContainer);
 		}

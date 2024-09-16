@@ -120,6 +120,7 @@ export class View extends ViewEventHandler {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+		console.log('view constructor');
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 

@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -57,12 +57,20 @@ export class NativeEditContext extends AbstractEditContext {
 		this._updateDomAttributes();
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
+			console.log('inside of focus tracker handker');
+			console.log('document.activeElement : ', getActiveElement());
+			console.log('this._editContext : ', this._editContext);
+
+			console.log('newFocusValue : ', newFocusValue);
+			// how to explicitly blur instead of letting dom blur it
+			// find where the new dom node is created and explicitly blur it
 			this._context.viewModel.setHasFocus(newFocusValue);
-			// Added in order to not have the edit context fire when not focused
-			if (!newFocusValue) {
-				this.domNode.domNode.focus();
-				this.domNode.domNode.blur();
-			}
+
+			// look at the code executed with and without this, there seems to be a differecne
+			// if (!newFocusValue) {
+			// 	this.domNode.domNode.focus();
+			// 	this.domNode.domNode.blur();
+			// }
 		}));
 
 		this._editContext = new EditContext();
@@ -97,6 +105,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds()));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			console.log('text update event e : ', e);
+			console.log('document.activeElement : ', getActiveElement());
 			const compositionRangeWithinEditor = this._compositionRangeWithinEditor;
 			if (compositionRangeWithinEditor) {
 				const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
@@ -128,8 +138,9 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Public methods ---
 
 	public override dispose(): void {
-		super.dispose();
+		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
+		super.dispose();
 	}
 
 	public appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
@@ -179,7 +190,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public focus(): void { this._focusTracker.focus(); }
 
-	public refreshFocusState(): void { }
+	public refreshFocusState(): void {
+		this._focusTracker.refreshFocusState();
+	}
 
 	// --- Private methods ---
 

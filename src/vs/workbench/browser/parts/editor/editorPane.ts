@@ -159,6 +159,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * @param visible the state of visibility of this editor
 	 */
 	protected setEditorVisible(visible: boolean): void {
+		// do
 		// Subclasses can implement
 	}
 

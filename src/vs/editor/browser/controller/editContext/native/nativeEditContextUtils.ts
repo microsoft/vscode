@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement } from '../../../../../base/browser/dom.js';
 import { IDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 
 export interface ITypeData {
@@ -15,6 +15,7 @@ export interface ITypeData {
 
 export class FocusTracker extends Disposable {
 	private _isFocused: boolean = false;
+	private _shouldHandleFocus: boolean = true;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
@@ -26,7 +27,8 @@ export class FocusTracker extends Disposable {
 	}
 
 	private _handleFocusedChanged(focused: boolean): void {
-		if (this._isFocused === focused) {
+		console.log('_handleFocusedChanges, focused : ', focused);
+		if (this._isFocused === focused || !this._shouldHandleFocus) {
 			return;
 		}
 		this._isFocused = focused;
@@ -34,10 +36,29 @@ export class FocusTracker extends Disposable {
 	}
 
 	public focus(): void {
+		console.log('inside of focus');
 		// fixes: https://github.com/microsoft/vscode/issues/228147
 		// Immediately call this method in order to directly set the field isFocused to true so the textInputFocus context key is evaluated correctly
 		this._handleFocusedChanged(true);
 		this._domNode.focus();
+	}
+
+	public refreshFocusState(): void {
+		console.log('refresh focus state of focus tracker');
+		const isFocused = getActiveElement() === this._domNode;
+		console.log('isFocused : ', isFocused);
+
+		if (!isFocused) {
+			console.log('before focus then blur 1');
+			this._domNode.focus();
+			this._domNode.blur();
+		}
+		this._handleFocusedChanged(isFocused);
+		if (!isFocused) {
+			console.log('before focus then blur 2');
+			this._domNode.focus();
+			this._domNode.blur();
+		}
 	}
 
 	get isFocused(): boolean {
@@ -45,9 +66,6 @@ export class FocusTracker extends Disposable {
 	}
 
 	override dispose(): void {
-		// Need to explicitly blur the edit dom node, so that the edit context no longer relies on its events
-		this._domNode.blur();
-		this._handleFocusedChanged(false);
 		super.dispose();
 	}
 }

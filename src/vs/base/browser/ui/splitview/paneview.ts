@@ -238,6 +238,8 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	render(): void {
+		console.log('render of Pane');
+
 		this.element.classList.toggle('expanded', this.isExpanded());
 		this.element.classList.toggle('horizontal', this.orientation === Orientation.HORIZONTAL);
 		this.element.classList.toggle('vertical', this.orientation === Orientation.VERTICAL);

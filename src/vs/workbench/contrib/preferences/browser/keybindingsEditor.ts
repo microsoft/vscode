@@ -162,6 +162,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	}
 
 	protected createEditor(parent: HTMLElement): void {
+		console.log('inside of createEditor of KeybindingsEditor');
+
 		const keybindingsEditorElement = DOM.append(parent, $('div', { class: 'keybindings-editor' }));
 
 		this.createAriaLabelElement(keybindingsEditorElement);
@@ -195,6 +197,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	}
 
 	override focus(): void {
+		console.log('focus of KeybindingEditor');
+
 		super.focus();
 
 		const activeKeybindingEntry = this.activeKeybindingEntry;

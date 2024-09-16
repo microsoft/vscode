@@ -472,6 +472,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | editorCommon.IDiffEditorViewModel | null = null): void {
+		console.log('setModel');
 		try {
 			this._beginUpdate();
 			const model = <ITextModel | null>_model;
@@ -1019,6 +1020,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public onHide(): void {
+		console.log('on hide of code editor widget');
 		this._modelData?.view.refreshFocusState();
 		this._focusTracker.refreshState();
 	}
@@ -1419,6 +1421,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public focus(): void {
+		console.log('focus of code editor widget');
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
@@ -1593,6 +1596,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public render(forceRedraw: boolean = false): void {
+		console.log('render');
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
@@ -1757,6 +1761,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		const [view, hasRealView] = this._createView(viewModel);
+		console.log('inside of _createView');
 		if (hasRealView) {
 			this._domElement.appendChild(view.domNode.domNode);
 
@@ -1872,6 +1877,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _detachModel(): ITextModel | null {
+		console.log('_detachModel');
 		this._contributionsDisposable?.dispose();
 		this._contributionsDisposable = undefined;
 		if (!this._modelData) {
