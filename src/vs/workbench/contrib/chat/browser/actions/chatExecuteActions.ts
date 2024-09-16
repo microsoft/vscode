@@ -11,7 +11,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_IN_CHAT_INPUT, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER } from '../../common/chatContextKeys.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -75,7 +75,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	},
 	order: 1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
+	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
 });
 
 export class ChatSubmitSecondaryAgentAction extends Action2 {

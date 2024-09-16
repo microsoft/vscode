@@ -145,6 +145,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _currentLanguageModel: string | undefined;
 	get currentLanguageModel() {
+		// Map the internal id to the metadata id
 		const metadataId = this._currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this._currentLanguageModel)?.id : undefined;
 		return metadataId;
 	}
@@ -195,10 +196,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return model?.isUserSelectable && !model.isDefault;
 		});
 		this._currentLanguageModel = hasUserSelectableLanguageModels ? defaultLanguageModel : undefined;
-	}
-
-	setSelectedModel(modelId: string): void {
-		this._currentLanguageModel = modelId;
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -515,7 +512,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				if (action.id === ChatModelPickerActionId && action instanceof MenuItemAction && this._currentLanguageModel) {
-					return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, this);
+					return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, modelId => this._currentLanguageModel = modelId);
 				}
 
 				return undefined;
@@ -782,7 +779,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		private currentLanguageModel: string,
-		private readonly chatInputPart: ChatInputPart,
+		private readonly setModelDelegate: (selectedModelId: string) => void,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -818,7 +815,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 				checked: id === this.currentLanguageModel,
 				run: () => {
 					this.currentLanguageModel = id;
-					this.chatInputPart.setSelectedModel(id);
+					this.setModelDelegate(id);
 					this.updateLabel();
 				}
 			};

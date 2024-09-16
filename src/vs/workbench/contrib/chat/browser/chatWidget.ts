@@ -177,10 +177,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	get parsedInput() {
 		if (this.parsedChatRequest === undefined) {
 			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
-
-			const currentAgent = this.parsedChatRequest.parts.find(part => part instanceof ChatRequestAgentPart);
-			this.agentInInput.set(!!currentAgent);
-			this.agentSupportsModelPicker.set(!currentAgent || !!currentAgent.agent.supportsModelPicker);
 		}
 
 		return this.parsedChatRequest;
@@ -666,7 +662,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._onDidChangeContentHeight.fire();
 		}));
-		this._register(this.inputEditor.onDidChangeModelContent(() => { this.parsedChatRequest = undefined; console.log(this.parsedInput); }));
+		this._register(this.inputEditor.onDidChangeModelContent(() => {
+			this.parsedChatRequest = undefined;
+			this.updateChatInputContext();
+		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.parsedChatRequest = undefined));
 	}
 
@@ -726,7 +725,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 			revealLastElement(this.tree);
 		}
-
+		this.updateChatInputContext();
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -992,6 +991,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getViewState(): IChatViewState {
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
+	}
+
+	private updateChatInputContext() {
+		const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
+		this.agentInInput.set(!!currentAgent);
+		this.agentSupportsModelPicker.set(!currentAgent || !!currentAgent.agent.supportsModelPicker);
 	}
 }
 
