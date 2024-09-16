@@ -231,6 +231,8 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .featured-icon {
 	font-size: 20px;
 	padding-right: 8px;
+	position: relative;
+	top: 3px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .codicon:not(.icon-widget, .featured-icon, .hide-category-button) {
