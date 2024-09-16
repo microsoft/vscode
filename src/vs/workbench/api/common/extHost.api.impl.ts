@@ -1003,22 +1003,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
 				let options: FileSystemWatcherCreateOptions | undefined = undefined;
 
-				if (typeof optionsOrIgnoreCreate === 'boolean') {
+				if (optionsOrIgnoreCreate && typeof optionsOrIgnoreCreate !== 'boolean') {
+					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
+					options = {
+						...optionsOrIgnoreCreate,
+						correlate: true
+					};
+				} else {
 					options = {
 						ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
 						ignoreChangeEvents: Boolean(ignoreChange),
 						ignoreDeleteEvents: Boolean(ignoreDelete),
 						correlate: false
 					};
-				} else if (optionsOrIgnoreCreate) {
-					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
-					options = {
-						...optionsOrIgnoreCreate,
-						correlate: true
-					};
 				}
 
-				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, options);
+				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extension, pattern, options);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
