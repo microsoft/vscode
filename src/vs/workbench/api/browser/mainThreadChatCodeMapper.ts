@@ -27,7 +27,7 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 
 	$registerCodeMapperProvider(handle: number): void {
 		const impl: ICodeMapperProvider = {
-			mapCode: (uiRequest: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) => {
+			mapCode: async (uiRequest: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) => {
 				const requestId = String(MainThreadChatCodemapper._requestHandlePool++);
 				this._responseMap.set(requestId, response);
 				const extHostRequest: ICodeMapperRequestDto = {
@@ -36,7 +36,7 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 					conversation: uiRequest.conversation
 				};
 				try {
-					return this._proxy.$mapCode(handle, extHostRequest, token).then((result) => result ?? undefined);
+					return await this._proxy.$mapCode(handle, extHostRequest, token).then((result) => result ?? undefined);
 				} finally {
 					this._responseMap.delete(requestId);
 				}
