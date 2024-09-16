@@ -444,10 +444,6 @@ export class CommentController implements IEditorContribution {
 	private _activeEditorHasCommentingRange: IContextKey<boolean>;
 	private _hasRespondedToEditorChange: boolean = false;
 
-	public getThreadContext(thread: languages.CommentThread<IRange>): IContextKeyService | undefined {
-		return this._commentWidgets.find(w => w.commentThread === thread)?.getContext();
-	}
-
 	constructor(
 		editor: ICodeEditor,
 		@ICommentService private readonly commentService: ICommentService,

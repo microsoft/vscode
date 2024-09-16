@@ -30,7 +30,6 @@ import { MarshalledCommentThread } from '../../common/comments.js';
 import { revealCommentThread } from '../../contrib/comments/browser/commentsController.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -286,10 +285,6 @@ export class MainThreadCommentController implements ICommentController {
 		private readonly _label: string,
 		private _features: CommentProviderFeatures
 	) { }
-
-	getThreadContext(thread: languages.CommentThread): IContextKeyService | undefined {
-		return undefined;
-	}
 
 	async setActiveCommentAndThread(commentInfo: { thread: languages.CommentThread; comment?: languages.Comment } | undefined) {
 		return this._proxy.$setActiveComment(this._handle, commentInfo ? { commentThreadHandle: commentInfo.thread.commentThreadHandle, uniqueIdInThread: commentInfo.comment?.uniqueIdInThread } : undefined);

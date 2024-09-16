@@ -167,10 +167,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}));
 	}
 
-	getContext(): IContextKeyService {
-		return this._contextKeyService;
-	}
-
 	private _setAriaLabel(): void {
 		let ariaLabel = localize('commentLabel', "Comment");
 		let keybinding: string | undefined;
