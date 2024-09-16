@@ -246,6 +246,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							extensionDisplayName: extension.description.displayName ?? extension.description.name,
 							id: providerDescriptor.id,
 							description: providerDescriptor.description,
+							supportsModelPicker: providerDescriptor.supportsModelPicker,
 							when: providerDescriptor.when,
 							metadata: {
 								isSticky: providerDescriptor.isSticky,

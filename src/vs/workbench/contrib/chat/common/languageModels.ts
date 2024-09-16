@@ -10,11 +10,13 @@ import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { CONTEXT_HAS_LANGUAGE_MODELS } from './chatContextKeys.js';
 
 export const enum ChatMessageRole {
 	System,
@@ -174,10 +176,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
 	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
 
+	private readonly _hasModels: IContextKey<boolean>;
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
+		this._hasModels = CONTEXT_HAS_LANGUAGE_MODELS.bindTo(this._contextKeyService);
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 
@@ -275,6 +281,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		this._providers.set(identifier, provider);
 		this._onDidChangeProviders.fire({ added: [{ identifier, metadata: provider.metadata }] });
+		this._hasModels.set(true);
 		return toDisposable(() => {
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });

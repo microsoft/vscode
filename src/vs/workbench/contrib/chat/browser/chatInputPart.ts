@@ -9,6 +9,8 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -31,7 +33,7 @@ import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/g
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -55,7 +57,8 @@ import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
+import { CancelAction, ChatModelPickerAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
 import { ChatFollowups } from './chatFollowups.js';
 
@@ -142,6 +145,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 
+	private _currentLanguageModel: string | undefined;
+	get currentLanguageModel() {
+		const metadataId = this._currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this._currentLanguageModel)?.id : undefined;
+		return metadataId;
+	}
+
 	private cachedDimensions: dom.Dimension | undefined;
 	private cachedExecuteToolbarWidth: number | undefined;
 	private cachedInputToolbarWidth: number | undefined;
@@ -160,10 +169,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
+		this._currentLanguageModel = this.languageModelsService.getLanguageModelIds()[0];
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
 		this.inputEditorHasText = CONTEXT_CHAT_INPUT_HAS_TEXT.bindTo(contextKeyService);
@@ -178,6 +189,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
 		}));
+	}
+
+	setSelectedModel(modelId: string): void {
+		this._currentLanguageModel = modelId;
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -488,6 +503,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 
+				if (!this._currentLanguageModel) {
+					this._currentLanguageModel = this.languageModelsService.getLanguageModelIds()[0];
+				}
+
+				if (action.id === ChatModelPickerAction.ID && action instanceof MenuItemAction && this._currentLanguageModel) {
+					return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, this);
+				}
+
 				return undefined;
 			}
 		}));
@@ -745,6 +768,61 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 		};
 		setActions();
 		this._register(menu.onDidChange(() => setActions()));
+	}
+}
+
+class ModelPickerActionViewItem extends MenuEntryActionViewItem {
+	constructor(
+		action: MenuItemAction,
+		private currentLanguageModel: string,
+		private readonly chatInputPart: ChatInputPart,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
+	) {
+		super(action, undefined, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		this._openContextMenu();
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			const model = this._languageModelsService.lookupLanguageModel(this.currentLanguageModel);
+			if (model) {
+				dom.reset(this.label, ...renderLabelWithIcons(`${model.name}$(chevron-down)`));
+			}
+		}
+	}
+
+	private _openContextMenu() {
+		const setLanguageModelAction = (id: string): IAction => {
+			const modelMetadata = this._languageModelsService.lookupLanguageModel(id)!;
+			return {
+				id,
+				label: modelMetadata.name,
+				tooltip: '',
+				class: undefined,
+				enabled: true,
+				checked: id === this.currentLanguageModel,
+				run: () => {
+					this.currentLanguageModel = id;
+					this.chatInputPart.setSelectedModel(id);
+					this.updateLabel();
+				}
+			};
+		};
+
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => this.element!,
+			getActions: () => this._languageModelsService.getLanguageModelIds().map(model => setLanguageModelAction(model)),
+		});
 	}
 }
 

@@ -63,6 +63,8 @@ declare module 'vscode' {
 		 * Additionally, the extension can provide a label that will be shown in the UI.
 		 */
 		auth?: true | { label: string };
+
+		isDefault?: boolean;
 	}
 
 	export interface ChatResponseProviderMetadata {
