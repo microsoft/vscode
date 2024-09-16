@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from '../../../base/browser/dom.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import { GPULifecycle } from './gpuDisposable.js';
-import { quadVertices } from './gpuUtils.js';
+import { observeDevicePixelDimensions, quadVertices } from './gpuUtils.js';
 import { createObjectCollectionBuffer, type IObjectCollectionBuffer, type IObjectCollectionBufferEntry } from './objectCollectionBuffer.js';
 import { RectangleRendererBindingId, rectangleRendererWgsl } from './rectangleRenderer.wgsl.js';
 
@@ -38,13 +39,14 @@ export class RectangleRenderer extends Disposable {
 	], 32));
 
 	constructor(
+		private readonly _canvas: HTMLCanvasElement,
 		private readonly _ctx: GPUCanvasContext,
 		device: Promise<GPUDevice>,
 	) {
 		super();
 
 		// TODO: Add color
-		this._shapeCollection.createEntry({ x: -0.2, y: 0.1, width: 0.25, height: -0.5 });
+		this._shapeCollection.createEntry({ x: 200, y: 100, width: 100, height: 25 });
 
 		this._initWebgpu(device);
 	}
@@ -77,6 +79,43 @@ export class RectangleRenderer extends Disposable {
 		};
 
 		// #endregion General
+
+		// #region Uniforms
+
+		let layoutInfoUniformBuffer: GPUBuffer;
+		{
+			const enum Info {
+				FloatsPerEntry = 6,
+				BytesPerEntry = Info.FloatsPerEntry * 4,
+				Offset_CanvasWidth____ = 0,
+				Offset_CanvasHeight___ = 1,
+				Offset_ViewportOffsetX = 2,
+				Offset_ViewportOffsetY = 3,
+				Offset_ViewportWidth__ = 4,
+				Offset_ViewportHeight_ = 5,
+			}
+			const bufferValues = new Float32Array(Info.FloatsPerEntry);
+			const updateBufferValues = (canvasDevicePixelWidth: number = this._canvas.width, canvasDevicePixelHeight: number = this._canvas.height) => {
+				bufferValues[Info.Offset_CanvasWidth____] = canvasDevicePixelWidth;
+				bufferValues[Info.Offset_CanvasHeight___] = canvasDevicePixelHeight;
+				// TODO: Set viewport offset
+				bufferValues[Info.Offset_ViewportOffsetX] = 0; // Math.ceil(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft * getActiveWindow().devicePixelRatio);
+				bufferValues[Info.Offset_ViewportOffsetY] = 0;
+				bufferValues[Info.Offset_ViewportWidth__] = bufferValues[Info.Offset_CanvasWidth____] - bufferValues[Info.Offset_ViewportOffsetX];
+				bufferValues[Info.Offset_ViewportHeight_] = bufferValues[Info.Offset_CanvasHeight___] - bufferValues[Info.Offset_ViewportOffsetY];
+				return bufferValues;
+			};
+			layoutInfoUniformBuffer = this._register(GPULifecycle.createBuffer(this._device, {
+				label: 'Monaco rectangle renderer uniform buffer',
+				size: Info.BytesPerEntry,
+				usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			}, () => updateBufferValues())).object;
+			this._register(observeDevicePixelDimensions(this._canvas, getActiveWindow(), (w, h) => {
+				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, updateBufferValues(w, h));
+			}));
+		}
+
+		// #endregion Uniforms
 
 		// #region Storage buffers
 
@@ -152,6 +191,7 @@ export class RectangleRenderer extends Disposable {
 			layout: this._pipeline.getBindGroupLayout(0),
 			entries: [
 				{ binding: RectangleRendererBindingId.Shapes, resource: { buffer: this._shapeBindBuffer } },
+				{ binding: RectangleRendererBindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
 			],
 		});
 

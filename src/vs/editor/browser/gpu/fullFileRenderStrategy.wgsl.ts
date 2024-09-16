@@ -40,7 +40,7 @@ struct VSOutput {
 };
 
 // Uniforms
-@group(0) @binding(${BindingId.ViewportUniform})         var<uniform>       layoutInfo:      LayoutInfo;
+@group(0) @binding(${BindingId.LayoutInfoUniform})       var<uniform>       layoutInfo:      LayoutInfo;
 @group(0) @binding(${BindingId.AtlasDimensionsUniform})  var<uniform>       atlasDims:       vec2f;
 @group(0) @binding(${BindingId.ScrollOffset})            var<uniform>       scrollOffset:    ScrollOffset;
 

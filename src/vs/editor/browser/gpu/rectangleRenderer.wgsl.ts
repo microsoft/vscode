@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const enum RectangleRendererBindingId {
-	Shapes
+	Shapes,
+	LayoutInfoUniform,
 }
 
 export const rectangleRendererWgsl = /*wgsl*/ `
@@ -13,12 +14,22 @@ struct Vertex {
 	@location(0) position: vec2f,
 };
 
+struct LayoutInfo {
+	canvasDims: vec2f,
+	viewportOffset: vec2f,
+	viewportDims: vec2f,
+}
+
 struct Shape {
 	position: vec2f,
 	size: vec2f
 };
 
-@group(0) @binding(${RectangleRendererBindingId.Shapes}) var<storage, read> shapes: array<Shape>;
+// Uniforms
+@group(0) @binding(${RectangleRendererBindingId.LayoutInfoUniform}) var<uniform>       layoutInfo:      LayoutInfo;
+
+// Storage buffers
+@group(0) @binding(${RectangleRendererBindingId.Shapes})            var<storage, read> shapes:          array<Shape>;
 
 @vertex fn vs(
 	vert: Vertex,
@@ -26,8 +37,16 @@ struct Shape {
 	@builtin(vertex_index) vertexIndex : u32
 ) -> @builtin(position) vec4f {
 	let shape = shapes[instanceIndex];
+
 	return vec4f(
-		(vert.position + shape.position) * shape.size,
+		(
+			// Top left corner
+			vec2f(-1, 1) +
+			// Shape position
+			(shape.position * vec2f(2, -2)) / layoutInfo.canvasDims +
+			// Shape size
+			((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims) * shape.size
+		),
 		0.0,
 		1.0
 	);

@@ -80,7 +80,7 @@ export class ViewGpuContext extends Disposable {
 			}
 		});
 
-		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, this.ctx, this.device);
+		this.rectangleRenderer = this._instantiationService.createInstance(RectangleRenderer, this.canvas.domNode, this.ctx, this.device);
 
 		const dprObs = observableValue(this, getActiveWindow().devicePixelRatio);
 		this._register(addDisposableListener(getActiveWindow(), 'resize', () => {

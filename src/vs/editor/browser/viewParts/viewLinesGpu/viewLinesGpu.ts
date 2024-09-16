@@ -271,7 +271,7 @@ export class ViewLinesGpu extends ViewPart {
 					})
 				},
 				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
-				{ binding: BindingId.ViewportUniform, resource: { buffer: layoutInfoUniformBuffer } },
+				{ binding: BindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
 				{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
 			],
