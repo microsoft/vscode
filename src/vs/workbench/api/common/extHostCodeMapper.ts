@@ -6,9 +6,10 @@
 import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
+import { ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import * as extHostProtocol from './extHost.protocol.js';
-
+import { TextEdit } from './extHostTypeConverters.js';
+import { URI } from '../../../base/common/uri.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
 
@@ -22,7 +23,7 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadCodeMapper);
 	}
 
-	async $mapCode(handle: number, request: ICodeMapperRequest, token: CancellationToken): Promise<ICodeMapperResult | null> {
+	async $mapCode(handle: number, internalRequest: extHostProtocol.ICodeMapperRequestDto, token: CancellationToken): Promise<ICodeMapperResult | null> {
 		// Received request to map code from the main thread
 		const provider = this.providers.get(handle);
 		if (!provider) {
@@ -30,17 +31,27 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		}
 
 		// Construct a response object to pass to the provider
-		const responseObject = {
+		const stream: vscode.MappedEditsResponseStream = {
 			textEdit: (textEdit: vscode.TextEdit, resource: vscode.Uri) => {
-				this._proxy.$handleProgress(requestId, {
-					kind: 'textEdit',
-					data: textEdit,
-					resource: resource.toJSON()
+				this._proxy.$handleProgress(internalRequest.requestId, {
+					uri: resource,
+					edits: [TextEdit.from(textEdit)]
 				});
 			}
 		};
 
-		await provider.provideMappedEdits(request, responseObject, token);
+		const request: vscode.MappedEditsRequest = {
+			codeBlocks: internalRequest.codeBlocks.map(block => {
+				return {
+					code: block.code,
+					resource: URI.revive(block.resource)
+				};
+			}),
+			conversation: internalRequest.conversation
+		};
+
+		const result = await provider.provideMappedEdits(request, stream, token);
+		return result ?? null;
 	}
 
 	registerMappedEditsProvider(extension: IExtensionDescription, provider: vscode.MappedEditsProvider2): vscode.Disposable {
@@ -53,5 +64,4 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 			}
 		};
 	}
-
 }

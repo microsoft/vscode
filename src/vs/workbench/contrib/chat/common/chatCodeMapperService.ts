@@ -45,7 +45,7 @@ export interface ICodeMapperResult {
 	errorMessage?: string;
 }
 
-export interface ICodeMapperProvider extends IDisposable {
+export interface ICodeMapperProvider {
 	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
 }
 
@@ -53,9 +53,8 @@ export const ICodeMapperService = createDecorator<ICodeMapperService>('codeMappe
 
 export interface ICodeMapperService {
 	readonly _serviceBrand: undefined;
-	registerCodeMapperProvider(handle: number, response: ICodeMapperResponse, provider: ICodeMapperProvider): void;
-	mapCode(request: ICodeMapperRequest, token: CancellationToken): void;
-	dispose(): void;
+	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable;
+	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): void;
 }
 
 export class CodeMapperService implements ICodeMapperService {
@@ -63,8 +62,16 @@ export class CodeMapperService implements ICodeMapperService {
 
 	private readonly providers: ICodeMapperProvider[] = [];
 
-	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): void {
+	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable {
 		this.providers.push(provider);
+		return {
+			dispose: () => {
+				const index = this.providers.indexOf(provider);
+				if (index >= 0) {
+					this.providers.splice(index, 1);
+				}
+			}
+		};
 	}
 
 	async mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) {
@@ -76,9 +83,4 @@ export class CodeMapperService implements ICodeMapperService {
 		}
 		return undefined;
 	}
-
-	dispose(): void {
-		this.providers.forEach((p) => p.dispose());
-	}
-
 }

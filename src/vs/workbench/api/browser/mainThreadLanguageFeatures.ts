@@ -27,14 +27,14 @@ import { ILanguageFeaturesService } from '../../../editor/common/services/langua
 import { decodeSemanticTokensDto } from '../../../editor/common/services/semanticTokensDto.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
+import * as typeConvert from '../common/extHostTypeConverters.js';
+import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
 import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
-import * as typeConvert from '../common/extHostTypeConverters.js';
-import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
-import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -1005,10 +1005,6 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
 		const provider = new MainThreadMappedEditsProvider(displayName, handle, this._proxy, this._uriIdentService);
 		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
-	}
-
-	$registerMappedEditsProvider2(handle: number, displayName: string): void {
-		throw new Error('Method not implemented.');
 	}
 }
 

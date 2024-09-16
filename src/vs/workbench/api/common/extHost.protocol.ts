@@ -51,7 +51,7 @@ import { SaveReason } from '../../common/editor.js';
 import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
 import { ChatAgentLocation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
-import { ICodeMapperRequest, ICodeMapperResponse, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
+import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatProgressResponseContent } from '../../contrib/chat/common/chatModel.js';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from '../../contrib/chat/common/chatVariables.js';
@@ -403,8 +403,6 @@ export interface IMappedEditsRequestDto {
 	readonly conversation?: IConversationItemDto[];
 }
 
-
-
 export interface IMappedEditsResultDto {
 	readonly errorMessage?: string;
 }
@@ -472,7 +470,6 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$resolveDocumentOnDropFileData(handle: number, requestId: number, dataId: string): Promise<VSBuffer>;
 	$setLanguageConfiguration(handle: number, languageId: string, configuration: ILanguageConfigurationDto): void;
 	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void;
-	$registerMappedEditsProvider2(handle: number, displayName: string): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -1282,10 +1279,16 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }
 
+export interface ICodeMapperTextEdit {
+	uri: URI;
+	edits: languages.TextEdit[];
+}
+
+export type ICodeMapperProgressDto = Dto<ICodeMapperTextEdit>;
+
 export interface MainThreadCodeMapperShape extends IDisposable {
 	$registerCodeMapperProvider(handle: number): void;
 	$unregisterCodeMapperProvider(handle: number): void;
-	$mapCode(request: ICodeMapperRequest, token: CancellationToken): Promise<ICodeMapperResult | null>;
 	$handleProgress(requestId: string, data: ICodeMapperProgressDto): Promise<void>;
 }
 
@@ -1402,8 +1405,6 @@ export type IDocumentContextDto = {
 export type IChatProgressDto =
 	| Dto<Exclude<IChatProgress, IChatTask>>
 	| IChatTaskDto;
-
-export type ICodeMapperProgressDto = Dto<ICodeMapperResponse>;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -1749,17 +1750,12 @@ export interface ICommandMetadataDto {
 	readonly returns?: string;
 }
 
-export interface IMappedEditsProvider {
-	provideMappedEdits(
-		request: ICodeMapperRequest,
-		result: ICodeMapperResponse,
-		token: CancellationToken
-	): Promise<ICodeMapperResult | null | undefined>;
+export interface ICodeMapperRequestDto extends Dto<ICodeMapperRequest> {
+	requestId: string;
 }
 
 export interface ExtHostCodeMapperShape {
-	registerMappedEditsProvider(extension: IExtensionDescription, provider: IMappedEditsProvider): void;
-	$mapCode(handle: number, request: ICodeMapperRequest, token: CancellationToken): Promise<ICodeMapperResult | null | undefined>;
+	$mapCode(handle: number, request: ICodeMapperRequestDto, token: CancellationToken): Promise<ICodeMapperResult | null | undefined>;
 }
 
 export interface ExtHostCommandsShape {

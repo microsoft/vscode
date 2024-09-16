@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
 import { asArray, coalesce, isFalsyOrEmpty, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { raceCancellationError } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -27,10 +26,6 @@ import { encodeSemanticTokensDto } from '../../../editor/common/services/semanti
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ICodeMapperRequest, ICodeMapperResponse, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
-import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import { Cache } from './cache.js';
-import * as extHostProtocol from './extHost.protocol.js';
 import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
@@ -38,6 +33,10 @@ import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from './extHostTelemetry.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { CodeActionKind, CompletionList, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import type * as vscode from 'vscode';
+import { Cache } from './cache.js';
+import * as extHostProtocol from './extHost.protocol.js';
 
 // --- adapter
 
@@ -2134,12 +2133,6 @@ class DocumentDropEditAdapter {
 	}
 }
 
-const reviveContextItem = (item: extHostProtocol.IDocumentContextItemDto) => ({
-	uri: URI.revive(item.uri),
-	version: item.version,
-	ranges: item.ranges.map(r => typeConvert.Range.to(r)),
-} satisfies vscode.DocumentContextItem);
-
 class MappedEditsAdapter {
 
 	constructor(
@@ -2156,6 +2149,14 @@ class MappedEditsAdapter {
 
 		const uri = URI.revive(resource);
 		const doc = this._documents.getDocument(uri);
+
+		const reviveContextItem = (item: extHostProtocol.IDocumentContextItemDto) => ({
+			uri: URI.revive(item.uri),
+			version: item.version,
+			ranges: item.ranges.map(r => typeConvert.Range.to(r)),
+		} satisfies vscode.DocumentContextItem);
+
+
 		const usedContext = context.documents.map(docSubArray => docSubArray.map(reviveContextItem));
 
 		const ctx = {
@@ -2221,9 +2222,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
 	}
-	$provideMappedEdits2(handle: number, request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | null> {
-		throw new Error('Method not implemented.');
-	}
+
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);

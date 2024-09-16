@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
-import { ICodeMapperProvider, ICodeMapperRequest, ICodeMapperResult, ICodeMapperService } from '../../contrib/chat/common/chatCodeMapperService.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { ICodeMapperProvider, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostCodeMapperShape, ExtHostContext, ICodeMapperProgressDto, MainContext, MainThreadCodeMapperShape } from '../common/extHost.protocol.js';
+import { ExtHostCodeMapperShape, ExtHostContext, ICodeMapperProgressDto, ICodeMapperRequestDto, MainContext, MainThreadCodeMapperShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadCodeMapper)
 export class MainThreadChatCodemapper extends Disposable implements MainThreadCodeMapperShape {
 
-	private providers = this._register(new DisposableMap<number, ICodeMapperProvider>());
+	private providers = this._register(new DisposableMap<number, IDisposable>());
 	private readonly _proxy: ExtHostCodeMapperShape;
 	private static _requestHandlePool: number = 0;
-	private static _requestHandleMap: Map<number, string> = new Map<number, string>();
+	private _responseMap = new Map<string, ICodeMapperResponse>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -23,22 +24,27 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCodeMapper);
 	}
-	$mapCode(request: ICodeMapperRequest, token: CancellationToken): Promise<ICodeMapperResult | null> {
-		throw new Error('Method not implemented.');
-	}
 
 	$registerCodeMapperProvider(handle: number): void {
-		const impl = {
-			mapCode: (request: ICodeMapperRequest, token: CancellationToken) => {
-				return this._proxy.$mapCode(handle, request, token).then((result) => result ?? undefined);
-			},
-			dispose: () => {
-				this.$unregisterCodeMapperProvider(handle);
+		const impl: ICodeMapperProvider = {
+			mapCode: (uiRequest: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken) => {
+				const requestId = String(MainThreadChatCodemapper._requestHandlePool++);
+				this._responseMap.set(requestId, response);
+				const extHostRequest: ICodeMapperRequestDto = {
+					requestId,
+					codeBlocks: uiRequest.codeBlocks,
+					conversation: uiRequest.conversation
+				};
+				try {
+					return this._proxy.$mapCode(handle, extHostRequest, token).then((result) => result ?? undefined);
+				} finally {
+					this._responseMap.delete(requestId);
+				}
 			}
 		};
 
-		this.codeMapperService.registerCodeMapperProvider(handle, impl);
-		this.providers.set(handle, impl);
+		const disposable = this.codeMapperService.registerCodeMapperProvider(handle, impl);
+		this.providers.set(handle, disposable);
 	}
 
 	$unregisterCodeMapperProvider(handle: number): void {
@@ -46,6 +52,13 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 	}
 
 	$handleProgress(requestId: string, data: ICodeMapperProgressDto): Promise<void> {
-		throw new Error('Method not implemented.');
+		const response = this._responseMap.get(requestId);
+		if (response) {
+			const resource = URI.revive(data.uri);
+			for (const edit of data.edits) {
+				response.textEdit(edit, resource);
+			}
+		}
+		return Promise.resolve();
 	}
 }
