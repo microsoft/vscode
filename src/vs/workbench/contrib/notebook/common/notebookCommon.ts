@@ -1021,6 +1021,7 @@ export const NotebookSetting = {
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
+	multiSelect: 'notebook.multiSelect.enabled',
 } as const;
 
 export const enum CellStatusbarAlignment {

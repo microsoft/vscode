@@ -1223,6 +1223,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
 			type: 'number',
 			default: 10000
-		}
+		},
+		[NotebookSetting.multiSelect]: {
+			markdownDescription: nls.localize('notebook.multiSelect.enabled', "Experimental. Enable multi-select across cells in the notebook editor."),
+			type: 'boolean',
+			default: false
+		},
 	}
 });

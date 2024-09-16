@@ -349,6 +349,10 @@ class WordHighlighter {
 		this._run();
 	}
 
+	public trigger() {
+		this._run(false, true); // immediate rendering (noDelay = true)
+	}
+
 	public stop(): void {
 		if (this.occurrencesHighlight === 'off') {
 			return;
@@ -608,7 +612,7 @@ class WordHighlighter {
 		return currentModels;
 	}
 
-	private async _run(multiFileConfigChange?: boolean): Promise<void> {
+	private async _run(multiFileConfigChange?: boolean, noDelay?: boolean): Promise<void> {
 
 		const hasTextFocus = this.editor.hasTextFocus();
 
@@ -711,7 +715,7 @@ class WordHighlighter {
 				if (myRequestId === this.workerRequestTokenId) {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
-					this._beginRenderDecorations();
+					this._beginRenderDecorations(!noDelay);
 				}
 			}, onUnexpectedError);
 		}
@@ -725,9 +729,9 @@ class WordHighlighter {
 		}
 	}
 
-	private _beginRenderDecorations(): void {
+	private _beginRenderDecorations(delay?: boolean): void {
 		const currentTime = (new Date()).getTime();
-		const minimumRenderTime = this.lastCursorPositionChangeTime + 250;
+		const minimumRenderTime = this.lastCursorPositionChangeTime + (delay ? 250 : 0);
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
