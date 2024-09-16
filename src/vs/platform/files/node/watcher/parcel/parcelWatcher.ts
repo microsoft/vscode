@@ -5,7 +5,7 @@
 
 import * as parcelWatcher from '@parcel/watcher';
 import * as parcelWatcher2 from '@bpasero/watcher';
-import { existsSync, statSync, unlinkSync } from 'fs';
+import { statSync, unlinkSync } from 'fs';
 import { tmpdir, homedir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
 import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
@@ -17,10 +17,9 @@ import { GLOBSTAR, patternsEquals } from '../../../../../base/common/glob.js';
 import { BaseWatcher } from '../baseWatcher.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
-import { dirname, normalize, join } from '../../../../../base/common/path.js';
+import { normalize, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { realcaseSync, realpathSync } from '../../../../../base/node/extpath.js';
-import { NodeJSFileWatcherLibrary } from '../nodejs/nodejsWatcherLib.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -542,7 +541,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		const filteredEvents: IFileChange[] = [];
 		let rootDeleted = false;
 
-		const filter = this.isCorrelated(watcher.request) ? watcher.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
+		const filter = this.isCorrelated(watcher.request) ? watcher.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 		for (const event of events) {
 
 			// Emit to instance subscriptions if any before filtering
@@ -552,20 +551,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			// Filtering
 			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
-			if (
-				isFiltered(event, filter) ||
-				// Explicitly exclude changes to root if we have any
-				// to avoid VS Code closing all opened editors which
-				// can happen e.g. in case of network connectivity
-				// issues
-				// (https://github.com/microsoft/vscode/issues/136673)
-				//
-				// Update 2024: with the new correlated events, we
-				// really do not want to skip over file events any
-				// more, so we only ignore this event for non-correlated
-				// watch requests.
-				(rootDeleted && !this.isCorrelated(watcher.request))
-			) {
+			if (isFiltered(event, filter)) {
 				if (this.verboseLogging) {
 					this.traceWithCorrelation(` >> ignored (filtered) ${event.resource.fsPath}`, watcher.request);
 				}
@@ -585,54 +571,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	private onWatchedPathDeleted(watcher: ParcelWatcherInstance): void {
 		this.warn('Watcher shutdown because watched path got deleted', watcher);
 
-		let legacyMonitored = false;
-		if (!this.isCorrelated(watcher.request)) {
-			// Do monitoring of the request path parent unless this request
-			// can be handled via suspend/resume in the super class
-			legacyMonitored = this.legacyMonitorRequest(watcher);
-		}
-
-		if (!legacyMonitored) {
-			watcher.notifyWatchFailed();
-			this._onDidWatchFail.fire(watcher.request);
-		}
-	}
-
-	private legacyMonitorRequest(watcher: ParcelWatcherInstance): boolean {
-		const parentPath = dirname(watcher.request.path);
-		if (existsSync(parentPath)) {
-			this.trace('Trying to watch on the parent path to restart the watcher...', watcher);
-
-			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false, correlationId: watcher.request.correlationId }, undefined, changes => {
-				if (watcher.token.isCancellationRequested) {
-					return; // return early when disposed
-				}
-
-				// Watcher path came back! Restart watching...
-				for (const { resource, type } of changes) {
-					if (isEqual(resource.fsPath, watcher.request.path, !isLinux) && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
-						if (this.isPathValid(watcher.request.path)) {
-							this.warn('Watcher restarts because watched path got created again', watcher);
-
-							// Stop watching that parent folder
-							nodeWatcher.dispose();
-
-							// Restart the file watching
-							this.restartWatching(watcher);
-
-							break;
-						}
-					}
-				}
-			}, undefined, msg => this._onDidLogMessage.fire(msg), this.verboseLogging);
-
-			// Make sure to stop watching when the watcher is disposed
-			watcher.token.onCancellationRequested(() => nodeWatcher.dispose());
-
-			return true;
-		}
-
-		return false;
+		watcher.notifyWatchFailed();
+		this._onDidWatchFail.fire(watcher.request);
 	}
 
 	private onUnexpectedError(error: unknown, request?: IRecursiveWatchRequest): void {
