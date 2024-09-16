@@ -79,7 +79,7 @@ export class ChatModelPickerAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
+					when: ContextKeyExpr.and(CONTEXT_HAS_DEFAULT_LANGUAGE_MODEL, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
 					group: 'navigation',
 				},
 			]

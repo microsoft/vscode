@@ -282,9 +282,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		this._providers.set(identifier, provider);
 		this._onDidChangeProviders.fire({ added: [{ identifier, metadata: provider.metadata }] });
-		if (provider.metadata.isDefault) {
-			this._hasDefaultModel.set(true);
-		}
+		// if (provider.metadata.isDefault) {
+		// }
+		this._hasDefaultModel.set(true);
 		return toDisposable(() => {
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });
