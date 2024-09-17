@@ -21,6 +21,7 @@ export interface IRawChatParticipantContribution {
 	fullName: string;
 	when?: string;
 	description?: string;
+	supportsModelPicker?: boolean;
 	isDefault?: boolean;
 	isSticky?: boolean;
 	sampleRequest?: string;
