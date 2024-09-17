@@ -593,7 +593,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				const pillImg = document.createElement('img');
 				pillImg.src = url;
-				pillImg.alt = 'Image description';
+				pillImg.alt = '';
 				pillImg.classList.add('chat-attached-context-pill-image');
 
 				pill.appendChild(pillImg);
