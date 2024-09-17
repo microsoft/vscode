@@ -11,7 +11,7 @@ import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOption
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
-import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
+import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
 import { CancelablePromise, createCancelablePromise, Promises, timeout } from '../../../common/async.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
@@ -509,13 +509,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	navigate(start?: T | TInput) {
-
-		if (start === undefined) {
-			return this.tree.navigate();
+		let startNode;
+		if (start) {
+			startNode = this.getDataNode(start);
 		}
-		const node = this.getDataNode(start);
-
-		return this.tree.navigate(node);
+		return new AsyncDataTreeNavigator(this.tree.navigate(startNode), this.root.element);
 	}
 
 	layout(height?: number, width?: number): void {
@@ -800,7 +798,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	// Implementation
 
-	private getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
+	protected getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
 		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get((element === this.root.element ? null : element) as T);
 
 		if (!node) {
@@ -1255,6 +1253,11 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		this.filter = options.filter;
 	}
 
+	getCompressedTreeNode(e: T | TInput) {
+		const node = this.getDataNode(e);
+		return this.tree.getCompressedTreeNode(node).element;
+	}
+
 	protected override createTree(
 		user: string,
 		container: HTMLElement,
@@ -1412,31 +1415,43 @@ function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>)
 	}
 }
 
-// export class AsyncDataTreeNavigator<TInput, T, TFilterData> implements ITreeNavigator<T> {
-// 	private navigator;
+export class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
 
-// 	constructor(tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>) {
-// 		this.navigator = tree.navigate();
-// 	}
+	constructor(private navigator: ITreeNavigator<IAsyncDataTreeNode<TInput, T> | null>, private root: TInput) { }
 
-// 	current(): T | null {
-// 		const current = this.navigator.current();
-// 		if (current instanceof TInput) {
-// 			return null;
-// 		}
-// 		return current;
-// 	}
-// 	previous(): T | null {
-// 		throw new Error('Method not implemented.');
-// 	}
-// 	first(): T | null {
-// 		throw new Error('Method not implemented.');
-// 	}
-// 	last(): T | null {
-// 		throw new Error('Method not implemented.');
-// 	}
-// 	next(): T | null {
-// 		throw new Error('Method not implemented.');
-// 	}
+	current(): T | null {
+		const current = this.navigator.current();
+		if (current?.element === this.root) {
+			return null;
+		}
+		// if it is not the root, it should not be of `TInput` type
+		return <T | null>current;
+	}
+	previous(): T | null {
+		const current = this.navigator.previous();
+		if (current?.element === this.root) {
+			return null;
+		}
+		return <T | null>current;
+	}
+	first(): T | null {
+		this.navigator.first();
+		// the first should be the root
+		return this.next();
+	}
+	last(): T | null {
+		const current = this.navigator.last();
+		if (current?.element === this.root) {
+			return null;
+		}
+		return <T | null>current;
+	}
+	next(): T | null {
+		const current = this.navigator.next();
+		if (current?.element === this.root) {
+			return this.next();
+		}
+		return <T | null>current;
+	}
 
-// }
+}

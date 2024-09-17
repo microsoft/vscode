@@ -359,6 +359,8 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
  */
 export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): RenderableMatch | undefined {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
+
+
 	if (element instanceof FolderMatch) {
 		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
 	} else if (element instanceof FileMatch) {

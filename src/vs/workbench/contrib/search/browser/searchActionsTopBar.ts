@@ -11,6 +11,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from './searchIcons.js';
 import * as Constants from '../common/constants.js';
 import { ISearchHistoryService } from '../common/searchHistoryService.js';
+import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult } from './searchModel.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -242,87 +243,87 @@ function refreshSearch(accessor: ServicesAccessor) {
 
 function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
-	// const viewsService = accessor.get(IViewsService);
-	// const searchView = getSearchView(viewsService);
-	// if (searchView) {
-	// 	const viewer = searchView.getControl();
+	const viewsService = accessor.get(IViewsService);
+	const searchView = getSearchView(viewsService);
+	if (searchView) {
+		const viewer = searchView.getControl();
 
-	// 	/**
-	// 	 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
-	// 	 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
-	// 	 */
-	// 	const navigator = viewer.navigate();
-	// 	let node = navigator.first();
-	// 	let canCollapseFileMatchLevel = false;
-	// 	let canCollapseFirstLevel = false;
+		/**
+		 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
+		 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
+		 */
+		const navigator = viewer.navigate();
+		let node = navigator.first();
+		let canCollapseFileMatchLevel = false;
+		let canCollapseFirstLevel = false;
 
-	// 	if (node instanceof FolderMatchWorkspaceRoot || searchView.isTreeLayoutViewVisible) {
-	// 		while (node = navigator.next()) {
-	// 			if (node instanceof Match) {
-	// 				canCollapseFileMatchLevel = true;
-	// 				break;
-	// 			}
-	// 			if (searchView.isTreeLayoutViewVisible && !canCollapseFirstLevel) {
-	// 				let nodeToTest = node;
+		if (node instanceof FolderMatchWorkspaceRoot || searchView.isTreeLayoutViewVisible) {
+			while (node = navigator.next()) {
+				if (node instanceof Match) {
+					canCollapseFileMatchLevel = true;
+					break;
+				}
+				if (searchView.isTreeLayoutViewVisible && !canCollapseFirstLevel) {
+					let nodeToTest = node;
 
-	// 				if (node instanceof FolderMatch) {
-	// 					const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
-	// 					// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-	// 					nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
-	// 				}
+					if (node instanceof FolderMatch) {
+						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
+						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
+					}
 
-	// 				const immediateParent = nodeToTest.parent();
+					const immediateParent = nodeToTest.parent();
 
-	// 				if (!(immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot || immediateParent instanceof SearchResult)) {
-	// 					canCollapseFirstLevel = true;
-	// 				}
-	// 			}
-	// 		}
-	// 	}
+					if (!(immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot || immediateParent instanceof SearchResult)) {
+						canCollapseFirstLevel = true;
+					}
+				}
+			}
+		}
 
-	// 	if (canCollapseFileMatchLevel) {
-	// 		node = navigator.first();
-	// 		do {
-	// 			if (node instanceof FileMatch) {
-	// 				viewer.collapse(node);
-	// 			}
-	// 		} while (node = navigator.next());
-	// 	} else if (canCollapseFirstLevel) {
-	// 		node = navigator.first();
-	// 		if (node) {
-	// 			do {
+		if (canCollapseFileMatchLevel) {
+			node = navigator.first();
+			do {
+				if (node instanceof FileMatch) {
+					viewer.collapse(node);
+				}
+			} while (node = navigator.next());
+		} else if (canCollapseFirstLevel) {
+			node = navigator.first();
+			if (node) {
+				do {
 
-	// 				let nodeToTest = node;
+					let nodeToTest = node;
 
-	// 				if (node instanceof FolderMatch) {
-	// 					const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
-	// 					// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-	// 					nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
-	// 				}
-	// 				const immediateParent = nodeToTest.parent();
+					if (node instanceof FolderMatch) {
+						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
+						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
+					}
+					const immediateParent = nodeToTest.parent();
 
-	// 				if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
-	// 					if (viewer.hasNode(node)) {
-	// 						viewer.collapse(node, true);
-	// 					} else {
-	// 						viewer.collapseAll();
-	// 					}
-	// 				}
-	// 			} while (node = navigator.next());
-	// 		}
-	// 	} else {
-	// 		viewer.collapseAll();
-	// 	}
+					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
+						if (viewer.hasNode(node)) {
+							viewer.collapse(node, true);
+						} else {
+							viewer.collapseAll();
+						}
+					}
+				} while (node = navigator.next());
+			}
+		} else {
+			viewer.collapseAll();
+		}
 
-	// 	const firstFocusParent = viewer.getFocus()[0]?.parent();
+		const firstFocusParent = viewer.getFocus()[0]?.parent();
 
-	// 	if (firstFocusParent && (firstFocusParent instanceof FolderMatch || firstFocusParent instanceof FileMatch) &&
-	// 		viewer.hasNode(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
-	// 		viewer.domFocus();
-	// 		viewer.focusFirst();
-	// 		viewer.setSelection(viewer.getFocus());
-	// 	}
-	// }
+		if (firstFocusParent && (firstFocusParent instanceof FolderMatch || firstFocusParent instanceof FileMatch) &&
+			viewer.hasNode(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
+			viewer.domFocus();
+			viewer.focusFirst();
+			viewer.setSelection(viewer.getFocus());
+		}
+	}
 }
 
 //#endregion

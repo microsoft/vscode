@@ -1003,7 +1003,8 @@ export class SearchView extends ViewPane {
 			const focus = this.tree.getFocus()[0];
 
 			if (this.tree.isDOMFocused()) {
-				this.firstMatchFocused.set(this.tree.navigate().first()?.element === focus);
+				const firstElem = this.tree.getFirstElementChild(this.tree.getInput());
+				this.firstMatchFocused.set(firstElem === focus);
 				this.fileMatchOrMatchFocused.set(!!focus);
 				this.fileMatchFocused.set(focus instanceof FileMatch);
 				this.folderMatchFocused.set(focus instanceof FolderMatch);
@@ -1057,7 +1058,7 @@ export class SearchView extends ViewPane {
 		const navigator = viewer.navigate();
 		let node = navigator.first();
 		do {
-			if (node && !viewer.isCollapsed(node.element)) {
+			if (node && !viewer.isCollapsed(node)) {
 				return true;
 			}
 		} while (node = navigator.next());
@@ -1088,8 +1089,8 @@ export class SearchView extends ViewPane {
 
 		// Expand until first child is a Match
 		while (next && !(next instanceof Match)) {
-			if (this.tree.isCollapsed(next.element) && !(next.element instanceof SearchResult)) {
-				this.tree.expand(next.element);
+			if (this.tree.isCollapsed(next)) {
+				this.tree.expand(next);
 			}
 
 			// Select the first child
@@ -1121,7 +1122,7 @@ export class SearchView extends ViewPane {
 		let prev = navigator.previous();
 
 		// Select previous until find a Match or a collapsed item
-		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev.element))) {
+		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
 			const nextPrev = prev ? navigator.previous() : navigator.last();
 
 			if (!prev && !nextPrev) {
@@ -1132,36 +1133,27 @@ export class SearchView extends ViewPane {
 		}
 
 		// Expand until last child is a Match
-		while (!(prev instanceof Match)) {
+		while (prev && !(prev instanceof Match)) {
 			const nextItem = navigator.next();
-			if (prev) {
-				const elem = prev.element;
-				if (elem instanceof SearchResult) {
-					break;
-				} else {
-					this.tree.expand(elem);
-				}
+			if (!nextItem) {
+				break;
 			}
-			navigator = this.tree.navigate(nextItem?.element); // recreate navigator because modifying the tree can invalidate it
+			this.tree.expand(prev);
+			navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
 			prev = nextItem ? navigator.previous() : navigator.last(); // select last child
 		}
 
 		// Reveal the newly selected element
 		if (prev) {
-			if (prev.element === selected) {
+			if (prev === selected) {
 				this.tree.setFocus([]);
 			}
 			const event = getSelectionKeyboardEvent(undefined, false, false);
-			if (prev) {
-				const prevElem = prev.element;
-				if (!(prevElem instanceof SearchResult)) {
-					this.tree.setFocus([prevElem], event);
-					this.tree.setSelection([prevElem], event);
-					this.tree.reveal(prevElem);
-					const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prevElem);
-					if (ariaLabel) { aria.status(ariaLabel); }
-				}
-			}
+			this.tree.setFocus([prev], event);
+			this.tree.setSelection([prev], event);
+			this.tree.reveal(prev);
+			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
+			if (ariaLabel) { aria.status(ariaLabel); }
 		}
 	}
 
