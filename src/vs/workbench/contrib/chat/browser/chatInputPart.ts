@@ -62,6 +62,7 @@ import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { index } from '../../../../base/common/arrays.js';
 
 const $ = dom.$;
 
@@ -580,66 +581,64 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
 			} else if (attachment.isImage) {
-				let buffer: ArrayBuffer;
+				let buffer = new Uint8Array(0);
 				if (attachment.value instanceof URI) {
 					const readFile = await this.fileService.readFile(attachment.value);
 					buffer = readFile.value.buffer;
 				} else {
-					buffer = attachment.value as ArrayBuffer;
+					buffer = attachment.value as Uint8Array;
 				}
 
-				// if we can create an image from the buffer, show it
-				if (buffer) {
-					const blob = new Blob([buffer], { type: 'image/png' });
-					const url = URL.createObjectURL(blob);
+				const blob = new Blob([buffer], { type: 'image/png' });
+				const url = URL.createObjectURL(blob);
 
-					const img = document.createElement('img');
-					img.classList.add('chat-attached-context-image');
-					img.src = url;
-					img.alt = '';
+				const img = document.createElement('img');
+				img.classList.add('chat-attached-context-image');
+				img.src = url;
+				img.alt = '';
 
-					// Pill with tiny image
-					const pill = document.createElement('div');
-					pill.classList.add('chat-attached-context-pill');
+				// Pill with tiny image
+				const pill = document.createElement('div');
+				pill.classList.add('chat-attached-context-pill');
 
-					const pillImg = document.createElement('img');
-					pillImg.src = url;
-					pillImg.alt = '';
-					pillImg.classList.add('chat-attached-context-pill-image');
+				const pillImg = document.createElement('img');
+				pillImg.src = url;
+				pillImg.alt = '';
+				pillImg.classList.add('chat-attached-context-pill-image');
 
-					pill.appendChild(pillImg);
+				pill.appendChild(pillImg);
 
-					// Custom label
-					const textLabel = document.createElement('span');
-					textLabel.textContent = attachment.name;
-					textLabel.classList.add('chat-attached-context-custom-text');
+				// Custom label
+				const textLabel = document.createElement('span');
+				textLabel.textContent = attachment.name;
+				textLabel.classList.add('chat-attached-context-custom-text');
 
 
-					widget.style.position = 'relative';
-					widget.appendChild(pill);
-					widget.appendChild(textLabel);
+				widget.style.position = 'relative';
+				widget.appendChild(pill);
+				widget.appendChild(textLabel);
 
-					const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
-					widget.ariaLabel = ariaLabel;
-					widget.tabIndex = 0;
+				widget.ariaLabel = ariaLabel;
+				widget.tabIndex = 0;
 
-					// Hover
-					const hoverElement = document.createElement('div');
-					hoverElement.appendChild(img);
-					hoverElement.classList.add('chat-attached-context-hover');
-					hoverElement.setAttribute('aria-label', ariaLabel);
+				// Hover
+				const hoverElement = document.createElement('div');
+				hoverElement.appendChild(img);
+				hoverElement.classList.add('chat-attached-context-hover');
+				hoverElement.setAttribute('aria-label', ariaLabel);
 
-					this._register(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
+				this._register(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
 
-					// No delay for keyboard
-					this._register(dom.addDisposableListener(widget, 'keydown', (event) => {
-						const keyboardEvent = new StandardKeyboardEvent(event);
-						if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
-							this.hoverService.showManagedHover(widget);
-						}
-					}));
-				}
+				// No delay for keyboard
+				this._register(dom.addDisposableListener(widget, 'keydown', (event) => {
+					const keyboardEvent = new StandardKeyboardEvent(event);
+					if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
+						this.hoverService.showManagedHover(widget);
+					}
+				}));
+
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
