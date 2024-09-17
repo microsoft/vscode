@@ -56,6 +56,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 	getTerminalById(id: number): ExtHostTerminal | null;
 	getTerminalIdByApiObject(apiTerminal: vscode.Terminal): number | null;
+	registerTerminalCompletionProvider<T extends vscode.TerminalCompletion>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable;
 }
 
 interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
@@ -397,6 +398,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
+	private readonly _completionProviders: Map<string, vscode.TerminalCompletionProvider<vscode.TerminalCompletion>> = new Map();
 	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
 	private readonly _quickFixProviders: Map<string, vscode.TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
@@ -729,6 +731,18 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			if (this._linkProviders.size === 0) {
 				this._proxy.$stopLinkProvider();
 			}
+		});
+	}
+
+	public registerTerminalCompletionProvider<T extends vscode.TerminalCompletion>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable {
+		if (this._completionProviders.has(provider.id)) {
+			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
+		}
+		this._completionProviders.set(provider.id, provider);
+		this._proxy.$registerProfileProvider(provider.id, extension.identifier.value);
+		return new VSCodeDisposable(() => {
+			this._completionProviders.delete(provider.id);
+			this._proxy.$unregisterProfileProvider(provider.id);
 		});
 	}
 

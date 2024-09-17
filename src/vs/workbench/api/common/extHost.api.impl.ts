@@ -835,6 +835,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTerminalProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 				return extHostTerminalService.registerProfileProvider(extension, id, provider);
 			},
+			registerTerminalCompletionProvider<T extends vscode.TerminalCompletion>(provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable {
+				// check proposed api
+				checkProposedApiEnabled(extension, 'terminalCompletionProvider');
+				return extHostTerminalService.registerTerminalCompletionProvider(extension, provider);
+			},
 			registerTerminalQuickFixProvider(id: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'terminalQuickFixProvider');
 				return extHostTerminalService.registerTerminalQuickFixProvider(id, extension.identifier.value, provider);
@@ -1655,6 +1660,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TerminalProfile: extHostTypes.TerminalProfile,
 			TerminalExitReason: extHostTypes.TerminalExitReason,
 			TerminalShellExecutionCommandLineConfidence: extHostTypes.TerminalShellExecutionCommandLineConfidence,
+			TerminalCompletionItem: extHostTypes.TerminalCompletionItem,
+			TerminalCompletionContext: extHostTypes.TerminalCompletionContext,
+			TerminalCompletionItemKind: extHostTypes.TerminalCompletionItemKind,
+			TerminalCompletion: extHostTypes.TerminalCompletion,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
