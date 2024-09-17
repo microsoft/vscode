@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
+import { ViewEventHandler } from '../../common/viewEventHandler.js';
+import type { ViewScrollChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { GPULifecycle } from './gpuDisposable.js';
@@ -24,7 +25,7 @@ export type RectangleRendererEntrySpec = [
 	{ name: 'alpha' },
 ];
 
-export class RectangleRenderer extends Disposable {
+export class RectangleRenderer extends ViewEventHandler {
 
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
@@ -39,6 +40,7 @@ export class RectangleRenderer extends Disposable {
 	private _scrollOffsetValueBuffer!: Float32Array;
 
 	private _initialized: boolean = false;
+	private _scrollChanged: boolean = true;
 
 	private readonly _shapeCollection: IObjectCollectionBuffer<RectangleRendererEntrySpec> = this._register(createObjectCollectionBuffer([
 		{ name: 'x' },
@@ -58,6 +60,8 @@ export class RectangleRenderer extends Disposable {
 		device: Promise<GPUDevice>,
 	) {
 		super();
+
+		this._context.addEventHandler(this);
 
 		this._initWebgpu(device);
 	}
@@ -224,19 +228,26 @@ export class RectangleRenderer extends Disposable {
 		return this._shapeCollection.createEntry({ x, y, width, height, red, green, blue, alpha });
 	}
 
+	// --- begin event handlers
+
+	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
+		this._scrollChanged = true;
+		return super.onScrollChanged(e);
+	}
+
+	// --- end event handlers
+
 	private _update() {
 		// TODO: Only write dirty range
 		this._device.queue.writeBuffer(this._shapeBindBuffer, 0, this._shapeCollection.buffer);
 
-		// TODO: Only update on scroll change
 		// Update scroll offset
-		const scrollLeft = this._context.viewLayout.getCurrentScrollLeft() * getActiveWindow().devicePixelRatio;
-		const scrollTop = this._context.viewLayout.getCurrentScrollTop() * getActiveWindow().devicePixelRatio;
-		// TODO: Double buffer?
-		const scrollOffsetBuffer = this._scrollOffsetValueBuffer;
-		scrollOffsetBuffer[0] = scrollLeft;
-		scrollOffsetBuffer[1] = scrollTop;
-		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
+		if (this._scrollChanged) {
+			const dpr = getActiveWindow().devicePixelRatio;
+			this._scrollOffsetValueBuffer[0] = this._context.viewLayout.getCurrentScrollLeft() * dpr;
+			this._scrollOffsetValueBuffer[1] = this._context.viewLayout.getCurrentScrollTop() * dpr;
+			this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		}
 	}
 
 	draw(viewportData: ViewportData) {
