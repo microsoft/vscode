@@ -299,6 +299,7 @@ export class InputBox extends Widget {
 	}
 
 	public select(range: IRange | null = null): void {
+		console.log('select');
 		this.input.select();
 
 		if (range) {

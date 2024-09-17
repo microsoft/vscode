@@ -15,22 +15,29 @@ export interface ITypeData {
 
 export class FocusTracker extends Disposable {
 	private _isFocused: boolean = false;
-	private _shouldHandleFocus: boolean = true;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
 		private readonly _onFocusChange: (newFocusValue: boolean) => void,
 	) {
 		super();
-		this._register(addDisposableListener(this._domNode, 'focus', () => this._handleFocusedChanged(true)));
-		this._register(addDisposableListener(this._domNode, 'blur', () => this._handleFocusedChanged(false)));
+		this._register(addDisposableListener(this._domNode, 'focus', () => {
+			console.log('on focus of FocusTracker');
+			this._handleFocusedChanged(true);
+		}));
+		this._register(addDisposableListener(this._domNode, 'blur', () => {
+			console.log('on blur of FocusTracker');
+			this._handleFocusedChanged(false);
+		}));
 	}
 
 	private _handleFocusedChanged(focused: boolean): void {
 		console.log('_handleFocusedChanges, focused : ', focused);
-		if (this._isFocused === focused || !this._shouldHandleFocus) {
+		console.log('document.activeElement : ', getActiveElement());
+		if (this._isFocused === focused) {
 			return;
 		}
+		console.log('after early return');
 		this._isFocused = focused;
 		this._onFocusChange(this._isFocused);
 	}
@@ -44,29 +51,14 @@ export class FocusTracker extends Disposable {
 	}
 
 	public refreshFocusState(): void {
-		console.log('refresh focus state of focus tracker');
+		console.log('refreshFocusState of FocusTracker');
 		const isFocused = getActiveElement() === this._domNode;
 		console.log('isFocused : ', isFocused);
-
-		if (!isFocused) {
-			console.log('before focus then blur 1');
-			this._domNode.focus();
-			this._domNode.blur();
-		}
 		this._handleFocusedChanged(isFocused);
-		if (!isFocused) {
-			console.log('before focus then blur 2');
-			this._domNode.focus();
-			this._domNode.blur();
-		}
 	}
 
 	get isFocused(): boolean {
 		return this._isFocused;
-	}
-
-	override dispose(): void {
-		super.dispose();
 	}
 }
 

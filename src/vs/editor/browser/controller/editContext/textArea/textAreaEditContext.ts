@@ -449,10 +449,12 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {
+			console.log('onFocus of TextAreaEditContext');
 			this._context.viewModel.setHasFocus(true);
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
+			console.log('onBlur of TextAreaEditContext');
 			this._context.viewModel.setHasFocus(false);
 		}));
 

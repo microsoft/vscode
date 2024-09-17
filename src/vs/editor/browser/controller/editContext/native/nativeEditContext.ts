@@ -57,16 +57,15 @@ export class NativeEditContext extends AbstractEditContext {
 		this._updateDomAttributes();
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			console.log('inside of focus tracker handker');
+			console.log('inside of focus tracker handler');
 			console.log('document.activeElement : ', getActiveElement());
 			console.log('this._editContext : ', this._editContext);
-
 			console.log('newFocusValue : ', newFocusValue);
-			// how to explicitly blur instead of letting dom blur it
-			// find where the new dom node is created and explicitly blur it
+
 			this._context.viewModel.setHasFocus(newFocusValue);
 
-			// look at the code executed with and without this, there seems to be a differecne
+			console.log('this._editContext.attachedElements : ', this._editContext.attachedElements());
+			// look at the code executed with and without this, there seems to be a difference?
 			// if (!newFocusValue) {
 			// 	this.domNode.domNode.focus();
 			// 	this.domNode.domNode.blur();
@@ -107,6 +106,12 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
 			console.log('text update event e : ', e);
 			console.log('document.activeElement : ', getActiveElement());
+			console.log('this.domNode.domNode : ', this.domNode.domNode);
+			const activeElement = getActiveElement();
+			if (activeElement !== this.domNode.domNode) {
+				this.domNode.domNode.blur();
+				return;
+			}
 			const compositionRangeWithinEditor = this._compositionRangeWithinEditor;
 			if (compositionRangeWithinEditor) {
 				const position = this._context.viewModel.getPrimaryCursorState().modelState.position;
@@ -138,6 +143,7 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Public methods ---
 
 	public override dispose(): void {
+		console.log('dispose of NativeEditContext');
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		super.dispose();
