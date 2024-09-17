@@ -6,11 +6,12 @@
 
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent } from './util';
 import { toGitUri } from './uri';
 import { Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit } from './git';
+import { OperationKind, OperationResult } from './operation';
 
 function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
 	switch (ref.type) {
@@ -71,13 +72,15 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private disposables: Disposable[] = [];
 
 	constructor(protected readonly repository: Repository, private readonly logger: LogOutputChannel) {
-		this.disposables.push(repository.onDidRunGitStatus(() => this.onDidRunGitStatus(), this));
+		const onDidRunWriteOperation = filterEvent(repository.onDidRunOperation, e => !e.operation.readOnly);
+		this.disposables.push(onDidRunWriteOperation(this.onDidRunWriteOperation, this));
+
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
-	private async onDidRunGitStatus(): Promise<void> {
+	private async onDidRunWriteOperation(result: OperationResult): Promise<void> {
 		if (!this.repository.HEAD) {
-			this.logger.trace('[GitHistoryProvider][onDidRunGitStatus] repository.HEAD is undefined');
+			this.logger.trace('[GitHistoryProvider][onDidRunWriteOperation] repository.HEAD is undefined');
 			this._currentHistoryItemRef = this._currentHistoryItemRemoteRef = this._currentHistoryItemBaseRef = undefined;
 			this._onDidChangeCurrentHistoryItemRefs.fire();
 
@@ -111,7 +114,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 								mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
 							id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
 							name: `${mergeBase.remote}/${mergeBase.name}`,
-							revision: mergeBase.commit
+							revision: mergeBase.commit,
+							icon: new ThemeIcon('cloud')
 						} : undefined;
 					}
 				} else {
@@ -145,24 +149,29 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		};
 
 		this._onDidChangeCurrentHistoryItemRefs.fire();
-		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemRef: ${JSON.stringify(this._currentHistoryItemRef)}`);
-		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemRemoteRef: ${JSON.stringify(this._currentHistoryItemRemoteRef)}`);
-		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] currentHistoryItemBaseRef: ${JSON.stringify(this._currentHistoryItemBaseRef)}`);
+		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] currentHistoryItemRef: ${JSON.stringify(this._currentHistoryItemRef)}`);
+		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] currentHistoryItemRemoteRef: ${JSON.stringify(this._currentHistoryItemRemoteRef)}`);
+		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] currentHistoryItemBaseRef: ${JSON.stringify(this._currentHistoryItemBaseRef)}`);
 
 		// Refs (alphabetically)
-		const refs = await this.repository.getRefs({ sort: 'alphabetically' });
-		const historyItemRefs = refs.map(ref => toSourceControlHistoryItemRef(ref));
+		const historyItemRefs = this.repository.refs
+			.map(ref => toSourceControlHistoryItemRef(ref))
+			.sort((a, b) => a.id.localeCompare(b.id));
 
+		// Auto-fetch
+		const silent = result.operation.kind === OperationKind.Fetch && result.operation.showProgress === false;
 		const delta = deltaHistoryItemRefs(this.historyItemRefs, historyItemRefs);
-		this._onDidChangeHistoryItemRefs.fire(delta);
+		this._onDidChangeHistoryItemRefs.fire({ ...delta, silent });
+
 		this.historyItemRefs = historyItemRefs;
 
 		const deltaLog = {
 			added: delta.added.map(ref => ref.id),
 			modified: delta.modified.map(ref => ref.id),
-			removed: delta.removed.map(ref => ref.id)
+			removed: delta.removed.map(ref => ref.id),
+			silent
 		};
-		this.logger.trace(`[GitHistoryProvider][onDidRunGitStatus] historyItemRefs: ${JSON.stringify(deltaLog)}`);
+		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] historyItemRefs: ${JSON.stringify(deltaLog)}`);
 	}
 
 	async provideHistoryItemRefs(): Promise<SourceControlHistoryItemRef[]> {
@@ -194,8 +203,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return [];
 		}
 
-		// Deduplicate refNames
-		const refNames = Array.from(new Set<string>(options.historyItemRefs));
+		// Deduplicate refNames and truncate them to 10 characters
+		const refNames = Array.from(new Set<string>(options.historyItemRefs))
+			.map(ref => ref.substring(0, 10));
 
 		let logOptions: LogOptions = { refNames, shortStats: true };
 
@@ -219,7 +229,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			await ensureEmojis();
 
 			return commits.map(commit => {
-				const references = this.resolveHistoryItemRefs(commit);
+				const references = this._resolveHistoryItemRefs(commit);
 
 				return {
 					id: commit.hash,
@@ -312,7 +322,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRef[] {
+	private _resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRef[] {
 		const references: SourceControlHistoryItemRef[] = [];
 
 		for (const ref of commit.refNames) {

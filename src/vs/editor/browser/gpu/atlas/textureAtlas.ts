@@ -5,16 +5,16 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { CharCode } from '../../../../base/common/charCode.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { TwoKeyMap } from '../../../../base/common/map.js';
+import { ThreeKeyMap } from '../../../../base/common/map.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
 import { GlyphRasterizer } from '../raster/glyphRasterizer.js';
 import type { IGlyphRasterizer } from '../raster/raster.js';
 import { IdleTaskQueue } from '../taskQueue.js';
-import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph } from './atlas.js';
+import type { IReadableTextureAtlasPage, ITextureAtlasPageGlyph, GlyphMap } from './atlas.js';
 import { AllocatorType, TextureAtlasPage } from './textureAtlasPage.js';
 
 export interface ITextureAtlasOptions {
@@ -43,7 +43,10 @@ export class TextureAtlas extends Disposable {
 	 * so it is not guaranteed to be the actual page the glyph is on. But it is guaranteed that all
 	 * pages with a lower index do not contain the glyph.
 	 */
-	private readonly _glyphPageIndex: TwoKeyMap<string, number, number> = new TwoKeyMap();
+	private readonly _glyphPageIndex: GlyphMap<number> = new ThreeKeyMap();
+
+	private readonly _onDidDeleteGlyphs = this._register(new Emitter<void>());
+	readonly onDidDeleteGlyphs = this._onDidDeleteGlyphs.event;
 
 	constructor(
 		/** The maximum texture size supported by the GPU. */
@@ -64,6 +67,12 @@ export class TextureAtlas extends Disposable {
 		const dprFactor = Math.max(1, Math.floor(getActiveWindow().devicePixelRatio));
 
 		this.pageSize = Math.min(1024 * dprFactor, this._maxTextureSize);
+		this._initFirstPage();
+
+		this._register(toDisposable(() => dispose(this._pages)));
+	}
+
+	private _initFirstPage() {
 		const firstPage = this._instantiationService.createInstance(TextureAtlasPage, 0, this.pageSize, this._allocatorType);
 		this._pages.push(firstPage);
 
@@ -73,11 +82,26 @@ export class TextureAtlas extends Disposable {
 		const nullRasterizer = new GlyphRasterizer(1, '');
 		firstPage.getGlyph(nullRasterizer, '', 0);
 		nullRasterizer.dispose();
-
-		this._register(toDisposable(() => dispose(this._pages)));
 	}
 
-	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+	clear() {
+		// Clear all pages
+		for (const page of this._pages) {
+			page.dispose();
+		}
+		this._pages.length = 0;
+		this._glyphPageIndex.clear();
+		this._warmedUpRasterizers.clear();
+		this._warmUpTask.clear();
+
+		// Recreate first
+		this._initFirstPage();
+
+		// Tell listeners
+		this._onDidDeleteGlyphs.fire();
+	}
+
+	getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Encode font size and family into key
 		// Ignore metadata that doesn't affect the glyph
 		metadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
@@ -89,11 +113,11 @@ export class TextureAtlas extends Disposable {
 		}
 
 		// Try get the glyph, overflowing to a new page if necessary
-		return this._tryGetGlyph(this._glyphPageIndex.get(chars, metadata) ?? 0, rasterizer, chars, metadata);
+		return this._tryGetGlyph(this._glyphPageIndex.get(chars, metadata, rasterizer.cacheKey) ?? 0, rasterizer, chars, metadata);
 	}
 
 	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
-		this._glyphPageIndex.set(chars, metadata, pageIndex);
+		this._glyphPageIndex.set(chars, metadata, rasterizer.cacheKey, pageIndex);
 		return (
 			this._pages[pageIndex].getGlyph(rasterizer, chars, metadata)
 			?? (pageIndex + 1 < this._pages.length
@@ -106,7 +130,7 @@ export class TextureAtlas extends Disposable {
 	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Support more than 2 pages and the GPU texture layer limit
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, this._allocatorType));
-		this._glyphPageIndex.set(chars, metadata, this._pages.length - 1);
+		this._glyphPageIndex.set(chars, metadata, rasterizer.cacheKey, this._pages.length - 1);
 		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, metadata)!;
 	}
 

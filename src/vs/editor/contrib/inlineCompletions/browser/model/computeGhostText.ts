@@ -4,31 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffChange, LcsDiff } from '../../../../../base/common/diff/diff.js';
-import { commonPrefixLength, getLeadingWhitespace } from '../../../../../base/common/strings.js';
+import { getLeadingWhitespace } from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextLength } from '../../../../common/core/textLength.js';
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
-import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
+import { ITextModel } from '../../../../common/model.js';
 import { GhostText, GhostTextPart } from './ghostText.js';
-
-export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextModel, validModelRange?: Range): SingleTextEdit {
-	const modelRange = validModelRange ? edit.range.intersectRanges(validModelRange) : edit.range;
-	if (!modelRange) {
-		return edit;
-	}
-	const valueToReplace = model.getValueInRange(modelRange, EndOfLinePreference.LF);
-	const commonPrefixLen = commonPrefixLength(valueToReplace, edit.text);
-	const start = TextLength.ofText(valueToReplace.substring(0, commonPrefixLen)).addToPosition(edit.range.getStartPosition());
-	const text = edit.text.substring(commonPrefixLen);
-	const range = Range.fromPositions(start, edit.range.getEndPosition());
-	return new SingleTextEdit(range, text);
-}
-
-export function singleTextEditAugments(edit: SingleTextEdit, base: SingleTextEdit): boolean {
-	// The augmented completion must replace the base range, but can replace even more
-	return edit.text.startsWith(base.text) && rangeExtends(edit.range, base.range);
-}
+import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 /**
  * @param previewSuffixLength Sets where to split `inlineCompletion.text`.
@@ -58,27 +40,23 @@ export function computeGhostText(
 		//              ^^^^^^^^^^ ^^^^^^ sourceIndentationLength
 		//                         ^^^^^^ replacedIndentation.length
 		//                               ^^^ rangeThatDoesNotReplaceIndentation
-
 		// inlineCompletion.text: '··foo'
 		//                         ^^ suggestionAddedIndentationLength
-
 		const suggestionAddedIndentationLength = getLeadingWhitespace(e.text).length;
 
 		const replacedIndentation = sourceLine.substring(e.range.startColumn - 1, sourceIndentationLength);
 
 		const [startPosition, endPosition] = [e.range.getStartPosition(), e.range.getEndPosition()];
-		const newStartPosition =
-			startPosition.column + replacedIndentation.length <= endPosition.column
-				? startPosition.delta(0, replacedIndentation.length)
-				: endPosition;
+		const newStartPosition = startPosition.column + replacedIndentation.length <= endPosition.column
+			? startPosition.delta(0, replacedIndentation.length)
+			: endPosition;
 		const rangeThatDoesNotReplaceIndentation = Range.fromPositions(newStartPosition, endPosition);
 
-		const suggestionWithoutIndentationChange =
-			e.text.startsWith(replacedIndentation)
-				// Adds more indentation without changing existing indentation: We can add ghost text for this
-				? e.text.substring(replacedIndentation.length)
-				// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
-				: e.text.substring(suggestionAddedIndentationLength);
+		const suggestionWithoutIndentationChange = e.text.startsWith(replacedIndentation)
+			// Adds more indentation without changing existing indentation: We can add ghost text for this
+			? e.text.substring(replacedIndentation.length)
+			// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
+			: e.text.substring(suggestionAddedIndentationLength);
 
 		e = new SingleTextEdit(rangeThatDoesNotReplaceIndentation, suggestionWithoutIndentationChange);
 	}
@@ -137,11 +115,6 @@ export function computeGhostText(
 	}
 
 	return new GhostText(lineNumber, parts);
-}
-
-function rangeExtends(extendingRange: Range, rangeToExtend: Range): boolean {
-	return rangeToExtend.getStartPosition().equals(extendingRange.getStartPosition())
-		&& rangeToExtend.getEndPosition().isBeforeOrEqual(extendingRange.getEndPosition());
 }
 
 let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[] | undefined } | undefined = undefined;

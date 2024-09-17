@@ -252,6 +252,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		});
  */
 		return {
+			metadataChanged: JSON.stringify(original.metadata) !== JSON.stringify(modified.metadata),
 			cellsDiff: diffResult,
 			// linesDiff: cellLineChanges
 		};

@@ -289,7 +289,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	readonly isEmbedded: boolean;
 	private _readOnly: boolean;
-	private readonly _inRepl: boolean;
 
 	public readonly scopedContextKeyService: IContextKeyService;
 	private readonly instantiationService: IInstantiationService;
@@ -327,7 +326,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
-		this._inRepl = creationOptions.forRepl ?? false;
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
@@ -1142,11 +1140,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.scopedContextKeyService.updateParent(parentContextKeyService);
 	}
 
-	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks): Promise<void> {
+	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks, viewType?: string): Promise<void> {
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
 			const oldBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 			this._detachModel();
-			await this._attachModel(textModel, viewState, perf);
+			await this._attachModel(textModel, viewType ?? textModel.viewType, viewState, perf);
 			const newBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 			if (oldBottomToolbarDimensions.bottomToolbarGap !== newBottomToolbarDimensions.bottomToolbarGap
@@ -1452,10 +1450,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.attachWebview(this._webview.element);
 	}
 
-	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
+	private async _attachModel(textModel: NotebookTextModel, viewType: string, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
 		this._ensureWebview(this.getId(), textModel.viewType, textModel.uri);
 
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly, inRepl: this._inRepl });
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		this.notebookOptions.updateOptions(this._readOnly);
 

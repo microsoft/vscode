@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { MainThreadTunnelServiceShape, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesSelector, TunnelDto } from '../common/extHost.protocol.js';
 import { TunnelDtoConverter } from '../common/extHostTunnelService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { IRemoteExplorerService, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT } from '../../services/remote/common/remoteExplorerService.js';
+import { IRemoteExplorerService, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PortsEnablement } from '../../services/remote/common/remoteExplorerService.js';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from '../../../platform/tunnel/common/tunnel.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { TunnelDescription } from '../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -19,7 +19,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { CandidatePort, TunnelCloseReason, TunnelSource, forwardedPortsViewEnabled, makeAddress } from '../../services/remote/common/tunnelModel.js';
+import { CandidatePort, TunnelCloseReason, TunnelSource, forwardedPortsFeaturesEnabled, makeAddress } from '../../services/remote/common/tunnelModel.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
@@ -50,18 +50,18 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 
 	async $setRemoteTunnelService(processId: number): Promise<void> {
 		this.remoteExplorerService.namedProcesses.set(processId, 'Code Extension Host');
-		if (this.remoteExplorerService.portsFeaturesEnabled) {
+		if (this.remoteExplorerService.portsFeaturesEnabled === PortsEnablement.AdditionalFeatures) {
 			this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 		} else {
 			this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder(this.processFindingEnabled())));
 		}
 		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (this.remoteExplorerService.portsFeaturesEnabled && (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING))) {
+			if ((this.remoteExplorerService.portsFeaturesEnabled === PortsEnablement.AdditionalFeatures) && (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING))) {
 				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 			}
 		}));
 		this._register(this.tunnelService.onAddedTunnelProvider(async () => {
-			if (this.remoteExplorerService.portsFeaturesEnabled) {
+			if (this.remoteExplorerService.portsFeaturesEnabled === PortsEnablement.AdditionalFeatures) {
 				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 			}
 		}));
@@ -168,7 +168,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this.remoteExplorerService.onFoundNewCandidates(candidates);
 	}
 
-	async $setTunnelProvider(features?: TunnelProviderFeatures): Promise<void> {
+	async $setTunnelProvider(features: TunnelProviderFeatures | undefined, isResolver: boolean): Promise<void> {
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
@@ -202,7 +202,9 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		}
 		this.tunnelService.setTunnelProvider(tunnelProvider);
 		// At this point we clearly want the ports view/features since we have a tunnel factory
-		this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
+		if (isResolver) {
+			this.contextKeyService.createKey(forwardedPortsFeaturesEnabled.key, true);
+		}
 	}
 
 	async $setCandidateFilter(): Promise<void> {

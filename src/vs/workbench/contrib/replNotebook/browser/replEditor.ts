@@ -362,7 +362,6 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, input, {
 			isEmbedded: true,
 			isReadOnly: true,
-			forRepl: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
 				TimerCellStatusBarContrib.id,
@@ -431,7 +430,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		await this._notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
+		await this._notebookWidget.value!.setModel(model.notebook, viewState?.notebook, undefined, 'repl');
 		model.notebook.setCellCollapseDefault(this._notebookOptions.getCellCollapseDefault());
 		this._notebookWidget.value!.setOptions({
 			isReadOnly: true

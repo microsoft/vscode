@@ -875,6 +875,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.preceedingContentParts.reduce((acc, part) => acc + (part instanceof ChatMarkdownContentPart ? part.codeblocks.length : 0), 0);
 		const markdownPart = this.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, this.rendererOptions);
+		const markdownPartId = markdownPart.id;
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
 			markdownPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);
@@ -885,7 +886,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		markdownPart.addDisposable(toDisposable(() => {
 			const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id);
 			if (codeBlocksByResponseId) {
-				markdownPart.codeblocks.forEach((info, i) => delete codeBlocksByResponseId[codeBlockStartIndex + i]);
+				// Only delete if this is my code block
+				markdownPart.codeblocks.forEach((info, i) => {
+					const codeblock = codeBlocksByResponseId[codeBlockStartIndex + i];
+					if (codeblock?.ownerMarkdownPartId === markdownPartId) {
+						delete codeBlocksByResponseId[codeBlockStartIndex + i];
+					}
+				});
 			}
 		}));
 
@@ -894,7 +901,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (info.uri) {
 				const uri = info.uri;
 				this.codeBlocksByEditorUri.set(uri, info);
-				markdownPart.addDisposable(toDisposable(() => this.codeBlocksByEditorUri.delete(uri)));
+				markdownPart.addDisposable(toDisposable(() => {
+					const codeblock = this.codeBlocksByEditorUri.get(uri);
+					if (codeblock?.ownerMarkdownPartId === markdownPartId) {
+						this.codeBlocksByEditorUri.delete(uri);
+					}
+				}));
 			}
 		});
 

@@ -27,6 +27,7 @@ function getUniqueGlyphId(): [chars: string, tokenFg: number] {
 
 class TestGlyphRasterizer implements IGlyphRasterizer {
 	readonly id = 0;
+	readonly cacheKey = '';
 	nextGlyphColor: [number, number, number, number] = [0, 0, 0, 0];
 	nextGlyphDimensions: [number, number] = [0, 0];
 	rasterizeGlyph(chars: string, metadata: number, colorMap: string[]): Readonly<IRasterizedGlyph> {

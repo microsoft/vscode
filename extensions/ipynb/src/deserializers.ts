@@ -6,6 +6,7 @@
 import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
+import { textMimeTypes } from './constants';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -88,15 +89,6 @@ function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[
 		})
 		.sort((outputItemA, outputItemB) => outputItemA.index - outputItemB.index).map(item => item.item);
 }
-
-
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
-}
-
-export const textMimeTypes = ['text/plain', 'text/markdown', 'text/latex', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
 
 function concatMultilineString(str: string | string[], trim?: boolean): string {
 	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;
