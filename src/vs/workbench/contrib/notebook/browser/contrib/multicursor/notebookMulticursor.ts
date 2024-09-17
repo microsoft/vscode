@@ -116,7 +116,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	) {
 		super();
 
-		if (!this.configurationService.getValue<boolean>('notebook.multiSelect.enabled')) {
+		if (!this.configurationService.getValue<boolean>('notebook.multiCursor.enabled')) {
 			return;
 		}
 
@@ -873,13 +873,13 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
 			title: localize('addFindMatchToSelection', "Add Find Match to Selection"),
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
 				NOTEBOOK_CELL_EDITOR_FOCUSED,
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+					ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_CELL_EDITOR_FOCUSED,
 				),
@@ -912,13 +912,13 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 			id: 'noteMultiCursor.exit',
 			title: localize('exitMultiSelection', "Exit Multi Cursor Mode"),
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
 				NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+					ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 				),
@@ -947,7 +947,7 @@ class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
 			id: 'noteMultiCursor.deleteLeft',
 			title: localize('deleteLeftMultiSelection', "Delete Left"),
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
 				NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 				ContextKeyExpr.or(
@@ -957,7 +957,7 @@ class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+					ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 					ContextKeyExpr.or(
@@ -990,7 +990,7 @@ class NotebookDeleteRightMultiSelectionAction extends NotebookAction {
 			id: 'noteMultiCursor.deleteRight',
 			title: localize('deleteRightMultiSelection', "Delete Right"),
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
 				NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 				ContextKeyExpr.or(
@@ -1000,7 +1000,7 @@ class NotebookDeleteRightMultiSelectionAction extends NotebookAction {
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+					ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 					ContextKeyExpr.or(
@@ -1034,7 +1034,7 @@ class NotebookMultiCursorUndoRedoContribution extends Disposable {
 	constructor(@IEditorService private readonly _editorService: IEditorService, @IConfigurationService private readonly configurationService: IConfigurationService) {
 		super();
 
-		if (!this.configurationService.getValue<boolean>('notebook.multiSelect.enabled')) {
+		if (!this.configurationService.getValue<boolean>('notebook.multiCursor.enabled')) {
 			return;
 		}
 
@@ -1053,7 +1053,7 @@ class NotebookMultiCursorUndoRedoContribution extends Disposable {
 
 			return controller.undo();
 		}, ContextKeyExpr.and(
-			ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+			ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 			NOTEBOOK_IS_ACTIVE_EDITOR,
 			NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 		)));
@@ -1071,7 +1071,7 @@ class NotebookMultiCursorUndoRedoContribution extends Disposable {
 			const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
 			return controller.redo();
 		}, ContextKeyExpr.and(
-			ContextKeyExpr.equals('config.notebook.multiSelect.enabled', true),
+			ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 			NOTEBOOK_IS_ACTIVE_EDITOR,
 			NOTEBOOK_MULTI_CURSOR_CONTEXT.IsNotebookMultiCursor,
 		)));

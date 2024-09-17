@@ -1224,8 +1224,8 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 10000
 		},
-		[NotebookSetting.multiSelect]: {
-			markdownDescription: nls.localize('notebook.multiSelect.enabled', "Experimental. Enable multi-select across cells in the notebook editor."),
+		[NotebookSetting.multiCursor]: {
+			markdownDescription: nls.localize('notebook.multiCursor.enabled', "Experimental. Enables a limited set of multi cursor controls across multiple cells in the notebook editor. Currently supported are core editor actions (typing/cut/copy/paste/composition) and a limited subset of editor commands."),
 			type: 'boolean',
 			default: false
 		},
