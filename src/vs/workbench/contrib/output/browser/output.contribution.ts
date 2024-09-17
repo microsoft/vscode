@@ -32,17 +32,10 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
 import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
-import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { WordCharacterClassifier, getMapForWordSeparators } from '../../../../editor/common/core/wordCharacterClassifier.js';
-import { WordNavigationType } from '../../../../editor/common/cursor/cursorWordOperations.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { WordLeftCommand, WordRightCommand } from '../../../../editor/contrib/wordOperations/browser/wordOperations.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { Position } from '../../../../editor/common/core/position.js';
-import { registerEditorCommand } from '../../../../editor/browser/editorExtensions.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 
 // Register Service
@@ -554,88 +547,27 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	}
 });
 
-// Accessibility navigation commands should only be enabled on windows since they are tuned to what NVDA expects
-export class CursorWordAccessibilityLeft extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityLeft',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
-				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
-	}
-}
-
-export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityLeftSelect',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
-	}
-}
-
-
-export class CursorWordAccessibilityRight extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityRight',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
-				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
-	}
-}
-
-export class CursorWordAccessibilityRightSelect extends WordRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordAccessibility,
-			id: 'cursorWordAccessibilityRightSelect',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
-		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
-	}
-}
-registerEditorCommand(new CursorWordAccessibilityLeft());
-registerEditorCommand(new CursorWordAccessibilityLeftSelect());
-registerEditorCommand(new CursorWordAccessibilityRight());
-registerEditorCommand(new CursorWordAccessibilityRightSelect());
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityLeft',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityLeftSelect',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityRight',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityRightSelect',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});

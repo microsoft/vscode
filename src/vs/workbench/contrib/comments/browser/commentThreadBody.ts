@@ -66,7 +66,14 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
 	}
 
-	focus() {
+	focus(commentUniqueId?: number) {
+		if (commentUniqueId !== undefined) {
+			const comment = this._commentElements.find(commentNode => commentNode.comment.uniqueIdInThread === commentUniqueId);
+			if (comment) {
+				comment.focus();
+				return;
+			}
+		}
 		this._commentsElement.focus();
 	}
 

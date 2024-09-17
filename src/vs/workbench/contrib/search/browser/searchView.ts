@@ -760,15 +760,15 @@ export class SearchView extends ViewPane {
 			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// Ensure all matches have retrieved their file stat
 				this.retrieveFileStats()
-					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults)));
+					.then(() => this.tree.setChildren(null, this.createSearchResultIterator(collapseResults)));
 			} else {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+				this.tree.setChildren(null, this.createSearchResultIterator(collapseResults));
 			}
 		} else {
 			// If updated counts affect our search order, re-sort the view.
 			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
 				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+				this.tree.setChildren(null, this.createSearchResultIterator(collapseResults));
 			} else {
 				// FileMatch modified, refresh those elements
 				event.elements.forEach(element => {
@@ -779,7 +779,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
+	private createSearchResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const folderMatches = this.searchResult.folderMatches(this.aiResultsVisible)
 			.filter(fm => !fm.isEmpty())
 			.sort(searchMatchComparer);
@@ -824,7 +824,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		return match instanceof SearchResult ? this.createResultIterator(collapseResults) :
+		return match instanceof SearchResult ? this.createSearchResultIterator(collapseResults) :
 			match instanceof FolderMatch ? this.createFolderIterator(match, collapseResults, false) :
 				this.createFileIterator(match);
 	}
@@ -2017,12 +2017,12 @@ export class SearchView extends ViewPane {
 
 			const editorControl = editor?.getControl();
 			if (element instanceof Match && preserveFocus && isCodeEditor(editorControl)) {
-				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
+				this.viewModel.searchResult.getRangeHighlightDecorations().highlightRange(
 					editorControl.getModel()!,
 					element.range()
 				);
 			} else {
-				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
+				this.viewModel.searchResult.getRangeHighlightDecorations().removeHighlightRange();
 			}
 		} catch (err) {
 			errors.onUnexpectedError(err);
@@ -2087,7 +2087,7 @@ export class SearchView extends ViewPane {
 					}
 				}
 			}
-			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
+			this.viewModel.searchResult.getRangeHighlightDecorations().removeHighlightRange();
 		}, errors.onUnexpectedError);
 	}
 

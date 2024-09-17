@@ -198,9 +198,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private _setFocus(focus: CommentWidgetFocus) {
+	private _setFocus(commentUniqueId: number | undefined, focus: CommentWidgetFocus) {
 		if (focus === CommentWidgetFocus.Widget) {
-			this._commentThreadWidget.focus();
+			this._commentThreadWidget.focus(commentUniqueId);
 		} else if (focus === CommentWidgetFocus.Editor) {
 			this._commentThreadWidget.focusCommentEditor();
 		}
@@ -217,7 +217,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
 			}
 			this.editor.setScrollTop(scrollTop);
-			this._setFocus(focus);
+			this._setFocus(commentUniqueId, focus);
 		} else {
 			this._goToThread(focus);
 		}
@@ -229,7 +229,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			: new Range(1, 1, 1, 1);
 
 		this.editor.revealRangeInCenter(rangeToReveal);
-		this._setFocus(focus);
+		this._setFocus(undefined, focus);
 	}
 
 	public makeVisible(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {

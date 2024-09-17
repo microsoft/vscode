@@ -30,6 +30,8 @@ import { URI } from '../../../../../base/common/uri.js';
 const $ = dom.$;
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
+	private static idPool = 0;
+	public readonly id = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart>[] = [];
 
@@ -97,15 +99,24 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 				this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
-				const info: IChatCodeBlockInfo = {
-					codeBlockIndex: index,
-					element,
-					focus() {
+				const ownerMarkdownPartId = this.id;
+				const info: IChatCodeBlockInfo = new class {
+					readonly ownerMarkdownPartId = ownerMarkdownPartId;
+					readonly codeBlockIndex = index;
+					readonly element = element;
+					codemapperUri = undefined; // will be set async
+					public get uri() {
+						// here we must do a getter because the ref.object is rendered
+						// async and the uri might be undefined when it's read immediately
+						return ref.object.uri;
+					}
+					public focus() {
 						ref.object.focus();
-					},
-					uri: ref.object.uri,
-					codemapperUri: undefined
-				};
+					}
+					public getContent(): string {
+						return ref.object.editor.getValue();
+					}
+				}();
 				this.codeblocks.push(info);
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
@@ -124,7 +135,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const editorInfo = ref.object;
 		if (isResponseVM(data.element)) {
 			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId }).then((e) => {
-				this.codeblocks[data.codeBlockIndex] = { ...this.codeblocks[data.codeBlockIndex]!, codemapperUri: e.codemapperUri };
+				// Update the existing object's codemapperUri
+				this.codeblocks[data.codeBlockIndex].codemapperUri = e.codemapperUri;
 			});
 		}
 

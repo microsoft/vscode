@@ -988,6 +988,65 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
 	});
 
+	test('test extension is not disabled when it has a dependency in another server', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', {}, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is enabled when it has a dependency in another server which is disabled', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', {}, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is enabled when it has a dependency in another server which is disabled and with no exports and no main and no browser entrypoints', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', { api: 'none' }, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is disabled by dependency when it has a dependency in another server  which is disabled and with no exports and has main entry point', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', { api: 'none', main: 'main.js' }, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test extension is disabled by dependency when it has a dependency in another server  which is disabled and with no exports and has browser entry point', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', { api: 'none', browser: 'browser.js', extensionKind: 'ui' }, { location: URI.file(`pub.b`) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+	});
+
 	test('test extension is disabled by invalidity', async () => {
 		const target = aLocalExtension2('pub.b', {}, { isValid: false });
 		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByInvalidExtension);

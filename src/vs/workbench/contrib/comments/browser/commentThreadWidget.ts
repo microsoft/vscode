@@ -370,8 +370,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
-	focus() {
-		this._body.focus();
+	focus(commentUniqueId: number | undefined) {
+		this._body.focus(commentUniqueId);
 	}
 
 	async submitComment() {
