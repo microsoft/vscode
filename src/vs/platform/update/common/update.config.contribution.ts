@@ -20,7 +20,7 @@ configurationRegistry.registerConfiguration({
 			enum: ['none', 'manual', 'start', 'default'],
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from PearAI servers."),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
 				localize('none', "Disable updates."),
@@ -37,7 +37,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			default: 'default',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
+			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from PearAI servers."),
 			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
 		},
 		'update.enableWindowsBackgroundUpdates': {
@@ -52,7 +52,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
+			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from PearAI servers."),
 			tags: ['usesOnlineServices']
 		}
 	}
