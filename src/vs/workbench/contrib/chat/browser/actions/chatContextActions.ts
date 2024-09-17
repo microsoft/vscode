@@ -249,8 +249,6 @@ class AttachContextAction extends Action2 {
 						isDynamic: true
 					});
 				}
-
-
 			} else if ('symbolName' in pick && pick.uri && pick.range) {
 				// Symbol
 				toAttach.push({

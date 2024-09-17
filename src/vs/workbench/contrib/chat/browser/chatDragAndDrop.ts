@@ -22,6 +22,7 @@ import { IChatWidgetStyles } from './chatWidget.js';
 
 enum ChatDragAndDropType {
 	FILE,
+	IMAGE
 }
 
 export class ChatDragAndDrop extends Themable {
@@ -91,7 +92,7 @@ export class ChatDragAndDrop extends Themable {
 		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
 		const filteredContext = [];
 		for (const context of contexts) {
-			if (!currentContextIds.has(context.id) || context.id === 'image') {
+			if (!currentContextIds.has(context.id)) {
 				currentContextIds.add(context.id);
 				filteredContext.push(context);
 			}
@@ -112,7 +113,9 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private getActiveDropType(e: DragEvent): ChatDragAndDropType | undefined {
-		if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
+		if (containsDragType(e, DataTransfers.FILES, 'image')) {
+			return ChatDragAndDropType.IMAGE;
+		} else if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE;
 		}
 
@@ -122,22 +125,28 @@ export class ChatDragAndDrop extends Themable {
 	private getDropTypeName(type: ChatDragAndDropType): string {
 		switch (type) {
 			case ChatDragAndDropType.FILE: return localize('file', 'File');
+			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
 		}
 	}
 
 	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		switch (this.getActiveDropType(e)) {
 
-			case ChatDragAndDropType.FILE: {
+			case ChatDragAndDropType.IMAGE: {
 				const data = extractEditorsDropData(e);
 				const contexts = await Promise.all(data.map(async editorInput => {
 					if (editorInput.resource && /\.(png|jpg|jpeg)$/i.test(editorInput.resource.path)) {
 						const fileBuffer = await this.fileService.readFile(editorInput.resource);
 						return getImageAttachContext(editorInput.resource, fileBuffer.value);
 					}
-
-					return getEditorAttachContext(editorInput);
+					return undefined;
 				}));
+				return coalesce(contexts);
+			}
+
+			case ChatDragAndDropType.FILE: {
+				const data = extractEditorsDropData(e);
+				const contexts = data.map(editorInput => getEditorAttachContext(editorInput));
 				return coalesce(contexts);
 			}
 
@@ -198,11 +207,13 @@ function getFileAttachContext(resource: URI): IChatRequestVariableEntry | undefi
 function getImageAttachContext(resource: URI, fileBuffer?: VSBuffer): IChatRequestVariableEntry | undefined {
 	const fileName = basename(resource);
 	return {
-		id: 'image',
+		id: resource.toString(),
 		name: fileName,
 		fullName: resource.path,
 		value: fileBuffer?.buffer,
 		icon: Codicon.fileMedia,
-		isDynamic: true
+		isDynamic: true,
+		isImage: true,
+		isFile: false
 	};
 }

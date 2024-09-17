@@ -562,7 +562,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		[...this.attachedContext.values()].forEach((attachment, index) => {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
-			const isImage = attachment.id === 'image';
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (file && attachment.isFile) {
@@ -578,7 +577,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
-			} else if (isImage) {
+			} else if (attachment.isImage) {
 				const blob = new Blob([attachment.value as Uint8Array], { type: 'image/png' });
 				const url = URL.createObjectURL(blob);
 
@@ -628,27 +627,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), widget, hoverElement));
 
-				widget.addEventListener('mouseenter', () => {
-					this.hoverService.showManagedHover(widget);
-					// this.hoverService.showHover({
-					// 	target: widget,
-					// 	content: hoverElement,
-					// });
-				});
-
-				widget.addEventListener('mouseleave', () => {
-					this.hoverService.hideHover();
-				});
-
+				// No delay for keyboard
 				widget.addEventListener('keydown', (event) => {
 					if (event.key === 'Enter' || event.key === ' ') {
 						this.hoverService.showManagedHover(widget);
 					}
 				});
 
-				widget.addEventListener('blur', () => {
-					this.hoverService.hideHover();
-				});
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;

@@ -41,7 +41,7 @@ function getImageAttachContext(data: Uint8Array, fileName: string): IChatRequest
 		value: data,
 		id: 'image',
 		name: 'Image from Clipboard',
-		isFile: false,
+		isImage: true,
 		icon: Codicon.fileMedia,
 	};
 }
