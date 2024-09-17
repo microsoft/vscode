@@ -121,14 +121,14 @@
   "??"
 ] @keyword.operator.logical
 
-[
+(binary_expression ([
   "-"
   "+"
   "*"
   "/"
   "%"
   "^"
-] @keyword.operator.arithmetic
+]) @keyword.operator.arithmetic)
 
 (binary_expression ([
   "<"

@@ -368,6 +368,34 @@ class CommentingRangeDecorator {
 	}
 }
 
+/**
+* Navigate to the next or previous comment in the current thread.
+* @param type
+*/
+export function moveToNextCommentInThread(commentInfo: { thread: languages.CommentThread<IRange>; comment?: languages.Comment } | undefined, type: 'next' | 'previous') {
+	if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
+		return;
+	}
+	const currentIndex = commentInfo.thread.comments?.indexOf(commentInfo.comment);
+	if (currentIndex === undefined || currentIndex < 0) {
+		return;
+	}
+	if (type === 'previous' && currentIndex === 0) {
+		return;
+	}
+	if (type === 'next' && currentIndex === commentInfo.thread.comments.length - 1) {
+		return;
+	}
+	const comment = commentInfo.thread.comments?.[type === 'previous' ? currentIndex - 1 : currentIndex + 1];
+	if (!comment) {
+		return;
+	}
+	return {
+		...commentInfo,
+		comment,
+	};
+}
+
 export function revealCommentThread(commentService: ICommentService, editorService: IEditorService, uriIdentityService: IUriIdentityService,
 	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
 	if (!commentThread.resource) {

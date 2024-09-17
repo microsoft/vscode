@@ -28,6 +28,7 @@ export const enum AccessibleViewProviderId {
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
 	Comments = 'comments',
+	CommentThread = 'commentThread',
 	Repl = 'repl',
 	ReplHelp = 'replHelp',
 	RunAndDebug = 'runAndDebug',

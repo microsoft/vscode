@@ -198,7 +198,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 				tokenIndex++;
 			};
 
-			if (previousTokenEnd > lineRelativeOffset) {
+			if (previousTokenEnd >= lineRelativeOffset) {
 				// The current token is within the previous token. Adjust the end of the previous token.
 				const originalPreviousTokenEndOffset = tokens[(tokenIndex - 1) * 2];
 				tokens[(tokenIndex - 1) * 2] = intermediateTokenOffset;
