@@ -320,10 +320,6 @@ class AttachContextAction extends Action2 {
 		const quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] = [];
 		for (const variable of chatVariablesService.getVariables(widget.location)) {
 			if (variable.fullName && (!variable.isSlow || slowSupported)) {
-				if (variable.id === 'copilot.image' && !isImage(imageData)) {
-					continue;
-				}
-
 				quickPickItems.push({
 					label: variable.fullName,
 					name: variable.name,
@@ -332,6 +328,16 @@ class AttachContextAction extends Action2 {
 					icon: variable.icon
 				});
 			}
+		}
+
+		if (isImage(imageData)) {
+			quickPickItems.push({
+				label: 'Image from Clipboard',
+				name: 'image',
+				id: 'image',
+				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
+				icon: Codicon.fileMedia
+			});
 		}
 
 		if (widget.viewModel?.sessionId) {
@@ -426,6 +432,10 @@ class AttachContextAction extends Action2 {
 				filter: (item: IChatContextQuickPickItem) => {
 					// Avoid attaching the same context twice
 					const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
+
+					if ('name' in item && item.name === 'image') {
+						return true;
+					}
 
 					if ('symbol' in item && item.symbol) {
 						return !attachedContext.has(this._getFileContextId(item.symbol.location));
