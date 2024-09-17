@@ -274,6 +274,8 @@ export class TypeScriptServerSpawner {
 			&& !apiVersion.isYarnPnp() // Disable for yarn pnp as it currently breaks with the VS Code watcher
 		) {
 			args.push('--canUseWatchEvents');
+		} else {
+			this._logger.info(`<${kind}> Falling back to legacy node.js based file watching...`);
 		}
 
 		args.push('--validateDefaultNpmLocation');
