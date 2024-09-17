@@ -16,7 +16,6 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchAsyncDataTree } from '../../../../../../platform/list/browser/listService.js';
@@ -73,7 +72,7 @@ export class NotebookVariablesView extends ViewPane {
 		this._register(this.notebookKernelService.onDidNotebookVariablesUpdate(this.handleVariablesChanged.bind(this)));
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
 
-		this.setActiveNotebook();
+		this.activeNotebook = this.getActiveNotebook();
 
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
@@ -141,45 +140,59 @@ export class NotebookVariablesView extends ViewPane {
 		this.tree?.layout(height, width);
 	}
 
-	private setActiveNotebook() {
-		const current = this.activeNotebook;
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (activeEditorPane?.getId() === 'workbench.editor.notebook' || activeEditorPane?.getId() === 'workbench.editor.interactive') {
-			const notebookDocument = getNotebookEditorFromEditorPane(activeEditorPane)?.getViewModel()?.notebookDocument;
-			this.activeNotebook = notebookDocument;
-		}
+	private setActiveNotebook(notebookDocument: NotebookTextModel) {
+		this.activeNotebook = notebookDocument;
+		this.tree?.setInput({ kind: 'root', notebook: notebookDocument });
+		this.updateScheduler.schedule();
+	}
 
-		return current !== this.activeNotebook;
+	private getActiveNotebook() {
+		const notebookEditor = this.editorService.activeEditorPane;
+		const notebookDocument = getNotebookEditorFromEditorPane(notebookEditor)?.textModel;
+		return notebookDocument;
 	}
 
 	private handleActiveEditorChange() {
-		if (this.setActiveNotebook() && this.activeNotebook) {
-			this.tree?.setInput({ kind: 'root', notebook: this.activeNotebook });
-			this.updateScheduler.schedule();
+		const notebook = this.getActiveNotebook();
+		if (notebook && notebook !== this.activeNotebook) {
+			this.setActiveNotebook(notebook);
 		}
 	}
 
 	private handleExecutionStateChange(event: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) {
-		if (this.activeNotebook) {
-			if (event.affectsNotebook(this.activeNotebook.uri)) {
-				// new execution state means either new variables or the kernel is busy so we shouldn't ask
-				this.dataSource.cancel();
+		if (this.activeNotebook && event.affectsNotebook(this.activeNotebook.uri)) {
+			// new execution state means either new variables or the kernel is busy so we shouldn't ask
+			this.dataSource.cancel();
 
-				// changed === undefined -> excecution ended
-				if (event.changed === undefined) {
-					this.updateScheduler.schedule();
-				}
-				else {
-					this.updateScheduler.cancel();
-				}
+			// changed === undefined -> excecution ended
+			if (event.changed === undefined) {
+				this.updateScheduler.schedule();
 			}
+			else {
+				this.updateScheduler.cancel();
+			}
+		} else if (!this.getActiveNotebook()) {
+			// check if the updated variables are for a visible notebook
+			this.editorService.visibleEditorPanes.forEach(editor => {
+				const notebookDocument = getNotebookEditorFromEditorPane(editor)?.textModel;
+				if (notebookDocument && event.affectsNotebook(notebookDocument.uri)) {
+					this.setActiveNotebook(notebookDocument);
+				}
+			});
 		}
 	}
 
 	private handleVariablesChanged(notebookUri: URI) {
 		if (this.activeNotebook && notebookUri.toString() === this.activeNotebook.uri.toString()) {
-			this.tree?.setInput({ kind: 'root', notebook: this.activeNotebook });
 			this.updateScheduler.schedule();
+		} else if (!this.getActiveNotebook()) {
+			// check if the updated variables are for a visible notebook
+			this.editorService.visibleEditorPanes.forEach(editor => {
+				const notebookDocument = getNotebookEditorFromEditorPane(editor)?.textModel;
+				if (notebookDocument && notebookDocument.uri.toString() === notebookUri.toString()) {
+					this.setActiveNotebook(notebookDocument);
+				}
+			});
 		}
 	}
 }
