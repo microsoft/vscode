@@ -204,6 +204,8 @@ suite('InteractiveChatController', function () {
 
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
+		store.add(instaService.get(ILanguageModelsService) as LanguageModelsService);
+
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
 		model.setEOL(EndOfLineSequence.LF);
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
