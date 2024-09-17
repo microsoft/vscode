@@ -70,7 +70,8 @@ export const enum TerminalCapability {
 	 * the request (task, debug, etc) provides an ID, optional marker, hoverMessage, and hidden property. When
 	 * hidden is not provided, a generic decoration is added to the buffer and overview ruler.
 	 */
-	BufferMarkDetection
+	BufferMarkDetection,
+	// TODO: Shell Environment --> listen to from
 }
 
 /**

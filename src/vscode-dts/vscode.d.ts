@@ -8449,7 +8449,7 @@ declare module 'vscode' {
 		readonly type: string;
 
 		/**
-		 * Additional attributes of a concrete task definition.
+		 * Additional attributes of a concrete task defiition.
 		 */
 		[name: string]: any;
 	}

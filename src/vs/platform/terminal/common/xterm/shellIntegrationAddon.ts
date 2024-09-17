@@ -224,6 +224,20 @@ const enum VSCodeOscPt {
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	SetMark = 'SetMark',
+
+	/**
+	 * Sends the shell's environment.
+	 *
+	 * Format: `OSC 633 ; Env ; <Environment> ; <Nonce>`
+	 *
+	 *	`Environment` - A JSON string containing the shell's environment variables.
+	 *   TODO: Encoding information for commandline sequence.
+	 *  `Nonce` -  An optional nonce can be provided which is may be required by the terminal in order enable
+	 *   some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	Env = 'Env',
 }
 
 /**
@@ -461,6 +475,18 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.SetMark: {
 				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
+				return true;
+			}
+			case VSCodeOscPt.Env: {
+				const arg0 = args[0];
+				const arg1 = args[1];
+				// Ignore unless nonce is correct
+				if (arg1 !== this._nonce) {
+					return true;
+				}
+				if (arg0 !== undefined) {
+					const env = JSON.parse(deserializeMessage(arg0));
+				}
 				return true;
 			}
 		}
