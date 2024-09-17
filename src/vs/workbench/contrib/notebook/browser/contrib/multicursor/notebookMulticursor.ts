@@ -288,6 +288,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				deltaEndCol: e.selection.endColumn - e.oldSelections[0].endColumn,
 				deltaEndLine: e.selection.endLineNumber - e.oldSelections[0].endLineNumber,
 			};
+			const translationDir = e.selection.getDirection();
 
 			this.trackedMatches.forEach(match => {
 				const controller = this.cursorsControllers.get(match.cellViewModel.uri);
@@ -300,7 +301,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					const newStartLine = selection.startLineNumber + translation.deltaStartLine;
 					const newEndCol = selection.endColumn + translation.deltaEndCol;
 					const newEndLine = selection.endLineNumber + translation.deltaEndLine;
-					return new Selection(newStartLine, newStartCol, newEndLine, newEndCol);
+					return Selection.createWithDirection(newStartLine, newStartCol, newEndLine, newEndCol, translationDir);
 				});
 
 				controller.setSelections(new ViewModelEventsCollector(), e.source, newSelections, CursorChangeReason.Explicit);
@@ -614,6 +615,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			}
 			controller.setSelections(new ViewModelEventsCollector(), undefined, delSelections, CursorChangeReason.Explicit);
 		});
+		this.updateLazyDecorations();
 	}
 
 	public async deleteRight(): Promise<void> {
@@ -637,6 +639,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			}
 			controller.setSelections(new ViewModelEventsCollector(), undefined, delSelections, CursorChangeReason.Explicit);
 		});
+		this.updateLazyDecorations();
 	}
 
 	async undo() {

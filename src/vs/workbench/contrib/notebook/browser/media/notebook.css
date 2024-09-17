@@ -453,7 +453,7 @@
 .nb-multicursor-selection {
 	top: 0;
 	min-width: 1.9px;
-	background-color: var(--vscode-notebook-symbolHighlightBackground);
+	background-color: var(--vscode-editor-selectionBackground);
 	/* TODO@Yoyokrazy: ^^highlight/selection color */
 
 	/* unsure about these two */
