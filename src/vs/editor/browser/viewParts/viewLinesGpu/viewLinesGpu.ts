@@ -223,7 +223,6 @@ export class ViewLinesGpu extends ViewPart {
 			layout: 'auto',
 			vertex: {
 				module,
-				entryPoint: 'vs',
 				buffers: [
 					{
 						arrayStride: 2 * Float32Array.BYTES_PER_ELEMENT, // 2 floats, 4 bytes each
@@ -235,7 +234,6 @@ export class ViewLinesGpu extends ViewPart {
 			},
 			fragment: {
 				module,
-				entryPoint: 'fs',
 				targets: [
 					{
 						format: presentationFormat,
@@ -273,7 +271,7 @@ export class ViewLinesGpu extends ViewPart {
 					})
 				},
 				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
-				{ binding: BindingId.ViewportUniform, resource: { buffer: layoutInfoUniformBuffer } },
+				{ binding: BindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
 				{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
 			],
@@ -362,6 +360,8 @@ export class ViewLinesGpu extends ViewPart {
 	}
 
 	private _renderText(viewportData: ViewportData): void {
+		this._viewGpuContext.rectangleRenderer.draw(viewportData);
+
 		const options = new ViewLineOptions(this._context.configuration, this._context.theme.type);
 
 		const visibleObjectCount = this._renderStrategy.update(viewportData, options);

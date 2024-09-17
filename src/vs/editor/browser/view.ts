@@ -60,6 +60,7 @@ import { ViewLinesGpu } from './viewParts/viewLinesGpu/viewLinesGpu.js';
 import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
+import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
 
 
 export interface IContentWidgetData {
@@ -150,7 +151,7 @@ export class View extends ViewEventHandler {
 		this.domNode.setAttribute('role', 'code');
 
 		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
-			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext);
+			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
 		}
 
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
@@ -214,7 +215,9 @@ export class View extends ViewEventHandler {
 		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
 		this._viewParts.push(this._overlayWidgets);
 
-		const rulers = new Rulers(this._context);
+		const rulers = this._viewGpuContext
+			? new RulersGpu(this._context, this._viewGpuContext)
+			: new Rulers(this._context);
 		this._viewParts.push(rulers);
 
 		const blockOutline = new BlockDecorations(this._context);
@@ -231,7 +234,9 @@ export class View extends ViewEventHandler {
 		}
 
 		this._linesContent.appendChild(contentViewOverlays.getDomNode());
-		this._linesContent.appendChild(rulers.domNode);
+		if ('domNode' in rulers) {
+			this._linesContent.appendChild(rulers.domNode);
+		}
 		this._linesContent.appendChild(this._viewZones.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);

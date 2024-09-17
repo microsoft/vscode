@@ -54,6 +54,28 @@ suite('ObjectCollectionBuffer', () => {
 		assertUsedData(buffer, [1, 2, 5, 6, 9, 10]);
 	});
 
+	test('entryCount, viewUsedSize, bufferUsedSize', () => {
+		const buffer = store.add(createObjectCollectionBuffer([
+			{ name: 'foo' },
+			{ name: 'bar' },
+		] as const, 5));
+		strictEqual(buffer.entryCount, 0);
+		strictEqual(buffer.bufferUsedSize, 0);
+		strictEqual(buffer.viewUsedSize, 0);
+		buffer.createEntry({ foo: 1, bar: 2 });
+		strictEqual(buffer.entryCount, 1);
+		strictEqual(buffer.viewUsedSize, 2);
+		strictEqual(buffer.bufferUsedSize, 8);
+		const entry = buffer.createEntry({ foo: 3, bar: 4 });
+		strictEqual(buffer.entryCount, 2);
+		strictEqual(buffer.viewUsedSize, 4);
+		strictEqual(buffer.bufferUsedSize, 16);
+		entry.dispose();
+		strictEqual(buffer.entryCount, 1);
+		strictEqual(buffer.viewUsedSize, 2);
+		strictEqual(buffer.bufferUsedSize, 8);
+	});
+
 	test('entry.get', () => {
 		const buffer = store.add(createObjectCollectionBuffer([
 			{ name: 'foo' },
