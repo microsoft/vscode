@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 
-	(vscode as any).registerTerminalCompletionProvider({
+	(vscode as any).window.registerTerminalCompletionProvider({
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { shellType: string; commandLine: string }, token: vscode.CancellationToken) {
 			if (token.isCancellationRequested) {
 				return;
