@@ -48,7 +48,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	async readImage(): Promise<Uint8Array> {
 		try {
-			const clipboardItems = await getActiveWindow().navigator.clipboard.read();
+			const clipboardItems = await navigator.clipboard.read();
 			const clipboardItem = clipboardItems[0];
 
 			const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/tiff', 'image/bmp'];

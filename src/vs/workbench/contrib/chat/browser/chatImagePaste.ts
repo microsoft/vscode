@@ -47,7 +47,7 @@ export class ChatImageDropAndPaste extends Disposable {
 function getImageAttachContext(data: Uint8Array): IChatRequestVariableEntry {
 	return {
 		value: data,
-		id: data.slice(0, 20).toString(),
+		id: data.slice(0, 50).toString(),
 		name: 'Image from Clipboard',
 		isImage: true,
 		icon: Codicon.fileMedia,

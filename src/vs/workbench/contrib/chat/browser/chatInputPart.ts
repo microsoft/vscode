@@ -61,7 +61,7 @@ import { ChatFollowups } from './chatFollowups.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const $ = dom.$;
 
@@ -555,6 +555,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
+		const hoverDelegate = createInstantHoverDelegate();
 		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
 		if (!this.attachedContext.size) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
@@ -619,7 +620,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				hoverElement.classList.add('chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
-				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), widget, hoverElement));
+				this._register(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
 
 				// No delay for keyboard
 				this._register(dom.addDisposableListener(widget, 'keydown', (event) => {

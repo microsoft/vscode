@@ -231,7 +231,7 @@ class AttachContextAction extends Action2 {
 					// checks if the file is an image
 					const fileBuffer = await fileService.readFile(pick.resource);
 					toAttach.push({
-						id: fileBuffer.value.buffer.slice(0, 20).toString(), // unique id based on first 20 bytes
+						id: fileBuffer.value.buffer.slice(0, 50).toString(), // unique id based on first 50 values in the uint8array
 						name: pick.label,
 						fullName: pick.label,
 						value: fileBuffer.value.buffer,
@@ -270,7 +270,7 @@ class AttachContextAction extends Action2 {
 				});
 			} else if ('kind' in pick && pick.kind === 'image') {
 				const fileBuffer = await clipboardService.readImage();
-				const uniqueId = fileBuffer.slice(0, 20).toString();
+				const uniqueId = fileBuffer.slice(0, 50).toString();
 				toAttach.push({
 					id: uniqueId,
 					name: 'Image from Clipboard',
@@ -331,7 +331,7 @@ class AttachContextAction extends Action2 {
 
 		if (isImage(imageData)) {
 			quickPickItems.push({
-				id: imageData.slice(0, 20).toString(),
+				id: imageData.slice(0, 50).toString(),
 				kind: 'image',
 				label: 'Image from Clipboard',
 				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
