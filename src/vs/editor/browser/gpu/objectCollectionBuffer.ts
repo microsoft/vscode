@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, dispose, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
+import { BufferDirtyTracker, type IBufferDirtyTrackerReader } from './bufferDirtyTracker.js';
 
 export interface ObjectCollectionBufferPropertySpec {
 	name: string;
@@ -36,6 +37,11 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	 * The number of entries in the buffer.
 	 */
 	readonly entryCount: number;
+
+	/**
+	 * A tracker for dirty regions in the buffer.
+	 */
+	readonly dirtyTracker: IBufferDirtyTrackerReader;
 
 	/**
 	 * Fires when the buffer is modified.
@@ -86,6 +92,9 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 		return this._entries.size;
 	}
 
+	private _dirtyTracker = new BufferDirtyTracker();
+	get dirtyTracker(): IBufferDirtyTrackerReader { return this._dirtyTracker; }
+
 	private readonly _propertySpecsMap: Map<string, ObjectCollectionBufferPropertySpec & { offset: number }> = new Map();
 	private readonly _entrySize: number;
 	private readonly _entries: LinkedList<ObjectCollectionBufferEntry<T>> = new LinkedList();
@@ -120,7 +129,7 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 			this._onDidChangeBuffer.fire();
 		}
 
-		const value = new ObjectCollectionBufferEntry(this.view, this._propertySpecsMap, this._entries.size, data);
+		const value = new ObjectCollectionBufferEntry(this.view, this._propertySpecsMap, this._dirtyTracker, this._entries.size, data);
 		const removeFromEntries = this._entries.push(value);
 		const listeners: IDisposable[] = [];
 		listeners.push(Event.forward(value.onDidChange, this._onDidChange));
@@ -137,6 +146,7 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 					entry.i--;
 				}
 			}
+			this._dirtyTracker.flag(deletedEntryIndex, (this._entries.size - deletedEntryIndex) * this._entrySize);
 			dispose(listeners);
 		}));
 		return value;
@@ -161,6 +171,7 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 	constructor(
 		private _view: Float32Array,
 		private _propertySpecsMap: Map<string, ObjectCollectionBufferPropertySpec & { offset: number }>,
+		private _dirtyTracker: BufferDirtyTracker,
 		public i: number,
 		data: ObjectCollectionPropertyValues<T>,
 	) {
@@ -168,6 +179,7 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 		for (const propertySpec of this._propertySpecsMap.values()) {
 			this._view[this.i * this._propertySpecsMap.size + propertySpec.offset] = data[propertySpec.name as keyof typeof data];
 		}
+		this._dirtyTracker.flag(this.i * this._propertySpecsMap.size, this._propertySpecsMap.size);
 	}
 
 	override dispose() {
@@ -176,7 +188,8 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 	}
 
 	set(propertyName: T[number]['name'], value: number): void {
-		this._view[this.i * this._propertySpecsMap.size + this._propertySpecsMap.get(propertyName)!.offset] = value;
+		const i = this.i * this._propertySpecsMap.size + this._propertySpecsMap.get(propertyName)!.offset;
+		this._view[this._dirtyTracker.flag(i)] = value;
 		this._onDidChange.fire();
 	}
 
@@ -189,5 +202,6 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 			throw new Error(`Data length ${data.length} does not match the number of properties in the collection (${this._propertySpecsMap.size})`);
 		}
 		this._view.set(data, this.i * this._propertySpecsMap.size);
+		this._dirtyTracker.flag(this.i * this._propertySpecsMap.size, this._propertySpecsMap.size);
 	}
 }

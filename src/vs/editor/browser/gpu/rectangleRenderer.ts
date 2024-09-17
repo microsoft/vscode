@@ -252,8 +252,11 @@ export class RectangleRenderer extends ViewEventHandler {
 	// --- end event handlers
 
 	private _update() {
-		// TODO: Only write dirty range
-		this._device.queue.writeBuffer(this._shapeBindBuffer.value!.object, 0, this._shapeCollection.buffer);
+		const shapes = this._shapeCollection;
+		if (shapes.dirtyTracker.isDirty) {
+			this._device.queue.writeBuffer(this._shapeBindBuffer.value!.object, 0, shapes.buffer, shapes.dirtyTracker.dataOffset, shapes.dirtyTracker.dirtySize! * shapes.view.BYTES_PER_ELEMENT);
+			shapes.dirtyTracker.clear();
+		}
 
 		// Update scroll offset
 		if (this._scrollChanged) {
