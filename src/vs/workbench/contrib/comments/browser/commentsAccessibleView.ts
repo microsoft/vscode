@@ -16,11 +16,13 @@ import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from './commentsView.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommentService } from './commentService.js';
 import { CommentContextKeys } from '../common/commentContextKeys.js';
-import { revealCommentThread } from './commentsController.js';
+import { moveToNextCommentInThread as findNextCommentInThread, revealCommentThread } from './commentsController.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CommentThread, Comment } from '../../../../editor/common/languages.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;
@@ -119,20 +121,29 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 	readonly id = AccessibleViewProviderId.CommentThread;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Comments;
 	readonly options = { type: AccessibleViewType.View };
+	private _activeCommentInfo: { thread: CommentThread<IRange>; comment?: Comment } | undefined;
 	constructor(@ICommentService private readonly _commentService: ICommentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
+
+	private get activeCommentInfo(): { thread: CommentThread<IRange>; comment?: Comment } | undefined {
+		if (!this._activeCommentInfo && this._commentService.lastActiveCommentcontroller) {
+			this._activeCommentInfo = this._commentService.lastActiveCommentcontroller.activeComment;
+		}
+		return this._activeCommentInfo;
+	}
+
 	provideContent(): string {
-		if (!this._commentService.activeCommentInfo) {
+		if (!this.activeCommentInfo) {
 			throw new Error('No current comment thread');
 		}
-		const comment = this._commentService.activeCommentInfo.comment?.body;
+		const comment = this.activeCommentInfo.comment?.body;
 		const commentLabel = typeof comment === 'string' ? comment : comment?.value ?? '';
-		const resource = this._commentService.activeCommentInfo.thread.resource;
-		const range = this._commentService.activeCommentInfo.thread.range;
+		const resource = this.activeCommentInfo.thread.resource;
+		const range = this.activeCommentInfo.thread.range;
 		let contentLabel = '';
 		if (resource && range) {
 			const editor = this._editorService.findEditors(URI.parse(resource)) || [];
@@ -147,19 +158,26 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		return commentLabel + contentLabel;
 	}
 	onClose(): void {
-		const commentInfo = this._commentService.activeCommentInfo;
-		if (!commentInfo) {
-			return;
+		const lastComment = this._activeCommentInfo;
+		this._activeCommentInfo = undefined;
+		if (lastComment) {
+			revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, lastComment.thread, lastComment.comment);
 		}
-		this._commentService.setActiveCommentAndThread(commentInfo.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
-		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, commentInfo.thread, commentInfo.comment);
 	}
 	provideNextContent(): string | undefined {
-		this._commentService.navigateToComment('next');
-		return this.provideContent();
+		const newCommentInfo = findNextCommentInThread(this._activeCommentInfo, 'next');
+		if (newCommentInfo) {
+			this._activeCommentInfo = newCommentInfo;
+			return this.provideContent();
+		}
+		return undefined;
 	}
 	providePreviousContent(): string | undefined {
-		this._commentService.navigateToComment('previous');
-		return this.provideContent();
+		const newCommentInfo = findNextCommentInThread(this._activeCommentInfo, 'previous');
+		if (newCommentInfo) {
+			this._activeCommentInfo = newCommentInfo;
+			return this.provideContent();
+		}
+		return undefined;
 	}
 }

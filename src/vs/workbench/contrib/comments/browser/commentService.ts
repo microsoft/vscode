@@ -63,6 +63,7 @@ export interface ICommentController {
 	options?: CommentOptions;
 	contextValue?: string;
 	owner: string;
+	activeComment: { thread: CommentThread; comment?: Comment } | undefined;
 	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined, editorId?: string): Promise<void>;
 	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void>;
 	deleteCommentThreadMain(commentThreadId: string): void;
@@ -91,7 +92,7 @@ export interface ICommentService {
 	readonly onDidChangeCommentingEnabled: Event<boolean>;
 	readonly isCommentingEnabled: boolean;
 	readonly commentsModel: ICommentsModel;
-	readonly activeCommentInfo: { thread: CommentThread<IRange>; comment?: Comment; owner: string } | undefined;
+	readonly lastActiveCommentcontroller: ICommentController | undefined;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(uniqueOwner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(uniqueOwner: string): void;
@@ -112,7 +113,6 @@ export interface ICommentService {
 	setActiveEditingCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 	setActiveCommentAndThread(uniqueOwner: string, commentInfo: { thread: CommentThread<IRange | ICellRange>; comment?: Comment } | undefined): Promise<void>;
-	navigateToComment(type: 'next' | 'previous'): void;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
 	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; uniqueOwner: string; isReply?: boolean }): PendingCommentThread | undefined;
@@ -176,11 +176,6 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private _commentingRangeResources = new Set<string>(); // URIs
 	private _commentingRangeResourceHintSchemes = new Set<string>(); // schemes
-
-	private _activeCommentInfo: { owner: string; thread: CommentThread<IRange>; comment?: Comment } | undefined;
-	get activeCommentInfo() {
-		return this._activeCommentInfo;
-	}
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -302,6 +297,10 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidChangeActiveEditingCommentThread.fire(commentThread);
 	}
 
+	get lastActiveCommentcontroller() {
+		return this._lastActiveCommentController;
+	}
+
 	private _lastActiveCommentController: ICommentController | undefined;
 	async setActiveCommentAndThread(uniqueOwner: string, commentInfo: { thread: CommentThread<IRange>; comment?: Comment } | undefined) {
 		const commentController = this._commentControls.get(uniqueOwner);
@@ -314,38 +313,7 @@ export class CommentService extends Disposable implements ICommentService {
 			await this._lastActiveCommentController?.setActiveCommentAndThread(undefined);
 		}
 		this._lastActiveCommentController = commentController;
-		if (commentInfo) {
-			this._activeCommentInfo = { owner: uniqueOwner, thread: commentInfo.thread, comment: commentInfo?.comment };
-		} else {
-			this._activeCommentInfo = undefined;
-		}
 		return commentController.setActiveCommentAndThread(commentInfo);
-	}
-
-	/**
-	 * Navigate to the next or previous comment in the current thread.
-	 * @param type
-	 */
-	navigateToComment(type: 'next' | 'previous') {
-		const commentInfo = this.activeCommentInfo;
-		if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
-			return;
-		}
-		const currentIndex = this.activeCommentInfo?.thread.comments?.indexOf(commentInfo.comment);
-		if (currentIndex === undefined || currentIndex < 0) {
-			return;
-		}
-		if (type === 'previous' && currentIndex === 0) {
-			return;
-		}
-		if (type === 'next' && currentIndex === commentInfo.thread.comments.length - 1) {
-			return;
-		}
-		const comment = this.activeCommentInfo?.thread.comments?.[type === 'previous' ? currentIndex - 1 : currentIndex + 1];
-		if (!comment) {
-			return;
-		}
-		this.setActiveCommentAndThread(this.activeCommentInfo.owner, { comment, thread: commentInfo.thread });
 	}
 
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void {
