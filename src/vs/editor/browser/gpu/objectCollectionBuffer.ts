@@ -94,7 +94,7 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 	) {
 		super();
 
-		this.view = new Float32Array(capacity * 2);
+		this.view = new Float32Array(capacity * propertySpecs.length);
 		this.buffer = this.view.buffer;
 		this._entrySize = propertySpecs.length;
 		for (let i = 0; i < propertySpecs.length; i++) {
