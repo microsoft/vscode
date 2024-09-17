@@ -213,7 +213,7 @@ suite('searchNotebookHelpers', () => {
 				type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 					pattern: ''
 				}
-			}, searchModel.searchResult, searchModel.searchResult, null);
+			}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
 			const fileMatch = instantiationService.createInstance(FileMatch, {
 				pattern: ''
 			}, undefined, undefined, folderMatch, rawMatch, null, '');

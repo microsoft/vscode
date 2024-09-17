@@ -255,6 +255,7 @@ export class ReleaseNotesManager {
 			markedExtensions: [{
 				renderer: {
 					html: this._simpleSettingRenderer.getHtmlRenderer(),
+					codespan: this._simpleSettingRenderer.getCodeSpanRenderer(),
 				}
 			}]
 		});

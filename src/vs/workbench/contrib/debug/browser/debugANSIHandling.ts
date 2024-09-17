@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color, RGBA } from '../../../../base/common/color.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { editorHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
 import { ILinkDetector } from './linkDetector.js';
 
@@ -334,7 +338,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 			if (colorType === 'underline') {
 				// for underline colors we just decode the 0-15 color number to theme color, set and return
 				const colorName = ansiColorIdentifiers[colorNumber];
-				changeColor(colorType, `--vscode-treminal-${colorName}`);
+				changeColor(colorType, `--vscode-debug-ansi-${colorName}`);
 				return;
 			}
 			// Need to map to one of the four basic color ranges (30-37, 90-97, 40-47, 100-107)
@@ -378,7 +382,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 		if (colorIndex !== undefined && colorType) {
 			const colorName = ansiColorIdentifiers[colorIndex];
-			changeColor(colorType, `--vscode-${colorName.replaceAll('.', '-')}`);
+			changeColor(colorType, `--vscode-debug-ansi-${colorName.replaceAll('.', '-')}`);
 		}
 	}
 }
@@ -463,3 +467,26 @@ export function calcANSI8bitColor(colorNumber: number): RGBA | undefined {
 		return;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const areas = [
+		{ selector: '.monaco-workbench .sidebar, .monaco-workbench .auxiliarybar', bg: theme.getColor(SIDE_BAR_BACKGROUND) },
+		{ selector: '.monaco-workbench .panel', bg: theme.getColor(PANEL_BACKGROUND) },
+		{ selector: '.debug-hover-widget', bg: theme.getColor(editorHoverBackground) },
+	];
+
+	for (const { selector, bg } of areas) {
+		const content = ansiColorIdentifiers
+			.map(color => {
+				const actual = theme.getColor(color);
+				if (!actual) { return undefined; }
+				// this uses the default contrast ratio of 4 (from the terminal),
+				// we may want to make this configurable in the future, but this is
+				// good to keep things sane to start with.
+				return `--vscode-debug-ansi-${color.replaceAll('.', '-')}:${bg ? bg.ensureConstrast(actual, 4) : actual}`;
+			})
+			.filter(isDefined);
+
+		collector.addRule(`${selector} { ${content.join(';')} }`);
+	}
+});

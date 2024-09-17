@@ -17,7 +17,8 @@ import { IPreferencesService, ISetting } from '../../../services/preferences/com
 import { settingKeyToDisplayFormat } from '../../preferences/browser/settingsTreeModels.js';
 
 export class SimpleSettingRenderer {
-	private readonly codeSettingRegex: RegExp;
+	private readonly codeSettingAnchorRegex: RegExp;
+	private readonly codeSettingSimpleRegex: RegExp;
 
 	private _updatedSettings = new Map<string, any>(); // setting ID to user's original setting value
 	private _encounteredSettings = new Map<string, ISetting>(); // setting ID to setting
@@ -30,7 +31,8 @@ export class SimpleSettingRenderer {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
-		this.codeSettingRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
+		this.codeSettingAnchorRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
+		this.codeSettingSimpleRegex = new RegExp(`^setting\\(([^\\s:)]+)(?::([^)]+))?\\)$`);
 	}
 
 	get featuredSettingStates(): Map<string, boolean> {
@@ -41,17 +43,47 @@ export class SimpleSettingRenderer {
 		return result;
 	}
 
+	private replaceAnchor(raw: string): string | undefined {
+		const match = this.codeSettingAnchorRegex.exec(raw);
+		if (match && match.length === 4) {
+			const settingId = match[2];
+			const rendered = this.render(settingId, match[3]);
+			if (rendered) {
+				return raw.replace(this.codeSettingAnchorRegex, rendered);
+			}
+		}
+		return undefined;
+	}
+
+	private replaceSimple(raw: string): string | undefined {
+		const match = this.codeSettingSimpleRegex.exec(raw);
+		if (match && match.length === 3) {
+			const settingId = match[1];
+			const rendered = this.render(settingId, match[2]);
+			if (rendered) {
+				return raw.replace(this.codeSettingSimpleRegex, rendered);
+			}
+		}
+		return undefined;
+	}
+
 	getHtmlRenderer(): (token: Tokens.HTML | Tokens.Tag) => string {
 		return ({ raw }: Tokens.HTML | Tokens.Tag): string => {
-			const match = this.codeSettingRegex.exec(raw);
-			if (match && match.length === 4) {
-				const settingId = match[2];
-				const rendered = this.render(settingId, match[3]);
-				if (rendered) {
-					raw = raw.replace(this.codeSettingRegex, rendered);
-				}
+			const replacedAnchor = this.replaceAnchor(raw);
+			if (replacedAnchor) {
+				raw = replacedAnchor;
 			}
 			return raw;
+		};
+	}
+
+	getCodeSpanRenderer(): (token: Tokens.Codespan) => string {
+		return ({ text }: Tokens.Codespan): string => {
+			const replacedSimple = this.replaceSimple(text);
+			if (replacedSimple) {
+				return replacedSimple;
+			}
+			return `<code>${text}</code>`;
 		};
 	}
 

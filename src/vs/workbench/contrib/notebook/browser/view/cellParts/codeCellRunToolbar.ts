@@ -11,7 +11,7 @@ import { EditorContextKeys } from '../../../../../../editor/common/editorContext
 import { localize } from '../../../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenu, IMenuService, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -34,6 +34,8 @@ export class RunToolbar extends CellContentPart {
 		readonly contextKeyService: IContextKeyService,
 		readonly cellContainer: HTMLElement,
 		readonly runButtonContainer: HTMLElement,
+		primaryMenuId: MenuId,
+		secondaryMenuId: MenuId,
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -41,8 +43,8 @@ export class RunToolbar extends CellContentPart {
 	) {
 		super();
 
-		this.primaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
-		this.secondaryMenu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+		this.primaryMenu = this._register(menuService.createMenu(primaryMenuId, contextKeyService));
+		this.secondaryMenu = this._register(menuService.createMenu(secondaryMenuId, contextKeyService));
 		this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService);
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(this.primaryMenu);
