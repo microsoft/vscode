@@ -203,7 +203,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations || providerDescriptor.supportsModelPicker) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
 					}
@@ -246,6 +246,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							extensionDisplayName: extension.description.displayName ?? extension.description.name,
 							id: providerDescriptor.id,
 							description: providerDescriptor.description,
+							supportsModelPicker: providerDescriptor.supportsModelPicker,
 							when: providerDescriptor.when,
 							metadata: {
 								isSticky: providerDescriptor.isSticky,

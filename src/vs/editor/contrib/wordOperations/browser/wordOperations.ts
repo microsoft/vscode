@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, ICommandOptions, registerEditorAction, registerEditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { ReplaceCommand } from '../../../common/commands/replaceCommand.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EditorOption, EditorOptions } from '../../../common/config/editorOptions.js';
 import { CursorState } from '../../../common/cursorCommon.js';
 import { CursorChangeReason } from '../../../common/cursorEvents.js';
 import { DeleteWordContext, WordNavigationType, WordOperations } from '../../../common/cursor/cursorWordOperations.js';
@@ -176,6 +176,37 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 	}
 }
 
+// Accessibility navigation commands should only be enabled on windows since they are tuned to what NVDA expects
+export class CursorWordAccessibilityLeft extends WordLeftCommand {
+	constructor() {
+		super({
+			inSelectionMode: false,
+			wordNavigationType: WordNavigationType.WordAccessibility,
+			id: 'cursorWordAccessibilityLeft',
+			precondition: undefined
+		});
+	}
+
+	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
+	}
+}
+
+export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
+	constructor() {
+		super({
+			inSelectionMode: true,
+			wordNavigationType: WordNavigationType.WordAccessibility,
+			id: 'cursorWordAccessibilityLeftSelect',
+			precondition: undefined
+		});
+	}
+
+	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
+	}
+}
+
 export class CursorWordStartRight extends WordRightCommand {
 	constructor() {
 		super({
@@ -251,6 +282,36 @@ export class CursorWordRightSelect extends WordRightCommand {
 			id: 'cursorWordRightSelect',
 			precondition: undefined
 		});
+	}
+}
+
+export class CursorWordAccessibilityRight extends WordRightCommand {
+	constructor() {
+		super({
+			inSelectionMode: false,
+			wordNavigationType: WordNavigationType.WordAccessibility,
+			id: 'cursorWordAccessibilityRight',
+			precondition: undefined
+		});
+	}
+
+	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
+	}
+}
+
+export class CursorWordAccessibilityRightSelect extends WordRightCommand {
+	constructor() {
+		super({
+			inSelectionMode: true,
+			wordNavigationType: WordNavigationType.WordAccessibility,
+			id: 'cursorWordAccessibilityRightSelect',
+			precondition: undefined
+		});
+	}
+
+	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
+		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
 	}
 }
 
@@ -448,6 +509,10 @@ registerEditorCommand(new CursorWordRight());
 registerEditorCommand(new CursorWordStartRightSelect());
 registerEditorCommand(new CursorWordEndRightSelect());
 registerEditorCommand(new CursorWordRightSelect());
+registerEditorCommand(new CursorWordAccessibilityLeft());
+registerEditorCommand(new CursorWordAccessibilityLeftSelect());
+registerEditorCommand(new CursorWordAccessibilityRight());
+registerEditorCommand(new CursorWordAccessibilityRightSelect());
 registerEditorCommand(new DeleteWordStartLeft());
 registerEditorCommand(new DeleteWordEndLeft());
 registerEditorCommand(new DeleteWordLeft());

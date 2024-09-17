@@ -65,7 +65,11 @@ export class TestParcelWatcher extends ParcelWatcher {
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-suite.skip('File Watcher (parcel)', () => {
+/* eslint-disable local/code-ensure-no-disposables-leak-in-test */
+
+suite.skip('File Watcher (parcel)', function () {
+
+	this.timeout(10000);
 
 	let testDir: string;
 	let watcher: TestParcelWatcher;
@@ -77,7 +81,7 @@ suite.skip('File Watcher (parcel)', () => {
 		watcher?.setVerboseLogging(enable);
 	}
 
-	enableLogging(false);
+	enableLogging(loggingEnabled);
 
 	setup(async () => {
 		watcher = new TestParcelWatcher();
@@ -743,15 +747,15 @@ suite.skip('File Watcher (parcel)', () => {
 		assert.strictEqual(instance.failed, true);
 	});
 
-	test('correlated watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
-		await testCorrelatedWatchFolderDoesNotExist(false);
+	test('watch requests support suspend/resume (folder, does not exist in beginning, not reusing watcher)', async () => {
+		await testWatchFolderDoesNotExist(false);
 	});
 
-	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('correlated watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
-		await testCorrelatedWatchFolderDoesNotExist(true);
+	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, does not exist in beginning, reusing watcher)', async () => {
+		await testWatchFolderDoesNotExist(true);
 	});
 
-	async function testCorrelatedWatchFolderDoesNotExist(reuseExistingWatcher: boolean) {
+	async function testWatchFolderDoesNotExist(reuseExistingWatcher: boolean) {
 		let onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 
 		const folderPath = join(testDir, 'not-found');
@@ -762,7 +766,7 @@ suite.skip('File Watcher (parcel)', () => {
 			await watcher.watch(requests);
 		}
 
-		const request: IRecursiveWatchRequest = { path: folderPath, excludes: [], recursive: true, correlationId: 1 };
+		const request: IRecursiveWatchRequest = { path: folderPath, excludes: [], recursive: true };
 		requests.push(request);
 
 		await watcher.watch(requests);
@@ -774,7 +778,7 @@ suite.skip('File Watcher (parcel)', () => {
 			assert.strictEqual(watcher.isSuspended(request), 'polling');
 		}
 
-		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await promises.mkdir(folderPath);
 		await changeFuture;
@@ -783,33 +787,33 @@ suite.skip('File Watcher (parcel)', () => {
 		assert.strictEqual(watcher.isSuspended(request), false);
 
 		const filePath = join(folderPath, 'newFile.txt');
-		await basicCrudTest(filePath, 1);
+		await basicCrudTest(filePath);
 
 		onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		await Promises.rm(folderPath);
 		await onDidWatchFail;
 
-		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED);
 		onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
-		await basicCrudTest(filePath, 1);
+		await basicCrudTest(filePath);
 	}
 
-	test('correlated watch requests support suspend/resume (folder, exist in beginning, not reusing watcher)', async () => {
-		await testCorrelatedWatchFolderExists(false);
+	test('watch requests support suspend/resume (folder, exist in beginning, not reusing watcher)', async () => {
+		await testWatchFolderExists(false);
 	});
 
-	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('correlated watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
-		await testCorrelatedWatchFolderExists(true);
+	(!isMacintosh /* Linux/Windows: times out for some reason */ ? test.skip : test)('watch requests support suspend/resume (folder, exist in beginning, reusing watcher)', async () => {
+		await testWatchFolderExists(true);
 	});
 
-	async function testCorrelatedWatchFolderExists(reuseExistingWatcher: boolean) {
+	async function testWatchFolderExists(reuseExistingWatcher: boolean) {
 		const folderPath = join(testDir, 'deep');
 
-		const requests: IRecursiveWatchRequest[] = [{ path: folderPath, excludes: [], recursive: true, correlationId: 1 }];
+		const requests: IRecursiveWatchRequest[] = [{ path: folderPath, excludes: [], recursive: true }];
 		if (reuseExistingWatcher) {
 			requests.push({ path: testDir, excludes: [], recursive: true });
 		}
@@ -817,19 +821,19 @@ suite.skip('File Watcher (parcel)', () => {
 		await watcher.watch(requests);
 
 		const filePath = join(folderPath, 'newFile.txt');
-		await basicCrudTest(filePath, 1);
+		await basicCrudTest(filePath);
 
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		await Promises.rm(folderPath);
 		await onDidWatchFail;
 
-		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
+		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED);
 		const onDidWatch = Event.toPromise(watcher.onDidWatch);
 		await promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
-		await basicCrudTest(filePath, 1);
+		await basicCrudTest(filePath);
 	}
 
 	test('watch request reuses another recursive watcher even when requests are coming in at the same time', async function () {

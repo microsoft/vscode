@@ -73,15 +73,17 @@ export const IChatAccessibilityService = createDecorator<IChatAccessibilityServi
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
-	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
+	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void;
 }
 
 export interface IChatCodeBlockInfo {
-	codeBlockIndex: number;
-	element: ChatTreeItem;
-	uri: URI | undefined;
+	readonly ownerMarkdownPartId: string;
+	readonly codeBlockIndex: number;
+	readonly element: ChatTreeItem;
+	readonly uri: URI | undefined;
 	codemapperUri: URI | undefined;
 	focus(): void;
+	getContent(): string;
 }
 
 export interface IChatFileTreeInfo {
@@ -160,7 +162,7 @@ export interface IChatWidget {
 	setInput(query?: string): void;
 	getInput(): string;
 	logInputHistory(): void;
-	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined>;
+	acceptInput(query?: string): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

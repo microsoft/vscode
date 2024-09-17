@@ -209,7 +209,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
 			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
-			acceptInput: () => chatWidget.acceptInput(undefined, true),
+			acceptInput: () => chatWidget.acceptInput(),
 			updateInput: text => chatWidget.setInput(text),
 			getInput: () => chatWidget.getInput(),
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
@@ -226,7 +226,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
 			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
-			acceptInput: () => terminalChat.acceptInput(true),
+			acceptInput: () => terminalChat.acceptInput(),
 			updateInput: text => terminalChat.updateInput(text, false),
 			getInput: () => terminalChat.getInput(),
 			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
@@ -579,7 +579,7 @@ export class StartVoiceChatAction extends Action2 {
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
 			menu: [{
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
 					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
@@ -632,7 +632,7 @@ export class StopListeningAction extends Action2 {
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
 			menu: [{
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				when: AnyScopedVoiceChatInProgress,
 				group: 'navigation',
 				order: -1
@@ -964,7 +964,7 @@ export class StopReadAloud extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecute,
+					id: MenuId.ChatInput,
 					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
@@ -1308,7 +1308,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
 			menu: [{
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				when: HasSpeechProvider.negate(),
 				group: 'navigation',
 				order: -1

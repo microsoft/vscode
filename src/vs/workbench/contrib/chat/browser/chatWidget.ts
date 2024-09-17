@@ -32,7 +32,7 @@ import { ChatInputPart } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
+import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -143,6 +143,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
+	private agentSupportsModelPicker: IContextKey<boolean>;
 
 	private _visible = false;
 	public get visible() {
@@ -176,8 +177,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	get parsedInput() {
 		if (this.parsedChatRequest === undefined) {
 			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
-
-			this.agentInInput.set((!!this.parsedChatRequest.parts.find(part => part instanceof ChatRequestAgentPart)));
 		}
 
 		return this.parsedChatRequest;
@@ -226,6 +225,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(this._location.location);
 		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
+		this.agentSupportsModelPicker = CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
@@ -662,7 +662,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._onDidChangeContentHeight.fire();
 		}));
-		this._register(this.inputEditor.onDidChangeModelContent(() => this.parsedChatRequest = undefined));
+		this._register(this.inputEditor.onDidChangeModelContent(() => {
+			this.parsedChatRequest = undefined;
+			this.updateChatInputContext();
+		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.parsedChatRequest = undefined));
 	}
 
@@ -722,7 +725,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 			revealLastElement(this.tree);
 		}
-
+		this.updateChatInputContext();
 	}
 
 	getFocus(): ChatTreeItem | undefined {
@@ -768,8 +771,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.logInputHistory();
 	}
 
-	async acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
-		return this._acceptInput(query ? { query } : undefined, isVoiceInput);
+	async acceptInput(query?: string): Promise<IChatResponseModel | undefined> {
+		return this._acceptInput(query ? { query } : undefined);
 	}
 
 	async acceptInputWithPrefix(prefix: string): Promise<void> {
@@ -786,7 +789,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 
@@ -797,6 +800,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
+				userSelectedModelId: this.inputPart.currentLanguageModel,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
@@ -809,7 +813,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, isVoiceInput);
+					this.chatAccessibilityService.acceptResponse(lastResponse, requestId);
 					if (lastResponse?.result?.nextQuestion) {
 						const { prompt, participant, command } = lastResponse.result.nextQuestion;
 						const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
@@ -987,6 +991,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getViewState(): IChatViewState {
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
+	}
+
+	private updateChatInputContext() {
+		const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
+		this.agentInInput.set(!!currentAgent);
+		this.agentSupportsModelPicker.set(!currentAgent || !!currentAgent.agent.supportsModelPicker);
 	}
 }
 

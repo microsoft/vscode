@@ -1137,6 +1137,7 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
+		const spawnOptions: SpawnOptions = {};
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
@@ -1174,19 +1175,21 @@ export class Repository {
 		}
 
 		if (options?.refNames) {
-			if (options.refNames.length === 0) {
-				args.push('--all');
-			}
 			args.push('--topo-order');
 			args.push('--decorate=full');
-			args.push(...options.refNames);
+
+			// In order to avoid hitting the command line limit due to large number of reference
+			// names (can happen when the `all` filter is used in the Source Control Graph view),
+			// we are passing the reference names via stdin.
+			spawnOptions.input = options.refNames.join('\n');
+			args.push('--stdin');
 		}
 
 		if (options?.path) {
 			args.push('--', options.path);
 		}
 
-		const result = await this.exec(args);
+		const result = await this.exec(args, spawnOptions);
 		if (result.exitCode) {
 			// An empty repo
 			return [];

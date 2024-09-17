@@ -2185,6 +2185,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.gallery) {
+			if (!extension.gallery.isSigned) {
+				return false;
+			}
+
 			if (this.localExtensions && await this.localExtensions.canInstall(extension.gallery)) {
 				return true;
 			}

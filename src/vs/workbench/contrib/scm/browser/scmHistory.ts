@@ -10,6 +10,7 @@ import { asCssVariable, ColorIdentifier, registerColor, transparent } from '../.
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
+import { compareHistoryItemRefs } from './util.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -256,7 +257,9 @@ export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNo
 export function toISCMHistoryItemViewModelArray(
 	historyItems: ISCMHistoryItem[],
 	colorMap = new Map<string, ColorIdentifier | undefined>(),
-	currentHistoryItemRef?: ISCMHistoryItemRef
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef
 ): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
@@ -332,6 +335,10 @@ export function toISCMHistoryItemViewModelArray(
 
 				return { ...ref, color };
 			});
+
+		// Sort references
+		references.sort((ref1, ref2) =>
+			compareHistoryItemRefs(ref1, ref2, currentHistoryItemRef, currentHistoryItemRemoteRef, currentHistoryItemBaseRef));
 
 		viewModels.push({
 			historyItem: {

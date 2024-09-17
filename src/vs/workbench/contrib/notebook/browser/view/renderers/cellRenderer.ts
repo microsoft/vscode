@@ -324,12 +324,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.notebookEditor));
 
 		const focusIndicatorPart = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
-		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), [
+		const contentParts = [
 			focusIndicatorPart,
 			templateDisposables.add(scopedInstaService.createInstance(CellChatPart, this.notebookEditor, cellChatPart)),
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor)),
 			templateDisposables.add(scopedInstaService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer)),
-			templateDisposables.add(scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)),
 			templateDisposables.add(new CellDecorations(rootContainer, decorationContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(CellExecutionPart, this.notebookEditor, executionOrderLabel)),
@@ -338,7 +337,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables.add(new CellFocusPart(container, focusSinkElement, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
 			templateDisposables.add(scopedInstaService.createInstance(CellContextKeyPart, this.notebookEditor)),
-		], [
+		];
+
+		const { cellExecutePrimary, cellExecuteToolbar } = this.notebookEditor.creationOptions.menuIds;
+		if (cellExecutePrimary && cellExecuteToolbar) {
+			contentParts.push(templateDisposables.add(
+				scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer, cellExecutePrimary, cellExecuteToolbar)
+			));
+		}
+
+		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), contentParts, [
 			titleToolbar,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer))
 		]);
