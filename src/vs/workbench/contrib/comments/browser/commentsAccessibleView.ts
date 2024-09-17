@@ -151,16 +151,15 @@ class CommentsThreadWidgetAccessibleContentProvider extends Disposable implement
 		if (!commentInfo) {
 			return;
 		}
-		// TODO: is there a way to focus the comment not the thread?
 		this._commentService.setActiveCommentAndThread(commentInfo.owner, { comment: commentInfo.comment, thread: commentInfo.thread });
 		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, commentInfo.thread, commentInfo.comment);
 	}
 	provideNextContent(): string | undefined {
-		this._commentService.navigateToCommentAndThread('next');
+		this._commentService.navigateToComment('next');
 		return this.provideContent();
 	}
 	providePreviousContent(): string | undefined {
-		this._commentService.navigateToCommentAndThread('previous');
+		this._commentService.navigateToComment('previous');
 		return this.provideContent();
 	}
 }

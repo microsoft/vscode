@@ -112,7 +112,7 @@ export interface ICommentService {
 	setActiveEditingCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 	setActiveCommentAndThread(uniqueOwner: string, commentInfo: { thread: CommentThread<IRange | ICellRange>; comment?: Comment } | undefined): Promise<void>;
-	navigateToCommentAndThread(type: 'next' | 'previous'): void;
+	navigateToComment(type: 'next' | 'previous'): void;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
 	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; uniqueOwner: string; isReply?: boolean }): PendingCommentThread | undefined;
@@ -323,10 +323,10 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	/**
-	 * Navigate to the next or previous comment thread
+	 * Navigate to the next or previous comment in the current thread.
 	 * @param type
 	 */
-	navigateToCommentAndThread(type: 'next' | 'previous') {
+	navigateToComment(type: 'next' | 'previous') {
 		const commentInfo = this.activeCommentInfo;
 		if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
 			return;
