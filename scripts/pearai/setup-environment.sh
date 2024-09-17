@@ -90,7 +90,7 @@ execute "./scripts/install-and-build.sh" "Failed to install dependencies for the
 # Discard the package.json and package-lock.json version update changes
 execute "git reset --hard" "Failed to reset --hard after submodule dependencies install"
 
-execute "cd $app_dir" "Failed to change directory to application root"
+execute "cd '$app_dir'" "Failed to change directory to application root"
 
 echo -e "\nSetting up root application..."
 pwd
