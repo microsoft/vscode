@@ -36,7 +36,6 @@ import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQui
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { isImage } from '../chatImagePaste.js';
 
 export function registerChatContextActions() {
@@ -198,7 +197,7 @@ class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, fileService: IFileService, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (pick && typeof pick === 'object' && 'command' in pick && pick.command) {
@@ -229,13 +228,13 @@ class AttachContextAction extends Action2 {
 			} else if (pick && typeof pick === 'object' && 'resource' in pick && pick.resource) {
 				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 					// checks if the file is an image
-					const fileBuffer = await fileService.readFile(pick.resource);
 					toAttach.push({
-						id: fileBuffer.value.buffer.slice(0, 50).toString(), // unique id based on first 50 values in the uint8array
+						id: pick.resource.toString(),
 						name: pick.label,
 						fullName: pick.label,
-						value: fileBuffer.value.buffer,
-						isDynamic: true
+						value: pick.resource,
+						isDynamic: true,
+						isImage: true
 					});
 				} else {
 					// #file variable
@@ -305,7 +304,6 @@ class AttachContextAction extends Action2 {
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const clipboardService = accessor.get(IClipboardService);
-		const fileService = accessor.get(IFileService);
 		const context: { widget?: IChatWidget } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -400,10 +398,10 @@ class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), '', clipboardService, fileService);
+		}), '', clipboardService);
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '', clipboardService?: IClipboardService, fileService?: IFileService,) {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '', clipboardService?: IClipboardService) {
 
 		quickInputService.quickAccess.show(query, {
 			enabledProviderPrefixes: [
@@ -417,10 +415,10 @@ class AttachContextAction extends Action2 {
 					if ('prefix' in item) {
 						this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, item.prefix);
 					} else {
-						if (!clipboardService || !fileService) {
+						if (!clipboardService) {
 							return;
 						}
-						this._attachContext(widget, commandService, clipboardService, fileService, item);
+						this._attachContext(widget, commandService, clipboardService, item);
 						if (isQuickChat(widget)) {
 							quickChatService.open();
 						}
