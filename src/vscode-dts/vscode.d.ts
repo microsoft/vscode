@@ -13511,8 +13511,9 @@ declare module 'vscode' {
 		 * `**` or path segments), it will be watched recursively and otherwise will be watched
 		 * non-recursively (i.e. only changes to the first level of the path will be reported).
 		 *
-		 * *Note* that paths must exist in the file system to be watched. File watching may stop when
-		 * the watched path is renamed or deleted.
+		 * *Note* that paths that do not exist in the file system will be monitored with a delay until
+		 * created and then watched depending on the parameters provided. If a watched path is deleted,
+		 * the watcher will suspend and not report any events until the path is created again.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.
@@ -13527,25 +13528,12 @@ declare module 'vscode' {
 		 *
 		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
-		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
+		 * that are known to produce many file changes at once (such as `.git` folders). As such,
 		 * it is highly recommended to watch with simple patterns that do not require recursive watchers
 		 * where the exclude settings are ignored and you have full control over the events.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.
-		 *
-		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
-		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
-		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
-		 * The underlying behaviour depends on the path that is provided for watching:
-		 * * if the path is within any of the workspace folders, deletions are tracked and reported unless
-		 *   excluded via `files.watcherExclude` setting
-		 * * if the path is equal to any of the workspace folders, deletions are not tracked
-		 * * if the path is outside of any of the workspace folders, deletions are not tracked
-		 *
-		 * If you are interested in being notified when the watched path itself is being deleted, you have
-		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
-		 * folder) to not accidentally watch all sibling folders recursively.
 		 *
 		 * *Note* that the file paths that are reported for having changed may have a different path casing
 		 * compared to the actual casing on disk on case-insensitive platforms (typically macOS and Windows
