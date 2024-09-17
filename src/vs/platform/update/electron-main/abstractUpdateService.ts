@@ -15,7 +15,8 @@ import { IRequestService } from 'vs/platform/request/common/request';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
-	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+	let updateURL = `${productService.updateUrl}/update/${platform}/${quality}/${productService.pearAIVersion}`;
+	return updateURL;
 }
 
 export type UpdateNotAvailableClassification = {
@@ -80,7 +81,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		if (!this.productService.updateUrl || !this.productService.commit) {
+		if (!this.productService.updateUrl || !this.productService.pearAIVersion) {
 			this.setState(State.Disabled(DisablementReason.MissingConfiguration));
 			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;

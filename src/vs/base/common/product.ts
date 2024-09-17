@@ -200,6 +200,7 @@ export interface IProductConfiguration {
 	readonly gitHubEntitlement?: IGitHubEntitlement;
 	readonly chatWelcomeView?: IChatWelcomeView;
 	readonly chatParticipantRegistry?: string;
+	readonly pearAIVersion?: string;
 }
 
 export interface ITunnelApplicationConfig {
