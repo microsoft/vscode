@@ -350,6 +350,7 @@ class WordHighlighter {
 	}
 
 	public trigger() {
+		this.runDelayer.cancel();
 		this._run(false, true); // immediate rendering (noDelay = true)
 	}
 
