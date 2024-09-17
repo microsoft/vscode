@@ -30,7 +30,7 @@ declare module 'vscode' {
 		/**
 		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
 		 */
-		value: string | Uri | Buffer;
+		value: string | Uri;
 
 		/**
 		 * A description of this value, which could be provided to the LLM as a hint.
