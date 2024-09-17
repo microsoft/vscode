@@ -9,7 +9,6 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
@@ -20,6 +19,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
@@ -28,6 +28,7 @@ import { accessibleViewInCodeBlock } from '../../../accessibility/browser/access
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ICodeMapperCodeBlock, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { CONTEXT_CHAT_EDIT_APPLIED, CONTEXT_CHAT_ENABLED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
@@ -238,7 +239,15 @@ export function registerChatCodeBlockActions() {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const codemapperService = accessor.get(ICodeMapperService);
 			const progressService = accessor.get(IProgressService);
-			const bulkEditService = accessor.get(IBulkEditService);
+			const chatEditingService = accessor.get(IChatEditingService);
+			const notificationService = accessor.get(INotificationService);
+
+			if (chatEditingService.currentEditingSession) {
+				// there is already an editing session active, we should not start a new one
+				// TODO: figure out a way to implement follow-ups
+				notificationService.info(localize('chatCodeBlock.applyAll.editingSessionActive', 'An editing session is already active, please accept or reject the current proposed edits before continuing.'));
+				return;
+			}
 
 			const widget = chatWidgetService.lastFocusedWidget;
 			if (!widget) {
@@ -259,30 +268,25 @@ export function registerChatCodeBlockActions() {
 				}
 			}
 
-			// TODO@joyceerhl @aeschli this should be streamed to the refactoring preview
-			const resources: ResourceTextEdit[] = [];
-			const response = {
-				textEdit: (textEdit: TextEdit, resource: URI) => {
-					const resourceEdit = new ResourceTextEdit(resource, textEdit, undefined);
-					resources.push(resourceEdit);
-				}
-			};
+			await chatEditingService.createEditingSession(async (stream) => {
 
-			// Invoke the code mapper for all the code blocks in this response
-			const tokenSource = new CancellationTokenSource();
-			await progressService.withProgress({
-				location: ProgressLocation.Notification,
-				title: localize2('chatCodeBlock.generatingEdits', 'Applying all edits').value,
-				cancellable: true
-			}, async (task) => {
-				task.report({ message: localize2('chatCodeBlock.generating', 'Generating edits...').value });
-				await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
-				task.report({ message: localize2('chatCodeBlock.applyAllEdits', 'Applying edits to workspace...').value });
-			}, () => tokenSource.cancel());
+				const response = {
+					textEdit: (resource: URI, textEdits: TextEdit[]) => {
+						stream.textEdits(resource, textEdits);
+					}
+				};
 
-			await bulkEditService.apply(resources, {
-				showPreview: true,
-				label: localize('label', "Applying edits"),
+				// Invoke the code mapper for all the code blocks in this response
+				const tokenSource = new CancellationTokenSource();
+				await progressService.withProgress({
+					location: ProgressLocation.Notification,
+					title: localize2('chatCodeBlock.generatingEdits', 'Applying all edits').value,
+					cancellable: true
+				}, async (task) => {
+					task.report({ message: localize2('chatCodeBlock.generating', 'Generating edits...').value });
+					await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
+					task.report({ message: localize2('chatCodeBlock.applyAllEdits', 'Applying edits to workspace...').value });
+				}, () => tokenSource.cancel());
 			});
 		}
 	});
