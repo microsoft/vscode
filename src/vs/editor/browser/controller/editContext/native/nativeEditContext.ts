@@ -112,8 +112,10 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Public methods ---
 
 	public override dispose(): void {
-		super.dispose();
+		// Force blue the dom node so can write in pane with no native edit context after disposal
+		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
+		super.dispose();
 	}
 
 	public appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
@@ -239,18 +241,14 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; textStartPositionWithinEditor: Position } {
+		const model = this._context.viewModel.model;
+		const primarySelectionStartLine = this._primarySelection.startLineNumber;
+		const primarySelectionEndLine = this._primarySelection.endLineNumber;
+		const endColumnOfEndLineNumber = model.getLineMaxColumn(primarySelectionEndLine);
+		const rangeOfText = new Range(primarySelectionStartLine, 1, primarySelectionEndLine, endColumnOfEndLineNumber);
+		const text = model.getValueInRange(rangeOfText, EndOfLinePreference.TextDefined);
 		const selectionStartOffset = this._primarySelection.startColumn - 1;
-		let selectionEndOffset: number = 0;
-		for (let i = this._primarySelection.startLineNumber; i <= this._primarySelection.endLineNumber; i++) {
-			if (i === this._primarySelection.endLineNumber) {
-				selectionEndOffset += this._primarySelection.endColumn - 1;
-			} else {
-				selectionEndOffset += this._context.viewModel.model.getLineMaxColumn(i);
-			}
-		}
-		const endColumnOfEndLineNumber = this._context.viewModel.model.getLineMaxColumn(this._primarySelection.endLineNumber);
-		const rangeOfText = new Range(this._primarySelection.startLineNumber, 1, this._primarySelection.endLineNumber, endColumnOfEndLineNumber);
-		const text = this._context.viewModel.model.getValueInRange(rangeOfText, EndOfLinePreference.LF);
+		const selectionEndOffset = text.length + this._primarySelection.endColumn - endColumnOfEndLineNumber;
 		const textStartPositionWithinEditor = rangeOfText.getStartPosition();
 		return {
 			text,
