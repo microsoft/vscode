@@ -9,6 +9,6 @@
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.terminalQuickFixProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts",
 	]
 }
