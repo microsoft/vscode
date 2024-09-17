@@ -114,7 +114,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}, { container: this.layoutService.mainContainer, disposables: this._store }));
 	}
 
-
+	// Experimental
 	private installWebKitReadWorkaround(): void {
 		const handler = () => {
 			const currentReadPromise = new DeferredPromise<string>();
@@ -124,18 +124,12 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 				this.webKitPendingClipboardReadPromise.cancel();
 			}
 			this.webKitPendingClipboardReadPromise = currentReadPromise;
-
-			// The ctor of ClipboardItem allows you to pass in a promise that will resolve to a string.
-			// This allows us to pass in a Promise that will either be cancelled by another event or
-			// resolved with the contents of the first call to this.writeText.
-			// see https://developer.mozilla.org/en-US/docs/Web/API/ClipboardItem/ClipboardItem#parameters
 			getActiveWindow().navigator.clipboard.read().catch(async err => {
 				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentReadPromise.isRejected) {
 					this.logService.error(err);
 				}
 			});
 		};
-
 
 		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 			disposables.add(addDisposableListener(container, 'click', handler));
