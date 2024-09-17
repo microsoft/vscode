@@ -163,7 +163,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, TerminalSuggestContribution._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._instance.shellType, TerminalSuggestContribution._cachedPwshCommands, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(addon);
 			if (this._instance.target === TerminalLocation.Editor) {
 				addon.setContainerWithOverflow(xterm.element!);

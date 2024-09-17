@@ -271,16 +271,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerCompletionProvider(id: string, extensionIdentifier: string): void {
 		// Proxy completion provider requests through the extension host
 		this._completionProviders.set(id, this._terminalSuggestionService.registerTerminalSuggestionProvider(extensionIdentifier, id, {
-			provideSuggestions: async (terminal) => {
-				const shellType = terminal.shellType;
-				if (!shellType) {
-					return;
-				}
-				const commandLine = terminal.capabilities.get(TerminalCapability.CommandDetection)?.currentCommand?.command;
-				if (commandLine === undefined) {
-					return;
-				}
-				const suggestions = await this._proxy.$provideTerminalSuggestions(id, { shellType, commandLine });
+			provideSuggestions: async (commandLine, shellType) => {
+				const suggestions = await this._proxy.$provideTerminalSuggestions(id, { commandLine, shellType });
 				const converted: ITerminalCompletion[] = [];
 				if (!suggestions?.length) {
 					return;

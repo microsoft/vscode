@@ -6,7 +6,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CompletionItemLabel } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const ITerminalSuggestionService = createDecorator<ITerminalSuggestionService>('terminalSuggestionService');
 
@@ -46,12 +46,13 @@ export enum TerminalCompletionItemKind {
 }
 
 export interface ITerminalSuggestionProvider {
-	provideSuggestions(terminal: ITerminalInstance): Promise<ITerminalCompletion[] | undefined>;
+	provideSuggestions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export interface ITerminalSuggestionService {
 	_serviceBrand: undefined;
 	registerTerminalSuggestionProvider(extensionIdentifier: string, id: string, provider: ITerminalSuggestionProvider): IDisposable;
+	provideSuggestions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalSuggestionService extends Disposable implements ITerminalSuggestionService {
@@ -72,11 +73,11 @@ export class TerminalSuggestionService extends Disposable implements ITerminalSu
 		return toDisposable(() => this._providers.delete(id));
 	}
 
-	async provideSuggestions(terminal: ITerminalInstance): Promise<ITerminalCompletion[] | undefined> {
+	async provideSuggestions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
 		const result: ITerminalCompletion[] = [];
 		for (const providers of this._providers.values()) {
 			for (const provider of providers.values()) {
-				const suggestions = await provider.provideSuggestions(terminal);
+				const suggestions = await provider.provideSuggestions(value, shellType);
 				if (suggestions) {
 					result.push(...suggestions);
 				}

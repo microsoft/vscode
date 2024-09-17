@@ -29,6 +29,8 @@ import { SimpleCompletionItem, type ISimpleCompletion } from '../../../../servic
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
+import { ITerminalSuggestionService, TerminalCompletionItemKind } from './terminalSuggestionService.js';
+import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -147,12 +149,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
 
 	constructor(
+		private readonly _shellType: TerminalShellType | undefined,
 		private readonly _cachedPwshCommands: Set<SimpleCompletionItem>,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@ITerminalSuggestionService private readonly _terminalSuggestionService: ITerminalSuggestionService,
 	) {
 		super();
 
@@ -180,10 +184,78 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
 			return this._handleVSCodeSequence(data);
 		}));
-		this._register(xterm.onData(e => {
+		this._register(xterm.onData(async e => {
 			this._lastUserData = e;
 			this._lastUserDataTimestamp = Date.now();
+			return this._handleData();
 		}));
+	}
+
+	private async _handleData(): Promise<void> {
+		this._onDidReceiveCompletions.fire();
+
+		// Nothing to handle if the terminal is not attached
+		if (!this._terminal?.element || !this._enableWidget || !this._promptInputModel) {
+			return;
+		}
+
+		// Only show the suggest widget if the terminal is focused
+		if (!dom.isAncestorOfActiveElement(this._terminal.element)) {
+			return;
+		}
+
+		const replacementIndex = 0;
+		const replacementLength = this._promptInputModel.cursorIndex;
+
+		this._currentPromptInputState = {
+			value: this._promptInputModel.value,
+			prefix: this._promptInputModel.prefix,
+			suffix: this._promptInputModel.suffix,
+			cursorIndex: this._promptInputModel.cursorIndex,
+			ghostTextIndex: this._promptInputModel.ghostTextIndex
+		};
+
+		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
+		// TODO: only do this for specific prompt value?
+		if (!this._shellType) {
+			return;
+		}
+		const completions = await this._terminalSuggestionService.provideSuggestions(this._leadingLineContent, this._shellType);
+		if (!completions?.length) {
+			return;
+		}
+		const suggestions: SimpleCompletionItem[] = completions.map(s => {
+			return new SimpleCompletionItem({
+				label: typeof s.label === 'string' ? s.label : s.label.label,
+				icon: s.kind === TerminalCompletionItemKind.Folder ? Codicon.folder : Codicon.file,
+				detail: s.detail,
+				isDirectory: s.kind === TerminalCompletionItemKind.Folder,
+			});
+		});
+		if (!suggestions?.length) {
+			return;
+		}
+		this._mostRecentCompletion = undefined;
+
+		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (replacementIndex + replacementLength);
+
+		let normalizedLeadingLineContent = this._leadingLineContent;
+
+		// If there is a single directory in the completions:
+		// - `\` and `/` are normalized such that either can be used
+		// - Using `\` or `/` will request new completions. It's important that this only occurs
+		//   when a directory is present, if not completions like git branches could be requested
+		//   which leads to flickering
+		this._isFilteringDirectories = suggestions.some(e => e.completion.isDirectory);
+		if (this._isFilteringDirectories) {
+			const firstDir = suggestions.find(e => e.completion.isDirectory);
+			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
+			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+		}
+		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+		const model = new SimpleCompletionModel(suggestions, lineContext, replacementIndex, replacementLength);
+		this._handleCompletionModel(model);
+
 	}
 
 	setContainerWithOverflow(container: HTMLElement): void {
@@ -230,7 +302,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
 	}
 
-	private _sync(promptInputState: IPromptInputModelState): void {
+	private async _sync(promptInputState: IPromptInputModelState): Promise<void> {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
