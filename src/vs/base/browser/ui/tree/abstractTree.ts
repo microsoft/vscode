@@ -1128,7 +1128,7 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 
 class FindController<T, TFilterData> extends AbstractFindController<T, TFilterData> {
 
-	get toggles(): ITreeFindToggleContribution[] {
+	protected get toggles(): ITreeFindToggleContribution[] {
 		return [{
 			id: DefaultTreeToggles.Mode,
 			icon: Codicon.listFilter,
