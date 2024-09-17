@@ -62,7 +62,6 @@ import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { index } from '../../../../base/common/arrays.js';
 
 const $ = dom.$;
 
@@ -612,7 +611,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const textLabel = document.createElement('span');
 				textLabel.textContent = attachment.name;
 				textLabel.classList.add('chat-attached-context-custom-text');
-
 
 				widget.style.position = 'relative';
 				widget.appendChild(pill);

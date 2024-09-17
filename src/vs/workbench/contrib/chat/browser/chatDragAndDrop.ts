@@ -7,13 +7,11 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $, DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
@@ -35,8 +33,7 @@ export class ChatDragAndDrop extends Themable {
 		private readonly contianer: HTMLElement,
 		private readonly inputPart: ChatInputPart,
 		private readonly styles: IChatWidgetStyles,
-		@IThemeService themeService: IThemeService,
-		@IFileService private readonly fileService: IFileService
+		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
 
