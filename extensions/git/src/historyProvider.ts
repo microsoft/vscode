@@ -203,9 +203,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return [];
 		}
 
-		// Deduplicate refNames and truncate them to 10 characters
-		const refNames = Array.from(new Set<string>(options.historyItemRefs))
-			.map(ref => ref.substring(0, 10));
+		// Deduplicate refNames
+		const refNames = Array.from(new Set<string>(options.historyItemRefs));
 
 		let logOptions: LogOptions = { refNames, shortStats: true };
 
