@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMHistoryItem, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemRef, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
 import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -153,4 +153,36 @@ export function getHistoryItemEditorTitle(historyItem: ISCMHistoryItem, maxLengt
 		historyItem.subject : `${historyItem.subject.substring(0, maxLength)}\u2026`;
 
 	return `${historyItem.displayId ?? historyItem.id} - ${title}`;
+}
+
+export function compareHistoryItemRefs(
+	ref1: ISCMHistoryItemRef,
+	ref2: ISCMHistoryItemRef,
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef
+): number {
+	const getHistoryItemRefPriority = (ref: ISCMHistoryItemRef) => {
+		if (ref.id === currentHistoryItemRef?.id) {
+			return 1;
+		} else if (ref.id === currentHistoryItemRemoteRef?.id) {
+			return 2;
+		} else if (ref.id === currentHistoryItemBaseRef?.id) {
+			return 3;
+		} else if (ref.color !== undefined) {
+			return 4;
+		}
+
+		return 99;
+	};
+
+	// Assign priority (current > remote > base > color > name)
+	const ref1Priority = getHistoryItemRefPriority(ref1);
+	const ref2Priority = getHistoryItemRefPriority(ref2);
+
+	if (ref1Priority !== ref2Priority) {
+		return ref1Priority - ref2Priority;
+	} else {
+		return ref1.name.localeCompare(ref2.name);
+	}
 }
