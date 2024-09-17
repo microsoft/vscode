@@ -65,6 +65,7 @@ import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 
 suite('InteractiveChatController', function () {
 
@@ -186,7 +187,8 @@ suite('InteractiveChatController', function () {
 			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
 				override listNotebookEditors() { return []; }
 			}],
-			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
+			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
@@ -201,6 +203,8 @@ suite('InteractiveChatController', function () {
 		chatAgentService = instaService.get(IChatAgentService);
 
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
+
+		store.add(instaService.get(ILanguageModelsService) as LanguageModelsService);
 
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
 		model.setEOL(EndOfLineSequence.LF);

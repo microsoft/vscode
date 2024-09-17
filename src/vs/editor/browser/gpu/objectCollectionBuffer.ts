@@ -32,6 +32,10 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	 * The size of the used portion of the view (in float32s).
 	 */
 	readonly viewUsedSize: number;
+	/**
+	 * The number of entries in the buffer.
+	 */
+	readonly entryCount: number;
 
 	/**
 	 * Fires when the buffer is modified.
@@ -53,6 +57,7 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 export interface IObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]> extends IDisposable {
 	set(propertyName: T[number]['name'], value: number): void;
 	get(propertyName: T[number]['name']): number;
+	setRaw(data: ArrayLike<number>): void;
 }
 
 export function createObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]>(
@@ -72,6 +77,9 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 	get viewUsedSize() {
 		return this._entries.size * this._entrySize;
 	}
+	get entryCount() {
+		return this._entries.size;
+	}
 
 	private readonly _propertySpecsMap: Map<string, ObjectCollectionBufferPropertySpec & { offset: number }> = new Map();
 	private readonly _entrySize: number;
@@ -86,7 +94,7 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 	) {
 		super();
 
-		this.view = new Float32Array(capacity * 2);
+		this.view = new Float32Array(capacity * propertySpecs.length);
 		this.buffer = this.view.buffer;
 		this._entrySize = propertySpecs.length;
 		for (let i = 0; i < propertySpecs.length; i++) {
@@ -158,5 +166,12 @@ class ObjectCollectionBufferEntry<T extends ObjectCollectionBufferPropertySpec[]
 
 	get(propertyName: T[number]['name']): number {
 		return this._view[this.i * this._propertySpecsMap.size + this._propertySpecsMap.get(propertyName)!.offset];
+	}
+
+	setRaw(data: ArrayLike<number>): void {
+		if (data.length !== this._propertySpecsMap.size) {
+			throw new Error(`Data length ${data.length} does not match the number of properties in the collection (${this._propertySpecsMap.size})`);
+		}
+		this._view.set(data, this.i * this._propertySpecsMap.size);
 	}
 }
