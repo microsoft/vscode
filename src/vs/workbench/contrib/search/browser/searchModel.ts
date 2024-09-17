@@ -603,6 +603,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._parent;
 	}
 
+	get hasChildren(): boolean {
+		return this._textMatches.size > 0 || this._cellMatches.size > 0;
+	}
+
 	matches(): Match[] {
 		const cellMatches: MatchInNotebook[] = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
 		return [...this._textMatches.values(), ...cellMatches];
@@ -1001,6 +1005,10 @@ export class FolderMatch extends Disposable {
 
 	parent(): TextSearchResult | FolderMatch {
 		return this._parent;
+	}
+
+	get hasChildren(): boolean {
+		return this._fileMatches.size > 0 || this._folderMatches.size > 0;
 	}
 
 	bindModel(model: ITextModel): void {
@@ -1499,6 +1507,14 @@ export class TextSearchResult extends Disposable {
 		return this._parent;
 	}
 
+	get hasChildren(): boolean {
+		return this._folderMatches.length > 0;
+	}
+
+	name(): string {
+		return this._id === AI_TEXT_SEARCH_RESULT_ID ? 'AI' : 'Text';
+	}
+
 	get isDirty(): boolean {
 		return this._isDirty;
 	}
@@ -1934,6 +1950,18 @@ export class SearchResult extends Disposable {
 	get plainTextSearchResult(): ReplaceableTextSearchResult {
 		return this._plainTextSearchResult;
 	}
+
+	get aiTextSearchResult(): TextSearchResult {
+		return this._aiTextSearchResult;
+	}
+
+	get children() {
+		return this.textSearchResults;
+	}
+
+	get hasChildren(): boolean {
+		return true; // should always have a Text Search Result for plain results.
+	}
 	get textSearchResults(): TextSearchResult[] {
 		return [this._plainTextSearchResult, this._aiTextSearchResult];
 	}
@@ -2080,18 +2108,12 @@ export class SearchResult extends Disposable {
 		return this._plainTextSearchResult.isEmpty();
 	}
 
-	fileCount(ai = false): number {
-		if (ai) {
-			return this._aiTextSearchResult.fileCount();
-		}
-		return this._plainTextSearchResult.fileCount();
+	fileCount(): number {
+		return this._plainTextSearchResult.fileCount() + this._aiTextSearchResult.fileCount();
 	}
 
-	count(ai = false): number {
-		if (ai) {
-			return this._aiTextSearchResult.count();
-		}
-		return this._plainTextSearchResult.count();
+	count(): number {
+		return this._plainTextSearchResult.count() + this._aiTextSearchResult.count();
 	}
 
 	setCachedSearchComplete(cachedSearchComplete: ISearchComplete | undefined, ai: boolean) {
@@ -2515,7 +2537,7 @@ export class SearchModel extends Disposable {
 
 export type FileMatchOrMatch = FileMatch | Match;
 
-export type RenderableMatch = TextSearchResult | FolderMatch | FolderMatchWithResource | FileMatch | Match;
+export type RenderableMatch = TextSearchResult | FolderMatch | FileMatch | Match;
 
 export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenchService {
 

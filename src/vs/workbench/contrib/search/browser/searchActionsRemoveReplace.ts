@@ -7,7 +7,7 @@ import { ITreeNavigator } from '../../../../base/browser/ui/tree/tree.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { getSelectionKeyboardEvent, WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { getSelectionKeyboardEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchRemoveIcon, searchReplaceIcon } from './searchIcons.js';
 import { SearchView } from './searchView.js';
@@ -27,7 +27,7 @@ import { equals } from '../../../../base/common/arrays.js';
 
 //#region Interfaces
 export interface ISearchActionContext {
-	readonly viewer: WorkbenchCompressibleObjectTree<RenderableMatch>;
+	readonly viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>;
 	readonly element: RenderableMatch;
 }
 
@@ -259,7 +259,7 @@ function performReplace(accessor: ServicesAccessor,
 	const viewsService = accessor.get(IViewsService);
 
 	const viewlet: SearchView | undefined = getSearchView(viewsService);
-	const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
+	const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
 
 	if (!viewer) {
 		return;
@@ -357,7 +357,7 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 /**
  * Returns element to focus after removing the given element
  */
-export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): RenderableMatch | undefined {
+export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): RenderableMatch | undefined {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
 	if (element instanceof FolderMatch) {
 		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
@@ -376,7 +376,7 @@ export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleObjec
 /***
  * Finds the last element in the tree with the same type as `element`
  */
-export function getLastNodeFromSameType(viewer: WorkbenchCompressibleObjectTree<RenderableMatch>, element: RenderableMatch): RenderableMatch | undefined {
+export function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch): RenderableMatch | undefined {
 	let lastElem: RenderableMatch | null = viewer.lastVisibleElement ?? null;
 
 	while (lastElem) {
@@ -385,7 +385,12 @@ export function getLastNodeFromSameType(viewer: WorkbenchCompressibleObjectTree<
 			viewer.expand(lastElem);
 			lastElem = viewer.lastVisibleElement;
 		} else if (compareVal === 1) {
-			lastElem = viewer.getParentElement(lastElem);
+			const potentialLastElem = viewer.getParentElement(lastElem);
+			if (potentialLastElem instanceof SearchResult) {
+				break;
+			} else {
+				lastElem = potentialLastElem;
+			}
 		} else {
 			return lastElem;
 		}

@@ -8,12 +8,10 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
-import { ICompressedTreeElement } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import * as env from '../../../../base/common/platform.js';
@@ -41,7 +39,7 @@ import { FileChangesEvent, FileChangeType, IFileService } from '../../../../plat
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { getSelectionKeyboardEvent, WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { getSelectionKeyboardEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService, withSelection } from '../../../../platform/opener/common/opener.js';
 import { IProgress, IProgressService, IProgressStep } from '../../../../platform/progress/common/progress.js';
@@ -64,13 +62,13 @@ import { appendKeyBindingLabel } from './searchActionsBase.js';
 import { IFindInFilesArgs } from './searchActionsFind.js';
 import { searchDetailsIcon } from './searchIcons.js';
 import { renderSearchMessage } from './searchMessage.js';
-import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from './searchResultsView.js';
+import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, TextSearchResultRenderer } from './searchResultsView.js';
 import { SearchWidget } from './searchWidget.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from '../common/search.js';
 import { ISearchHistoryService, ISearchHistoryValues, SearchHistoryService } from '../common/searchHistoryService.js';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchModelLocation, SearchResult } from './searchModel.js';
+import { AI_TEXT_SEARCH_RESULT_ID, FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWithResource, FolderMatchWorkspaceRoot, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchModelLocation, SearchResult, TextSearchResult } from './searchModel.js';
 import { createEditorFromSearchResult } from '../../searchEditor/browser/searchEditorActions.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -126,7 +124,7 @@ export class SearchView extends ViewPane {
 	private hasFilePatternKey: IContextKey<boolean>;
 	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
 
-	private tree!: WorkbenchCompressibleObjectTree<RenderableMatch>;
+	private tree!: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>;
 	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
 	private messagesElement!: HTMLElement;
@@ -168,6 +166,7 @@ export class SearchView extends ViewPane {
 
 	private _stashedQueryDetailsVisibility: boolean | undefined = undefined;
 	private _stashedReplaceVisibility: boolean | undefined = undefined;
+	private searchDataSource: SearchViewDataSource | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -754,79 +753,44 @@ export class SearchView extends ViewPane {
 	}
 
 	refreshTree(event?: IChangeEvent): void {
-		const collapseResults = this.searchConfig.collapseResults;
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
 			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// Ensure all matches have retrieved their file stat
 				this.retrieveFileStats()
-					.then(() => this.tree.setChildren(null, this.createSearchResultIterator(collapseResults)));
+					.then(() => this.tree.updateChildren(undefined));
 			} else {
-				this.tree.setChildren(null, this.createSearchResultIterator(collapseResults));
+				this.tree.updateChildren(undefined);
 			}
 		} else {
 			// If updated counts affect our search order, re-sort the view.
 			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
 				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
-				this.tree.setChildren(null, this.createSearchResultIterator(collapseResults));
+
+				this.tree.updateChildren(undefined);
 			} else {
 				// FileMatch modified, refresh those elements
 				event.elements.forEach(element => {
-					this.tree.setChildren(element, this.createIterator(element, collapseResults));
+					this.tree.updateChildren(element);
 					this.tree.rerender(element);
 				});
 			}
 		}
 	}
 
-	private createSearchResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const folderMatches = this.searchResult.folderMatches(this.aiResultsVisible)
-			.filter(fm => !fm.isEmpty())
-			.sort(searchMatchComparer);
+	private originalShouldCollapse(match: RenderableMatch): ObjectTreeElementCollapseState {
+		const collapseResults = this.searchConfig.collapseResults;
+		return (collapseResults === 'alwaysCollapse' ||
+			(!(match instanceof Match) && match.count() > 10 && collapseResults !== 'alwaysExpand')) ?
+			ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
+	}
 
-		if (folderMatches.length === 1) {
-			return this.createFolderIterator(folderMatches[0], collapseResults, true);
+	private shouldCollapse(match: RenderableMatch): boolean {
+		const collapseResults = this.originalShouldCollapse(match);
+		if (collapseResults === ObjectTreeElementCollapseState.Collapsed || collapseResults === ObjectTreeElementCollapseState.PreserveOrCollapsed) {
+			return true;
 		}
-
-		return Iterable.map(folderMatches, (folderMatch): ICompressedTreeElement<RenderableMatch> => {
-			const children = this.createFolderIterator(folderMatch, collapseResults, true);
-			return { element: folderMatch, children, incompressible: true }; // roots should always be incompressible
-		});
-	}
-
-	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		const sortOrder = this.searchConfig.sortOrder;
-
-		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
-		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
-
-		return Iterable.map(matches, (match): ICompressedTreeElement<RenderableMatch> => {
-			let children;
-			if (match instanceof FileMatch) {
-				children = this.createFileIterator(match);
-			} else {
-				children = this.createFolderIterator(match, collapseResults, false);
-			}
-
-			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
-
-			return { element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
-		});
-	}
-
-	private createFileIterator(fileMatch: FileMatch): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		let matches = fileMatch.matches().sort(searchMatchComparer);
-
-		if (!this.aiResultsVisible) {
-			matches = matches.filter(e => !e.aiContributed);
-		}
-		return Iterable.map(matches, (r): ICompressedTreeElement<RenderableMatch> => ({ element: r, incompressible: true }));
-	}
-
-	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
-		return match instanceof SearchResult ? this.createSearchResultIterator(collapseResults) :
-			match instanceof FolderMatch ? this.createFolderIterator(match, collapseResults, false) :
-				this.createFileIterator(match);
+		return false;
 	}
 
 	private replaceAll(): void {
@@ -963,16 +927,28 @@ export class SearchView extends ViewPane {
 			}
 		};
 
+		this.searchDataSource = this.instantiationService.createInstance(SearchViewDataSource, this);
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
-		this.tree = this._register(<WorkbenchCompressibleObjectTree<RenderableMatch>>this.instantiationService.createInstance(WorkbenchCompressibleObjectTree,
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>,
 			'SearchView',
 			this.resultsElement,
 			delegate,
+			{
+				isIncompressible: (element: RenderableMatch) => {
+
+					if (element instanceof FolderMatch && !(element.parent() instanceof TextSearchResult) && !(element.parent() instanceof FolderMatchWorkspaceRoot) && !(element.parent() instanceof FolderMatchNoRoot)) {
+						return false;
+					}
+					return true;
+				}
+			},
 			[
 				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(FileMatchRenderer, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(TextSearchResultRenderer, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this)),
 			],
+			this.searchDataSource,
 			{
 				identityProvider,
 				accessibilityProvider: this.treeAccessibilityProvider,
@@ -988,8 +964,16 @@ export class SearchView extends ViewPane {
 				multipleSelectionSupport: true,
 				selectionNavigation: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-				paddingBottom: SearchDelegate.ITEM_HEIGHT
+				paddingBottom: SearchDelegate.ITEM_HEIGHT,
+				collapseByDefault: (e: RenderableMatch) => {
+					if (e.id() === AI_TEXT_SEARCH_RESULT_ID) {
+						return true;
+					}
+					return this.shouldCollapse(e);
+				}
 			}));
+
+		this.tree.setInput(this.viewModel.searchResult);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
@@ -1019,7 +1003,7 @@ export class SearchView extends ViewPane {
 			const focus = this.tree.getFocus()[0];
 
 			if (this.tree.isDOMFocused()) {
-				this.firstMatchFocused.set(this.tree.navigate().first() === focus);
+				this.firstMatchFocused.set(this.tree.navigate().first()?.element === focus);
 				this.fileMatchOrMatchFocused.set(!!focus);
 				this.fileMatchFocused.set(focus instanceof FileMatch);
 				this.folderMatchFocused.set(focus instanceof FolderMatch);
@@ -1073,7 +1057,7 @@ export class SearchView extends ViewPane {
 		const navigator = viewer.navigate();
 		let node = navigator.first();
 		do {
-			if (!viewer.isCollapsed(node)) {
+			if (node && !viewer.isCollapsed(node.element)) {
 				return true;
 			}
 		} while (node = navigator.next());
@@ -1104,8 +1088,8 @@ export class SearchView extends ViewPane {
 
 		// Expand until first child is a Match
 		while (next && !(next instanceof Match)) {
-			if (this.tree.isCollapsed(next)) {
-				this.tree.expand(next);
+			if (this.tree.isCollapsed(next.element) && !(next.element instanceof SearchResult)) {
+				this.tree.expand(next.element);
 			}
 
 			// Select the first child
@@ -1137,7 +1121,7 @@ export class SearchView extends ViewPane {
 		let prev = navigator.previous();
 
 		// Select previous until find a Match or a collapsed item
-		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
+		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev.element))) {
 			const nextPrev = prev ? navigator.previous() : navigator.last();
 
 			if (!prev && !nextPrev) {
@@ -1150,22 +1134,34 @@ export class SearchView extends ViewPane {
 		// Expand until last child is a Match
 		while (!(prev instanceof Match)) {
 			const nextItem = navigator.next();
-			this.tree.expand(prev);
-			navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
+			if (prev) {
+				const elem = prev.element;
+				if (elem instanceof SearchResult) {
+					break;
+				} else {
+					this.tree.expand(elem);
+				}
+			}
+			navigator = this.tree.navigate(nextItem?.element); // recreate navigator because modifying the tree can invalidate it
 			prev = nextItem ? navigator.previous() : navigator.last(); // select last child
 		}
 
 		// Reveal the newly selected element
 		if (prev) {
-			if (prev === selected) {
+			if (prev.element === selected) {
 				this.tree.setFocus([]);
 			}
 			const event = getSelectionKeyboardEvent(undefined, false, false);
-			this.tree.setFocus([prev], event);
-			this.tree.setSelection([prev], event);
-			this.tree.reveal(prev);
-			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
-			if (ariaLabel) { aria.status(ariaLabel); }
+			if (prev) {
+				const prevElem = prev.element;
+				if (!(prevElem instanceof SearchResult)) {
+					this.tree.setFocus([prevElem], event);
+					this.tree.setSelection([prevElem], event);
+					this.tree.reveal(prevElem);
+					const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prevElem);
+					if (ariaLabel) { aria.status(ariaLabel); }
+				}
+			}
 		}
 	}
 
@@ -1391,7 +1387,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private selectTreeIfNotSelected(): void {
-		if (this.tree.getNode(null)) {
+		if (this.tree.getNode(undefined)) {
 			this.tree.domFocus();
 			const selection = this.tree.getSelection();
 			if (selection.length === 0) {
@@ -1559,6 +1555,12 @@ export class SearchView extends ViewPane {
 			return;
 		}
 
+		try {
+
+			this.tree.collapse(this.searchResult.aiTextSearchResult);
+		} catch {
+			// no op
+		}
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
 		const isInNotebookMarkdownPreview = this.searchWidget.getNotebookFilters().markupPreview;
@@ -1684,7 +1686,7 @@ export class SearchView extends ViewPane {
 		}
 		try {
 			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount(this.aiResultsVisible);
+			const fileCount = this.viewModel.searchResult.fileCount();
 			if (this._visibleMatches !== fileCount) {
 				this._visibleMatches = fileCount;
 				this.refreshAndUpdateCount();
@@ -1781,7 +1783,7 @@ export class SearchView extends ViewPane {
 			this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
 			// Indicate final search result count for ARIA
-			aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(this.aiResultsVisible), this.viewModel.searchResult.fileCount()));
+			aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 		}
 
 
@@ -1809,6 +1811,20 @@ export class SearchView extends ViewPane {
 
 			return Promise.resolve();
 		}
+	}
+
+
+	private async callWithSearchProgress(promise: Promise<void>): Promise<void> {
+		let progressComplete: () => void;
+		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
+			return new Promise<void>(resolve => progressComplete = resolve);
+		});
+
+		return promise.then(() => progressComplete());
+	}
+
+	public async addAIResults() {
+		this.callWithSearchProgress(this.model.addAIResults().then(() => this.refreshTree())).then(() => this.onSearchResultsChanged());
 	}
 
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
@@ -1894,8 +1910,8 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean, clear: boolean = false): void {
-		const fileCount = this.viewModel.searchResult.fileCount(this.aiResultsVisible);
-		const resultCount = this.viewModel.searchResult.count(this.aiResultsVisible);
+		const fileCount = this.viewModel.searchResult.fileCount();
+		const resultCount = this.viewModel.searchResult.count();
 		this.hasSearchResultsKey.set(fileCount > 0);
 
 		const msgWasHidden = this.messagesElement.style.display === 'none';
@@ -2351,4 +2367,96 @@ export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeE
 	}
 
 	return searchText;
+}
+
+class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableMatch> {
+
+	constructor(
+		private searchView: SearchView,
+		@IConfigurationService private configurationService: IConfigurationService,
+	) { }
+
+
+	private get searchConfig(): ISearchConfigurationProperties {
+		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	}
+
+	private createSearchResultIterator(searchResult: SearchResult): Iterable<RenderableMatch> {
+
+		if (searchResult.plainTextSearchResult.isEmpty()) {
+			if (searchResult.plainTextSearchResult.cachedSearchComplete) {
+				return [searchResult.aiTextSearchResult];
+			}
+			return [];
+		}
+
+		const textSearchResults = searchResult.children;
+		// if (textSearchResults.length === 1) {
+		// 	return this.createTextSearchResultIterator(textSearchResults[0]);
+		// }
+		return textSearchResults;
+	}
+
+	private createTextSearchResultIterator(textSearchResult: TextSearchResult): Iterable<FolderMatch | FileMatch> {
+		const folderMatches = textSearchResult.folderMatches()
+			.filter(fm => !fm.isEmpty())
+			.sort(searchMatchComparer);
+
+		if (folderMatches.length === 1) {
+			return this.createFolderIterator(folderMatches[0]);
+		}
+		return folderMatches;
+	}
+
+	private createFolderIterator(folderMatch: FolderMatch): Iterable<FolderMatch | FileMatch> {
+
+		const matchArray = this.searchView.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
+		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, this.searchConfig.sortOrder));
+
+		return matches;
+	}
+
+	private createFileIterator(fileMatch: FileMatch): Iterable<Match> {
+		const matches = fileMatch.matches().sort(searchMatchComparer);
+		return matches;
+	}
+
+	hasChildren(element: RenderableMatch): boolean {
+		if (element instanceof Match) {
+			return false;
+		}
+
+		if (element instanceof TextSearchResult && element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+			return true;
+		}
+
+		const hasChildren = element.hasChildren;
+		return hasChildren;
+	}
+
+	getChildren(element: RenderableMatch | SearchResult): Iterable<RenderableMatch> | Promise<Iterable<RenderableMatch>> {
+		if (element instanceof SearchResult) {
+			return this.createSearchResultIterator(element);
+		} else if (element instanceof TextSearchResult) {
+			if (element.id() === AI_TEXT_SEARCH_RESULT_ID && element.cachedSearchComplete === undefined) {
+				return this.searchView.addAIResults().then(() => this.createTextSearchResultIterator(element));
+
+			}
+			return this.createTextSearchResultIterator(element);
+		} else if (element instanceof FolderMatch) {
+			return this.createFolderIterator(element);
+		} else if (element instanceof FileMatch) {
+			return this.createFileIterator(element);
+		}
+
+		return [];
+
+	}
+	getParent(element: RenderableMatch): RenderableMatch {
+		const parent = element.parent();
+		if (parent instanceof SearchResult) {
+			throw new Error('Invalid element passed to getParent');
+		}
+		return parent;
+	}
 }

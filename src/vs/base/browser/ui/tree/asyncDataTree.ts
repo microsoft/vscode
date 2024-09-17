@@ -504,6 +504,20 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.domFocus();
 	}
 
+	isDOMFocused(): boolean {
+		return this.tree.isDOMFocused();
+	}
+
+	navigate(start?: T | TInput) {
+
+		if (start === undefined) {
+			return this.tree.navigate();
+		}
+		const node = this.getDataNode(start);
+
+		return this.tree.navigate(node);
+	}
+
 	layout(height?: number, width?: number): void {
 		this.tree.layout(height, width);
 	}
@@ -1397,3 +1411,32 @@ function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>)
 		return getVisibleState(filterResult);
 	}
 }
+
+// export class AsyncDataTreeNavigator<TInput, T, TFilterData> implements ITreeNavigator<T> {
+// 	private navigator;
+
+// 	constructor(tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>) {
+// 		this.navigator = tree.navigate();
+// 	}
+
+// 	current(): T | null {
+// 		const current = this.navigator.current();
+// 		if (current instanceof TInput) {
+// 			return null;
+// 		}
+// 		return current;
+// 	}
+// 	previous(): T | null {
+// 		throw new Error('Method not implemented.');
+// 	}
+// 	first(): T | null {
+// 		throw new Error('Method not implemented.');
+// 	}
+// 	last(): T | null {
+// 		throw new Error('Method not implemented.');
+// 	}
+// 	next(): T | null {
+// 		throw new Error('Method not implemented.');
+// 	}
+
+// }

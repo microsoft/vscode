@@ -3247,7 +3247,7 @@ interface ITreeNavigatorView<T extends NonNullable<any>, TFilterData> {
 	element(index: number): ITreeNode<T, TFilterData>;
 }
 
-class TreeNavigator<T extends NonNullable<any>, TFilterData, TRef> implements ITreeNavigator<T> {
+export class TreeNavigator<T extends NonNullable<any>, TFilterData, TRef> implements ITreeNavigator<T> {
 
 	private index: number;
 
