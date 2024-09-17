@@ -265,7 +265,7 @@ class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IW
 	}
 
 	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId)?.viewType;
 	}
 }
 

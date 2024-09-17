@@ -21,7 +21,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
-import { extname, isEqual } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
@@ -151,16 +151,20 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@INotebookService private readonly notebookService: INotebookService
 	) {
 		super();
 
 		this._installHandler();
 	}
 
-	handles(workingCopy: IWorkingCopyIdentifier): boolean {
-		const viewType = this._getViewType(workingCopy);
-		return !!viewType && viewType === 'jupyter-notebook' && extname(workingCopy.resource) === '.replNotebook';
+	async handles(workingCopy: IWorkingCopyIdentifier) {
+		const notebookType = this._getNotebookType(workingCopy);
+		if (!notebookType) {
+			return false;
+		}
 
+		return !!notebookType && notebookType.viewType === 'repl' && await this.notebookService.canResolve(notebookType.notebookType);
 	}
 
 	isOpen(workingCopy: IWorkingCopyIdentifier, editor: EditorInput): boolean {
@@ -181,7 +185,7 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 		this._register(this.workingCopyEditorService.registerHandler(this));
 	}
 
-	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
+	private _getNotebookType(workingCopy: IWorkingCopyIdentifier) {
 		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
 	}
 }
