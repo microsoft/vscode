@@ -135,7 +135,7 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.IMAGE: {
 				const data = extractEditorsDropData(e);
 				const contexts = await Promise.all(data.map(async editorInput => {
-					if (editorInput.resource && /\.(png|jpg|jpeg)$/i.test(editorInput.resource.path)) {
+					if (editorInput.resource && /\.(png|jpg|jpeg|bmp|guf|tiff)$/i.test(editorInput.resource.path)) {
 						const fileBuffer = await this.fileService.readFile(editorInput.resource);
 						return getImageAttachContext(editorInput.resource, fileBuffer.value);
 					}

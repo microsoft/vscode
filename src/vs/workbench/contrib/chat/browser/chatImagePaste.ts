@@ -17,29 +17,37 @@ export class ChatImageDropAndPaste extends Disposable {
 	) {
 		super();
 		this._register(this.inputPart.inputEditor.onDidPaste((e) => {
-			this.ondidPaste();
+			this._handlePaste();
 		}));
 	}
 
-	private async ondidPaste(): Promise<void> {
+	private async _handlePaste(): Promise<void> {
 		const currClipboard = await this.clipboardService.readImage();
 
 		if (!currClipboard || !isImage(currClipboard)) {
 			return;
 		}
-		const context = getImageAttachContext(currClipboard, 'Image from Clipboard');
+		const context = getImageAttachContext(currClipboard);
 		if (!context) {
 			return;
 		}
 
-		this.inputPart.attachContext(false, context);
+		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
+		const filteredContext = [];
+
+		if (!currentContextIds.has(context.id)) {
+			currentContextIds.add(context.id);
+			filteredContext.push(context);
+		}
+
+		this.inputPart.attachContext(false, ...filteredContext);
 	}
 }
 
-function getImageAttachContext(data: Uint8Array, fileName: string): IChatRequestVariableEntry {
+function getImageAttachContext(data: Uint8Array): IChatRequestVariableEntry {
 	return {
 		value: data,
-		id: 'image',
+		id: data.slice(0, 20).toString(),
 		name: 'Image from Clipboard',
 		isImage: true,
 		icon: Codicon.fileMedia,
@@ -51,8 +59,9 @@ export function isImage(array: Uint8Array): boolean {
 		return false;
 	}
 
+	// Magic numbers (identification bytes) for various image formats
 	const identifier: { [key: string]: number[] } = {
-		png: [0x89, 0x50, 0x4E, 0x47],
+		png: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
 		jpeg: [0xFF, 0xD8, 0xFF],
 		bmp: [0x42, 0x4D],
 		gif: [0x47, 0x49, 0x46, 0x38],

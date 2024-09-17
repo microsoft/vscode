@@ -54,5 +54,9 @@ export interface IClipboardService {
 	 */
 	clearInternalState?(): void;
 
+	/**
+	 *
+	 * Reads resources from the system clipboard as an image. If the clipboard does not contain an image, an empty buffer is returned.
+	 */
 	readImage(): Promise<Uint8Array>;
 }

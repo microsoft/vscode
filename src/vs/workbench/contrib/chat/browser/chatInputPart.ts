@@ -584,7 +584,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const img = document.createElement('img');
 				img.classList.add('chat-attached-context-image');
 				img.src = url;
-				img.alt = 'Image from Uint8Array';
+				img.alt = '';
 
 				// Pill with tiny image
 				const pill = document.createElement('div');
@@ -600,9 +600,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				// Custom label
 				const textLabel = document.createElement('span');
-				textLabel.textContent = localize('chat.imageLabel', '{0}', attachment.name);
+				textLabel.textContent = attachment.name;
 				textLabel.classList.add('chat-attached-context-custom-text');
-				textLabel.tabIndex = -1;
 
 
 				widget.style.position = 'relative';
@@ -610,11 +609,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.appendChild(textLabel);
 
 				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-
-				// use icon instead of image pill
-				// const attachmentLabel = attachment.fullName ?? attachment.name;
-				// const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
-				// label.setLabel(withIcon, undefined);
 
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
@@ -628,12 +622,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), widget, hoverElement));
 
 				// No delay for keyboard
-				widget.addEventListener('keydown', (event) => {
-					if (event.key === 'Enter' || event.key === ' ') {
+				this._register(dom.addDisposableListener(widget, 'keydown', (event) => {
+					const keyboardEvent = new StandardKeyboardEvent(event);
+					if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
 						this.hoverService.showManagedHover(widget);
 					}
-				});
-
+				}));
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;

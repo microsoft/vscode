@@ -45,7 +45,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachSelectionAction);
 }
 
-export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem;
+export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem;
 
 export interface IFileQuickPickItem extends IQuickPickItem {
 	kind: 'file';
@@ -56,10 +56,10 @@ export interface IFileQuickPickItem extends IQuickPickItem {
 	resource: URI;
 }
 
-export interface ImageQuickPickItem extends IQuickPickItem {
+export interface IImageQuickPickItem extends IQuickPickItem {
 	kind: 'image';
 	id: string;
-	name: 'image';
+	name: string;
 	value: Uint8Array;
 	isDynamic: true;
 	resource: URI;
@@ -227,15 +227,14 @@ class AttachContextAction extends Action2 {
 					isDynamic: true
 				});
 			} else if (pick && typeof pick === 'object' && 'resource' in pick && pick.resource) {
-				if (/\.(png|jpg|jpeg)$/i.test(pick.resource.path)) {
+				if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 					// checks if the file is an image
 					const fileBuffer = await fileService.readFile(pick.resource);
 					toAttach.push({
-						id: 'image',
+						id: fileBuffer.value.buffer.slice(0, 20).toString(), // unique id based on first 20 bytes
 						name: pick.label,
 						fullName: pick.label,
 						value: fileBuffer.value.buffer,
-						icon: Codicon.fileMedia,
 						isDynamic: true
 					});
 				} else {
@@ -269,14 +268,16 @@ class AttachContextAction extends Action2 {
 					icon: pick.icon,
 					isTool: true
 				});
-			} else if ('name' in pick && pick.name === 'image') {
+			} else if ('kind' in pick && pick.kind === 'image') {
+				const fileBuffer = await clipboardService.readImage();
+				const uniqueId = fileBuffer.slice(0, 20).toString();
 				toAttach.push({
-					id: 'image',
+					id: uniqueId,
 					name: 'Image from Clipboard',
 					fullName: 'Image from Clipboard',
-					value: await clipboardService.readImage(),
-					icon: Codicon.file,
-					isDynamic: true
+					value: fileBuffer,
+					isDynamic: true,
+					isImage: true
 				});
 			} else {
 				// All other dynamic variables and static variables
@@ -330,11 +331,10 @@ class AttachContextAction extends Action2 {
 
 		if (isImage(imageData)) {
 			quickPickItems.push({
+				id: imageData.slice(0, 20).toString(),
+				kind: 'image',
 				label: 'Image from Clipboard',
-				name: 'image',
-				id: 'image',
 				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
-				icon: Codicon.fileMedia
 			});
 		}
 
@@ -431,8 +431,8 @@ class AttachContextAction extends Action2 {
 					// Avoid attaching the same context twice
 					const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
 
-					if ('name' in item && item.name === 'image') {
-						return true;
+					if ('kind' in item && item.kind === 'image') {
+						return !attachedContext.has(item.id);
 					}
 
 					if ('symbol' in item && item.symbol) {
