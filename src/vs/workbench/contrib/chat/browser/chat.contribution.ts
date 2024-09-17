@@ -62,6 +62,9 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import '../common/chatColors.js';
 import { ChatGettingStartedContribution } from './chatGettingStarted.js';
+import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
+import { IChatEditingService } from '../common/chatEditingService.js';
+import { ChatEditingService } from './chatEditingService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -293,3 +296,5 @@ registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
+registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);
+registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);

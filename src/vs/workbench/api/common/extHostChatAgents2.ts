@@ -376,6 +376,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		try {
 			const { request, location, history } = await this._createRequest(requestDto, context);
+			if (!isProposedApiEnabled(agent.extension, 'chatParticipantAdditions')) {
+				delete request.userSelectedModelId;
+			}
 
 			// Init session disposables
 			let sessionDisposables = this._sessionDisposables.get(request.sessionId);

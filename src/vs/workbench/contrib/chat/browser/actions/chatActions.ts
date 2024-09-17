@@ -22,7 +22,7 @@ import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
@@ -307,11 +307,6 @@ export function registerChatActions() {
 						when: ContextKeyExpr.or(IsWindowsContext, IsLinuxContext),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
-					},
-					{
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT),
-						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
 					}
 				]
 			});
@@ -332,18 +327,11 @@ export function registerChatActions() {
 				id: 'workbench.action.chat.focusInput',
 				title: localize2('interactiveSession.focusInput.label', "Focus Chat Input"),
 				f1: false,
-				keybinding: [
-					{
-						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT.negate()),
-					},
-					{
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT),
-						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-					}
-				]
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate())
+				}
 			});
 		}
 		run(accessor: ServicesAccessor, ...args: any[]) {

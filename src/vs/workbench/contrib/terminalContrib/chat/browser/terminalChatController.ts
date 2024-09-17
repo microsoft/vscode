@@ -204,7 +204,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatWidget?.value.setValue(undefined);
 	}
 
-	async acceptInput(isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+	async acceptInput(): Promise<IChatResponseModel | undefined> {
 		assertType(this._chatWidget);
 		if (!this._model.value) {
 			await this.reveal();
@@ -222,7 +222,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
 		let responseContent = '';
-		const response = await this._chatWidget.value.inlineChatWidget.chatWidget.acceptInput(lastInput, isVoiceInput);
+		const response = await this._chatWidget.value.inlineChatWidget.chatWidget.acceptInput(lastInput);
 		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
 		try {
