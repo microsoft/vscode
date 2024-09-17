@@ -33,13 +33,16 @@ import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { INotebookKernelService } from '../../../common/notebookKernelService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IEditorPane } from '../../../../../common/editor.js';
+import { isCompositeNotebookEditorInput } from '../../../common/notebookEditorInput.js';
 
 export type contextMenuArg = { source: string; name: string; type?: string; value?: string; expression?: string; language?: string; extensionId?: string };
 
 export class NotebookVariablesView extends ViewPane {
 
 	static readonly ID = 'notebookVariablesView';
-	static readonly TITLE: ILocalizedString = nls.localize2('notebook.notebookVariables', "Notebook Variables");
+	static readonly NOTEBOOK_TITLE: ILocalizedString = nls.localize2('notebook.notebookVariables', "Notebook Variables");
+	static readonly REPL_TITLE: ILocalizedString = nls.localize2('notebook.ReplVariables', "REPL Variables");
 
 	private tree: WorkbenchAsyncDataTree<INotebookScope, INotebookVariableElement> | undefined;
 	private activeNotebook: NotebookTextModel | undefined;
@@ -72,7 +75,7 @@ export class NotebookVariablesView extends ViewPane {
 		this._register(this.notebookKernelService.onDidNotebookVariablesUpdate(this.handleVariablesChanged.bind(this)));
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
 
-		this.activeNotebook = this.getActiveNotebook();
+		this.activeNotebook = this.getActiveNotebook()?.notebookDocument;
 
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
@@ -140,22 +143,27 @@ export class NotebookVariablesView extends ViewPane {
 		this.tree?.layout(height, width);
 	}
 
-	private setActiveNotebook(notebookDocument: NotebookTextModel) {
+	private setActiveNotebook(notebookDocument: NotebookTextModel, editor: IEditorPane) {
 		this.activeNotebook = notebookDocument;
 		this.tree?.setInput({ kind: 'root', notebook: notebookDocument });
 		this.updateScheduler.schedule();
+		if (isCompositeNotebookEditorInput(editor.input)) {
+			this.updateTitle(NotebookVariablesView.REPL_TITLE.value);
+		} else {
+			this.updateTitle(NotebookVariablesView.NOTEBOOK_TITLE.value);
+		}
 	}
 
 	private getActiveNotebook() {
 		const notebookEditor = this.editorService.activeEditorPane;
 		const notebookDocument = getNotebookEditorFromEditorPane(notebookEditor)?.textModel;
-		return notebookDocument;
+		return notebookDocument && notebookEditor ? { notebookDocument, notebookEditor } : undefined;
 	}
 
 	private handleActiveEditorChange() {
-		const notebook = this.getActiveNotebook();
-		if (notebook && notebook !== this.activeNotebook) {
-			this.setActiveNotebook(notebook);
+		const found = this.getActiveNotebook();
+		if (found && found.notebookDocument !== this.activeNotebook) {
+			this.setActiveNotebook(found.notebookDocument, found.notebookEditor);
 		}
 	}
 
@@ -176,7 +184,7 @@ export class NotebookVariablesView extends ViewPane {
 			this.editorService.visibleEditorPanes.forEach(editor => {
 				const notebookDocument = getNotebookEditorFromEditorPane(editor)?.textModel;
 				if (notebookDocument && event.affectsNotebook(notebookDocument.uri)) {
-					this.setActiveNotebook(notebookDocument);
+					this.setActiveNotebook(notebookDocument, editor);
 				}
 			});
 		}
@@ -190,7 +198,7 @@ export class NotebookVariablesView extends ViewPane {
 			this.editorService.visibleEditorPanes.forEach(editor => {
 				const notebookDocument = getNotebookEditorFromEditorPane(editor)?.textModel;
 				if (notebookDocument && notebookDocument.uri.toString() === notebookUri.toString()) {
-					this.setActiveNotebook(notebookDocument);
+					this.setActiveNotebook(notebookDocument, editor);
 				}
 			});
 		}
