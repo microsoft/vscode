@@ -235,7 +235,7 @@ class AttachContextAction extends Action2 {
 						name: pick.label,
 						fullName: pick.label,
 						value: fileBuffer.value.buffer,
-						icon: Codicon.deviceCamera,
+						icon: Codicon.fileMedia,
 						isDynamic: true
 					});
 				} else {
@@ -277,7 +277,7 @@ class AttachContextAction extends Action2 {
 					name: 'Image from Clipboard',
 					fullName: 'Image from Clipboard',
 					value: await clipboardService.readImage(),
-					icon: Codicon.deviceCamera,
+					icon: Codicon.file,
 					isDynamic: true
 				});
 			} else {

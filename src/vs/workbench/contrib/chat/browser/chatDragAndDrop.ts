@@ -202,7 +202,7 @@ function getImageAttachContext(resource: URI, fileBuffer?: VSBuffer): IChatReque
 		name: fileName,
 		fullName: resource.path,
 		value: fileBuffer?.buffer,
-		icon: Codicon.deviceCamera,
+		icon: Codicon.fileMedia,
 		isDynamic: true
 	};
 }

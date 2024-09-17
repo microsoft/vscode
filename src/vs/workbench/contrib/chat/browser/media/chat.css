@@ -950,10 +950,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-attachment .chat-attached-context-pill {
 	display: inline-flex;
 	align-items: center;
-	padding: 2px 6px;
-	border-radius: 12px;
-	background-color: #e0e0e0;
-	margin-right: 3px;
+	padding: 2px 0px;
+	border-radius: 2px;
+	margin-right: 1px;
 	user-select: none;
 	outline: none;
 	border: none;
@@ -962,7 +961,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-attachment .chat-attached-context-pill-image {
 	width: 16px;
 	height: 16px;
-	border-radius: 50%;
+	border-radius: 2px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-custom-text {

@@ -42,7 +42,7 @@ function getImageAttachContext(data: Uint8Array, fileName: string): IChatRequest
 		id: 'image',
 		name: 'Image from Clipboard',
 		isFile: false,
-		icon: Codicon.deviceCamera,
+		icon: Codicon.fileMedia,
 	};
 }
 
@@ -55,6 +55,8 @@ export function isImage(array: Uint8Array): boolean {
 		png: [0x89, 0x50, 0x4E, 0x47],
 		jpeg: [0xFF, 0xD8, 0xFF],
 		bmp: [0x42, 0x4D],
+		gif: [0x47, 0x49, 0x46, 0x38],
+		tiff: [0x49, 0x49, 0x2A, 0x00]
 	};
 
 	return Object.values(identifier).some((signature) =>

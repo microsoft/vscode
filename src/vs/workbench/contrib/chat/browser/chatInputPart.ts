@@ -61,6 +61,7 @@ import { ChatFollowups } from './chatFollowups.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const $ = dom.$;
 
@@ -600,7 +601,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				// Custom label
 				const textLabel = document.createElement('span');
-				textLabel.textContent = localize('chat.imageLabel', '{0}: Hover to Preview', attachment.name);
+				textLabel.textContent = localize('chat.imageLabel', '{0}', attachment.name);
 				textLabel.classList.add('chat-attached-context-custom-text');
 				textLabel.tabIndex = -1;
 
@@ -610,6 +611,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.appendChild(textLabel);
 
 				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+
+				// use icon instead of image pill
+				// const attachmentLabel = attachment.fullName ?? attachment.name;
+				// const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
+				// label.setLabel(withIcon, undefined);
+
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
 
@@ -619,11 +626,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				hoverElement.classList.add('chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
+				this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), widget, hoverElement));
+
 				widget.addEventListener('mouseenter', () => {
-					this.hoverService.showHover({
-						target: widget,
-						content: hoverElement,
-					});
+					this.hoverService.showManagedHover(widget);
+					// this.hoverService.showHover({
+					// 	target: widget,
+					// 	content: hoverElement,
+					// });
 				});
 
 				widget.addEventListener('mouseleave', () => {
@@ -632,10 +642,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				widget.addEventListener('keydown', (event) => {
 					if (event.key === 'Enter' || event.key === ' ') {
-						this.hoverService.showHover({
-							target: widget,
-							content: hoverElement,
-						});
+						this.hoverService.showManagedHover(widget);
 					}
 				});
 

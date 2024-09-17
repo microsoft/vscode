@@ -34,6 +34,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 		if (isSafari || isWebkitWebView) {
 			this.installWebKitWriteTextWorkaround();
+			this.installWebKitReadWorkaround();
 		}
 
 		// Keep track of copy operations to reset our set of
@@ -47,11 +48,11 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	async readImage(): Promise<Uint8Array> {
 		try {
-			const clipboardItem = await getActiveWindow().navigator.clipboard.read();
-			return clipboardItem[0].getType('image/png').then(async blob => {
-				const buffer = await blob.arrayBuffer();
-				return new Uint8Array(buffer);
-			});
+			const clipboardItems = await getActiveWindow().navigator.clipboard.read();
+			const clipboardItem = clipboardItems[0];
+			const blob = await clipboardItem.getType('image/png');
+			const buffer = await blob.arrayBuffer();
+			return new Uint8Array(buffer);
 		} catch (error) {
 			console.error(error);
 		}
