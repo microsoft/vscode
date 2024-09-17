@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual, throws } from 'assert';
+import { deepStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createObjectCollectionBuffer, type IObjectCollectionBuffer } from '../../../../browser/gpu/objectCollectionBuffer.js';
 
@@ -35,7 +35,11 @@ suite('ObjectCollectionBuffer', () => {
 			{ name: 'b' },
 		] as const, 1));
 		store.add(buffer.createEntry({ a: 1, b: 2 }));
-		throws(() => buffer.createEntry({ a: 3, b: 4 }));
+		strictEqual(buffer.entryCount, 1);
+		strictEqual(buffer.buffer.byteLength, 8);
+		buffer.createEntry({ a: 3, b: 4 });
+		strictEqual(buffer.entryCount, 2);
+		strictEqual(buffer.buffer.byteLength, 16);
 	});
 
 	test('dispose entry', () => {
