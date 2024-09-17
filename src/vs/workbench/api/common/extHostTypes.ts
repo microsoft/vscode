@@ -2108,42 +2108,19 @@ export class TerminalProfile implements vscode.TerminalProfile {
 	}
 }
 
-export class TerminalCompletion {
-
-	/**
-	 * The label of this completion item. By default
-	 * this is also the text that is inserted when selecting
-	 * this completion.
-	 */
-	label: string | CompletionItemLabel;
-
-	/**
-	 * The kind of this completion item. Based on the kind,
-	 * an icon is chosen.
-	 */
-	kind?: TerminalCompletionItemKind;
-
-	/**
-	 * A human-readable string with additional information
-	 * about this item.
-	 */
-	detail?: string;
-
-	/**
-	 * A human-readable string that represents a doc-comment.
-	 */
-	documentation?: string | MarkdownString;
+export class TerminalCompletion implements vscode.TerminalCompletion {
+	label: string | vscode.CompletionItemLabel = '';
+	kind?: vscode.TerminalCompletionItemKind | undefined;
+	detail?: string | undefined;
+	documentation?: string | vscode.MarkdownString | undefined;
+	constructor() {
+	}
 }
 
 export enum TerminalCompletionItemKind {
 	File = 0,
 	Folder = 1,
 	Flag = 2,
-}
-
-export interface TerminalCompletionContext {
-	shellType: string;
-	commandLine: string;
 }
 
 export enum TaskRevealKind {

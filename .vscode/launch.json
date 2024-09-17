@@ -2,6 +2,13 @@
 	"version": "0.1.0",
 	"configurations": [
 		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch in Web Port 3000",
+			"url": "http://localhost:3000",
+			"webRoot": "${workspaceFolder}"
+		},
+		{
 			"type": "node",
 			"request": "launch",
 			"name": "Gulp Build",
@@ -72,7 +79,7 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"presentation": {
-				"hidden": true,
+				"hidden": true
 			}
 		},
 		{
@@ -152,7 +159,6 @@
 			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
@@ -240,7 +246,6 @@
 				"--inspect-brk=5875",
 				"--no-cached-data",
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
-				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
 				"--disable-extension=vscode.vscode-api-tests"
 			],
@@ -255,9 +260,8 @@
 			],
 			"browserLaunchLocation": "workspace",
 			"presentation": {
-				"hidden": true,
+				"hidden": true
 			},
-			// This is read by the vscode-diagnostic-tools extension
 			"vscode-diagnostic-tools.debuggerScripts": [
 				"${workspaceFolder}/scripts/hot-reload-injected-script.js"
 			]
@@ -268,7 +272,7 @@
 			"name": "VS Code Server (Web)",
 			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
+				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat"
 			},
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -286,11 +290,11 @@
 			"enableContentValidation": false,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
 			"runtimeArgs": [
 				"--inspect-brk=5875",
-				"--no-cached-data",
+				"--no-cached-data"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"

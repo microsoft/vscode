@@ -24,6 +24,8 @@ import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariabl
 import { ITerminalLinkProviderService } from '../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from '../../contrib/terminalContrib/quickFix/browser/quickFix.js';
 import { TerminalCapability } from '../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCompletion, ITerminalSuggestionService } from '../../contrib/terminalContrib/suggest/browser/terminalSuggestionService.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -39,6 +41,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private readonly _profileProviders = new Map<string, IDisposable>();
+	private readonly _completionProviders = new Map<string, IDisposable>();
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private readonly _dataEventTracker = new MutableDisposable<TerminalDataEventTracker>();
 	private readonly _sendCommandEventListener = new MutableDisposable();
@@ -65,7 +68,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService
+		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
+		@ITerminalSuggestionService private readonly _terminalSuggestionService: ITerminalSuggestionService,
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
@@ -262,6 +266,41 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $registerProcessSupport(isSupported: boolean): void {
 		this._terminalService.registerProcessSupport(isSupported);
+	}
+
+	public $registerCompletionProvider(id: string, extensionIdentifier: string): void {
+		// Proxy completion provider requests through the extension host
+		this._completionProviders.set(id, this._terminalSuggestionService.registerTerminalSuggestionProvider(extensionIdentifier, id, {
+			provideSuggestions: async (terminal) => {
+				const shellType = terminal.shellType;
+				if (!shellType) {
+					return;
+				}
+				const commandLine = terminal.capabilities.get(TerminalCapability.CommandDetection)?.currentCommand?.command;
+				if (commandLine === undefined) {
+					return;
+				}
+				const suggestions = await this._proxy.$provideTerminalSuggestions(id, { shellType, commandLine });
+				const converted: ITerminalCompletion[] = [];
+				if (!suggestions?.length) {
+					return;
+				}
+				for (const s of suggestions) {
+					converted.push({
+						label: s.label,
+						kind: s.kind,
+						detail: s.detail,
+						documentation: s.documentation ? new MarkdownString(s.documentation.toString()) : undefined,
+					});
+				}
+				return converted;
+			}
+		}));
+	}
+
+	public $unregisterCompletionProvider(id: string): void {
+		this._completionProviders.get(id)?.dispose();
+		this._completionProviders.delete(id);
 	}
 
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
@@ -482,3 +521,4 @@ function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerm
 	}
 	return { id, type, source, ...fix };
 }
+

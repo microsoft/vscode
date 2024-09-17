@@ -28,10 +28,14 @@ import { parseCompletionsFromShell, SuggestAddon, VSCodeSuggestOscPt, type Compr
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { ITerminalSuggestionService, TerminalSuggestionService } from './terminalSuggestionService.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
 const enum Constants {
 	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
 }
+
+registerSingleton(ITerminalSuggestionService, TerminalSuggestionService, InstantiationType.Delayed);
 
 // #region Terminal Contributions
 

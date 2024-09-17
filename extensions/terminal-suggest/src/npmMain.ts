@@ -9,14 +9,14 @@ import * as vscode from 'vscode';
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 
 	(vscode as any).registerTerminalCompletionProvider({
-		async provideTerminalCompletions(terminal: vscode.Terminal, context: any, token: vscode.CancellationToken) {
+		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { shellType: string; commandLine: string }, token: vscode.CancellationToken) {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			if (context.shellType === 'pwsh') {
+			if (terminalContext.shellType === 'pwsh') {
 				return;
 			}
-			const commandLine = context.commandLine;
+			const commandLine = terminalContext.commandLine;
 			if (commandLine.startsWith('cd')) {
 				return [
 					{

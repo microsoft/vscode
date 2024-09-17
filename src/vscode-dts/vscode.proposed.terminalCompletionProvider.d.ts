@@ -16,7 +16,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of completions.
 		 */
-		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | Thenable<T[]>>;
+		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | Thenable<T[] | undefined>>;
 	}
 
 	export class TerminalCompletion {
