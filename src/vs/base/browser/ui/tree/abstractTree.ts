@@ -578,14 +578,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 export type LabelFuzzyScore = { label: string; score: FuzzyScore };
 
-export interface IFindFilter<T> extends ITreeFilter<T, FuzzyScore | LabelFuzzyScore> {
-	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore | LabelFuzzyScore>;
-	pattern: string;
-	totalCount: number;
-	matchCount: number;
-}
-
-class FindFilter<T> implements IFindFilter<T>, IDisposable {
+class FindFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDisposable {
 	private _totalCount = 0;
 	get totalCount(): number { return this._totalCount; }
 	private _matchCount = 0;
@@ -986,16 +979,12 @@ enum DefaultTreeToggles {
 	MatchType = 'matchType',
 }
 
-interface IAbstractFindControllerOptions extends IFindWidgetOptions {
-	placeholder?: string;
-}
-
-interface IFindControllerOptions extends IAbstractFindControllerOptions {
+interface IFindControllerOptions extends IFindWidgetOptions {
 	defaultFindMode?: TreeFindMode;
 	defaultFindMatchType?: TreeFindMatchType;
 }
 
-export abstract class AbstractFindController<T, TFilterData> implements IDisposable {
+class FindController<T, TFilterData> implements IDisposable {
 
 	private _history: string[] | undefined;
 
@@ -1003,17 +992,69 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 	get pattern(): string { return this._pattern; }
 	private previousPattern = '';
 
-	protected abstract toggles: ITreeFindToggleContribution[];
+	get toggles(): ITreeFindToggleContribution[] {
+		return [{
+			id: DefaultTreeToggles.Mode,
+			icon: Codicon.listFilter,
+			title: localize('filter', "Filter"),
+			isChecked: this.mode === TreeFindMode.Filter,
+		}, {
+			id: DefaultTreeToggles.MatchType,
+			icon: Codicon.searchFuzzy,
+			title: localize('fuzzySearch', "Fuzzy Match"),
+			isChecked: this.matchType === TreeFindMatchType.Fuzzy,
+		}];
+	}
 
-	private _placeholder: string;
-	protected get placeholder(): string { return this._placeholder; }
-	protected set placeholder(value: string) {
-		this._placeholder = value;
-		this.widget?.setPlaceHolder(value);
+	get placeholder(): string {
+		return this.mode === TreeFindMode.Filter ? localize('type to filter', "Type to filter") : localize('type to search', "Type to search");
+	}
+
+	private _mode: TreeFindMode;
+	get mode(): TreeFindMode { return this._mode; }
+	set mode(mode: TreeFindMode) {
+		if (mode === this._mode) {
+			return;
+		}
+
+		this._mode = mode;
+
+		if (this.widget) {
+			this.widget.setToggleState(DefaultTreeToggles.Mode, mode === TreeFindMode.Filter);
+			this.widget.setPlaceHolder(this.placeholder);
+		}
+
+		this.tree.refilter();
+		this.render();
+		this._onDidChangeMode.fire(mode);
+	}
+
+	private _matchType: TreeFindMatchType;
+	get matchType(): TreeFindMatchType { return this._matchType; }
+	set matchType(matchType: TreeFindMatchType) {
+		if (matchType === this._matchType) {
+			return;
+		}
+
+		this._matchType = matchType;
+
+		if (this.widget) {
+			this.widget.setToggleState(DefaultTreeToggles.MatchType, matchType === TreeFindMatchType.Fuzzy);
+		}
+
+		this.tree.refilter();
+		this.render();
+		this._onDidChangeMatchType.fire(matchType);
 	}
 
 	private widget: FindWidget<T, TFilterData> | undefined;
 	private width = 0;
+
+	private readonly _onDidChangeMode = new Emitter<TreeFindMode>();
+	readonly onDidChangeMode = this._onDidChangeMode.event;
+
+	private readonly _onDidChangeMatchType = new Emitter<TreeFindMatchType>();
+	readonly onDidChangeMatchType = this._onDidChangeMatchType.event;
 
 	private readonly _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
@@ -1025,12 +1066,23 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		protected tree: AbstractTree<T, TFilterData, any>,
-		protected filter: IFindFilter<T>,
-		protected readonly contextViewProvider: IContextViewProvider,
-		protected readonly options: IAbstractFindControllerOptions = {}
+		private tree: AbstractTree<T, TFilterData, any>,
+		private filter: FindFilter<T>,
+		private readonly contextViewProvider: IContextViewProvider,
+		private readonly options: IFindControllerOptions = {}
 	) {
-		this._placeholder = options.placeholder ?? localize('type to search', "Type to search");
+		this._mode = options.defaultFindMode ?? TreeFindMode.Highlight;
+		this._matchType = options.defaultFindMatchType ?? TreeFindMatchType.Fuzzy;
+	}
+
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+		if (optionsUpdate.defaultFindMode !== undefined) {
+			this.mode = optionsUpdate.defaultFindMode;
+		}
+
+		if (optionsUpdate.defaultFindMatchType !== undefined) {
+			this.matchType = optionsUpdate.defaultFindMatchType;
+		}
 	}
 
 	isOpened(): boolean {
@@ -1077,132 +1129,11 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 		this._onDidChangeOpenState.fire(false);
 	}
 
-	protected onDidChangeValue(pattern: string): void {
+	private onDidChangeValue(pattern: string): void {
 		this._pattern = pattern;
 		this._onDidChangePattern.fire(pattern);
 
 		this.filter.pattern = pattern;
-		this.applyPattern(pattern);
-	}
-
-	protected abstract applyPattern(pattern: string): void;
-
-	protected onDidToggleChange(e: ITreeFindToggleChangeEvent): void {
-		// Subclasses can override
-	}
-
-	protected setToggleState(id: string, checked: boolean): void {
-		this.widget?.setToggleState(id, checked);
-	}
-
-	render(): void {
-		const noMatches = this.filter.matchCount === 0 && this.filter.totalCount > 0;
-
-		if (this.pattern && noMatches) {
-			alert(localize('replFindNoResults', "No results"));
-			if (this.tree.options.showNotFoundMessage ?? true) {
-				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
-			} else {
-				this.widget?.showMessage({ type: MessageType.WARNING });
-			}
-		} else {
-			this.widget?.clearMessage();
-			if (this.pattern) {
-				alert(localize('replFindResults', "{0} results", this.filter.matchCount));
-			}
-		}
-	}
-
-	layout(width: number): void {
-		this.width = width;
-		this.widget?.layout(width);
-	}
-
-	dispose() {
-		this._history = undefined;
-		this._onDidChangePattern.dispose();
-		this.enabledDisposables.dispose();
-		this.disposables.dispose();
-	}
-}
-
-class FindController<T, TFilterData> extends AbstractFindController<T, TFilterData> {
-
-	get toggles(): ITreeFindToggleContribution[] {
-		return [{
-			id: DefaultTreeToggles.Mode,
-			icon: Codicon.listFilter,
-			title: localize('filter', "Filter"),
-			isChecked: this.mode === TreeFindMode.Filter,
-		}, {
-			id: DefaultTreeToggles.MatchType,
-			icon: Codicon.searchFuzzy,
-			title: localize('fuzzySearch', "Fuzzy Match"),
-			isChecked: this.matchType === TreeFindMatchType.Fuzzy,
-		}];
-	}
-
-	private _mode: TreeFindMode;
-	get mode(): TreeFindMode { return this._mode; }
-	set mode(mode: TreeFindMode) {
-		if (mode === this._mode) {
-			return;
-		}
-
-		this._mode = mode;
-
-		this.setToggleState(DefaultTreeToggles.Mode, mode === TreeFindMode.Filter);
-		this.placeholder = this.mode === TreeFindMode.Filter ? localize('type to filter', "Type to filter") : localize('type to search', "Type to search");
-
-		this.tree.refilter();
-		this.render();
-		this._onDidChangeMode.fire(mode);
-	}
-
-	private _matchType: TreeFindMatchType;
-	get matchType(): TreeFindMatchType { return this._matchType; }
-	set matchType(matchType: TreeFindMatchType) {
-		if (matchType === this._matchType) {
-			return;
-		}
-
-		this._matchType = matchType;
-
-		this.setToggleState(DefaultTreeToggles.MatchType, matchType === TreeFindMatchType.Fuzzy);
-
-		this.tree.refilter();
-		this.render();
-		this._onDidChangeMatchType.fire(matchType);
-	}
-
-	private readonly _onDidChangeMode = new Emitter<TreeFindMode>();
-	readonly onDidChangeMode = this._onDidChangeMode.event;
-
-	private readonly _onDidChangeMatchType = new Emitter<TreeFindMatchType>();
-	readonly onDidChangeMatchType = this._onDidChangeMatchType.event;
-
-	constructor(
-		tree: AbstractTree<T, TFilterData, any>,
-		filter: IFindFilter<T>,
-		contextViewProvider: IContextViewProvider,
-		options: IFindControllerOptions = {}
-	) {
-		super(tree, filter, contextViewProvider, options);
-		this._mode = options.defaultFindMode ?? TreeFindMode.Highlight;
-		this._matchType = options.defaultFindMatchType ?? TreeFindMatchType.Fuzzy;
-	}
-
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
-		if (optionsUpdate.defaultFindMode !== undefined) {
-			this.mode = optionsUpdate.defaultFindMode;
-		}
-
-		if (optionsUpdate.defaultFindMatchType !== undefined) {
-			this.matchType = optionsUpdate.defaultFindMatchType;
-		}
-	}
-
-	protected applyPattern(pattern: string): void {
 		this.tree.refilter();
 
 		if (pattern) {
@@ -1222,7 +1153,7 @@ class FindController<T, TFilterData> extends AbstractFindController<T, TFilterDa
 		this.render();
 	}
 
-	protected override onDidToggleChange(e: ITreeFindToggleChangeEvent): void {
+	private onDidToggleChange(e: ITreeFindToggleChangeEvent): void {
 		switch (e.id) {
 			case DefaultTreeToggles.Mode:
 				this.mode = e.isChecked ? TreeFindMode.Filter : TreeFindMode.Highlight;
@@ -1233,8 +1164,26 @@ class FindController<T, TFilterData> extends AbstractFindController<T, TFilterDa
 		}
 	}
 
+	render(): void {
+		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
+
+		if (this.pattern && noMatches) {
+			alert(localize('replFindNoResults', "No results"));
+			if (this.tree.options.showNotFoundMessage ?? true) {
+				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
+			} else {
+				this.widget?.showMessage({ type: MessageType.WARNING });
+			}
+		} else {
+			this.widget?.clearMessage();
+			if (this.pattern) {
+				alert(localize('replFindResults', "{0} results", this.filter.matchCount));
+			}
+		}
+	}
+
 	shouldAllowFocus(node: ITreeNode<T, TFilterData>): boolean {
-		if (!this.isOpened() || !this.pattern) {
+		if (!this.widget || !this.pattern) {
 			return true;
 		}
 
@@ -1243,6 +1192,18 @@ class FindController<T, TFilterData> extends AbstractFindController<T, TFilterDa
 		}
 
 		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
+	}
+
+	layout(width: number): void {
+		this.width = width;
+		this.widget?.layout(width);
+	}
+
+	dispose() {
+		this._history = undefined;
+		this._onDidChangePattern.dispose();
+		this.enabledDisposables.dispose();
+		this.disposables.dispose();
 	}
 }
 
