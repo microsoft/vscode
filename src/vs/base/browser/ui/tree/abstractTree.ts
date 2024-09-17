@@ -3204,6 +3204,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.onDidChangeModelRelay.input = Event.signal(model.onDidSpliceModel);
 		this.onDidChangeCollapseStateRelay.input = model.onDidChangeCollapseState;
 		this.onDidChangeRenderNodeCountRelay.input = model.onDidChangeRenderNodeCount;
+		this.onDidSpliceModelRelay.input = model.onDidSpliceModel;
 	}
 
 	setModel(newModel: ITreeModel<T, TFilterData, TRef>) {
