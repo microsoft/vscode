@@ -112,8 +112,10 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Public methods ---
 
 	public override dispose(): void {
-		super.dispose();
+		// Force blue the dom node so can write in pane with no native edit context after disposal
+		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
+		super.dispose();
 	}
 
 	public appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
