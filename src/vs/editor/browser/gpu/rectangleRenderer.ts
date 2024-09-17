@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
+import { Event } from '../../../base/common/event.js';
+import { IReference, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
 import type { ViewScrollChangedEvent } from '../../common/viewEvents.js';
@@ -34,7 +36,7 @@ export class RectangleRenderer extends ViewEventHandler {
 	private _pipeline!: GPURenderPipeline;
 
 	private _vertexBuffer!: GPUBuffer;
-	private _shapeBindBuffer!: GPUBuffer;
+	private readonly _shapeBindBuffer: MutableDisposable<IReference<GPUBuffer>> = this._register(new MutableDisposable());
 
 	private _scrollOffsetBindBuffer!: GPUBuffer;
 	private _scrollOffsetValueBuffer!: Float32Array;
@@ -141,11 +143,20 @@ export class RectangleRenderer extends ViewEventHandler {
 
 		// #region Storage buffers
 
-		this._shapeBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco rectangle renderer shape buffer',
-			size: this._shapeCollection.buffer.byteLength,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).object;
+		const createShapeBindBuffer = () => {
+			return GPULifecycle.createBuffer(this._device, {
+				label: 'Monaco rectangle renderer shape buffer',
+				size: this._shapeCollection.buffer.byteLength,
+				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+			});
+		};
+		this._shapeBindBuffer.value = createShapeBindBuffer();
+		this._register(Event.runAndSubscribe(this._shapeCollection.onDidChangeBuffer, () => {
+			this._shapeBindBuffer.value = createShapeBindBuffer();
+			if (this._pipeline) {
+				this._updateBindGroup(this._pipeline, layoutInfoUniformBuffer);
+			}
+		}));
 
 		// #endregion Storage buffers
 
@@ -208,23 +219,26 @@ export class RectangleRenderer extends ViewEventHandler {
 
 		// #region Bind group
 
-		this._bindGroup = this._device.createBindGroup({
-			label: 'Monaco rectangle renderer bind group',
-			layout: this._pipeline.getBindGroupLayout(0),
-			entries: [
-				{ binding: RectangleRendererBindingId.Shapes, resource: { buffer: this._shapeBindBuffer } },
-				{ binding: RectangleRendererBindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
-				{ binding: RectangleRendererBindingId.ScrollOffset, resource: { buffer: this._scrollOffsetBindBuffer } },
-			],
-		});
+		this._updateBindGroup(this._pipeline, layoutInfoUniformBuffer);
 
 		// endregion Bind group
 
 		this._initialized = true;
 	}
 
+	private _updateBindGroup(pipeline: GPURenderPipeline, layoutInfoUniformBuffer: GPUBuffer) {
+		this._bindGroup = this._device.createBindGroup({
+			label: 'Monaco rectangle renderer bind group',
+			layout: pipeline.getBindGroupLayout(0),
+			entries: [
+				{ binding: RectangleRendererBindingId.Shapes, resource: { buffer: this._shapeBindBuffer.value!.object } },
+				{ binding: RectangleRendererBindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
+				{ binding: RectangleRendererBindingId.ScrollOffset, resource: { buffer: this._scrollOffsetBindBuffer } },
+			],
+		});
+	}
+
 	register(x: number, y: number, width: number, height: number, red: number, green: number, blue: number, alpha: number): IObjectCollectionBufferEntry<RectangleRendererEntrySpec> {
-		// TODO: Expand buffer if needed
 		return this._shapeCollection.createEntry({ x, y, width, height, red, green, blue, alpha });
 	}
 
@@ -240,7 +254,7 @@ export class RectangleRenderer extends ViewEventHandler {
 	private _update() {
 		const shapes = this._shapeCollection;
 		if (shapes.dirtyTracker.isDirty) {
-			this._device.queue.writeBuffer(this._shapeBindBuffer, 0, shapes.buffer, shapes.dirtyTracker.dataOffset, shapes.dirtyTracker.dirtySize! * shapes.view.BYTES_PER_ELEMENT);
+			this._device.queue.writeBuffer(this._shapeBindBuffer.value!.object, 0, shapes.buffer, shapes.dirtyTracker.dataOffset, shapes.dirtyTracker.dirtySize! * shapes.view.BYTES_PER_ELEMENT);
 			shapes.dirtyTracker.clear();
 		}
 

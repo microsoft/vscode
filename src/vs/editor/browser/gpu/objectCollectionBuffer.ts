@@ -49,6 +49,11 @@ export interface IObjectCollectionBuffer<T extends ObjectCollectionBufferPropert
 	readonly onDidChange: Event<void>;
 
 	/**
+	 * Fires when the buffer is recreated.
+	 */
+	readonly onDidChangeBuffer: Event<void>;
+
+	/**
 	 * Creates an entry in the collection. This will return a managed object that can be modified
 	 * which will update the underlying buffer.
 	 * @param data The data of the entry.
@@ -96,6 +101,8 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _onDidChangeBuffer = this._register(new Emitter<void>());
+	readonly onDidChangeBuffer = this._onDidChangeBuffer.event;
 
 	constructor(
 		public propertySpecs: T,
@@ -118,7 +125,8 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 
 	createEntry(data: ObjectCollectionPropertyValues<T>): IObjectCollectionBufferEntry<T> {
 		if (this._entries.size === this.capacity) {
-			throw new Error(`Cannot create more entries ObjectCollectionBuffer entries (capacity=${this.capacity})`);
+			this._expandBuffer();
+			this._onDidChangeBuffer.fire();
 		}
 
 		const value = new ObjectCollectionBufferEntry(this.view, this._propertySpecsMap, this._dirtyTracker, this._entries.size, data);
@@ -142,6 +150,14 @@ class ObjectCollectionBuffer<T extends ObjectCollectionBufferPropertySpec[]> ext
 			dispose(listeners);
 		}));
 		return value;
+	}
+
+	private _expandBuffer() {
+		this.capacity *= 2;
+		const newView = new Float32Array(this.capacity * this._entrySize);
+		newView.set(this.view);
+		this.view = newView;
+		this.buffer = this.view.buffer;
 	}
 }
 
