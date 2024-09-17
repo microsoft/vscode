@@ -22,7 +22,7 @@ struct LayoutInfo {
 }
 
 struct ScrollOffset {
-	offset: vec2f
+	offset: vec2f,
 }
 
 struct Shape {

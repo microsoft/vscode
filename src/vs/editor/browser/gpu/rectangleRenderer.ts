@@ -21,7 +21,7 @@ export type RectangleRendererEntrySpec = [
 	{ name: 'red' },
 	{ name: 'green' },
 	{ name: 'blue' },
-	{ name: 'alpha' }
+	{ name: 'alpha' },
 ];
 
 export class RectangleRenderer extends Disposable {
@@ -48,7 +48,7 @@ export class RectangleRenderer extends Disposable {
 		{ name: 'red' },
 		{ name: 'green' },
 		{ name: 'blue' },
-		{ name: 'alpha' }
+		{ name: 'alpha' },
 	], 32));
 
 	constructor(
@@ -127,7 +127,7 @@ export class RectangleRenderer extends Disposable {
 
 		const scrollOffsetBufferSize = 2;
 		this._scrollOffsetBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco scroll offset buffer',
+			label: 'Monaco rectangle renderer scroll offset buffer',
 			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		})).object;

@@ -58,11 +58,10 @@ export class RulersGpu extends ViewPart {
 			const shape = this._gpuShapes[i];
 			const color = ruler.color ? Color.fromHex(ruler.color) : this._context.theme.getColor(editorRuler) ?? Color.white;
 			const rulerData = [
-				// TODO: The x should be relative to the left side of the viewport
 				ruler.column * typicalHalfwidthCharacterWidth * devicePixelRatio,
 				0,
 				Math.max(1, Math.ceil(devicePixelRatio)),
-				this._viewGpuContext.canvasDevicePixelDimensions.read(reader).height,
+				Number.MAX_SAFE_INTEGER,
 				color.rgba.r / 255,
 				color.rgba.g / 255,
 				color.rgba.b / 255,
