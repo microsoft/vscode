@@ -20,7 +20,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
-import { dirname, joinPath, distinctParents } from '../../../../../base/common/resources.js';
+import { dirname, joinPath, distinctParents, isEqual } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { localize } from '../../../../../nls.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
@@ -93,6 +93,20 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
 	) { }
+
+	getParent(element: ExplorerItem): ExplorerItem {
+		if (element.parent) {
+			return element.parent;
+		}
+
+		for (const folder of this.contextService.getWorkspace().folders) {
+			if (isEqual(folder.uri, element.resource)) {
+				return element;
+			}
+		}
+
+		throw new Error('getParent only supported for cached parents');
+	}
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
 		// don't render nest parents as containing children when all the children are filtered out
@@ -448,7 +462,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
-			matches: createMatches(filterData),
+			matches: stat.isDirectory ? [] : createMatches(filterData),
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
 			domId
 		});

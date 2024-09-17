@@ -36,7 +36,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IAsyncDataTreeViewState } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IAsyncDataTreeViewState, IAsyncFindProvider } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
@@ -55,6 +55,10 @@ import { EditorOpenSource } from '../../../../../platform/editor/common/editor.j
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { relativePath } from '../../../../../base/common/resources.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ISearchService, QueryType } from '../../../../services/search/common/search.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -148,6 +152,78 @@ export interface IExplorerViewContainerDelegate {
 
 export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 	delegate: IExplorerViewContainerDelegate;
+}
+
+class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
+
+	constructor(
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configService: IConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@IProgressService private readonly progressService: IProgressService,
+	) { }
+
+	async *getFindResults(pattern: string, token: CancellationToken): AsyncIterable<ExplorerItem> {
+		if (pattern === '') {
+			return;
+		}
+
+		const workspace = this.workspaceContextService.getWorkspace();
+		const folderPromises = Promise.all(workspace.folders.map(async folder => {
+			const result = await this.searchService.fileSearch({
+				folderQueries: [{ folder: folder.uri }],
+				type: QueryType.File,
+				filePattern: pattern,
+				maxResults: 100,
+				sortByScore: true,
+				excludePattern: { '**/node_modules/**': true, '**/out/**': true }
+			}, token);
+
+			return { folder: folder.uri, result };
+		}));
+
+		const folderResults = await this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: 100,
+		}, _progress => folderPromises);
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		const lowercasePattern = pattern.toLowerCase();
+		for (const { folder, result } of folderResults) {
+			const root = new ExplorerItem(folder, this.fileService, this.configService, this.filesConfigService, undefined);
+			for (const file of result.results) {
+
+				// Only support contigous matches for now
+				if (!file.resource.path.toLowerCase().includes(lowercasePattern)) {
+					continue;
+				}
+
+				const pathTraversal = relativePath(folder, file.resource);
+				if (!pathTraversal) {
+					continue;
+				}
+
+				let currentItem = root;
+				let currentResource = root.resource;
+				const segments = pathTraversal.split('/');
+				for (const stat of segments) {
+					currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
+					let child = currentItem.children.get(stat);
+					if (!child) {
+						child = new ExplorerItem(currentResource, this.fileService, this.configService, this.filesConfigService, currentItem, stat !== segments[segments.length - 1]);
+					}
+					currentItem = child;
+				}
+
+				yield currentItem;
+			}
+		}
+	}
 }
 
 export class ExplorerView extends ViewPane implements IExplorerView {
@@ -488,7 +564,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return false;
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+			findResultsProvider: this.instantiationService.createInstance(ExplorerFindProvider),
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
