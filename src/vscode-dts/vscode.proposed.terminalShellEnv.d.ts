@@ -7,7 +7,7 @@ declare module 'vscode' {
 	// @anthonykim1 @tyriar https://github.com/microsoft/vscode/issues/227467
 
 	// Expose the terminal's actual shell environment to extensions
-	export interface TerminalShellEnEnvironment {
+	export interface TerminalShellIntegration {
 		// The shell environment
 		// undefined means we don't know anything about the env
 		// NOTE: This is similar to command line in that it's verified with a nonce, however we just ignore when there's no nonce, so we don't need the trust flag like `TerminalShellExecutionCommandLine.isTrusted`
