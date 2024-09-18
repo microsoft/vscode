@@ -2385,9 +2385,6 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 		}
 
 		const textSearchResults = searchResult.children;
-		// if (textSearchResults.length === 1) {
-		// 	return this.createTextSearchResultIterator(textSearchResults[0]);
-		// }
 		return textSearchResults;
 	}
 

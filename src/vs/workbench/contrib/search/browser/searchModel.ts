@@ -2238,7 +2238,7 @@ export class SearchModel extends Disposable {
 	}
 
 	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
-		if (this.hasAIResults || this.currentAICancelTokenSource !== undefined) {
+		if (this.hasAIResults || this.currentAICancelTokenSource !== null) {
 			// already has matches or pending matches
 			return;
 		} else {
