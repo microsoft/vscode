@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -724,10 +724,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		super.clearInput();
 	}
 
-	override getControl(): ReplEditorControl {
+	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			activeCodeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget,
+			onDidChangeActiveEditor: Event.None
 		};
 	}
 }

@@ -12,7 +12,6 @@ import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -47,7 +46,6 @@ import { InteractiveEditorInput } from './interactiveEditorInput.js';
 import { IInteractiveHistoryService, InteractiveHistoryService } from './interactiveHistoryService.js';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from '../../notebook/browser/controller/coreActions.js';
 import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
-import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from '../../notebook/common/notebookCommon.js';
@@ -62,6 +60,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { isReplEditorControl, ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
+import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
 
 const interactiveWindowCategory: ILocalizedString = localize2('interactiveWindow', "Interactive Window");
 
@@ -525,6 +524,11 @@ registerAction2(class extends Action2 {
 
 				if (isFalsyOrWhitespace(value)) {
 					return;
+				}
+
+				const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
+				if (ctrl) {
+					ctrl.acceptHunk();
 				}
 
 				historyService.replaceLast(notebookDocument.uri, value);

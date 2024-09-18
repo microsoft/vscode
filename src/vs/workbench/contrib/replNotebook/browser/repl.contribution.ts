@@ -46,6 +46,7 @@ import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from '../../notebook/browser/con
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
+import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions; label?: string };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -279,6 +280,11 @@ async function executeReplInput(
 
 			if (isFalsyOrWhitespace(value)) {
 				return;
+			}
+
+			const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
+			if (ctrl) {
+				ctrl.acceptHunk();
 			}
 
 			historyService.replaceLast(notebookDocument.uri, value);
