@@ -849,6 +849,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
+	private _isEnabledMultiline: boolean;
 	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
@@ -860,12 +861,14 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
+		this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
 		this._decorations = editor.createDecorationsCollection();
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
+			this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 
@@ -907,20 +910,22 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this.editor));
+		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this._isEnabledMultiline, this.editor));
 	}
 
-	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
+	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, isEnabledMultiline: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
 		if (!isEnabled) {
 			return null;
 		}
 		if (!editor.hasModel()) {
 			return null;
 		}
-		const s = editor.getSelection();
-		if (s.startLineNumber !== s.endLineNumber) {
-			// multiline forbidden for perf reasons
-			return null;
+		if (!isEnabledMultiline) {
+			const s = editor.getSelection();
+			if (s.startLineNumber !== s.endLineNumber) {
+				// multiline forbidden for perf reasons
+				return null;
+			}
 		}
 		const multiCursorController = MultiCursorSelectionController.get(editor);
 		if (!multiCursorController) {
