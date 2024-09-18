@@ -60,6 +60,7 @@ type ChatProviderInvokedEvent = {
 	citations: number;
 	numCodeBlocks: number;
 	isParticipantDetected: boolean;
+	enableCommandDetection: boolean;
 };
 
 type ChatProviderInvokedClassification = {
@@ -75,6 +76,7 @@ type ChatProviderInvokedClassification = {
 	citations: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of public code citations that were returned with the response.' };
 	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code blocks in the response.' };
 	isParticipantDetected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the participant was automatically detected.' };
+	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether participation detection was disabled for this invocation.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -598,7 +600,8 @@ export class ChatService extends Disposable implements IChatService {
 					location,
 					citations: request?.response?.codeCitations.length ?? 0,
 					numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
-					isParticipantDetected: !!detectedAgent
+					isParticipantDetected: !!detectedAgent,
+					enableCommandDetection
 				});
 
 				model.cancelRequest(request);
@@ -716,6 +719,7 @@ export class ChatService extends Disposable implements IChatService {
 						agentExtensionId: agentPart?.agent.extensionId.value ?? '',
 						slashCommand: commandForTelemetry,
 						chatSessionId: model.sessionId,
+						enableCommandDetection,
 						isParticipantDetected: !!detectedAgent,
 						location,
 						citations: request.response?.codeCitations.length ?? 0,
@@ -752,6 +756,7 @@ export class ChatService extends Disposable implements IChatService {
 					location,
 					citations: 0,
 					numCodeBlocks: 0,
+					enableCommandDetection,
 					isParticipantDetected: !!detectedAgent
 				});
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);

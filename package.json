@@ -84,7 +84,7 @@
     "@vscode/spdlog": "^0.15.0",
     "@vscode/sqlite3": "5.1.6-vscode",
     "@vscode/sudo-prompt": "9.3.1",
-    "@vscode/tree-sitter-wasm": "^0.0.3",
+    "@vscode/tree-sitter-wasm": "^0.0.4",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
