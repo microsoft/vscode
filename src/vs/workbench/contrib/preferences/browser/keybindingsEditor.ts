@@ -63,7 +63,6 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { stripMnemonicLabel } from '../../../../base/common/labels.js';
 
 const $ = DOM.$;
 
@@ -568,7 +567,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			if (isIMenuItem(menuItem)) {
 				const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;
 				const category = menuItem.command.category ? typeof menuItem.command.category === 'string' ? menuItem.command.category : menuItem.command.category.value : undefined;
-				actionsLabels.set(menuItem.command.id, stripMnemonicLabel(category ? `${category}: ${title}` : title));
+				actionsLabels.set(menuItem.command.id, category ? `${category}: ${title}` : title);
 			}
 		}
 		return actionsLabels;
