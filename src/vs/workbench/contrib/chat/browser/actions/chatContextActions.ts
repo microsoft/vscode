@@ -347,10 +347,10 @@ class AttachContextAction extends Action2 {
 				icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
 				iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
 				value: 'kernelVariable',
-				label: 'Kernel Variable...',
+				label: localize('chatContext.notebook.kernelVariable', 'Kernel Variable...'),
 				command: {
 					id: 'notebook.chat.selectAndInsertKernelVariable',
-					title: 'Select and Insert Kernel Variable',
+					title: localize('chatContext.notebook.selectkernelVariable', 'Select and Insert Kernel Variable'),
 					arguments: [{ widget, range: undefined }]
 				}
 			});
