@@ -795,6 +795,11 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		this._openContextMenu();
 	}
 
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-modelPicker-item');
+	}
+
 	protected override updateLabel(): void {
 		if (this.label) {
 			const model = this._languageModelsService.lookupLanguageModel(this.currentLanguageModel);
