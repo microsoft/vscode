@@ -64,6 +64,8 @@ import { ContentHoverController } from '../../../../editor/contrib/hover/browser
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { ReplInputHintContentWidget } from './replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INLINE_CHAT_ID } from '../../inlineChat/common/inlineChat.js';
+import { ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -408,7 +410,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					TabCompletionController.ID,
 					ContentHoverController.ID,
 					GlyphHoverController.ID,
-					MarkerController.ID
+					MarkerController.ID,
+					INLINE_CHAT_ID
 				])
 			}
 		});
@@ -721,10 +724,10 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
+	override getControl(): ReplEditorControl {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			codeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget
 		};
 	}
 }

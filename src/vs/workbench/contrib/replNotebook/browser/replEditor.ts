@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -63,6 +63,7 @@ import { ContentHoverController } from '../../../../editor/contrib/hover/browser
 import { ReplEditorInput } from './replEditorInput.js';
 import { ReplInputHintContentWidget } from '../../interactive/browser/replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INLINE_CHAT_ID } from '../../inlineChat/common/inlineChat.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -400,7 +401,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 					TabCompletionController.ID,
 					ContentHoverController.ID,
 					GlyphHoverController.ID,
-					MarkerController.ID
+					MarkerController.ID,
+					INLINE_CHAT_ID
 				])
 			}
 		});
@@ -700,10 +702,18 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
+	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			codeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget,
+			onDidChangeActiveEditor: Event.None
 		};
 	}
+}
+
+export type ReplEditorControl = { activeCodeEditor: CodeEditorWidget; notebookEditor: NotebookEditorWidget | undefined };
+
+export function isReplEditorControl(control: unknown): control is ReplEditorControl {
+	const candidate = control as ReplEditorControl;
+	return candidate?.activeCodeEditor instanceof CodeEditorWidget && candidate?.notebookEditor instanceof NotebookEditorWidget;
 }
