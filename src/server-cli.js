@@ -17,8 +17,8 @@
 // ESM-comment-end
 // ESM-uncomment-begin
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
-import * as path from 'path';
-import { fileURLToPath } from 'url';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as bootstrapNode from './bootstrap-node.js';
 import * as bootstrapAmd from './bootstrap-amd.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';

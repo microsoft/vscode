@@ -29,12 +29,12 @@
 // ESM-comment-end
 // ESM-uncomment-begin
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
-import * as path from 'path';
-import * as http from 'http';
-import * as os from 'os';
-import * as readline from 'readline';
-import { performance } from 'perf_hooks';
-import { fileURLToPath } from 'url';
+import * as path from 'node:path';
+import * as http from 'node:http';
+import * as os from 'node:os';
+import * as readline from 'node:readline';
+import { performance } from 'node:perf_hooks';
+import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
 import * as bootstrapNode from './bootstrap-node.js';
 import * as bootstrapAmd from './bootstrap-amd.js';

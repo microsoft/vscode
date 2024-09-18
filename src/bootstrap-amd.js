@@ -12,9 +12,9 @@
  */
 
 // ESM-uncomment-begin
-import * as path from 'path';
-import * as fs from 'fs';
-import { fileURLToPath } from 'url';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createRequire, register } from 'node:module';
 import { product, pkg } from './bootstrap-meta.js';
 import './bootstrap-node.js';

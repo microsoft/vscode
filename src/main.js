@@ -26,12 +26,12 @@
 // const { app, protocol, crashReporter, Menu, contentTracing } = require('electron');
 // ESM-comment-end
 // ESM-uncomment-begin
-import * as path from 'path';
+import * as path from 'node:path';
 import * as fs from 'original-fs';
-import * as os from 'os';
+import * as os from 'node:os';
 import * as bootstrapNode from './bootstrap-node.js';
 import * as bootstrapAmd from './bootstrap-amd.js';
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from 'node:url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
 import { product } from './bootstrap-meta.js';
