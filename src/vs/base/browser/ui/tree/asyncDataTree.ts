@@ -799,7 +799,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	// Implementation
 
 	protected getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
-		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get((element === this.root.element ? null : element) as T);
+		const elementToUse = (element === this.root.element ? null : element) as T;
+		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get(elementToUse);
 
 		if (!node) {
 			throw new TreeError(this.user, `Data tree node not found: ${element}`);
@@ -1425,35 +1426,35 @@ class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
 			return null;
 		}
 		// if it is not the root, it should not be of `TInput` type
-		return <T | null>current;
+		return (current?.element ?? null) as T | null;
 	}
 	previous(): T | null {
 		const current = this.navigator.previous();
 		if (current?.element === this.root) {
 			return this.previous();
 		}
-		return <T | null>current;
+		return (current?.element ?? null) as T | null;
 	}
 	first(): T | null {
 		const current = this.navigator.first();
 		if (current?.element === this.root) {
 			return this.next();
 		}
-		return <T | null>current;
+		return (current?.element ?? null) as T | null;
 	}
 	last(): T | null {
 		const current = this.navigator.last();
 		if (current?.element === this.root) {
 			return this.previous();
 		}
-		return <T | null>current;
+		return (current?.element ?? null) as T | null;
 	}
 	next(): T | null {
 		const current = this.navigator.next();
 		if (current?.element === this.root) {
 			return this.next();
 		}
-		return <T | null>current;
+		return (current?.element ?? null) as T | null;
 	}
 
 }

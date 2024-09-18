@@ -219,7 +219,12 @@ function expandAll(accessor: ServicesAccessor) {
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const viewer = searchView.getControl();
-		viewer.expandAll();
+
+		if (searchView.model.hasAIResults) {
+			viewer.expandAll();
+		} else {
+			viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
+		}
 	}
 }
 

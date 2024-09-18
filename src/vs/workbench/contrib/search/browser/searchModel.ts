@@ -1921,8 +1921,6 @@ export class SearchResult extends Disposable {
 	private _plainTextSearchResult: ReplaceableTextSearchResult;
 	private _aiTextSearchResult: TextSearchResult;
 
-	public hasAISearched = false;
-
 	constructor(
 		public readonly searchModel: SearchModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -2019,7 +2017,6 @@ export class SearchResult extends Disposable {
 	set query(query: ITextQuery | null) {
 		this._plainTextSearchResult.query = query;
 		this._aiTextSearchResult.query = query;
-		this.hasAISearched = false;
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
@@ -2241,12 +2238,11 @@ export class SearchModel extends Disposable {
 	}
 
 	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
-		if (this.searchResult.hasAISearched) {
-			// already has matches
+		if (this.hasAIResults || this.currentAICancelTokenSource !== undefined) {
+			// already has matches or pending matches
 			return;
 		} else {
 			if (this._searchQuery) {
-				this.searchResult.hasAISearched = true;
 				await this.aiSearch(
 					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
 					onProgress,
@@ -2289,7 +2285,10 @@ export class SearchModel extends Disposable {
 				e => {
 					this.onSearchError(e, Date.now() - start, true);
 					throw e;
-				}).finally(() => tokenSource.dispose());
+				}).finally(() => {
+					tokenSource.dispose();
+					this.currentAICancelTokenSource = null;
+				});
 		return asyncAIResults;
 	}
 
@@ -2343,6 +2342,10 @@ export class SearchModel extends Disposable {
 			asyncResults: getAsyncResults(),
 			syncResults
 		};
+	}
+
+	get hasAIResults(): boolean {
+		return this.searchResult.getCachedSearchComplete(true) !== undefined;
 	}
 
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
