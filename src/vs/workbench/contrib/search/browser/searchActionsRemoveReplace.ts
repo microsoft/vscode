@@ -287,7 +287,7 @@ async function performReplace(accessor: ServicesAccessor,
 	const searchResult = viewlet?.searchResult;
 
 	if (searchResult) {
-		searchResult.batchReplace(elementsToReplace);
+		await searchResult.batchReplace(elementsToReplace);
 	}
 
 	await viewlet?.refreshTreePromiseSerializer; // wait for refreshTree to finish
