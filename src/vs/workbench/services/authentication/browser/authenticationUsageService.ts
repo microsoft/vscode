@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Queue } from '../../../../base/common/async.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAuthenticationService } from '../common/authentication.js';
@@ -49,24 +52,47 @@ export interface IAuthenticationUsageService {
 	addAccountUsage(providerId: string, accountName: string, extensionId: string, extensionName: string): void;
 }
 
-export class AuthenticationUsageService implements IAuthenticationUsageService {
+export class AuthenticationUsageService extends Disposable implements IAuthenticationUsageService {
 	_serviceBrand: undefined;
 
-	private _initializedPromise: Promise<void> | undefined;
+	private _queue = new Queue();
 	private _extensionsUsingAuth = new Set<string>();
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@IProductService private readonly _productService: IProductService,
-	) { }
+		@ILogService private readonly _logService: ILogService,
+		@IProductService productService: IProductService,
+	) {
+		super();
 
-	initializeExtensionUsageCache(): Promise<void> {
-		return this._initExtensionsUsingAuth();
+		// If an extension is listed in `trustedExtensionAuthAccess` we should consider it as using auth
+		const trustedExtensionAuthAccess = productService.trustedExtensionAuthAccess;
+		if (Array.isArray(trustedExtensionAuthAccess)) {
+			for (const extensionId of trustedExtensionAuthAccess) {
+				this._extensionsUsingAuth.add(extensionId);
+			}
+		} else if (trustedExtensionAuthAccess) {
+			for (const extensions of Object.values(trustedExtensionAuthAccess)) {
+				for (const extensionId of extensions) {
+					this._extensionsUsingAuth.add(extensionId);
+				}
+			}
+		}
+
+		this._authenticationService.onDidRegisterAuthenticationProvider(
+			provider => this._queue.queue(
+				() => this._addExtensionsToCache(provider.id)
+			)
+		);
+	}
+
+	async initializeExtensionUsageCache(): Promise<void> {
+		await this._queue.queue(() => Promise.all(this._authenticationService.getProviderIds().map(providerId => this._addExtensionsToCache(providerId))));
 	}
 
 	async extensionUsesAuth(extensionId: string): Promise<boolean> {
-		await this._initExtensionsUsingAuth();
+		await this._queue.whenIdle();
 		return this._extensionsUsingAuth.has(extensionId);
 	}
 
@@ -84,10 +110,12 @@ export class AuthenticationUsageService implements IAuthenticationUsageService {
 
 		return usages;
 	}
+
 	removeAccountUsage(providerId: string, accountName: string): void {
 		const accountKey = `${providerId}-${accountName}-usages`;
 		this._storageService.remove(accountKey, StorageScope.APPLICATION);
 	}
+
 	addAccountUsage(providerId: string, accountName: string, extensionId: string, extensionName: string): void {
 		const accountKey = `${providerId}-${accountName}-usages`;
 		const usages = this.readAccountUsages(providerId, accountName);
@@ -111,41 +139,18 @@ export class AuthenticationUsageService implements IAuthenticationUsageService {
 		this._extensionsUsingAuth.add(extensionId);
 	}
 
-	private _initExtensionsUsingAuth() {
-		if (this._initializedPromise) {
-			return this._initializedPromise;
-		}
-
-		// If an extension is listed in `trustedExtensionAuthAccess` we should consider it as using auth
-		const trustedExtensionAuthAccess = this._productService.trustedExtensionAuthAccess;
-		if (Array.isArray(trustedExtensionAuthAccess)) {
-			for (const extensionId of trustedExtensionAuthAccess) {
-				this._extensionsUsingAuth.add(extensionId);
-			}
-		} else if (trustedExtensionAuthAccess) {
-			for (const extensions of Object.values(trustedExtensionAuthAccess)) {
-				for (const extensionId of extensions) {
-					this._extensionsUsingAuth.add(extensionId);
+	private async _addExtensionsToCache(providerId: string) {
+		try {
+			const accounts = await this._authenticationService.getAccounts(providerId);
+			for (const account of accounts) {
+				const usage = this.readAccountUsages(providerId, account.label);
+				for (const u of usage) {
+					this._extensionsUsingAuth.add(u.extensionId);
 				}
 			}
+		} catch (e) {
+			this._logService.error(e);
 		}
-
-		this._initializedPromise = (async () => {
-			for (const providerId of this._authenticationService.getProviderIds()) {
-				try {
-					const accounts = await this._authenticationService.getAccounts(providerId);
-					for (const account of accounts) {
-						const usage = this.readAccountUsages(providerId, account.label);
-						for (const u of usage) {
-							this._extensionsUsingAuth.add(u.extensionId);
-						}
-					}
-				} catch (e) {
-					// ignore
-				}
-			}
-		})();
-		return this._initializedPromise;
 	}
 }
 
