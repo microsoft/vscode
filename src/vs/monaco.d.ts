@@ -3617,6 +3617,11 @@ declare namespace monaco.editor {
 		 */
 		selectionHighlightMultiline?: boolean;
 		/**
+		 * Maximum length (in characters) for selection highlights.
+		 * Set to 0 to have an unlimited length.
+		 */
+		selectionHighlightMaxLength?: number;
+		/**
 		 * Enable semantic occurrences highlight.
 		 * Defaults to 'singleFile'.
 		 * 'off' disables occurrence highlighting
@@ -5032,7 +5037,8 @@ declare namespace monaco.editor {
 		defaultColorDecorators = 150,
 		colorDecoratorsActivatedOn = 151,
 		inlineCompletionsAccessibilityVerbose = 152,
-		selectionHighlightMultiline = 153
+		selectionHighlightMultiline = 153,
+		selectionHighlightMaxLength = 154
 	}
 
 	export const EditorOptions: {
@@ -5150,6 +5156,7 @@ declare namespace monaco.editor {
 		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectionHighlightMultiline: IEditorOption<EditorOption.selectionHighlightMultiline, boolean>;
+		selectionHighlightMaxLength: IEditorOption<EditorOption.selectionHighlightMaxLength, number>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;

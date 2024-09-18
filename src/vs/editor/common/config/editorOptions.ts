@@ -571,6 +571,11 @@ export interface IEditorOptions {
 	 */
 	selectionHighlightMultiline?: boolean;
 	/**
+	 * Maximum length (in characters) for selection highlights.
+	 * Set to 0 to have an unlimited length.
+	 */
+	selectionHighlightMaxLength?: number;
+	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to 'singleFile'.
 	 * 'off' disables occurrence highlighting
@@ -5511,7 +5516,8 @@ export const enum EditorOption {
 	defaultColorDecorators,
 	colorDecoratorsActivatedOn,
 	inlineCompletionsAccessibilityVerbose,
-	selectionHighlightMultiline
+	selectionHighlightMultiline,
+	selectionHighlightMaxLength
 }
 
 export const EditorOptions = {
@@ -6103,6 +6109,11 @@ export const EditorOptions = {
 	selectionHighlightMultiline: register(new EditorBooleanOption(
 		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
 		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
+	)),
+	selectionHighlightMaxLength: register(new EditorIntOption(
+		EditorOption.selectionHighlightMaxLength, 'selectionHighlightMaxLength',
+		200, 0, Constants.MAX_SAFE_SMALL_INTEGER,
+		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similiar matches are not highlighted. Set to zero for unlimited.") }
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,

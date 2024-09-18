@@ -850,6 +850,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
 	private _isEnabledMultiline: boolean;
+	private _maxLength: number;
 	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
@@ -862,6 +863,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 		this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
+		this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
 		this._decorations = editor.createDecorationsCollection();
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
@@ -869,6 +871,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 			this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
+			this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 
@@ -910,10 +913,10 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this._isEnabledMultiline, this.editor));
+		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this._isEnabledMultiline, this._maxLength, this.editor));
 	}
 
-	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, isEnabledMultiline: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
+	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, isEnabledMultiline: boolean, maxLength: number, editor: ICodeEditor): SelectionHighlighterState | null {
 		if (!isEnabled) {
 			return null;
 		}
@@ -962,7 +965,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			// whitespace only selection
 			return null;
 		}
-		if (r.searchText.length > 200) {
+		if (maxLength > 0 && r.searchText.length > maxLength) {
 			// very long selection
 			return null;
 		}
