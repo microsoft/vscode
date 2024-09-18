@@ -20,6 +20,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../../../services/environme
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction.js';
+import { ManageAccountPreferencesForExtensionAction } from './actions/manageAccountPreferencesForExtensionAction.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
@@ -194,6 +195,7 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 	private _registerActions(): void {
 		this._register(registerAction2(SignOutOfAccountAction));
 		this._register(registerAction2(ManageTrustedExtensionsForAccountAction));
+		this._register(registerAction2(ManageAccountPreferencesForExtensionAction));
 	}
 
 	private _clearPlaceholderMenuItem(): void {
