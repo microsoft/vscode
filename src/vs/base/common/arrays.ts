@@ -361,7 +361,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts 
 /**
  * @deprecated Use `Array.copyWithin` instead
  */
-export function move(array: any[], from: number, to: number): void {
+export function move(array: unknown[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
 }
 
@@ -385,7 +385,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
  * Removes duplicates from the given array. The optional keyFn allows to specify
  * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = value => value): T[] {
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknown = value => value): T[] {
 	const seen = new Set<any>();
 
 	return array.filter(element => {

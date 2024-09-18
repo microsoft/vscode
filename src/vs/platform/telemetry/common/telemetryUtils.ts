@@ -59,10 +59,10 @@ export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
-	flush(): Promise<any>;
+	flush(): Promise<void>;
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
+export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(undefined) };
 
 
 /* __GDPR__FRAGMENT__

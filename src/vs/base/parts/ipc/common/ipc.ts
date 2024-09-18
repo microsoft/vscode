@@ -569,7 +569,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<any> {
+	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<unknown> {
 		const id = this.lastRequestId++;
 		const type = RequestType.Promise;
 		const request: IRawRequest = { id, type, channelName, name, arg };

@@ -98,7 +98,7 @@ export class SimpleSettingRenderer {
 		return this._preferencesService.getSetting(settingId);
 	}
 
-	parseValue(settingId: string, value: string): any {
+	parseValue(settingId: string, value: string) {
 		if (value === 'undefined' || value === '') {
 			return undefined;
 		}
