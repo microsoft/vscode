@@ -168,7 +168,7 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 		const variable = <string | undefined>context.variable;
 
 		if (variable !== undefined) {
-			this.addVariableReference(widget, variable, range);
+			this.addVariableReference(widget, variable, range, false);
 			return;
 		}
 
@@ -195,16 +195,19 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			return;
 		}
 
-		this.addVariableReference(widget, pickedVariable.label, range);
+		this.addVariableReference(widget, pickedVariable.label, range, true);
 	}
 
-	private addVariableReference(widget: IChatWidget, variableName: string, range?: Range) {
+	private addVariableReference(widget: IChatWidget, variableName: string, range?: Range, updateText?: boolean) {
 		if (range) {
 			const text = `#kernelVariable:${variableName}`;
-			const editor = widget.inputEditor;
-			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
-			if (!success) {
-				return;
+
+			if (updateText) {
+				const editor = widget.inputEditor;
+				const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
+				if (!success) {
+					return;
+				}
 			}
 
 			widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
