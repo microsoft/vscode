@@ -169,11 +169,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
 					this._promptInputModelSubscriptions.value = combinedDisposable(
-						this._promptInputModel.onDidChangeInput(async e => {
+						this._promptInputModel.onDidChangeInput(e => {
 							this._sync(e);
-							if (this._shellType === 'zsh' || this._shellType === 'bash') {
-								await this._handleData();
-							}
 						}),
 						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
 					);
@@ -196,7 +193,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private async _handleData(): Promise<void> {
-		// this._onDidReceiveCompletions.fire();
+		this._onDidReceiveCompletions.fire();
 
 		// Nothing to handle if the terminal is not attached
 		if (!this._terminal?.element || !this._enableWidget || !this._promptInputModel) {
@@ -228,7 +225,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!completions?.length) {
 			return;
 		}
-		this._onDidReceiveCompletions.fire();
 
 		const items: SimpleCompletionItem[] = completions.map(s => {
 			return new SimpleCompletionItem({
@@ -281,6 +277,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		if (this._shellType === 'zsh' || this._shellType === 'bash') {
+			this._handleData();
+			return;
+		}
+
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableCodeCompletionsSequence);
@@ -290,6 +291,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableGitCompletionsSequence);
 			this._gitCompletionsRequested = true;
 		}
+
 
 		// Request global completions if there are none cached
 		if (this._cachedPwshCommands.size === 0) {
@@ -310,7 +312,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private async _sync(promptInputState: IPromptInputModelState): Promise<void> {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
-
+		if (this._shellType === 'zsh' || this._shellType === 'bash') {
+			await this._handleData();
+		}
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 			// If input has been added
 			let sent = false;
@@ -342,8 +346,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				) {
 					if (this._shellType === 'pwsh') {
 						this._requestCompletions();
-					} else {
-						await this._handleData();
 					}
 					sent = true;
 				}
@@ -889,5 +891,7 @@ function getIconForKind(kind: TerminalCompletionItemKind): ThemeIcon {
 			return Codicon.folder;
 		case TerminalCompletionItemKind.Flag:
 			return Codicon.symbolKey;
+		case TerminalCompletionItemKind.Method:
+			return Codicon.symbolMethod;
 	}
 }

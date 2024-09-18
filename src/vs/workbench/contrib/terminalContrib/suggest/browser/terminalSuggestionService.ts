@@ -43,6 +43,7 @@ export enum TerminalCompletionItemKind {
 	File = 0,
 	Folder = 1,
 	Flag = 2,
+	Method = 3
 }
 
 export interface ITerminalCompletionProvider {
