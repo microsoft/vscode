@@ -2543,6 +2543,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	readonly onDidChangeFindOpenState: Event<boolean> = Event.None;
 	onDidChangeStickyScrollFocused: Event<boolean> = Event.None;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
+	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	private stickyScrollController?: StickyScrollController<T, TFilterData, TRef>;
 	private styleElement: HTMLStyleElement;
 	protected readonly disposables = new DisposableStore();
@@ -2602,7 +2603,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	constructor(
 		private readonly _user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private _options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {
@@ -3165,6 +3165,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	createNewModel(options: IAbstractTreeOptions<T, TFilterData> = {}): ITreeModel<T, TFilterData, TRef> {
 		return this.createModel(this._user, { ...this._options, filter: this.findFilter as ITreeFilter<T, TFilterData> | undefined, ...options });
 	}
+
+	private readonly modelDisposables = new DisposableStore();
+	private setupModel(model: ITreeModel<T, TFilterData, TRef>) {
+		this.modelDisposables.clear();
 
 	private readonly modelDisposables = new DisposableStore();
 	private setupModel(model: ITreeModel<T, TFilterData, TRef>) {
