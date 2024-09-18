@@ -169,7 +169,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
 					this._promptInputModelSubscriptions.value = combinedDisposable(
-						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
+						this._promptInputModel.onDidChangeInput(async e => {
+							this._sync(e);
+							if (this._shellType === 'zsh' || this._shellType === 'bash') {
+								await this._handleData();
+							}
+						}),
 						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
 					);
 				}
@@ -187,12 +192,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._register(xterm.onData(async e => {
 			this._lastUserData = e;
 			this._lastUserDataTimestamp = Date.now();
-			return this._handleData();
 		}));
 	}
 
 	private async _handleData(): Promise<void> {
-		this._onDidReceiveCompletions.fire();
+		// this._onDidReceiveCompletions.fire();
 
 		// Nothing to handle if the terminal is not attached
 		if (!this._terminal?.element || !this._enableWidget || !this._promptInputModel) {
@@ -215,15 +219,17 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
 
-		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
+		// this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
 		// TODO: only do this for specific prompt value?
 		if (!this._shellType) {
 			return;
 		}
-		const completions = await this._terminalSuggestionService.provideSuggestions(this._leadingLineContent, this._shellType);
+		const completions = await this._terminalSuggestionService.provideSuggestions(this._promptInputModel.value, this._shellType);
 		if (!completions?.length) {
 			return;
 		}
+		this._onDidReceiveCompletions.fire();
+
 		const suggestions: SimpleCompletionItem[] = completions.map(s => {
 			return new SimpleCompletionItem({
 				label: typeof s.label === 'string' ? s.label : s.label.label,
@@ -239,7 +245,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (replacementIndex + replacementLength);
 
-		let normalizedLeadingLineContent = this._leadingLineContent;
+		// let normalizedLeadingLineContent = this._leadingLineContent;
 
 		// If there is a single directory in the completions:
 		// - `\` and `/` are normalized such that either can be used
@@ -250,9 +256,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._isFilteringDirectories) {
 			const firstDir = suggestions.find(e => e.completion.isDirectory);
 			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
-			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+			// normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
-		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+		const lineContext = new LineContext(this._promptInputModel.value, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(suggestions, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
 
@@ -334,7 +340,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					// with git branches in particular
 					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
-					this._requestCompletions();
+					if (this._shellType === 'pwsh') {
+						this._requestCompletions();
+					} else {
+						await this._handleData();
+					}
 					sent = true;
 				}
 			}
