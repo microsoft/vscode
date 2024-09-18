@@ -778,7 +778,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private originalShouldCollapse(match: RenderableMatch): ObjectTreeElementCollapseState {
+	private originalShouldCollapse(match: RenderableMatch) {
 		const collapseResults = this.searchConfig.collapseResults;
 		return (collapseResults === 'alwaysCollapse' ||
 			(!(match instanceof Match) && match.count() > 10 && collapseResults !== 'alwaysExpand')) ?
@@ -787,7 +787,7 @@ export class SearchView extends ViewPane {
 
 	private shouldCollapse(match: RenderableMatch): boolean {
 		const collapseResults = this.originalShouldCollapse(match);
-		if (collapseResults === ObjectTreeElementCollapseState.Collapsed || collapseResults === ObjectTreeElementCollapseState.PreserveOrCollapsed) {
+		if (collapseResults === ObjectTreeElementCollapseState.PreserveOrCollapsed) {
 			return true;
 		}
 		return false;
@@ -967,6 +967,7 @@ export class SearchView extends ViewPane {
 				paddingBottom: SearchDelegate.ITEM_HEIGHT,
 				collapseByDefault: (e: RenderableMatch) => {
 					if (e.id() === AI_TEXT_SEARCH_RESULT_ID) {
+						// always collapse the ai text search result
 						return true;
 					}
 					return this.shouldCollapse(e);

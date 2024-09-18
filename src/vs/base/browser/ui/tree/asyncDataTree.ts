@@ -1415,7 +1415,7 @@ function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>)
 	}
 }
 
-export class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
+class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
 
 	constructor(private navigator: ITreeNavigator<IAsyncDataTreeNode<TInput, T> | null>, private root: TInput) { }
 
@@ -1430,19 +1430,21 @@ export class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
 	previous(): T | null {
 		const current = this.navigator.previous();
 		if (current?.element === this.root) {
-			return null;
+			return this.previous();
 		}
 		return <T | null>current;
 	}
 	first(): T | null {
-		this.navigator.first();
-		// the first should be the root
-		return this.next();
+		const current = this.navigator.first();
+		if (current?.element === this.root) {
+			return this.next();
+		}
+		return <T | null>current;
 	}
 	last(): T | null {
 		const current = this.navigator.last();
 		if (current?.element === this.root) {
-			return null;
+			return this.previous();
 		}
 		return <T | null>current;
 	}
