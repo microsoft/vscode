@@ -48,7 +48,7 @@ function getImageAttachContext(data: Uint8Array): IChatRequestVariableEntry {
 	return {
 		value: data,
 		id: data.slice(0, 50).toString(),
-		name: 'Image from Clipboard',
+		name: 'Pasted Image',
 		isImage: true,
 		icon: Codicon.fileMedia,
 	};

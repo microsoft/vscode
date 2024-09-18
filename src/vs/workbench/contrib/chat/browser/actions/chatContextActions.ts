@@ -272,8 +272,8 @@ class AttachContextAction extends Action2 {
 				const uniqueId = fileBuffer.slice(0, 50).toString();
 				toAttach.push({
 					id: uniqueId,
-					name: 'Image from Clipboard',
-					fullName: 'Image from Clipboard',
+					name: 'Pasted Image',
+					fullName: 'Pasted Image',
 					value: fileBuffer,
 					isDynamic: true,
 					isImage: true
