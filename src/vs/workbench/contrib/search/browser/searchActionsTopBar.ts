@@ -220,10 +220,14 @@ function expandAll(accessor: ServicesAccessor) {
 	if (searchView) {
 		const viewer = searchView.getControl();
 
-		if (searchView.model.hasAIResults) {
-			viewer.expandAll();
+		if (searchView.shouldShowAIResults()) {
+			if (searchView.model.hasAIResults) {
+				viewer.expandAll();
+			} else {
+				viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
+			}
 		} else {
-			viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
+			viewer.expandAll();
 		}
 	}
 }
