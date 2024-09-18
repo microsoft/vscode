@@ -12,10 +12,10 @@ const withDefaults = require('../shared.webpack.config');
 module.exports = withDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/npmMain.ts',
+		extension: './src/terminalSuggestMain.ts',
 	},
 	output: {
-		filename: 'npmMain.js',
+		filename: 'terminalSuggestMain.js',
 	},
 	resolve: {
 		mainFields: ['module', 'main'],

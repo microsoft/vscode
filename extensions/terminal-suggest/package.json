@@ -35,7 +35,7 @@
     "@types/node": "20.x",
     "@types/which": "^3.0.0"
   },
-  "main": "./out/npmMain",
+  "main": "./out/terminalSuggestMain",
   "activationEvents": [
       "*"
   ],
