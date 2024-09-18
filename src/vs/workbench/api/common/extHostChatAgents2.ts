@@ -378,9 +378,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		try {
 			const { request, location, history } = await this._createRequest(requestDto, context);
-			if (!isProposedApiEnabled(agent.extension, 'chatParticipantAdditions')) {
-				delete request.userSelectedModelId;
-			}
 
 			// Init session disposables
 			let sessionDisposables = this._sessionDisposables.get(request.sessionId);
@@ -392,7 +389,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const extRequest = typeConvert.ChatAgentRequest.to(request, location);
-			if (request.userSelectedModelId) {
+			if (request.userSelectedModelId && isProposedApiEnabled(agent.extension, 'chatParticipantAdditions')) {
 				extRequest.userSelectedModel = await this._languageModels.getLanguageModelByIdentifier(agent.extension, request.userSelectedModelId);
 			}
 
