@@ -193,7 +193,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 				previousTokenEnd = tokenStartIndex - lineStartOffset - 1;
 			}
 			const intermediateTokenOffset = lineRelativeOffset - currentTokenLength;
-			if (previousTokenEnd < intermediateTokenOffset) {
+			if ((previousTokenEnd >= 0) && (previousTokenEnd < intermediateTokenOffset)) {
 				// Add en empty token to cover the space where there were no captures
 				tokens[tokenIndex * 2] = intermediateTokenOffset;
 				tokens[tokenIndex * 2 + 1] = 0;
@@ -209,17 +209,24 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			};
 
 			if (previousTokenEnd >= lineRelativeOffset) {
-				// The current token is within the previous token. Adjust the end of the previous token.
+				const previousTokenStartOffset = tokens[(tokenIndex - 2) * 2];
 				const originalPreviousTokenEndOffset = tokens[(tokenIndex - 1) * 2];
-				tokens[(tokenIndex - 1) * 2] = intermediateTokenOffset;
 
-				addCurrentTokenToArray();
-				// Add the rest of the previous token after the current token
-				increaseSizeOfTokensByOneToken();
-				tokens[tokenIndex * 2] = originalPreviousTokenEndOffset;
-				tokens[tokenIndex * 2 + 1] = tokens[(tokenIndex - 2) * 2 + 1];
-				tokenIndex++;
+				// Check that the current token doesn't just replace the last token
+				if ((previousTokenStartOffset + currentTokenLength) === originalPreviousTokenEndOffset) {
+					// Current token and previous token span the exact same characters
+					tokens[(tokenIndex - 1) * 2 + 1] = metadata;
+				} else {
+					// The current token is within the previous token. Adjust the end of the previous token.
+					tokens[(tokenIndex - 1) * 2] = intermediateTokenOffset;
 
+					addCurrentTokenToArray();
+					// Add the rest of the previous token after the current token
+					increaseSizeOfTokensByOneToken();
+					tokens[tokenIndex * 2] = originalPreviousTokenEndOffset;
+					tokens[tokenIndex * 2 + 1] = tokens[(tokenIndex - 2) * 2 + 1];
+					tokenIndex++;
+				}
 			} else {
 				// Just add the token to the array
 				addCurrentTokenToArray();
