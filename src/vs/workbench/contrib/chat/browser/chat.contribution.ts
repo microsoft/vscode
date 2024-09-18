@@ -113,7 +113,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.variables.notebook': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.notebook', "Enables variables for notebook chat."),
-			default: false
+			default: true
 		},
 		'chat.experimental.variables.terminal': {
 			type: 'boolean',
