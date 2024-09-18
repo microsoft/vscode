@@ -233,7 +233,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const items: SimpleCompletionItem[] = completions.map(s => {
 			return new SimpleCompletionItem({
 				label: typeof s.label === 'string' ? s.label : s.label.label,
-				icon: s.kind === TerminalCompletionItemKind.Folder ? Codicon.folder : Codicon.file,
+				icon: getIconForKind(s.kind),
 				detail: s.detail,
 				isDirectory: s.kind === TerminalCompletionItemKind.Folder,
 			});
@@ -879,4 +879,15 @@ function normalizePathSeparator(path: string, sep: string): string {
 		return path.replaceAll('\\', '/');
 	}
 	return path.replaceAll('/', '\\');
+}
+
+function getIconForKind(kind: TerminalCompletionItemKind): ThemeIcon {
+	switch (kind) {
+		case TerminalCompletionItemKind.File:
+			return Codicon.file;
+		case TerminalCompletionItemKind.Folder:
+			return Codicon.folder;
+		case TerminalCompletionItemKind.Flag:
+			return Codicon.symbolKey;
+	}
 }

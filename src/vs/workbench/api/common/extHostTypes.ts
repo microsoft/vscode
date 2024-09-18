@@ -2109,10 +2109,14 @@ export class TerminalProfile implements vscode.TerminalProfile {
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
-	label: string | vscode.CompletionItemLabel = '';
-	kind?: vscode.TerminalCompletionItemKind | undefined;
+	label: string | vscode.CompletionItemLabel;
+	kind: vscode.TerminalCompletionItemKind;
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
+	constructor(label: string | vscode.CompletionItemLabel, kind: vscode.TerminalCompletionItemKind) {
+		this.label = label;
+		this.kind = kind;
+	}
 }
 
 export enum TerminalCompletionItemKind {

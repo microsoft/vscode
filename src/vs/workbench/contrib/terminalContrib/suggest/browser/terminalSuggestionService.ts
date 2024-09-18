@@ -24,7 +24,7 @@ export interface ITerminalCompletion {
 	 * The kind of this completion item. Based on the kind,
 	 * an icon is chosen.
 	 */
-	kind?: TerminalCompletionItemKind;
+	kind: TerminalCompletionItemKind;
 
 	/**
 	 * A human-readable string with additional information

@@ -32,7 +32,7 @@ declare module 'vscode' {
 		 * The kind of this completion item. Based on the kind,
 		 * an icon is chosen.
 		 */
-		kind?: TerminalCompletionItemKind;
+		kind: TerminalCompletionItemKind;
 
 		/**
 		 * A human-readable string with additional information
@@ -44,6 +44,8 @@ declare module 'vscode' {
 		 * A human-readable string that represents a doc-comment.
 		 */
 		documentation?: string | MarkdownString;
+
+		constructor(label: string, kind: TerminalCompletionItemKind);
 	}
 
 	export enum TerminalCompletionItemKind {
