@@ -125,7 +125,8 @@ function parseFlagsFromManOutput(manOutput: string): Map<string, string> | undef
 							break;
 						}
 						results.push({
-							label,
+							// todo: this is a hack so it doesn't get filtered out by simpleCompletionModel
+							label: commandLine + label,
 							kind: (vscode as any).TerminalCompletionItemKind.Flag,
 							detail: description,
 							documentation: description,
