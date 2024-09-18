@@ -339,6 +339,23 @@ class AttachContextAction extends Action2 {
 			prefix: SymbolsQuickAccessProvider.PREFIX
 		});
 
+		if (widget.location === ChatAgentLocation.Notebook) {
+			quickPickItems.push({
+				kind: 'dynamic',
+				id: 'chatContext.notebook.kernelVariable',
+				isDynamic: true,
+				icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
+				iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
+				value: 'kernelVariable',
+				label: localize('chatContext.notebook.kernelVariable', 'Kernel Variable...'),
+				command: {
+					id: 'notebook.chat.selectAndInsertKernelVariable',
+					title: localize('chatContext.notebook.selectkernelVariable', 'Select and Insert Kernel Variable'),
+					arguments: [{ widget, range: undefined }]
+				}
+			});
+		}
+
 		function extractTextFromIconLabel(label: string | undefined): string {
 			if (!label) {
 				return '';
