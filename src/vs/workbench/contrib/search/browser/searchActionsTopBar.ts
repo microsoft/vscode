@@ -172,10 +172,10 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setTreeView(true);
+			await searchView.setTreeView(true);
 		}
 	}
 });
@@ -197,10 +197,10 @@ registerAction2(class ViewAsListAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setTreeView(false);
+			await searchView.setTreeView(false);
 		}
 	}
 });

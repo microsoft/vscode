@@ -13,7 +13,7 @@ import { searchRemoveIcon, searchReplaceIcon } from './searchIcons.js';
 import { SearchView } from './searchView.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult } from './searchModel.js';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult, TextSearchResult } from './searchModel.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -81,7 +81,7 @@ registerAction2(class RemoveAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, context: ISearchActionContext | undefined): void {
+	async run(accessor: ServicesAccessor, context: ISearchActionContext | undefined): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const searchView = getSearchView(viewsService);
@@ -121,6 +121,8 @@ registerAction2(class RemoveAction extends Action2 {
 		if (searchResult) {
 			searchResult.batchRemove(elementsToRemove);
 		}
+
+		await searchView.refreshTreePromiseSerializer; // wait for refreshTree to finish
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
@@ -253,8 +255,8 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 
 //#region Helpers
 
-function performReplace(accessor: ServicesAccessor,
-	context: ISearchActionContext | undefined): void {
+async function performReplace(accessor: ServicesAccessor,
+	context: ISearchActionContext | undefined) {
 	const configurationService = accessor.get(IConfigurationService);
 	const viewsService = accessor.get(IViewsService);
 
@@ -287,6 +289,8 @@ function performReplace(accessor: ServicesAccessor,
 	if (searchResult) {
 		searchResult.batchReplace(elementsToReplace);
 	}
+
+	await viewlet?.refreshTreePromiseSerializer; // wait for refreshTree to finish
 
 	if (focusElement) {
 		if (!nextFocusElement) {
@@ -344,9 +348,18 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 			return -1;
 		}
 
-	} else {
+	} else if (elem2 instanceof FolderMatch) {
 		// FolderMatch
-		if (elem2 instanceof FolderMatch) {
+		if (elem2 instanceof TextSearchResult) {
+			return -1;
+		} else if (elem2 instanceof FolderMatch) {
+			return 0;
+		} else {
+			return 1;
+		}
+	} else {
+		// textSearchResult
+		if (elem2 instanceof TextSearchResult) {
 			return 0;
 		} else {
 			return 1;
@@ -359,8 +372,6 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
  */
 export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): RenderableMatch | undefined {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
-
-
 	if (element instanceof FolderMatch) {
 		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
 	} else if (element instanceof FileMatch) {
