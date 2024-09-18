@@ -916,7 +916,7 @@ class SCMHistoryViewModel extends Disposable {
 				break;
 			default: {
 				// Get the latest revisions for the history items references in the filer
-				const refs = (await historyProvider.provideHistoryItemRefs() ?? [])
+				const refs = (await historyProvider.provideHistoryItemRefs(historyItemsFilter) ?? [])
 					.filter(ref => historyItemsFilter.some(filter => filter === ref.id));
 
 				if (refs.length === 0) {
