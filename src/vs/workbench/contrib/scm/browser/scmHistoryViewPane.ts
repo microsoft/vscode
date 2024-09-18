@@ -675,7 +675,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 
 type HistoryItemRefsFilter = 'all' | 'auto' | string[];
 
-type HistoryItemState = {
+type RepositoryState = {
 	viewModels: SCMHistoryItemViewModelTreeElement[];
 	historyItemsFilter: ISCMHistoryItemRef[];
 	loadMore: boolean | string;
@@ -714,7 +714,7 @@ class SCMHistoryViewModel extends Disposable {
 	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
 	readonly onDidChangeHistoryItemsFilter = observableSignal(this);
 
-	private readonly _state = new Map<ISCMRepository, HistoryItemState>();
+	private readonly _state = new Map<ISCMRepository, RepositoryState>();
 	private readonly _filterState = new Map<string, HistoryItemRefsFilter>();
 
 	constructor(
@@ -726,16 +726,10 @@ class SCMHistoryViewModel extends Disposable {
 	) {
 		super();
 
-		try {
-			// Restore references filter from workspace storage
-			const filterData = this._storageService.get('scm.graphView.referencesFilter', StorageScope.WORKSPACE);
-			this._filterState = filterData ? new Map<string, HistoryItemRefsFilter>(JSON.parse(filterData)) : new Map<string, HistoryItemRefsFilter>();
-		} catch {
-			this._filterState = new Map<string, HistoryItemRefsFilter>();
-		}
+		this._filterState = this._loadHistoryItemsFilterState();
 
-		this._extensionService.onWillStop(this._onWillSaveState, this, this._store);
-		this._storageService.onWillSaveState(this._onWillSaveState, this, this._store);
+		this._extensionService.onWillStop(this._saveHistoryItemsFilterState, this, this._store);
+		this._storageService.onWillSaveState(this._saveHistoryItemsFilterState, this, this._store);
 
 		// Closed repository cleanup
 		this._register(autorun(reader => {
@@ -761,31 +755,51 @@ class SCMHistoryViewModel extends Disposable {
 		this._state.delete(repository);
 	}
 
-	getRepositoryState(): HistoryItemState | undefined {
+	getHistoryItemsFilter(): 'all' | 'auto' | ISCMHistoryItemRef[] | undefined {
 		const repository = this.repository.get();
 		if (!repository) {
 			return;
 		}
 
-		return this._state.get(repository);
+		const filterState = this._filterState.get(getProviderKey(repository.provider)) ?? 'auto';
+		if (filterState === 'all' || filterState === 'auto') {
+			return filterState;
+		}
+
+		const repositoryState = this._state.get(repository);
+		return repositoryState?.historyItemsFilter;
 	}
 
-	getRepositoryFilterState(): HistoryItemRefsFilter | undefined {
+	getCurrentHistoryItemTreeElement(): SCMHistoryItemViewModelTreeElement | undefined {
+		const repository = this.repository.get();
+		if (!repository) {
+			return undefined;
+		}
+
+		const state = this._state.get(repository);
+		if (!state) {
+			return undefined;
+		}
+
+		const historyProvider = repository?.provider.historyProvider.get();
+		const historyItemRef = historyProvider?.historyItemRef.get();
+
+		return state.viewModels
+			.find(viewModel => viewModel.historyItemViewModel.historyItem.id === historyItemRef?.revision);
+	}
+
+	loadMore(cursor?: string): void {
 		const repository = this.repository.get();
 		if (!repository) {
 			return;
 		}
 
-		return this._filterState.get(getProviderKey(repository.provider)) ?? 'auto';
-	}
-
-	setLoadMore(repository: ISCMRepository, loadMore: boolean | string): void {
 		const state = this._state.get(repository);
 		if (!state) {
 			return;
 		}
 
-		this._state.set(repository, { ...state, loadMore });
+		this._state.set(repository, { ...state, loadMore: cursor ?? true });
 	}
 
 	async getHistoryItems(): Promise<SCMHistoryItemViewModelTreeElement[]> {
@@ -842,7 +856,13 @@ class SCMHistoryViewModel extends Disposable {
 			return;
 		}
 
-		this._filterState.set(getProviderKey(repository.provider), filter);
+		if (filter !== 'auto') {
+			this._filterState.set(getProviderKey(repository.provider), filter);
+		} else {
+			this._filterState.delete(getProviderKey(repository.provider));
+		}
+		this._saveHistoryItemsFilterState();
+
 		this.onDidChangeHistoryItemsFilter.trigger(undefined);
 	}
 
@@ -879,10 +899,7 @@ class SCMHistoryViewModel extends Disposable {
 		return colorMap;
 	}
 
-	private async _resolveHistoryItemFilter(
-		repository: ISCMRepository,
-		historyProvider: ISCMHistoryProvider
-	): Promise<ISCMHistoryItemRef[]> {
+	private async _resolveHistoryItemFilter(repository: ISCMRepository, historyProvider: ISCMHistoryProvider): Promise<ISCMHistoryItemRef[]> {
 		const historyItemRefs: ISCMHistoryItemRef[] = [];
 		const historyItemsFilter = this._filterState.get(getProviderKey(repository.provider)) ?? 'auto';
 
@@ -909,12 +926,14 @@ class SCMHistoryViewModel extends Disposable {
 						historyProvider.historyItemRemoteRef.get(),
 						historyProvider.historyItemBaseRef.get(),
 					].filter(ref => !!ref));
-					this._filterState.set(getProviderKey(repository.provider), 'auto');
+					this._filterState.delete(getProviderKey(repository.provider));
 				} else {
 					// Update filter
 					historyItemRefs.push(...refs);
 					this._filterState.set(getProviderKey(repository.provider), refs.map(ref => ref.id));
 				}
+
+				this._saveHistoryItemsFilterState();
 
 				break;
 			}
@@ -923,7 +942,18 @@ class SCMHistoryViewModel extends Disposable {
 		return historyItemRefs;
 	}
 
-	private _onWillSaveState(): void {
+	private _loadHistoryItemsFilterState() {
+		try {
+			const filterData = this._storageService.get('scm.graphView.referencesFilter', StorageScope.WORKSPACE);
+			if (filterData) {
+				return new Map<string, HistoryItemRefsFilter>(JSON.parse(filterData));
+			}
+		} catch { }
+
+		return new Map<string, HistoryItemRefsFilter>();
+	}
+
+	private _saveHistoryItemsFilterState(): void {
 		const filter = Array.from(this._filterState.entries());
 		this._storageService.store('scm.graphView.referencesFilter', JSON.stringify(filter), StorageScope.WORKSPACE, StorageTarget.USER);
 	}
@@ -987,7 +1017,7 @@ class HistoryItemRefPicker extends Disposable {
 
 	constructor(
 		private readonly _historyProvider: ISCMHistoryProvider,
-		private readonly _historyItemsFilter: HistoryItemRefsFilter,
+		private readonly _historyItemsFilter: 'all' | 'auto' | ISCMHistoryItemRef[],
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
@@ -1019,7 +1049,7 @@ class HistoryItemRefPicker extends Disposable {
 					continue;
 				}
 
-				if (this._historyItemsFilter.some(ref => ref === items[index].id)) {
+				if (this._historyItemsFilter.some(ref => ref.id === items[index].id)) {
 					const item = items.splice(index, 1) as HistoryItemRefQuickPickItem[];
 					selectedItems.push(...item);
 				} else {
@@ -1292,13 +1322,8 @@ export class SCMHistoryViewPane extends ViewPane {
 			}
 		} else if (action.id === PICK_HISTORY_ITEM_REFS_ACTION_ID) {
 			const repository = this._treeViewModel?.repository.get();
-			const repositoryState = this._treeViewModel?.getRepositoryState();
-			const repositoryFilterState = this._treeViewModel?.getRepositoryFilterState();
-
-			if (repository && repositoryState && repositoryFilterState) {
-				const historyItemsFilter = Array.isArray(repositoryFilterState) ?
-					repositoryState.historyItemsFilter : repositoryFilterState;
-
+			const historyItemsFilter = this._treeViewModel?.getHistoryItemsFilter();
+			if (repository && historyItemsFilter) {
 				return new SCMHistoryItemRefsActionViewItem(repository, historyItemsFilter, action, options);
 			}
 		}
@@ -1307,7 +1332,8 @@ export class SCMHistoryViewPane extends ViewPane {
 	}
 
 	async refresh(): Promise<void> {
-		await this._updateChildren(true);
+		this._treeViewModel.clearRepositoryState();
+		await this._updateChildren();
 
 		this.updateActions();
 		this._repositoryOutdated.set(false, undefined);
@@ -1326,7 +1352,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	async pickHistoryItemRef(): Promise<void> {
 		const repository = this._treeViewModel.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
-		const historyItemsFilter = this._treeViewModel.getRepositoryFilterState();
+		const historyItemsFilter = this._treeViewModel.getHistoryItemsFilter();
 
 		if (!historyProvider || !historyItemsFilter) {
 			return;
@@ -1344,33 +1370,27 @@ export class SCMHistoryViewPane extends ViewPane {
 		const repository = this._treeViewModel.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
 		const historyItemRef = historyProvider?.historyItemRef.get();
-		const historyItemFilter = this._treeViewModel.getRepositoryFilterState();
+		const historyItemFilter = this._treeViewModel.getHistoryItemsFilter();
 
 		if (!repository || !historyItemRef?.revision || !historyItemFilter) {
 			return;
 		}
 
-		// Filter is `all`, `auto` or it contains the current history item
+		// Filter set to `all`, `auto` or it contains the current history item
 		if (Array.isArray(historyItemFilter) &&
-			!historyItemFilter.find(filter => filter === historyItemRef.id)) {
+			!historyItemFilter.find(ref => ref.id === historyItemRef.id)) {
 			this._notificationService.info(localize('scmGraphViewRevealCurrentHistoryItem', "The current history item is not present in the source control graph. Please use the history item references picker to expand the set of history items in the graph."));
 			return;
 		}
 
 		const revealTreeNode = (): boolean => {
-			const state = this._treeViewModel.getRepositoryState();
-			if (!state) {
-				return false;
-			}
+			const historyItemTreeElement = this._treeViewModel.getCurrentHistoryItemTreeElement();
 
-			const historyItemViewModel = state.viewModels.find(item =>
-				item.historyItemViewModel.historyItem.id === historyItemRef.revision);
+			if (historyItemTreeElement && this._tree.hasNode(historyItemTreeElement)) {
+				this._tree.reveal(historyItemTreeElement, 0.5);
 
-			if (historyItemViewModel && this._tree.hasNode(historyItemViewModel)) {
-				this._tree.reveal(historyItemViewModel, 0.5);
-
-				this._tree.setSelection([historyItemViewModel]);
-				this._tree.setFocus([historyItemViewModel]);
+				this._tree.setSelection([historyItemTreeElement]);
+				this._tree.setFocus([historyItemTreeElement]);
 				return true;
 			}
 
@@ -1382,7 +1402,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		}
 
 		// Fetch current history item
-		this._treeViewModel.setLoadMore(repository, historyItemRef.revision);
+		this._treeViewModel.loadMore(historyItemRef.revision);
 
 		// Update the tree
 		await this._updateChildren();
@@ -1479,21 +1499,17 @@ export class SCMHistoryViewPane extends ViewPane {
 			}
 
 			this._repositoryLoadMore.set(true, undefined);
-			this._treeViewModel.setLoadMore(repository, true);
+			this._treeViewModel.loadMore();
 
 			await this._updateChildren();
 			this._repositoryLoadMore.set(false, undefined);
 		});
 	}
 
-	private _updateChildren(clearCache = false): Promise<void> {
+	private _updateChildren(): Promise<void> {
 		return this._updateChildrenThrottler.queue(
 			() => this._treeOperationSequencer.queue(
 				async () => {
-					if (clearCache) {
-						this._treeViewModel.clearRepositoryState();
-					}
-
 					await this._progressService.withProgress({ location: this.id },
 						async () => {
 							await this._tree.updateChildren(undefined, undefined, undefined, {
