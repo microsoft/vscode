@@ -216,7 +216,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
 
-		// this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
+		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
 		// TODO: only do this for specific prompt value?
 		if (!this._shellType) {
 			return;
@@ -226,14 +226,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		const items: SimpleCompletionItem[] = completions.map(s => {
-			return new SimpleCompletionItem({
-				label: typeof s.label === 'string' ? s.label : s.label.label,
-				icon: getIconForKind(s.kind),
-				detail: s.detail,
-				isDirectory: s.kind === TerminalCompletionItemKind.Folder,
-			});
-		});
+		const items: SimpleCompletionItem[] = [];
+		for (const c of completions) {
+			items.push(new SimpleCompletionItem({
+				label: typeof c.label === 'string' ? c.label : c.label.label,
+				icon: getIconForKind(c.kind),
+				detail: c.detail,
+				isDirectory: c.kind === TerminalCompletionItemKind.Folder,
+			}));
+		}
 		if (!items?.length) {
 			return;
 		}
@@ -241,7 +242,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (replacementIndex + replacementLength);
 
-		// let normalizedLeadingLineContent = this._leadingLineContent;
+		let normalizedLeadingLineContent = this._leadingLineContent;
 
 		// If there is a single directory in the completions:
 		// - `\` and `/` are normalized such that either can be used
@@ -252,9 +253,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._isFilteringDirectories) {
 			const firstDir = items.find(e => e.completion.isDirectory);
 			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
-			// normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
-		const lineContext = new LineContext(this._promptInputModel.value, this._cursorIndexDelta);
+		// args are filtered out here https://github.com/microsoft/vscode/blob/c358e0a0feb0d28528f36065b971dd9ec3b7a570/src/vs/workbench/services/suggest/browser/simpleCompletionModel.ts#L171
+		// because they don't match the prefix for ex node --blah --blah doesn't match the node prefix
+		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(items, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
 
@@ -614,6 +617,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const xtermBox = this._screen!.getBoundingClientRect();
+		console.log('should be showing suggestions', this._model.items.length, this._model.items.map(e => e.completion.label));
 		suggestWidget.showSuggestions(0, false, false, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
