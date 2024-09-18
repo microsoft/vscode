@@ -434,6 +434,10 @@ export function unmnemonicLabel(label: string): string {
 	return label.replace(/&/g, '&&');
 }
 
+export function stripMnemonicLabel(label: string): string {
+	return label.replace(/&&/g, '');
+}
+
 /**
  * Splits a recent label in name and parent path, supporting both '/' and '\' and workspace suffixes.
  * If the location is remote, the remote name is included in the name part.
