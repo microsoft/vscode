@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { codiconsLibrary } from '../../../../../../base/common/codiconsLibrary.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -210,14 +211,16 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 				id: 'vscode.notebook.variable',
 				range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-				data: variableName
+				data: variableName,
+				fullName: variableName,
+				icon: codiconsLibrary.variable,
 			});
 		} else {
-			const text = `kernelVariable:${variableName}`;
 			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, ...[{
 				id: 'vscode.notebook.variable',
-				name: text,
+				name: variableName,
 				value: variableName,
+				icon: codiconsLibrary.variable,
 				isDynamic: true
 			}]);
 		}
