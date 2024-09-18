@@ -13,7 +13,7 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../../../common/model.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { InlineDecorationType } from '../../../common/viewModel.js';
-import { AdditionalLinesWidget, LineData } from '../../inlineCompletions/browser/view/ghostTextView.js';
+import { AdditionalLinesWidget, LineData } from '../../inlineCompletions/browser/view/ghostText/ghostTextView.js';
 import { GhostText } from '../../inlineCompletions/browser/model/ghostText.js';
 import { ColumnRange } from '../../inlineCompletions/browser/utils.js';
 import { diffDeleteDecoration, diffLineDeleteDecorationBackgroundWithIndicator } from '../../../browser/widget/diffEditor/registrations.contribution.js';
