@@ -8,7 +8,7 @@ import { CompletionItemLabel } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
-export const ITerminalSuggestionService = createDecorator<ITerminalSuggestionService>('terminalSuggestionService');
+export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
 
 export interface ITerminalCompletion {
@@ -45,25 +45,25 @@ export enum TerminalCompletionItemKind {
 	Flag = 2,
 }
 
-export interface ITerminalSuggestionProvider {
-	provideSuggestions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
+export interface ITerminalCompletionProvider {
+	provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
 }
 
-export interface ITerminalSuggestionService {
+export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
-	registerTerminalSuggestionProvider(extensionIdentifier: string, id: string, provider: ITerminalSuggestionProvider): IDisposable;
-	provideSuggestions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
+	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
+	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
 }
 
-export class TerminalSuggestionService extends Disposable implements ITerminalSuggestionService {
+export class TerminalSuggestionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
-	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalSuggestionProvider>> = new Map();
+	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
 
 	constructor(
 	) {
 		super();
 	}
-	registerTerminalSuggestionProvider(extensionIdentifier: string, id: string, provider: ITerminalSuggestionProvider): IDisposable {
+	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable {
 		let extMap = this._providers.get(extensionIdentifier);
 		if (!extMap) {
 			extMap = new Map();
@@ -73,13 +73,13 @@ export class TerminalSuggestionService extends Disposable implements ITerminalSu
 		return toDisposable(() => this._providers.delete(id));
 	}
 
-	async provideSuggestions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
 		const result: ITerminalCompletion[] = [];
 		for (const providers of this._providers.values()) {
 			for (const provider of providers.values()) {
-				const suggestions = await provider.provideSuggestions(value, shellType);
-				if (suggestions) {
-					result.push(...suggestions);
+				const completions = await provider.provideCompletions(value, shellType);
+				if (completions) {
+					result.push(...completions);
 				}
 			}
 		}

@@ -29,7 +29,7 @@ import { SimpleCompletionItem, type ISimpleCompletion } from '../../../../servic
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalSuggestionService, TerminalCompletionItemKind } from './terminalSuggestionService.js';
+import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalSuggestionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum VSCodeSuggestOscPt {
@@ -156,7 +156,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@ITerminalSuggestionService private readonly _terminalSuggestionService: ITerminalSuggestionService,
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 	) {
 		super();
 
@@ -224,13 +224,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._shellType) {
 			return;
 		}
-		const completions = await this._terminalSuggestionService.provideSuggestions(this._promptInputModel.value, this._shellType);
+		const completions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._shellType);
 		if (!completions?.length) {
 			return;
 		}
 		this._onDidReceiveCompletions.fire();
 
-		const suggestions: SimpleCompletionItem[] = completions.map(s => {
+		const items: SimpleCompletionItem[] = completions.map(s => {
 			return new SimpleCompletionItem({
 				label: typeof s.label === 'string' ? s.label : s.label.label,
 				icon: s.kind === TerminalCompletionItemKind.Folder ? Codicon.folder : Codicon.file,
@@ -238,7 +238,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				isDirectory: s.kind === TerminalCompletionItemKind.Folder,
 			});
 		});
-		if (!suggestions?.length) {
+		if (!items?.length) {
 			return;
 		}
 		this._mostRecentCompletion = undefined;
@@ -252,14 +252,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// - Using `\` or `/` will request new completions. It's important that this only occurs
 		//   when a directory is present, if not completions like git branches could be requested
 		//   which leads to flickering
-		this._isFilteringDirectories = suggestions.some(e => e.completion.isDirectory);
+		this._isFilteringDirectories = items.some(e => e.completion.isDirectory);
 		if (this._isFilteringDirectories) {
-			const firstDir = suggestions.find(e => e.completion.isDirectory);
+			const firstDir = items.find(e => e.completion.isDirectory);
 			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			// normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 		const lineContext = new LineContext(this._promptInputModel.value, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(suggestions, lineContext, replacementIndex, replacementLength);
+		const model = new SimpleCompletionModel(items, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
 
 	}

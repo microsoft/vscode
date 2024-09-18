@@ -24,7 +24,7 @@ import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariabl
 import { ITerminalLinkProviderService } from '../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from '../../contrib/terminalContrib/quickFix/browser/quickFix.js';
 import { TerminalCapability } from '../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalCompletion, ITerminalSuggestionService } from '../../contrib/terminalContrib/suggest/browser/terminalSuggestionService.js';
+import { ITerminalCompletion, ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalSuggestionService.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -69,7 +69,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
-		@ITerminalSuggestionService private readonly _terminalSuggestionService: ITerminalSuggestionService,
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
@@ -270,14 +270,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $registerCompletionProvider(id: string, extensionIdentifier: string): void {
 		// Proxy completion provider requests through the extension host
-		this._completionProviders.set(id, this._terminalSuggestionService.registerTerminalSuggestionProvider(extensionIdentifier, id, {
-			provideSuggestions: async (commandLine, shellType) => {
-				const suggestions = await this._proxy.$provideTerminalSuggestions(id, { commandLine, shellType });
+		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
+			provideCompletions: async (commandLine, shellType) => {
+				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, shellType });
 				const converted: ITerminalCompletion[] = [];
-				if (!suggestions?.length) {
+				if (!completions?.length) {
 					return;
 				}
-				for (const s of suggestions) {
+				for (const s of completions) {
 					converted.push({
 						label: s.label,
 						kind: s.kind,

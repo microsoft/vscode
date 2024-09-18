@@ -771,7 +771,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalSuggestions(id: string, options: { shellType: string; commandLine: string }): Promise<ITerminalCompletion[] | undefined> {
+	public async $provideTerminalCompletions(id: string, options: { shellType: string; commandLine: string }): Promise<ITerminalCompletion[] | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested || !this.activeTerminal) {
 			return [];

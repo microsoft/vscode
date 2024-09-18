@@ -2113,8 +2113,6 @@ export class TerminalCompletion implements vscode.TerminalCompletion {
 	kind?: vscode.TerminalCompletionItemKind | undefined;
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
-	constructor() {
-	}
 }
 
 export enum TerminalCompletionItemKind {
