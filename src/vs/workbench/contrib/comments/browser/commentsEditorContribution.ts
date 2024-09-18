@@ -15,7 +15,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { ICommentService } from './commentService.js';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from './simpleCommentEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CommentController, ID } from './commentsController.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -44,7 +44,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!controller) {
 			return Promise.resolve();
 		}
-		controller.nextCommentThread();
+		controller.nextCommentThread(true);
 	},
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.Alt | KeyCode.F9,
@@ -62,10 +62,78 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!controller) {
 			return Promise.resolve();
 		}
-		controller.previousCommentThread();
+		controller.previousCommentThread(true);
 	},
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.NextCommentedRange,
+			title: {
+				value: nls.localize('comments.NextCommentedRange', "Go to Next Commented Range"),
+				original: 'Go to Next Commented Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.F10,
+				weight: KeybindingWeight.EditorContrib,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return;
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return;
+		}
+		controller.nextCommentThread(false);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.PreviousCommentedRange,
+			title: {
+				value: nls.localize('comments.previousCommentedRange', "Go to Previous Commented Range"),
+				original: 'Go to Previous Commented Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F10,
+				weight: KeybindingWeight.EditorContrib,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return;
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return;
+		}
+		controller.previousCommentThread(false);
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

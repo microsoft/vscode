@@ -368,6 +368,34 @@ class CommentingRangeDecorator {
 	}
 }
 
+/**
+* Navigate to the next or previous comment in the current thread.
+* @param type
+*/
+export function moveToNextCommentInThread(commentInfo: { thread: languages.CommentThread<IRange>; comment?: languages.Comment } | undefined, type: 'next' | 'previous') {
+	if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
+		return;
+	}
+	const currentIndex = commentInfo.thread.comments?.indexOf(commentInfo.comment);
+	if (currentIndex === undefined || currentIndex < 0) {
+		return;
+	}
+	if (type === 'previous' && currentIndex === 0) {
+		return;
+	}
+	if (type === 'next' && currentIndex === commentInfo.thread.comments.length - 1) {
+		return;
+	}
+	const comment = commentInfo.thread.comments?.[type === 'previous' ? currentIndex - 1 : currentIndex + 1];
+	if (!comment) {
+		return;
+	}
+	return {
+		...commentInfo,
+		comment,
+	};
+}
+
 export function revealCommentThread(commentService: ICommentService, editorService: IEditorService, uriIdentityService: IUriIdentityService,
 	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
 	if (!commentThread.resource) {
@@ -723,11 +751,11 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public nextCommentThread(): void {
-		this._findNearestCommentThread();
+	public nextCommentThread(focusThread: boolean): void {
+		this._findNearestCommentThread(focusThread);
 	}
 
-	private _findNearestCommentThread(reverse?: boolean): void {
+	private _findNearestCommentThread(focusThread: boolean, reverse?: boolean): void {
 		if (!this._commentWidgets.length || !this.editor?.hasModel()) {
 			return;
 		}
@@ -786,12 +814,12 @@ export class CommentController implements IEditorContribution {
 		const nextWidget: ReviewZoneWidget | undefined = sortedWidgets[idx];
 		if (nextWidget !== undefined) {
 			this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
-			nextWidget.reveal(undefined, CommentWidgetFocus.Widget);
+			nextWidget.reveal(undefined, focusThread ? CommentWidgetFocus.Widget : CommentWidgetFocus.None);
 		}
 	}
 
-	public previousCommentThread(): void {
-		this._findNearestCommentThread(true);
+	public previousCommentThread(focusThread: boolean): void {
+		this._findNearestCommentThread(focusThread, true);
 	}
 
 	private _findNearestCommentingRange(reverse?: boolean): void {

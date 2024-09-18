@@ -18,7 +18,7 @@ import { ISearchConfigurationProperties } from '../../../services/search/common/
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { SearchView } from './searchView.js';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, MatchInNotebook } from './searchModel.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, MatchInNotebook, TextSearchResult, AI_TEXT_SEARCH_RESULT_ID } from './searchModel.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -40,6 +40,11 @@ interface IFolderMatchTemplate {
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
 	contextKeyService: IContextKeyService;
+}
+
+interface ITextSearchResultTemplate {
+	label: IResourceLabel;
+	disposables: DisposableStore;
 }
 
 interface IFileMatchTemplate {
@@ -79,11 +84,52 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 			return FileMatchRenderer.TEMPLATE_ID;
 		} else if (element instanceof Match) {
 			return MatchRenderer.TEMPLATE_ID;
+		} else if (element instanceof TextSearchResult) {
+			return TextSearchResultRenderer.TEMPLATE_ID;
 		}
 
 		console.error('Invalid search tree element', element);
 		throw new Error('Invalid search tree element');
 	}
+}
+
+export class TextSearchResultRenderer extends Disposable implements ICompressibleTreeRenderer<TextSearchResult, any, ITextSearchResultTemplate> {
+	static readonly TEMPLATE_ID = 'textResultMatch';
+
+	readonly templateId = TextSearchResultRenderer.TEMPLATE_ID;
+
+	constructor(
+		private labels: ResourceLabels,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+	) {
+		super();
+	}
+	disposeCompressedElements?(node: ITreeNode<ICompressedTreeNode<TextSearchResult>, any>, index: number, templateData: ITextSearchResultTemplate, height: number | undefined): void {
+
+	}
+	renderTemplate(container: HTMLElement): ITextSearchResultTemplate {
+		const disposables = new DisposableStore();
+		const textSearchResultElement = DOM.append(container, DOM.$('.textsearchresult'));
+		const label = this.labels.create(textSearchResultElement, { supportDescriptionHighlights: true, supportHighlights: true });
+		disposables.add(label);
+		return { label, disposables };
+	}
+
+	renderElement(element: ITreeNode<TextSearchResult, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
+		if (element.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+			templateData.label.setLabel(nls.localize('searchFolderMatch.aiText.label', "Load AI Results"));
+		} else {
+			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
+		}
+	}
+
+	disposeTemplate(templateData: IFolderMatchTemplate): void {
+		templateData.disposables.dispose();
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<TextSearchResult>, any>, index: number, templateData: ITextSearchResultTemplate, height: number | undefined): void {
+	}
+
 }
 export class FolderMatchRenderer extends Disposable implements ICompressibleTreeRenderer<FolderMatch, any, IFolderMatchTemplate> {
 	static readonly TEMPLATE_ID = 'folderMatch';

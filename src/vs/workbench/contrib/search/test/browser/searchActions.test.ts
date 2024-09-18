@@ -120,7 +120,7 @@ suite('Search Actions', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, searchModel.searchResult, searchModel.searchResult, null);
+		}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
 		store.add(folderMatch);
 		const fileMatch = instantiationService.createInstance(FileMatch, {
 			pattern: ''

@@ -348,7 +348,7 @@ class Query {
 		return new Query({ ...this.state, source });
 	}
 
-	get raw(): any {
+	get raw() {
 		const { criteria, pageNumber, pageSize, sortBy, sortOrder, flags, assetTypes } = this.state;
 		const filters = [{ criteria, pageNumber, pageSize, sortBy, sortOrder }];
 		return { filters, assetTypes, flags };

@@ -214,6 +214,8 @@ declare module 'vscode' {
 		 * The `data` for any confirmations that were rejected
 		 */
 		rejectedConfirmationData?: any[];
+
+		userSelectedModel?: LanguageModelChat;
 	}
 
 	// TODO@API fit this into the stream

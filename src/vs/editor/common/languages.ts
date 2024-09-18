@@ -26,6 +26,7 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
+import { IModelTokensChangedEvent } from './textModelEvents.js';
 
 /**
  * @internal
@@ -89,6 +90,7 @@ export class EncodedTokenizationResult {
 export interface ITreeSitterTokenizationSupport {
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): any;
+	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 }
 
 /**
