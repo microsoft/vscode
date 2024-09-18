@@ -168,7 +168,7 @@ registerAction2(class AcceptAction extends Action2 {
 			title: localize2('accept.file', 'Accept File'),
 			// icon: Codicon.goToFile,
 			menu: {
-				when: ContextKeyExpr.notIn(chatEditingResourceContextKey.key, acceptedChatEditingResourceContextKey.key),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, acceptedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',
