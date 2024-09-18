@@ -10,6 +10,7 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { EditorConfiguration } from '../../../../../../editor/browser/config/editorConfiguration.js';
+import { CoreEditingCommands } from '../../../../../../editor/browser/coreCommands.js';
 import { ICodeEditor, PastePayload } from '../../../../../../editor/browser/editorBrowser.js';
 import { RedoCommand, UndoCommand } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -288,6 +289,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				deltaEndCol: e.selection.endColumn - e.oldSelections[0].endColumn,
 				deltaEndLine: e.selection.endLineNumber - e.oldSelections[0].endLineNumber,
 			};
+			const translationDir = e.selection.getDirection();
 
 			this.trackedMatches.forEach(match => {
 				const controller = this.cursorsControllers.get(match.cellViewModel.uri);
@@ -300,7 +302,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					const newStartLine = selection.startLineNumber + translation.deltaStartLine;
 					const newEndCol = selection.endColumn + translation.deltaEndCol;
 					const newEndLine = selection.endLineNumber + translation.deltaEndLine;
-					return new Selection(newStartLine, newStartCol, newEndLine, newEndCol);
+					return Selection.createWithDirection(newStartLine, newStartCol, newEndLine, newEndCol, translationDir);
 				});
 
 				controller.setSelections(new ViewModelEventsCollector(), e.source, newSelections, CursorChangeReason.Explicit);
@@ -614,6 +616,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			}
 			controller.setSelections(new ViewModelEventsCollector(), undefined, delSelections, CursorChangeReason.Explicit);
 		});
+		this.updateLazyDecorations();
 	}
 
 	public async deleteRight(): Promise<void> {
@@ -631,12 +634,19 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				controller.getSelections(),
 			);
 
-			const delSelections = CommandExecutor.executeCommands(controller.context.model, controller.getSelections(), commands);
-			if (!delSelections) {
-				return;
+			if (match.cellViewModel.handle !== this.anchorCell?.[0].handle) {
+				const delSelections = CommandExecutor.executeCommands(controller.context.model, controller.getSelections(), commands);
+				if (!delSelections) {
+					return;
+				}
+				controller.setSelections(new ViewModelEventsCollector(), undefined, delSelections, CursorChangeReason.Explicit);
+			} else {
+				// get the selections from the viewmodel since we run the command manually (for cursor decoration reasons)
+				controller.setSelections(new ViewModelEventsCollector(), undefined, match.cellViewModel.getSelections(), CursorChangeReason.Explicit);
 			}
-			controller.setSelections(new ViewModelEventsCollector(), undefined, delSelections, CursorChangeReason.Explicit);
+
 		});
+		this.updateLazyDecorations();
 	}
 
 	async undo() {
@@ -1016,13 +1026,19 @@ class NotebookDeleteRightMultiSelectionAction extends NotebookAction {
 
 	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-
-		if (!editor) {
+		const nbEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		if (!nbEditor) {
+			return;
+		}
+		const cellEditor = nbEditor.activeCodeEditor;
+		if (!cellEditor) {
 			return;
 		}
 
-		const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+		// need to run the command manually since we are overriding the command, this ensures proper cursor animation behavior
+		CoreEditingCommands.DeleteRight.runEditorCommand(accessor, cellEditor, null);
+
+		const controller = nbEditor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
 		controller.deleteRight();
 	}
 }

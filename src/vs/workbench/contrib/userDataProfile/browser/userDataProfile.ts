@@ -435,7 +435,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					}],
 				});
 			}
-			run(accessor: ServicesAccessor): any {
+			run(accessor: ServicesAccessor): unknown {
 				return accessor.get(IOpenerService).open(URI.parse('https://aka.ms/vscode-profiles-help'));
 			}
 		}));

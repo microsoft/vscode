@@ -23,6 +23,7 @@ import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry } from '../common/chatEditingService.js';
@@ -46,7 +47,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextModelService textModelService: ITextModelService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService private editorService: IEditorService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
@@ -59,6 +61,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const entries = currentSession.entries.read(reader);
 			const acceptedEntries = entries.filter(entry => entry.accepted.read(reader));
 			return acceptedEntries.map(entry => entry.modifiedDocumentId);
+		}));
+		this._register(this.editorService.onDidCloseEditor((e) => {
+			if (e.editor.resource?.scheme === ChatEditingMultiDiffSourceResolver.scheme) {
+				this.killCurrentEditingSession();
+			}
 		}));
 	}
 
@@ -168,7 +175,7 @@ registerAction2(class AcceptAction extends Action2 {
 			title: localize2('accept.file', 'Accept File'),
 			// icon: Codicon.goToFile,
 			menu: {
-				when: ContextKeyExpr.notIn(chatEditingResourceContextKey.key, acceptedChatEditingResourceContextKey.key),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, acceptedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',

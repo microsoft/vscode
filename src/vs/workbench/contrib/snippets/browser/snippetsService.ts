@@ -118,7 +118,7 @@ namespace snippetExt {
 	});
 }
 
-function watch(service: IFileService, resource: URI, callback: () => any): IDisposable {
+function watch(service: IFileService, resource: URI, callback: () => unknown): IDisposable {
 	return combinedDisposable(
 		service.watch(resource),
 		service.onDidFilesChange(e => {

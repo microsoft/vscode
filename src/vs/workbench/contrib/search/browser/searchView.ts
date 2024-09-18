@@ -2221,7 +2221,7 @@ class SearchLinkButton extends Disposable {
 	}
 }
 
-export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: SearchModel): any {
+export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: SearchModel) {
 	let match: Match | null = null;
 	if (element instanceof Match) {
 		match = element;

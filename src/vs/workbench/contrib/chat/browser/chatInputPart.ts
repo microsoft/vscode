@@ -145,9 +145,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _currentLanguageModel: string | undefined;
 	get currentLanguageModel() {
-		// Map the internal id to the metadata id
-		const metadataId = this._currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this._currentLanguageModel)?.id : undefined;
-		return metadataId;
+		return this._currentLanguageModel;
 	}
 
 	private cachedDimensions: dom.Dimension | undefined;
@@ -339,7 +337,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const entry: IChatHistoryEntry = { text: userQuery, state: this.getInputState() };
 			this.history.replaceLast(entry);
 			this.history.add({ text: '' });
-			this.resetCurrentLanguageModel();
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
@@ -793,6 +790,11 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._openContextMenu();
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-modelPicker-item');
 	}
 
 	protected override updateLabel(): void {

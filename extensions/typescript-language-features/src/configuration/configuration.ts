@@ -224,8 +224,13 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	private readUseVsCodeWatcher(configuration: vscode.WorkspaceConfiguration): boolean {
 		const watcherExcludes = configuration.get<Record<string, boolean>>('files.watcherExclude') ?? {};
-		if (watcherExcludes['**/node_modules/*/**'] /* VS Code default prior to 1.94.x */ === true) {
-			return false; // we cannot use the VS Code watcher if node_modules are excluded
+		if (
+			watcherExcludes['**/node_modules/*/**'] === true || // VS Code default prior to 1.94.x
+			watcherExcludes['**/node_modules/**'] === true ||
+			watcherExcludes['**/node_modules'] === true ||
+			watcherExcludes['**'] === true	 					// VS Code Watching is entirely disabled
+		) {
+			return false;
 		}
 
 		return configuration.get<boolean>('typescript.tsserver.experimental.useVsCodeWatcher', true);

@@ -16,6 +16,8 @@ import { IActivityService, NumberBadge } from '../../activity/common/activity.js
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
 import { IAuthenticationUsageService } from './authenticationUsageService.js';
 import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount } from '../common/authentication.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';
@@ -36,11 +38,23 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }>();
 	private readonly _accountBadgeDisposable = this._register(new MutableDisposable());
 
+	private _onDidAccountPreferenceChange: Emitter<{ providerId: string; extensionIds: string[] }> = this._register(new Emitter<{ providerId: string; extensionIds: string[] }>());
+	readonly onDidChangeAccountPreference = this._onDidAccountPreferenceChange.event;
+
+	private _inheritAuthAccountPreferenceParentToChildren: Record<string, string[]> = this._productService.inheritAuthAccountPreference || {};
+	private _inheritAuthAccountPreferenceChildToParent: { [extensionId: string]: string } = Object.entries(this._inheritAuthAccountPreferenceParentToChildren).reduce((acc, [parent, children]) => {
+		children.forEach((child: string) => {
+			acc[child] = parent;
+		});
+		return acc;
+	}, {} as { [extensionId: string]: string });
+
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IProductService private readonly _productService: IProductService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationUsageService private readonly _authenticationUsageService: IAuthenticationUsageService,
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService
@@ -136,7 +150,46 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	//#region Session Preference
+	//#region Account/Session Preference
+
+	updateAccountPreference(extensionId: string, providerId: string, account: AuthenticationSessionAccount): void {
+		const parentExtensionId = this._inheritAuthAccountPreferenceChildToParent[extensionId] ?? extensionId;
+		const key = this._getKey(parentExtensionId, providerId);
+
+		// Store the preference in the workspace and application storage. This allows new workspaces to
+		// have a preference set already to limit the number of prompts that are shown... but also allows
+		// a specific workspace to override the global preference.
+		this.storageService.store(key, account.label, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(key, account.label, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const childrenExtensions = this._inheritAuthAccountPreferenceParentToChildren[parentExtensionId];
+		const extensionIds = childrenExtensions ? [parentExtensionId, ...childrenExtensions] : [parentExtensionId];
+		this._onDidAccountPreferenceChange.fire({ extensionIds, providerId });
+	}
+
+	getAccountPreference(extensionId: string, providerId: string): string | undefined {
+		const key = this._getKey(this._inheritAuthAccountPreferenceChildToParent[extensionId] ?? extensionId, providerId);
+
+		// If a preference is set in the workspace, use that. Otherwise, use the global preference.
+		return this.storageService.get(key, StorageScope.WORKSPACE) ?? this.storageService.get(key, StorageScope.APPLICATION);
+	}
+
+	removeAccountPreference(extensionId: string, providerId: string): void {
+		const key = this._getKey(this._inheritAuthAccountPreferenceChildToParent[extensionId] ?? extensionId, providerId);
+
+		// This won't affect any other workspaces that have a preference set, but it will remove the preference
+		// for this workspace and the global preference. This is only paired with a call to updateSessionPreference...
+		// so we really don't _need_ to remove them as they are about to be overridden anyway... but it's more correct
+		// to remove them first... and in case this gets called from somewhere else in the future.
+		this.storageService.remove(key, StorageScope.WORKSPACE);
+		this.storageService.remove(key, StorageScope.APPLICATION);
+	}
+
+	private _getKey(extensionId: string, providerId: string): string {
+		return `${extensionId}-${providerId}`;
+	}
+
+	// TODO@TylerLeonhardt: Remove all of this after a couple iterations
 
 	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void {
 		// The 3 parts of this key are important:
@@ -176,6 +229,11 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		// to remove them first... and in case this gets called from somewhere else in the future.
 		this.storageService.remove(key, StorageScope.WORKSPACE);
 		this.storageService.remove(key, StorageScope.APPLICATION);
+	}
+
+	private _updateAccountAndSessionPreferences(providerId: string, extensionId: string, session: AuthenticationSession): void {
+		this.updateAccountPreference(extensionId, providerId, session.account);
+		this.updateSessionPreference(providerId, extensionId, session);
 	}
 
 	//#endregion
@@ -270,7 +328,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 				const accountName = session.account.label;
 
 				this._authenticationAccessService.updateAllowedExtensions(providerId, accountName, [{ id: extensionId, name: extensionName, allowed: true }]);
-				this.updateSessionPreference(providerId, extensionId, session);
+				this._updateAccountAndSessionPreferences(providerId, extensionId, session);
 				this.removeAccessRequest(providerId, extensionId);
 
 				resolve(session);
@@ -407,7 +465,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 				const session = await authenticationService.createSession(providerId, scopes);
 
 				this._authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [{ id: extensionId, name: extensionName, allowed: true }]);
-				this.updateSessionPreference(providerId, extensionId, session);
+				this._updateAccountAndSessionPreferences(providerId, extensionId, session);
 			}
 		});
 

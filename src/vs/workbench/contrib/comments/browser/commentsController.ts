@@ -751,11 +751,11 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public nextCommentThread(): void {
-		this._findNearestCommentThread();
+	public nextCommentThread(focusThread: boolean): void {
+		this._findNearestCommentThread(focusThread);
 	}
 
-	private _findNearestCommentThread(reverse?: boolean): void {
+	private _findNearestCommentThread(focusThread: boolean, reverse?: boolean): void {
 		if (!this._commentWidgets.length || !this.editor?.hasModel()) {
 			return;
 		}
@@ -814,12 +814,12 @@ export class CommentController implements IEditorContribution {
 		const nextWidget: ReviewZoneWidget | undefined = sortedWidgets[idx];
 		if (nextWidget !== undefined) {
 			this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
-			nextWidget.reveal(undefined, CommentWidgetFocus.Widget);
+			nextWidget.reveal(undefined, focusThread ? CommentWidgetFocus.Widget : CommentWidgetFocus.None);
 		}
 	}
 
-	public previousCommentThread(): void {
-		this._findNearestCommentThread(true);
+	public previousCommentThread(focusThread: boolean): void {
+		this._findNearestCommentThread(focusThread, true);
 	}
 
 	private _findNearestCommentingRange(reverse?: boolean): void {

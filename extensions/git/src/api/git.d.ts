@@ -184,7 +184,7 @@ export interface InitOptions {
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
-	readonly pattern?: string;
+	readonly pattern?: string | string[];
 	readonly sort?: 'alphabetically' | 'committerdate';
 }
 
