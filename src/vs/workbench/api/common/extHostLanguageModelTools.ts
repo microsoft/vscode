@@ -44,6 +44,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+		if (!options.requestedContentTypes?.length) {
+			throw new Error('LanguageModelToolInvocationOptions.requestedContentTypes is required to be set');
+		}
+
 		const callId = generateUuid();
 		if (options.tokenOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenOptions.countTokens);
@@ -56,8 +60,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				parameters: options.parameters,
 				tokenBudget: options.tokenOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
+				requestedContentTypes: options.requestedContentTypes,
 			}, token);
-			return typeConvert.LanguageModelToolResult.to(result);
+			return result;
 		} finally {
 			this._tokenCountFuncs.delete(callId);
 		}
@@ -81,7 +86,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions = { parameters: dto.parameters, toolInvocationToken: dto.context };
+		const options: vscode.LanguageModelToolInvocationOptions = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedContentTypes: dto.requestedContentTypes };
 		if (dto.tokenBudget !== undefined) {
 			options.tokenOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -108,7 +113,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			}
 		}
 
-		return typeConvert.LanguageModelToolResult.from(extensionResult);
+		return extensionResult;
 	}
 
 	registerTool(extension: IExtensionDescription, name: string, tool: vscode.LanguageModelTool): IDisposable {

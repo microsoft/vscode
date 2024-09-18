@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import { asArray, coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
 import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
 import { IDataTransferFile, IDataTransferItem, UriList } from '../../../base/common/dataTransfer.js';
@@ -33,15 +34,12 @@ import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
-import * as extHostProtocol from './extHost.protocol.js';
-import { CommandsConverter } from './extHostCommands.js';
-import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolData } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
@@ -52,7 +50,9 @@ import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage, ISerialized
 import { EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import type * as vscode from 'vscode';
+import * as extHostProtocol from './extHost.protocol.js';
+import { CommandsConverter } from './extHostCommands.js';
+import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 
 export namespace Command {
@@ -2858,25 +2858,6 @@ export namespace ChatAgentUserActionEvent {
 	}
 }
 
-export namespace LanguageModelToolResult {
-	export function from(result: vscode.LanguageModelToolResult): IToolResult {
-		return {
-			...result,
-			string: result.toString(),
-		};
-	}
-
-	export function to(result: IToolResult): vscode.LanguageModelToolResult {
-		const copy: vscode.LanguageModelToolResult = {
-			...result,
-			toString: () => result.string,
-		};
-		delete copy.string;
-
-		return copy;
-	}
-}
-
 export namespace TerminalQuickFix {
 	export function from(quickFix: vscode.TerminalQuickFixTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {
 		if ('terminalCommand' in quickFix) {
@@ -2932,6 +2913,7 @@ export namespace LanguageModelToolDescription {
 			modelDescription: item.modelDescription,
 			parametersSchema: item.parametersSchema,
 			displayName: item.displayName,
+			supportedContentTypes: item.supportedContentTypes,
 		};
 	}
 }
