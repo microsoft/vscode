@@ -369,7 +369,7 @@ export interface IMenuRegistry {
 	 */
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
-	getMenuItems(loc: MenuId | undefined): Array<IMenuItem | ISubmenuItem>;
+	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -425,14 +425,9 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	getMenuItems(id: MenuId | undefined): Array<IMenuItem | ISubmenuItem> {
+	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
 		let result: Array<IMenuItem | ISubmenuItem>;
-		if (id === undefined) {
-			result = [];
-			for (const items of this._menuItems.values()) {
-				result.push(...items);
-			}
-		} else if (this._menuItems.has(id)) {
+		if (this._menuItems.has(id)) {
 			result = [...this._menuItems.get(id)!];
 		} else {
 			result = [];

@@ -38,7 +38,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
+import { MenuRegistry, MenuId, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { IKeybindingItemEntry, IKeybindingsEditorPane } from '../../../services/preferences/common/preferences.js';
@@ -63,7 +63,6 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { stripMnemonicLabel } from '../../../../base/common/labels.js';
 
 const $ = DOM.$;
 
@@ -564,11 +563,11 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		for (const editorAction of EditorExtensionsRegistry.getEditorActions()) {
 			actionsLabels.set(editorAction.id, editorAction.label);
 		}
-		for (const menuItem of MenuRegistry.getMenuItems(undefined /* all menus */)) {
+		for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
 			if (isIMenuItem(menuItem)) {
 				const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;
 				const category = menuItem.command.category ? typeof menuItem.command.category === 'string' ? menuItem.command.category : menuItem.command.category.value : undefined;
-				actionsLabels.set(menuItem.command.id, stripMnemonicLabel(category ? `${category}: ${title}` : title));
+				actionsLabels.set(menuItem.command.id, category ? `${category}: ${title}` : title);
 			}
 		}
 		return actionsLabels;
