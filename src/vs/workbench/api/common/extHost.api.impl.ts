@@ -302,7 +302,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return !!(await extHostAuthentication.getSession(extension, providerId, scopes, { silent: true } as any));
 			},
 			get onDidChangeSessions(): vscode.Event<vscode.AuthenticationSessionsChangeEvent> {
-				return _asExtensionEvent(extHostAuthentication.onDidChangeSessions);
+				return _asExtensionEvent(extHostAuthentication.getExtensionScopedSessionsEvent(extension.identifier.value));
 			},
 			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
 				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);

@@ -209,7 +209,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
 			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
-			acceptInput: () => chatWidget.acceptInput(),
+			acceptInput: () => chatWidget.acceptInput(undefined, true),
 			updateInput: text => chatWidget.setInput(text),
 			getInput: () => chatWidget.getInput(),
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
@@ -226,7 +226,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
 			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
-			acceptInput: () => terminalChat.acceptInput(),
+			acceptInput: () => terminalChat.acceptInput(true),
 			updateInput: text => terminalChat.updateInput(text, false),
 			getInput: () => terminalChat.getInput(),
 			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
@@ -1299,7 +1299,7 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 
 export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
 
-	static readonly ID = '_workbench.action.chat.installProviderForVoiceChat';
+	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
 
 	constructor() {
 		super({
@@ -1328,7 +1328,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 
 export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
 
-	static readonly ID = '_workbench.action.chat.installProviderForSynthesis';
+	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
 
 	constructor() {
 		super({

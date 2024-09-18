@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual, throws } from 'assert';
+import { deepStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createObjectCollectionBuffer, type IObjectCollectionBuffer } from '../../../../browser/gpu/objectCollectionBuffer.js';
 
@@ -35,7 +35,11 @@ suite('ObjectCollectionBuffer', () => {
 			{ name: 'b' },
 		] as const, 1));
 		store.add(buffer.createEntry({ a: 1, b: 2 }));
-		throws(() => buffer.createEntry({ a: 3, b: 4 }));
+		strictEqual(buffer.entryCount, 1);
+		strictEqual(buffer.buffer.byteLength, 8);
+		buffer.createEntry({ a: 3, b: 4 });
+		strictEqual(buffer.entryCount, 2);
+		strictEqual(buffer.buffer.byteLength, 16);
 	});
 
 	test('dispose entry', () => {
@@ -52,6 +56,28 @@ suite('ObjectCollectionBuffer', () => {
 		entry2.dispose();
 		// Data from disposed entries is stale and doesn't need to be validated
 		assertUsedData(buffer, [1, 2, 5, 6, 9, 10]);
+	});
+
+	test('entryCount, viewUsedSize, bufferUsedSize', () => {
+		const buffer = store.add(createObjectCollectionBuffer([
+			{ name: 'foo' },
+			{ name: 'bar' },
+		] as const, 5));
+		strictEqual(buffer.entryCount, 0);
+		strictEqual(buffer.bufferUsedSize, 0);
+		strictEqual(buffer.viewUsedSize, 0);
+		buffer.createEntry({ foo: 1, bar: 2 });
+		strictEqual(buffer.entryCount, 1);
+		strictEqual(buffer.viewUsedSize, 2);
+		strictEqual(buffer.bufferUsedSize, 8);
+		const entry = buffer.createEntry({ foo: 3, bar: 4 });
+		strictEqual(buffer.entryCount, 2);
+		strictEqual(buffer.viewUsedSize, 4);
+		strictEqual(buffer.bufferUsedSize, 16);
+		entry.dispose();
+		strictEqual(buffer.entryCount, 1);
+		strictEqual(buffer.viewUsedSize, 2);
+		strictEqual(buffer.bufferUsedSize, 8);
 	});
 
 	test('entry.get', () => {

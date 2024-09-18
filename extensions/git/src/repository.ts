@@ -1465,7 +1465,15 @@ export class Repository implements Disposable {
 
 		// Reflog
 		const branchFromReflog = await this.getBranchBaseFromReflog(ref);
-		const branchFromReflogUpstream = branchFromReflog ? await this.getUpstreamBranch(branchFromReflog) : undefined;
+
+		let branchFromReflogUpstream: Branch | undefined = undefined;
+
+		if (branchFromReflog?.type === RefType.RemoteHead) {
+			branchFromReflogUpstream = branchFromReflog;
+		} else if (branchFromReflog?.type === RefType.Head) {
+			branchFromReflogUpstream = await this.getUpstreamBranch(branchFromReflog);
+		}
+
 		if (branchFromReflogUpstream) {
 			await this.setConfig(mergeBaseConfigKey, `${branchFromReflogUpstream.remote}/${branchFromReflogUpstream.name}`);
 			return branchFromReflogUpstream;

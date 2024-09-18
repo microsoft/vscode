@@ -1223,6 +1223,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
 			type: 'number',
 			default: 10000
-		}
+		},
+		[NotebookSetting.multiCursor]: {
+			markdownDescription: nls.localize('notebook.multiCursor.enabled', "Experimental. Enables a limited set of multi cursor controls across multiple cells in the notebook editor. Currently supported are core editor actions (typing/cut/copy/paste/composition) and a limited subset of editor commands."),
+			type: 'boolean',
+			default: false
+		},
 	}
 });

@@ -103,7 +103,7 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 	return byExtension;
 }
 
-export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
+export function getLocalExtensionTelemetryData(extension: ILocalExtension) {
 	return {
 		id: extension.identifier.id,
 		name: extension.manifest.name,
@@ -133,7 +133,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		]
 	}
 */
-export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
+export function getGalleryExtensionTelemetryData(extension: IGalleryExtension) {
 	return {
 		id: new TelemetryTrustedValue(extension.identifier.id),
 		name: new TelemetryTrustedValue(extension.name),

@@ -60,6 +60,7 @@ export interface IChatAgentData {
 	name: string;
 	fullName?: string;
 	description?: string;
+	supportsModelPicker?: boolean;
 	when?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
@@ -146,6 +147,7 @@ export interface IChatAgentRequest {
 	locationData?: IChatLocationData;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
+	userSelectedModelId?: string;
 }
 
 export interface IChatQuestion {
