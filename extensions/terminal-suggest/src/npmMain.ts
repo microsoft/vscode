@@ -17,15 +17,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				return;
 			}
 			const commandLine = terminalContext.commandLine;
-			if (commandLine.startsWith('cd')) {
-				return [
-					{
-						label: 'foo',
-						kind: (vscode as any).TerminalCompletionItemKind.Flag,
-						description: 'bar'
-					},
-				];
-			}
+			// if (commandLine.startsWith('cd')) {
+			return [
+				{
+					label: commandLine,
+					kind: (vscode as any).TerminalCompletionItemKind.Flag,
+					detail: 'type is ' + terminalContext.shellType,
+					documentation: 'This is a test',
+				},
+			];
+			// }
 			return;
 		},
 	});
