@@ -2539,6 +2539,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private anchor: Trait<T>;
 	private eventBufferer = new EventBufferer();
 	private findController?: FindController<T, TFilterData>;
+	private findFilter?: FindFilter<T>;
 	readonly onDidChangeFindOpenState: Event<boolean> = Event.None;
 	onDidChangeStickyScrollFocused: Event<boolean> = Event.None;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
@@ -2605,11 +2606,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private _options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {
-		let filter: FindFilter<T> | undefined;
 		if (_options.keyboardNavigationLabelProvider) {
-			filter = new FindFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as any as ITreeFilter<T, FuzzyScore>);
-			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
-			this.disposables.add(filter);
+			this.findFilter = new FindFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as any as ITreeFilter<T, FuzzyScore>);
+			_options = { ..._options, filter: this.findFilter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
+			this.disposables.add(this.findFilter);
 		}
 
 		this.model = this.createModel(_user, _options);
@@ -2646,7 +2646,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				defaultFindMode: _options.defaultFindMode,
 				defaultFindMatchType: _options.defaultFindMatchType,
 			};
-			this.findController = this.disposables.add(new FindController(this, filter!, _options.contextViewProvider, findOptions));
+			this.findController = this.disposables.add(new FindController(this, this.findFilter!, _options.contextViewProvider, findOptions));
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);
 			this.onDidChangeFindOpenState = this.findController.onDidChangeOpenState;
 			this.onDidChangeFindMode = this.findController.onDidChangeMode;
@@ -3161,6 +3161,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	protected abstract createModel(user: string, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
+
+	createNewModel(options: IAbstractTreeOptions<T, TFilterData> = {}): ITreeModel<T, TFilterData, TRef> {
+		return this.createModel(this._user, { ...this._options, filter: this.findFilter as ITreeFilter<T, TFilterData> | undefined, ...options });
+	}
 
 	private readonly modelDisposables = new DisposableStore();
 	private setupModel(model: ITreeModel<T, TFilterData, TRef>) {
