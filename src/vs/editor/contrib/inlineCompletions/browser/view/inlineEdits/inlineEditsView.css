@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
- /*
+/*
  @keyframes blink { 50% { border-color: orange; }  }
 */
 
- .monaco-editor div.inline-edits-view-indicator {
+.monaco-editor div.inline-edits-view-indicator {
 	display: flex;
 
 	z-index: 1000000;
@@ -38,12 +38,15 @@
 
 	&.top {
 		opacity: 1;
+
 		.icon {
 			transform: rotate(90deg);
 		}
 	}
+
 	&.bottom {
 		opacity: 1;
+
 		.icon {
 			transform: rotate(-90deg);
 		}
@@ -64,12 +67,13 @@
 		justify-content: center;
 		width: 100%;
 	}
- }
+}
 
 .monaco-editor div.inline-edits-view {
 	--widget-color: var(--vscode-editorHoverWidget-background);
 
-	&.toolbarDropdownVisible, .editorContainer:hover {
+	&.toolbarDropdownVisible,
+	.editorContainer:hover {
 		.toolbar {
 			display: block;
 		}
