@@ -39,7 +39,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
@@ -579,7 +579,7 @@ export class StartVoiceChatAction extends Action2 {
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
 			menu: [{
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
 					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
@@ -632,7 +632,7 @@ export class StopListeningAction extends Action2 {
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
 			menu: [{
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				when: AnyScopedVoiceChatInProgress,
 				group: 'navigation',
 				order: -1
@@ -901,9 +901,42 @@ export class ReadChatResponseAloud extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const instantiationService = accessor.get(IInstantiationService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const response = args[0];
-		if (!isResponseVM(response)) {
+		let response: IChatResponseViewModel | undefined = undefined;
+		if (args.length > 0) {
+			const responseArg = args[0];
+			if (isResponseVM(response)) {
+				response = responseArg;
+			}
+		} else {
+			const chatWidget = chatWidgetService.lastFocusedWidget;
+			if (chatWidget) {
+
+				// pick focused response
+				const focus = chatWidget.getFocus();
+				if (focus instanceof ChatResponseViewModel) {
+					response = focus;
+				}
+
+				// pick the last response
+				else {
+					const chatViewModel = chatWidget.viewModel;
+					if (chatViewModel) {
+						const items = chatViewModel.getItems();
+						for (let i = items.length - 1; i >= 0; i--) {
+							const item = items[i];
+							if (isResponseVM(item)) {
+								response = item;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (!response) {
 			return;
 		}
 
@@ -931,7 +964,7 @@ export class StopReadAloud extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecute,
+					id: MenuId.ChatInput,
 					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
@@ -1275,7 +1308,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
 			menu: [{
-				id: MenuId.ChatExecute,
+				id: MenuId.ChatInput,
 				when: HasSpeechProvider.negate(),
 				group: 'navigation',
 				order: -1

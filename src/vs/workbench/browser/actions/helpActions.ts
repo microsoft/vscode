@@ -16,7 +16,6 @@ import { ServicesAccessor } from '../../../platform/instantiation/common/instant
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 
 class KeybindingsReferenceAction extends Action2 {
 
@@ -326,8 +325,7 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 	}
 	run(accessor: ServicesAccessor): void {
 		const commandService = accessor.get(ICommandService);
-		const accessibilityService = accessor.get(IAccessibilityService);
-		commandService.executeCommand('workbench.action.openWalkthrough', accessibilityService.isScreenReaderOptimized() ? 'SetupScreenReader' : 'SetupAccessibility');
+		commandService.executeCommand('workbench.action.openWalkthrough', 'SetupAccessibility');
 	}
 }
 

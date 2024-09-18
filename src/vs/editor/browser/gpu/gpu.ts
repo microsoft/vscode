@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import type { ViewLineOptions } from '../viewParts/lines/viewLineOptions.js';
+import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 
 export const enum BindingId {
 	GlyphInfo0,
@@ -12,7 +12,7 @@ export const enum BindingId {
 	Cells,
 	TextureSampler,
 	Texture,
-	ViewportUniform,
+	LayoutInfoUniform,
 	AtlasDimensionsUniform,
 	ScrollOffset,
 }
@@ -21,6 +21,10 @@ export interface IGpuRenderStrategy {
 	readonly wgsl: string;
 	readonly bindGroupEntries: GPUBindGroupEntry[];
 
+	/**
+	 * Resets the render strategy, clearing all data and setting up for a new frame.
+	 */
+	reset(): void;
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number;
 	draw?(pass: GPURenderPassEncoder, viewportData: ViewportData): void;
 }

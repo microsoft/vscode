@@ -612,7 +612,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				const modified = e.modified.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
 				const removed = e.removed.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
 
-				this.#proxy.$onDidChangeHistoryProviderHistoryItemRefs(this.handle, { added, modified, removed });
+				this.#proxy.$onDidChangeHistoryProviderHistoryItemRefs(this.handle, { added, modified, removed, silent: e.silent });
 			}));
 		}
 	}
@@ -999,11 +999,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return await historyProvider?.resolveHistoryItemRefsCommonAncestor(historyItemRefs, token) ?? undefined;
 	}
 
-	async $provideHistoryItemRefs(sourceControlHandle: number, token: CancellationToken): Promise<SCMHistoryItemRefDto[] | undefined> {
+	async $provideHistoryItemRefs(sourceControlHandle: number, historyItemRefs: string[] | undefined, token: CancellationToken): Promise<SCMHistoryItemRefDto[] | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		const historyItemRefs = await historyProvider?.provideHistoryItemRefs(token);
+		const refs = await historyProvider?.provideHistoryItemRefs(historyItemRefs, token);
 
-		return historyItemRefs?.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) })) ?? undefined;
+		return refs?.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) })) ?? undefined;
 	}
 
 	async $provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {

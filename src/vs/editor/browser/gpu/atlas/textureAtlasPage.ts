@@ -5,11 +5,11 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { TwoKeyMap } from '../../../../base/common/map.js';
+import { ThreeKeyMap } from '../../../../base/common/map.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import type { IBoundingBox, IGlyphRasterizer } from '../raster/raster.js';
-import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph } from './atlas.js';
+import type { IReadableTextureAtlasPage, ITextureAtlasAllocator, ITextureAtlasPageGlyph, GlyphMap } from './atlas.js';
 import { TextureAtlasShelfAllocator } from './textureAtlasShelfAllocator.js';
 import { TextureAtlasSlabAllocator } from './textureAtlasSlabAllocator.js';
 
@@ -32,7 +32,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	private readonly _canvas: OffscreenCanvas;
 	get source(): OffscreenCanvas { return this._canvas; }
 
-	private readonly _glyphMap: TwoKeyMap<string, number, ITextureAtlasPageGlyph> = new TwoKeyMap();
+	private readonly _glyphMap: GlyphMap<ITextureAtlasPageGlyph> = new ThreeKeyMap();
 	private readonly _glyphInOrderSet: Set<ITextureAtlasPageGlyph> = new Set();
 	get glyphs(): IterableIterator<ITextureAtlasPageGlyph> {
 		return this._glyphInOrderSet.values();
@@ -73,7 +73,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 	public getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
 		// IMPORTANT: There are intentionally no intermediate variables here to aid in runtime
 		// optimization as it's a very hot function
-		return this._glyphMap.get(chars, metadata) ?? this._createGlyph(rasterizer, chars, metadata);
+		return this._glyphMap.get(chars, metadata, rasterizer.cacheKey) ?? this._createGlyph(rasterizer, chars, metadata);
 	}
 
 	private _createGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> | undefined {
@@ -92,7 +92,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		}
 
 		// Save the glyph
-		this._glyphMap.set(chars, metadata, glyph);
+		this._glyphMap.set(chars, metadata, rasterizer.cacheKey, glyph);
 		this._glyphInOrderSet.add(glyph);
 
 		// Update page version and it's tracked used area

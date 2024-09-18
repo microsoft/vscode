@@ -5,22 +5,24 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import type { Position } from '../../../common/core/position.js';
+import type { Range } from '../../../common/core/range.js';
 import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
-import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
 import { FullFileRenderStrategy } from '../../gpu/fullFileRenderStrategy.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
 import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.js';
-import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
-import type { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { FloatHorizontalRange, HorizontalPosition, IViewLines, LineVisibleRanges, RenderingContext, RestrictedRenderingContext, VisibleRanges } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
-import { ViewLineOptions } from '../lines/viewLineOptions.js';
+import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 
 
 const enum GlyphStorageBufferInfo {
@@ -34,9 +36,12 @@ const enum GlyphStorageBufferInfo {
 /**
  * The GPU implementation of the ViewLines part.
  */
-export class ViewLinesGpu extends ViewPart {
+export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private readonly canvas: HTMLCanvasElement;
+
+	private _lastViewportData?: ViewportData;
+	private _lastViewLineOptions?: ViewLineOptions;
 
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
@@ -45,8 +50,6 @@ export class ViewLinesGpu extends ViewPart {
 	private _pipeline!: GPURenderPipeline;
 
 	private _vertexBuffer!: GPUBuffer;
-
-	static atlas: TextureAtlas;
 
 	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
 	private _atlasGpuTexture!: GPUTexture;
@@ -66,7 +69,8 @@ export class ViewLinesGpu extends ViewPart {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
-		this._register(this._viewGpuContext.onDidChangeCanvasDevicePixelDimensions(({ width, height }) => {
+		this._register(autorun(reader => {
+			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
 			// TODO: Request render, should this just call renderText with the last viewportData
 		}));
 
@@ -78,19 +82,26 @@ export class ViewLinesGpu extends ViewPart {
 
 		this._device = await this._viewGpuContext.device;
 
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const atlas = ViewGpuContext.atlas;
+
+		// Rerender when the texture atlas deletes glyphs
+		this._register(atlas.onDidDeleteGlyphs(() => {
+			this._atlasGpuTextureVersions.length = 0;
+			this._atlasGpuTextureVersions[0] = 0;
+			this._atlasGpuTextureVersions[1] = 0;
+			this._renderStrategy.reset();
+		}));
+
 		const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 		this._viewGpuContext.ctx.configure({
 			device: this._device,
 			format: presentationFormat,
 			alphaMode: 'premultiplied',
 		});
-
-		// TODO: Should the texture atlas (shared across all editors) should be part of the gpu context (shared across view parts of this editor)?
-		// Create texture atlas
-		if (!ViewLinesGpu.atlas) {
-			ViewLinesGpu.atlas = this._instantiationService.createInstance(TextureAtlas, this._device.limits.maxTextureDimension2D, undefined);
-		}
-		const atlas = ViewLinesGpu.atlas;
 
 		this._renderPassColorAttachment = {
 			view: null!, // Will be filled at render time
@@ -162,7 +173,7 @@ export class ViewLinesGpu extends ViewPart {
 
 		// #region Storage buffers
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, ViewLinesGpu.atlas));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer',
@@ -217,7 +228,6 @@ export class ViewLinesGpu extends ViewPart {
 			layout: 'auto',
 			vertex: {
 				module,
-				entryPoint: 'vs',
 				buffers: [
 					{
 						arrayStride: 2 * Float32Array.BYTES_PER_ELEMENT, // 2 floats, 4 bytes each
@@ -229,7 +239,6 @@ export class ViewLinesGpu extends ViewPart {
 			},
 			fragment: {
 				module,
-				entryPoint: 'fs',
 				targets: [
 					{
 						format: presentationFormat,
@@ -267,7 +276,7 @@ export class ViewLinesGpu extends ViewPart {
 					})
 				},
 				{ binding: BindingId.Texture, resource: this._atlasGpuTexture.createView() },
-				{ binding: BindingId.ViewportUniform, resource: { buffer: layoutInfoUniformBuffer } },
+				{ binding: BindingId.LayoutInfoUniform, resource: { buffer: layoutInfoUniformBuffer } },
 				{ binding: BindingId.AtlasDimensionsUniform, resource: { buffer: atlasInfoUniformBuffer } },
 				...this._renderStrategy.bindGroupEntries
 			],
@@ -279,9 +288,7 @@ export class ViewLinesGpu extends ViewPart {
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
-		const atlas = ViewLinesGpu.atlas;
-
-		for (const [layerIndex, page] of atlas.pages.entries()) {
+		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
 			// Skip the update if it's already the latest version
 			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;
@@ -358,6 +365,8 @@ export class ViewLinesGpu extends ViewPart {
 	}
 
 	private _renderText(viewportData: ViewportData): void {
+		this._viewGpuContext.rectangleRenderer.draw(viewportData);
+
 		const options = new ViewLineOptions(this._context.configuration, this._context.theme.type);
 
 		const visibleObjectCount = this._renderStrategy.update(viewportData, options);
@@ -385,5 +394,43 @@ export class ViewLinesGpu extends ViewPart {
 		const commandBuffer = encoder.finish();
 
 		this._device.queue.submit([commandBuffer]);
+
+		this._lastViewportData = viewportData;
+		this._lastViewLineOptions = options;
+	}
+
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		return null;
+	}
+
+	private _visibleRangesForLineRange(lineNumber: number, startColumn: number, endColumn: number): VisibleRanges | null {
+		if (this.shouldRender()) {
+			// Cannot read from the DOM because it is dirty
+			// i.e. the model & the dom are out of sync, so I'd be reading something stale
+			return null;
+		}
+
+		const viewportData = this._lastViewportData;
+		const viewLineOptions = this._lastViewLineOptions;
+
+		if (!viewportData || !viewLineOptions || lineNumber < viewportData.startLineNumber || lineNumber > viewportData.endLineNumber) {
+			return null;
+		}
+
+		// Visible horizontal range in _scaled_ pixels
+		const result = new VisibleRanges(false, [new FloatHorizontalRange(
+			(startColumn - 1) * viewLineOptions.spaceWidth,
+			(endColumn - startColumn - 1) * viewLineOptions.spaceWidth)
+		]);
+
+		return result;
+	}
+
+	visibleRangeForPosition(position: Position): HorizontalPosition | null {
+		const visibleRanges = this._visibleRangesForLineRange(position.lineNumber, position.column, position.column);
+		if (!visibleRanges) {
+			return null;
+		}
+		return new HorizontalPosition(visibleRanges.outsideRenderedLine, visibleRanges.ranges[0].left);
 	}
 }

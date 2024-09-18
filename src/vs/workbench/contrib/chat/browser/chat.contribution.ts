@@ -61,6 +61,10 @@ import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import '../common/chatColors.js';
+import { ChatGettingStartedContribution } from './chatGettingStarted.js';
+import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
+import { IChatEditingService } from '../common/chatEditingService.js';
+import { ChatEditingService } from './chatEditingService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -109,7 +113,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.variables.notebook': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.notebook', "Enables variables for notebook chat."),
-			default: false
+			default: true
 		},
 		'chat.experimental.variables.terminal': {
 			type: 'boolean',
@@ -262,6 +266,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();
@@ -291,3 +296,5 @@ registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
+registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);
+registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);

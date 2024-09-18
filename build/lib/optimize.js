@@ -246,6 +246,7 @@ function optimizeESMTask(opts, cjsOpts) {
                 packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
                 platform: 'neutral', // makes esm
                 format: 'esm',
+                sourcemap: 'external',
                 plugins: [boilerplateTrimmer],
                 target: ['es2022'],
                 loader: {
@@ -268,6 +269,7 @@ function optimizeESMTask(opts, cjsOpts) {
             }).then(res => {
                 for (const file of res.outputFiles) {
                     let contents = file.contents;
+                    let sourceMapFile = undefined;
                     if (file.path.endsWith('.js')) {
                         if (opts.fileContentMapper) {
                             // UGLY the fileContentMapper is per file but at this point we have all files
@@ -279,12 +281,15 @@ function optimizeESMTask(opts, cjsOpts) {
                             }
                             contents = Buffer.from(newText);
                         }
+                        sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
                     }
-                    files.push(new VinylFile({
+                    const fileProps = {
                         contents: Buffer.from(contents),
+                        sourceMap: sourceMapFile ? JSON.parse(sourceMapFile.text) : undefined, // support gulp-sourcemaps
                         path: file.path,
                         base: path.join(REPO_ROOT_PATH, opts.src)
-                    }));
+                    };
+                    files.push(new VinylFile(fileProps));
                 }
             });
             // await task; // FORCE serial bundling (makes debugging easier)
@@ -390,12 +395,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                     cb(undefined, f);
                 }
             }, cb);
-        }), jsFilter.restore, cssFilter, (0, postcss_1.gulpPostcss)([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.mapSources((sourcePath) => {
-            if (sourcePath === 'bootstrap-fork.js') {
-                return 'bootstrap-fork.orig.js';
-            }
-            return sourcePath;
-        }), sourcemaps.write('./', {
+        }), jsFilter.restore, cssFilter, (0, postcss_1.gulpPostcss)([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.write('./', {
             sourceMappingURL,
             sourceRoot: undefined,
             includeContent: true,

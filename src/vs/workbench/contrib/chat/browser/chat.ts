@@ -77,11 +77,13 @@ export interface IChatAccessibilityService {
 }
 
 export interface IChatCodeBlockInfo {
-	codeBlockIndex: number;
-	element: ChatTreeItem;
-	uri: URI | undefined;
+	readonly ownerMarkdownPartId: string;
+	readonly codeBlockIndex: number;
+	readonly element: ChatTreeItem;
+	readonly uri: URI | undefined;
 	codemapperUri: URI | undefined;
 	focus(): void;
+	getContent(): string;
 }
 
 export interface IChatFileTreeInfo {

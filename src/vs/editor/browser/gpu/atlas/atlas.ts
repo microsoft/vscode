@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ThreeKeyMap } from '../../../../base/common/map.js';
 import type { IBoundingBox, IRasterizedGlyph } from '../raster/raster.js';
 
 /**
@@ -90,3 +91,5 @@ export const enum UsagePreviewColors {
 	Wasted = '#FF0000',
 	Restricted = '#FF000088',
 }
+
+export type GlyphMap<T> = ThreeKeyMap</*chars*/string, /*metadata*/number, /*rasterizerCacheKey*/string, T>;

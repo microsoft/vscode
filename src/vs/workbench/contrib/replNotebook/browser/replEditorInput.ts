@@ -22,6 +22,12 @@ import { ICustomEditorLabelService } from '../../../services/editor/common/custo
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+
+const replTabIcon = registerIcon('repl-editor-label-icon', Codicon.debugLineByLine, localize('replEditorLabelIcon', 'Icon of the REPL editor label.'));
 
 export class ReplEditorInput extends NotebookEditorInput implements ICompositeNotebookEditorInput {
 	static override ID: string = 'workbench.editorinputs.replEditorInput';
@@ -51,6 +57,10 @@ export class ReplEditorInput extends NotebookEditorInput implements ICompositeNo
 		super(resource, undefined, 'jupyter-notebook', {}, _notebookService, _notebookModelResolverService, _fileDialogService, labelService, fileService, filesConfigurationService, extensionService, editorService, textResourceConfigurationService, customEditorLabelService);
 		this.isScratchpad = resource.scheme === 'untitled' && configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 		this.label = label ?? this.createEditorLabel(resource);
+	}
+
+	override getIcon(): ThemeIcon | undefined {
+		return replTabIcon;
 	}
 
 	private createEditorLabel(resource: URI | undefined): string {
