@@ -70,6 +70,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/documentSymbol').then(provider => this._register(provider.register(selector, this.client, cachedNavTreeResponse))),
+			import('./languageFeatures/dropOrPasteResource').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/fileReferences').then(provider => this._register(provider.register(this.client, this.commandManager))),
 			import('./languageFeatures/fixAll').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager))),
 			import('./languageFeatures/folding').then(provider => this._register(provider.register(selector, this.client))),
