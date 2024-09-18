@@ -375,12 +375,11 @@
 
 /* Profile Editor Tree Theming */
 
-.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row.focused .profile-associations-table .monaco-list-row .monaco-table-tr,
 .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row.focused {
 	background-color: var(--vscode-settings-focusedRowBackground) !important;
 }
 
-.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:not(.focused):hover .profile-associations-table .monaco-list-row[data-parity=odd] .monaco-table-tr {
+.profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row .profile-associations-table .monaco-list-row[data-parity=odd] .monaco-table-tr {
 	background-color: transparent !important;
 }
 
