@@ -716,7 +716,7 @@ class WordHighlighter {
 				if (myRequestId === this.workerRequestTokenId) {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
-					this._beginRenderDecorations(!noDelay);
+					this._beginRenderDecorations(noDelay);
 				}
 			}, onUnexpectedError);
 		}
@@ -730,9 +730,9 @@ class WordHighlighter {
 		}
 	}
 
-	private _beginRenderDecorations(delay?: boolean): void {
+	private _beginRenderDecorations(noDelay?: boolean): void {
 		const currentTime = (new Date()).getTime();
-		const minimumRenderTime = this.lastCursorPositionChangeTime + (delay ? 250 : 0);
+		const minimumRenderTime = this.lastCursorPositionChangeTime + (noDelay ? 0 : 250);
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
