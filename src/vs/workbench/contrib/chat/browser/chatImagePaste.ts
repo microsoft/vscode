@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { localize } from '../../../../nls.js';
 
 export class ChatImageDropAndPaste extends Disposable {
 
@@ -48,7 +49,7 @@ function getImageAttachContext(data: Uint8Array): IChatRequestVariableEntry {
 	return {
 		value: data,
 		id: data.slice(0, 50).toString(),
-		name: 'Pasted Image',
+		name: localize('pastedImage', 'Pasted Image'),
 		isImage: true,
 		icon: Codicon.fileMedia,
 	};
