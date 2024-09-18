@@ -2431,7 +2431,10 @@ export class Repository {
 		args.push('--format', '%(refname) %(objectname) %(*objectname)');
 
 		if (query.pattern) {
-			args.push(query.pattern.startsWith('refs/') ? query.pattern : `refs/${query.pattern}`);
+			const patterns = Array.isArray(query.pattern) ? query.pattern : [query.pattern];
+			for (const pattern of patterns) {
+				args.push(pattern.startsWith('refs/') ? pattern : `refs/${pattern}`);
+			}
 		}
 
 		if (query.contains) {
