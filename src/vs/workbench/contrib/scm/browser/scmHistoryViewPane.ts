@@ -1331,6 +1331,14 @@ export class SCMHistoryViewPane extends ViewPane {
 		return super.getActionViewItem(action, options);
 	}
 
+	override focus(): void {
+		super.focus();
+
+		const fakeKeyboardEvent = new KeyboardEvent('keydown');
+		this._tree.focusFirst(fakeKeyboardEvent);
+		this._tree.domFocus();
+	}
+
 	async refresh(): Promise<void> {
 		this._treeViewModel.clearRepositoryState();
 		await this._updateChildren();
