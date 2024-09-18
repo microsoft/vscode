@@ -505,10 +505,18 @@
 	margin-bottom: 0 !important;
 }
 
-.monaco-hover.history-item-hover p > span > span.codicon.codicon-cloud,
-.monaco-hover.history-item-hover p > span > span.codicon.codicon-git-branch,
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-git-branch {
+	font-size: 12px;
+	margin-bottom: 2px !important;
+}
+
 .monaco-hover.history-item-hover p > span > span.codicon.codicon-tag,
 .monaco-hover.history-item-hover p > span > span.codicon.codicon-target {
+	font-size: 14px;
+	margin-bottom: 2px !important;
+}
+
+.monaco-hover.history-item-hover p > span > span.codicon.codicon-cloud {
 	font-size: 14px;
 	margin-bottom: 1px !important;
 }
