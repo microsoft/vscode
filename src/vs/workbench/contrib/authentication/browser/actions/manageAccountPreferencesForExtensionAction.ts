@@ -103,7 +103,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		disposableStore.add(picker.onDidHide(() => {
 			disposableStore.dispose();
 		}));
-		picker.placeholder = localize('asdf', "Manage '{0}' account preferences...", extensionLabel);
+		picker.placeholder = localize('placeholder', "Manage '{0}' account preferences...", extensionLabel);
 		picker.title = localize('title', "'{0}' Account Preferences For This Workspace", extensionLabel);
 		picker.sortByLabel = false;
 		disposableStore.add(picker.onDidAccept(() => {
