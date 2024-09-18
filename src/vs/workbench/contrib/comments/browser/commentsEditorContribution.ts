@@ -44,7 +44,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!controller) {
 			return Promise.resolve();
 		}
-		controller.nextCommentThread();
+		controller.nextCommentThread(true);
 	},
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.Alt | KeyCode.F9,
@@ -62,10 +62,46 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!controller) {
 			return Promise.resolve();
 		}
-		controller.previousCommentThread();
+		controller.previousCommentThread(true);
 	},
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.NextCommentedRange,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.nextCommentThread(false);
+	},
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyMod.Alt | KeyCode.F10
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.PreviousCommentedRange,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.previousCommentThread(false);
+	},
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F10
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -119,6 +155,24 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: CommentCommandId.PreviousRange,
 		title: nls.localize('comments.previousCommentingRange', "Go to Previous Commenting Range"),
+		category: 'Comments',
+	},
+	when: CommentContextKeys.activeEditorHasCommentingRange
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: CommentCommandId.NextCommentedRange,
+		title: nls.localize('comments.NextCommentedRange', "Go to Next Commented Range"),
+		category: 'Comments',
+	},
+	when: CommentContextKeys.activeEditorHasCommentingRange
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: CommentCommandId.PreviousCommentedRange,
+		title: nls.localize('comments.PreviousCommentedRange', "Go to Previous Commented Range"),
 		category: 'Comments',
 	},
 	when: CommentContextKeys.activeEditorHasCommentingRange
