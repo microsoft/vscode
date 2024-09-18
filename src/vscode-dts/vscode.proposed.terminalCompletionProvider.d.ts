@@ -7,7 +7,7 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/226562
 
-	export interface TerminalCompletionProvider<T extends TerminalCompletion> {
+	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
 		id: string;
 		/**
 		 * Provide completions for the given position and document.
@@ -19,7 +19,7 @@ declare module 'vscode' {
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | Thenable<T[] | undefined>>;
 	}
 
-	export class TerminalCompletion {
+	export class TerminalCompletionItem {
 
 		/**
 		 * The label of this completion item. By default
@@ -56,7 +56,14 @@ declare module 'vscode' {
 		shellType: string;
 		commandLine: string;
 	}
+
 	export namespace window {
-		export function registerTerminalCompletionProvider<T extends TerminalCompletion>(provider: TerminalCompletionProvider<T>): Disposable;
+		/**
+		 * Register a completion provider for a certain type of terminal.
+		 *
+		 * @param provider The completion provider.
+		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>): Disposable;
 	}
 }

@@ -2108,7 +2108,7 @@ export class TerminalProfile implements vscode.TerminalProfile {
 	}
 }
 
-export class TerminalCompletion implements vscode.TerminalCompletion {
+export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string | vscode.CompletionItemLabel = '';
 	kind?: vscode.TerminalCompletionItemKind | undefined;
 	detail?: string | undefined;
