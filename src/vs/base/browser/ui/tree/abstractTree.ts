@@ -820,7 +820,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		const emitter = this._register(new DomEmitter(this.findInput.inputBox.inputElement, 'keydown'));
 		const onKeyDown = Event.chain(emitter.event, $ => $.map(e => new StandardKeyboardEvent(e)));
 
-		this._register(onKeyDown((e): any => {
+		this._register(onKeyDown((e) => {
 			// Using equals() so we reserve modified keys for future use
 			if (e.equals(KeyCode.Enter)) {
 				// This is the only keyboard way to return to the tree from a history item that isn't the last one
@@ -890,7 +890,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		const onGrabKeyDown = Event.chain(this._register(new DomEmitter(this.elements.grab, 'keydown')).event, $ => $.map(e => new StandardKeyboardEvent(e)));
 
-		this._register(onGrabKeyDown((e): any => {
+		this._register(onGrabKeyDown((e) => {
 			let right: number | undefined;
 			let top: number | undefined;
 
