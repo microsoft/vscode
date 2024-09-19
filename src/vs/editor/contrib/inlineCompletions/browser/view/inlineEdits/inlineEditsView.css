@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- @keyframes blink { 50% { border-color: orange; }  }
+	@keyframes blink { 50% { border-color: orange; }  }
 */
 
 .monaco-editor div.inline-edits-view-indicator {
@@ -25,7 +25,7 @@
 
 	/*
 	animation: blink 1s;
-    animation-iteration-count: 3;
+	animation-iteration-count: 3;
 	*/
 
 	opacity: 0;
