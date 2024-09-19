@@ -14,7 +14,7 @@ import { IFileService } from '../../platform/files/common/files.js';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
-import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
+import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar, useNativeMenuStyle } from '../../platform/window/common/window.js';
 import { ITitleService } from '../services/title/browser/titleService.js';
 import { IWorkbenchThemeService } from '../services/themes/common/workbenchThemeService.js';
 import { ApplyZoomTarget, applyZoom } from '../../platform/window/electron-sandbox/window.js';
@@ -652,8 +652,8 @@ export class NativeWindow extends BaseWindow {
 		// Clear old menu
 		this.customTitleContextMenuDisposable.clear();
 
-		// Only provide a menu when we have a file path and custom titlebar
-		if (!filePath || hasNativeTitlebar(this.configurationService)) {
+		// Only provide a menu when we have a file path and we are not using the native menu style
+		if (!filePath || useNativeMenuStyle(this.configurationService)) {
 			return;
 		}
 

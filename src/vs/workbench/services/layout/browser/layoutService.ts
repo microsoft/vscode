@@ -11,7 +11,7 @@ import { IDimension } from '../../../../base/browser/dom.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
-import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeTitlebar, useNativeMenuStyle } from '../../../../platform/window/common/window.js';
 import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -329,11 +329,14 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 
 	const inFullscreen = isFullscreen(window);
-	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
+
+	// When menuBarToggled is undefined, we are being called for an auxiliary editor window, where there is no menu, so we want to check hasNativeTitlebar.
+	// Otherwise, we are being called for a main editor window, so we want to check useNativeMenuStyle.
+	const nativeBarEnabled = (menuBarToggled === undefined) ? hasNativeTitlebar(configurationService) : useNativeMenuStyle(configurationService);
 
 	if (!isWeb) {
 		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
 			return false;
 		}
 	}
@@ -342,8 +345,8 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		return true;
 	}
 
-	// Hide custom title bar when native title bar enabled and custom title bar is empty
-	if (nativeTitleBarEnabled) {
+	// Hide custom title bar when native title/menu bar enabled and custom title bar is empty
+	if (nativeBarEnabled) {
 		return false;
 	}
 

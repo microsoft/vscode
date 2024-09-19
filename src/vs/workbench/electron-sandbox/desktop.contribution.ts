@@ -235,6 +235,12 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply."),
 			},
+			'window.forceCustomMenuStyle': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('forceCustomMenuStyle', "Force use of the custom menu style on Linux and Windows when {0} is set to `native`. Has no effect otherwise. Affects the application and context menu appearances.", '`#window.titleBarStyle#`'),
+			},
 			'window.experimentalControlOverlay': {
 				'type': 'boolean',
 				'included': isLinux,

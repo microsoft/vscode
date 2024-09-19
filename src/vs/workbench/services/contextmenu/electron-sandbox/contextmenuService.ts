@@ -15,7 +15,7 @@ import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browse
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { popup } from '../../../../base/parts/contextmenu/electron-sandbox/contextmenu.js';
-import { hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { useNativeMenuStyle } from '../../../../platform/window/common/window.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextMenuMenuDelegate, ContextMenuService as HTMLContextMenuService } from '../../../../platform/contextview/browser/contextMenuService.js';
@@ -47,8 +47,8 @@ export class ContextMenuService implements IContextMenuService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
-		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && !hasNativeTitlebar(configurationService)) {
+		// Custom context menu: if on Linux/Windows and not using the native menu style
+		if (!isMacintosh && !useNativeMenuStyle(configurationService)) {
 			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		}
 
