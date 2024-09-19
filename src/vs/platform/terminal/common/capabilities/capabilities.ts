@@ -71,7 +71,10 @@ export const enum TerminalCapability {
 	 * hidden is not provided, a generic decoration is added to the buffer and overview ruler.
 	 */
 	BufferMarkDetection,
+
 	// TODO: Shell Environment --> listen to from
+	ShellEnvironmentDetection,
+
 }
 
 /**
@@ -134,6 +137,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
 	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
+	[TerminalCapability.ShellEnvironmentDetection]: IShellEnvDetectionCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -142,6 +146,11 @@ export interface ICwdDetectionCapability {
 	readonly cwds: string[];
 	getCwd(): string;
 	updateCwd(cwd: string): void;
+}
+
+export interface IShellEnvDetectionCapability {
+	onDidChangeEnv: Event<unknown>;
+
 }
 
 export const enum CommandInvalidationReason {

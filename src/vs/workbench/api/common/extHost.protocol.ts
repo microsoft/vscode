@@ -2385,12 +2385,13 @@ export interface ExtHostTerminalServiceShape {
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
 }
 
-export interface ExtHostTerminalShellIntegrationShape {
+export interface ExtHostTerminalShellIntegrationShape { // what is this shape for?
 	$shellIntegrationChange(instanceId: number): void;
 	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
-	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
+	$shellEnvChange(); // what should be the parameters/arguments?
+	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void; // Question: What are the three references that shows up, and should we have it for shellEnvChange as well.
 	$closeTerminal(instanceId: number): void;
 }
 
