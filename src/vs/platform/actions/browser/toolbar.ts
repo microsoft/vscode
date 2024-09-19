@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
+import { createActionViewItem, createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
 import { createConfigureKeybindingAction } from '../common/menuService.js';
 import { ICommandService } from '../../commands/common/commands.js';
@@ -22,6 +22,8 @@ import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IActionViewItemService } from './actionViewItemService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 
 export const enum HiddenItemStrategy {
 	/** This toolbar doesn't support hiding*/
@@ -335,8 +337,24 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IActionViewItemService actionViewService: IActionViewItemService,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
-		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
+		super(container, {
+			resetMenu: menuId,
+			...options,
+			actionViewItemProvider: (action, opts) => {
+				let provider = actionViewService.lookUp(menuId, action.id);
+				if (!provider) {
+					provider = options?.actionViewItemProvider;
+				}
+				const viewItem = provider?.(action, opts);
+				if (viewItem) {
+					return viewItem;
+				}
+				return createActionViewItem(instaService, action, options);
+			}
+		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		// update logic
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
@@ -356,6 +374,12 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		this._store.add(menu.onDidChange(() => {
 			updateToolbar();
 			this._onDidChangeMenuItems.fire(this);
+		}));
+
+		this._store.add(actionViewService.onDidChange(e => {
+			if (e === menuId) {
+				updateToolbar();
+			}
 		}));
 		updateToolbar();
 	}

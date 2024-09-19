@@ -287,6 +287,10 @@ export class Extension implements IExtension {
 		return this.gallery && this.gallery.supportLink ? this.gallery.supportLink : undefined;
 	}
 
+	get contentsUrl(): URI | undefined {
+		return (this.gallery && this.productService.webUrl) ? resources.joinPath(URI.parse(this.productService.webUrl), 'marketplace', this.gallery.publisher, this.gallery.name, this.gallery.version) : undefined;
+	}
+
 	get state(): ExtensionState {
 		return this.stateProvider(this);
 	}

@@ -39,6 +39,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { isImage } from '../chatImagePaste.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -110,9 +111,15 @@ class AttachFileAction extends Action2 {
 	constructor() {
 		super({
 			id: AttachFileAction.ID,
-			title: localize2('workbench.action.chat.attachFile.label', "Attach File"),
+			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false
+			f1: false,
+			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'attach',
+				order: 1,
+			}
 		});
 	}
 
@@ -136,7 +143,13 @@ class AttachSelectionAction extends Action2 {
 			id: AttachSelectionAction.ID,
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
-			f1: false
+			f1: false,
+			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'attach',
+				order: 2,
+			}
 		});
 	}
 
@@ -385,6 +398,23 @@ class AttachContextAction extends Action2 {
 			iconClass: ThemeIcon.asClassName(Codicon.symbolField),
 			prefix: SymbolsQuickAccessProvider.PREFIX
 		});
+
+		if (widget.location === ChatAgentLocation.Notebook) {
+			quickPickItems.push({
+				kind: 'dynamic',
+				id: 'chatContext.notebook.kernelVariable',
+				isDynamic: true,
+				icon: ThemeIcon.fromId(Codicon.serverEnvironment.id),
+				iconClass: ThemeIcon.asClassName(Codicon.serverEnvironment),
+				value: 'kernelVariable',
+				label: localize('chatContext.notebook.kernelVariable', 'Kernel Variable...'),
+				command: {
+					id: 'notebook.chat.selectAndInsertKernelVariable',
+					title: localize('chatContext.notebook.selectkernelVariable', 'Select and Insert Kernel Variable'),
+					arguments: [{ widget, range: undefined }]
+				}
+			});
+		}
 
 		function extractTextFromIconLabel(label: string | undefined): string {
 			if (!label) {

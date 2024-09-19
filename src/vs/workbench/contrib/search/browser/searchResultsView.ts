@@ -117,7 +117,7 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 
 	renderElement(element: ITreeNode<TextSearchResult, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
 		if (element.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
-			templateData.label.setLabel(nls.localize('searchFolderMatch.aiText.label', "Load AI Results"));
+			templateData.label.setLabel(nls.localize('searchFolderMatch.aiText.label', "AI Results"));
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
 		}

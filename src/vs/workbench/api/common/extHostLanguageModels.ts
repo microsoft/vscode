@@ -165,7 +165,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				accountLabel: typeof metadata.auth === 'object' ? metadata.auth.label : undefined
 			};
 		}
-		this._proxy.$registerLanguageModelProvider(handle, `${ExtensionIdentifier.toKey(extension.identifier)}/${handle}/${identifier}`, {
+		this._proxy.$registerLanguageModelProvider(handle, `${ExtensionIdentifier.toKey(extension.identifier)}/${identifier}`, {
 			extension: extension.identifier,
 			id: identifier,
 			vendor: metadata.vendor ?? ExtensionIdentifier.toKey(extension.identifier),

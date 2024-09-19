@@ -759,6 +759,8 @@ export interface InlineCompletion {
 	 * Defaults to `false`.
 	*/
 	readonly completeBracketPairs?: boolean;
+
+	readonly isInlineEdit?: boolean;
 }
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {

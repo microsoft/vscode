@@ -30,6 +30,10 @@ export class TextLength {
 		}
 	}
 
+	public static fromPosition(pos: Position): TextLength {
+		return new TextLength(pos.lineNumber - 1, pos.column - 1);
+	}
+
 	public static ofRange(range: Range) {
 		return TextLength.betweenPositions(range.getStartPosition(), range.getEndPosition());
 	}
@@ -115,6 +119,13 @@ export class TextLength {
 		} else {
 			return new Position(position.lineNumber + this.lineCount, this.columnCount + 1);
 		}
+	}
+
+	public addToRange(range: Range): Range {
+		return Range.fromPositions(
+			this.addToPosition(range.getStartPosition()),
+			this.addToPosition(range.getEndPosition())
+		);
 	}
 
 	toString() {

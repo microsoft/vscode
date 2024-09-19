@@ -11,10 +11,10 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -63,6 +63,7 @@ import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IChatViewState } from './chatWidget.js';
 
 const $ = dom.$;
 
@@ -147,6 +148,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 
+	private readonly _waitForPersistedLanguageModel = this._register(new MutableDisposable<IDisposable>());
+	private _onDidChangeCurrentLanguageModel = new Emitter<string>();
 	private _currentLanguageModel: string | undefined;
 	get currentLanguageModel() {
 		return this._currentLanguageModel;
@@ -193,13 +196,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 	}
 
-	private resetCurrentLanguageModel() {
+	private setCurrentLanguageModelToDefault() {
 		const defaultLanguageModel = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
 		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
 			const model = this.languageModelsService.lookupLanguageModel(id);
 			return model?.isUserSelectable && !model.isDefault;
 		});
 		this._currentLanguageModel = hasUserSelectableLanguageModels ? defaultLanguageModel : undefined;
+	}
+
+	private setCurrentLanguageModelByUser(modelId: string) {
+		this._currentLanguageModel = modelId;
+
+		// The user changed the language model, so we don't wait for the persisted option to be registered
+		this._waitForPersistedLanguageModel.clear();
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -237,13 +247,37 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	initForNewChatModel(inputValue: string | undefined, inputState: Object): void {
+	initForNewChatModel(state: IChatViewState): void {
 		this.history = this.loadHistory();
-		this.history.add({ text: inputValue ?? this.history.current().text, state: inputState });
+		this.history.add({
+			text: state.inputValue ?? this.history.current().text,
+			state: state.inputState ?? this.getInputState()
+		});
 
-		if (inputValue) {
-			this.setValue(inputValue, false);
+		if (state.inputValue) {
+			this.setValue(state.inputValue, false);
 		}
+
+		if (state.selectedLanguageModelId) {
+			const model = this.languageModelsService.lookupLanguageModel(state.selectedLanguageModelId);
+			if (model) {
+				this._currentLanguageModel = state.selectedLanguageModelId;
+				this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel);
+			} else {
+				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
+					const persistedModel = e.added?.find(m => m.identifier === state.selectedLanguageModelId);
+					if (persistedModel) {
+						this._waitForPersistedLanguageModel.clear();
+
+						if (persistedModel.metadata.isUserSelectable) {
+							this._currentLanguageModel = state.selectedLanguageModelId;
+							this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel!);
+						}
+					}
+				});
+			}
+		}
+
 	}
 
 	logInputHistory(): void {
@@ -511,12 +545,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 
-				if (!this._currentLanguageModel) {
-					this.resetCurrentLanguageModel();
-				}
+				if (action.id === ChatModelPickerActionId && action instanceof MenuItemAction) {
+					if (!this._currentLanguageModel) {
+						this.setCurrentLanguageModelToDefault();
+					}
 
-				if (action.id === ChatModelPickerActionId && action instanceof MenuItemAction && this._currentLanguageModel) {
-					return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, modelId => this._currentLanguageModel = modelId);
+					if (this._currentLanguageModel) {
+						const itemDelegate: ModelPickerDelegate = {
+							onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
+							setModel: (modelId: string) => {
+								this.setCurrentLanguageModelByUser(modelId);
+							}
+						};
+						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate);
+					}
 				}
 
 				return undefined;
@@ -846,11 +888,16 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 	}
 }
 
+interface ModelPickerDelegate {
+	onDidChangeModel: Event<string>;
+	setModel(selectedModelId: string): void;
+}
+
 class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		private currentLanguageModel: string,
-		private readonly setModelDelegate: (selectedModelId: string) => void,
+		private readonly delegate: ModelPickerDelegate,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -860,10 +907,20 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
 		super(action, undefined, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+
+		this._register(delegate.onDidChangeModel(modelId => {
+			this.currentLanguageModel = modelId;
+			this.updateLabel();
+		}));
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._openContextMenu();
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-modelPicker-item');
 	}
 
 	protected override updateLabel(): void {
@@ -886,7 +943,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 				checked: id === this.currentLanguageModel,
 				run: () => {
 					this.currentLanguageModel = id;
-					this.setModelDelegate(id);
+					this.delegate.setModel(id);
 					this.updateLabel();
 				}
 			};

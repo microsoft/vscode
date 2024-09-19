@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { codiconsLibrary } from '../../../../../../base/common/codiconsLibrary.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { IWordAtPosition } from '../../../../../../editor/common/core/wordHelper.js';
 import { CompletionContext, CompletionItemKind, CompletionList } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
@@ -29,6 +31,8 @@ import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
 import './cellChatActions.js';
 import { CTX_NOTEBOOK_CHAT_HAS_AGENT } from './notebookChatContext.js';
 
+const NotebookKernelVariableKey = 'kernelVariable';
+
 class NotebookChatContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.notebookChatContribution';
 
@@ -37,7 +41,9 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
@@ -73,10 +79,10 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 
 				const result: CompletionList = { suggestions: [] };
 
-				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#kernelVariable:'.length);
+				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + `${chatVariableLeader}${NotebookKernelVariableKey}:`.length);
 				result.suggestions.push({
-					label: `${chatVariableLeader}kernelVariable`,
-					insertText: `${chatVariableLeader}kernelVariable:`,
+					label: `${chatVariableLeader}${NotebookKernelVariableKey}`,
+					insertText: `${chatVariableLeader}${NotebookKernelVariableKey}:`,
 					detail: localize('pickKernelVariableLabel', "Pick a variable from the kernel"),
 					range,
 					kind: CompletionItemKind.Text,
@@ -84,10 +90,51 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 					sortText: 'z'
 				});
 
+				await this.addKernelVariableCompletion(widget, result, range, token);
+
 				return result;
 			}
 		}));
+	}
 
+	private async addKernelVariableCompletion(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+		let pattern: string | undefined;
+		if (info.varWord?.word && info.varWord.word.startsWith(chatVariableLeader)) {
+			pattern = info.varWord.word.toLowerCase().slice(1);
+		}
+
+		const notebook = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane)?.getViewModel()?.notebookDocument;
+
+		if (!notebook) {
+			return;
+		}
+
+		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
+		const hasVariableProvider = selectedKernel?.hasVariableProvider;
+
+		if (!hasVariableProvider) {
+			return;
+		}
+
+		const variables = await selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+
+		for await (const variable of variables) {
+			if (pattern && !variable.name.toLowerCase().includes(pattern)) {
+				continue;
+			}
+
+			result.suggestions.push({
+				label: { label: variable.name, description: variable.value },
+				insertText: `${chatVariableLeader}${NotebookKernelVariableKey}:${variable.name} `,
+				filterText: `${chatVariableLeader}${NotebookKernelVariableKey}:${variable.name}`,
+				range: info,
+				kind: CompletionItemKind.Variable,
+				sortText: 'z',
+				command: { id: SelectAndInsertKernelVariableAction.ID, title: SelectAndInsertKernelVariableAction.ID, arguments: [{ widget, range: info.insert, variable: variable.name }] },
+				detail: variable.type,
+				documentation: variable.value,
+			});
+		}
 	}
 }
 
@@ -119,6 +166,12 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 
 		const widget = <IChatWidget>context.widget;
 		const range = <Range | undefined>context.range;
+		const variable = <string | undefined>context.variable;
+
+		if (variable !== undefined) {
+			this.addVariableReference(widget, variable, range, false);
+			return;
+		}
 
 		const selectedKernel = notebookKernelService.getMatchingKernel(notebook).selected;
 		const hasVariableProvider = selectedKernel?.hasVariableProvider;
@@ -143,25 +196,34 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 			return;
 		}
 
+		this.addVariableReference(widget, pickedVariable.label, range, true);
+	}
+
+	private addVariableReference(widget: IChatWidget, variableName: string, range?: Range, updateText?: boolean) {
 		if (range) {
-			const text = `#kernelVariable:${pickedVariable.label}`;
-			const editor = context.widget.inputEditor;
-			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
-			if (!success) {
-				return;
+			const text = `#kernelVariable:${variableName}`;
+
+			if (updateText) {
+				const editor = widget.inputEditor;
+				const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
+				if (!success) {
+					return;
+				}
 			}
 
 			widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 				id: 'vscode.notebook.variable',
 				range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-				data: pickedVariable.label
+				data: variableName,
+				fullName: variableName,
+				icon: codiconsLibrary.variable,
 			});
 		} else {
-			const text = `kernelVariable:${pickedVariable.label}`;
 			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, ...[{
 				id: 'vscode.notebook.variable',
-				name: text,
-				value: pickedVariable.label,
+				name: variableName,
+				value: variableName,
+				icon: codiconsLibrary.variable,
 				isDynamic: true
 			}]);
 		}

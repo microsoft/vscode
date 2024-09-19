@@ -15,6 +15,7 @@ import product from '../../../product/common/product.js';
 import { InMemoryUserDataProfilesService, UserDataProfilesService } from '../../common/userDataProfile.js';
 import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Event } from '../../../../base/common/event.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -232,6 +233,117 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(profile.isDefault, false);
 		assert.deepStrictEqual(profile.useDefaultFlags, { keybindings: true });
 		assert.strictEqual(profile.keybindingsResource.toString(), testObject.defaultProfile.keybindingsResource.toString());
+	});
+
+	test('create profile with a workspace associates it to the profile', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
+		assert.deepStrictEqual(profile.workspaces?.length, 1);
+		assert.deepStrictEqual(profile.workspaces?.[0].toString(), workspace.toString());
+	});
+
+	test('associate workspace to a profile should update workspaces', async () => {
+		const profile = await testObject.createProfile('id', 'name', {});
+		const workspace = URI.file('/workspace1');
+
+		const promise = Event.toPromise(testObject.onDidChangeProfiles);
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile);
+
+		const actual = await promise;
+		assert.deepStrictEqual(actual.added.length, 0);
+		assert.deepStrictEqual(actual.removed.length, 0);
+		assert.deepStrictEqual(actual.updated.length, 1);
+
+		assert.deepStrictEqual(actual.updated[0].id, profile.id);
+		assert.deepStrictEqual(actual.updated[0].workspaces?.length, 1);
+		assert.deepStrictEqual(actual.updated[0].workspaces[0].toString(), workspace.toString());
+	});
+
+	test('associate same workspace to a profile should not duplicate', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', { workspaces: [workspace] });
+
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile);
+
+		assert.deepStrictEqual(testObject.profiles[1].workspaces?.length, 1);
+		assert.deepStrictEqual(testObject.profiles[1].workspaces[0].toString(), workspace.toString());
+	});
+
+	test('associate workspace to another profile should update workspaces', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile1 = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
+		const profile2 = await testObject.createProfile('id1', 'name1');
+
+		const promise = Event.toPromise(testObject.onDidChangeProfiles);
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile2);
+
+		const actual = await promise;
+		assert.deepStrictEqual(actual.added.length, 0);
+		assert.deepStrictEqual(actual.removed.length, 0);
+		assert.deepStrictEqual(actual.updated.length, 2);
+
+		assert.deepStrictEqual(actual.updated[0].id, profile1.id);
+		assert.deepStrictEqual(actual.updated[0].workspaces, undefined);
+
+		assert.deepStrictEqual(actual.updated[1].id, profile2.id);
+		assert.deepStrictEqual(actual.updated[1].workspaces?.length, 1);
+		assert.deepStrictEqual(actual.updated[1].workspaces[0].toString(), workspace.toString());
+	});
+
+	test('unassociate workspace to a profile should update workspaces', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
+
+		const promise = Event.toPromise(testObject.onDidChangeProfiles);
+		testObject.unsetWorkspace({ id: workspace.path, uri: workspace });
+
+		const actual = await promise;
+		assert.deepStrictEqual(actual.added.length, 0);
+		assert.deepStrictEqual(actual.removed.length, 0);
+		assert.deepStrictEqual(actual.updated.length, 1);
+
+		assert.deepStrictEqual(actual.updated[0].id, profile.id);
+		assert.deepStrictEqual(actual.updated[0].workspaces, undefined);
+	});
+
+	test('update profile workspaces - add workspace', async () => {
+		let profile = await testObject.createNamedProfile('name');
+		const workspace = URI.file('/workspace1');
+		profile = await testObject.updateProfile(profile, { workspaces: [workspace] });
+
+		assert.deepStrictEqual(profile.workspaces?.length, 1);
+		assert.deepStrictEqual(profile.workspaces[0].toString(), workspace.toString());
+	});
+
+	test('update profile workspaces - remove workspace', async () => {
+		let profile = await testObject.createNamedProfile('name');
+		const workspace = URI.file('/workspace1');
+		profile = await testObject.updateProfile(profile, { workspaces: [workspace] });
+		profile = await testObject.updateProfile(profile, { workspaces: [] });
+
+		assert.deepStrictEqual(profile.workspaces, undefined);
+	});
+
+	test('update profile workspaces - replace workspace', async () => {
+		let profile = await testObject.createNamedProfile('name');
+		profile = await testObject.updateProfile(profile, { workspaces: [URI.file('/workspace1')] });
+
+		const workspace = URI.file('/workspace2');
+		profile = await testObject.updateProfile(profile, { workspaces: [workspace] });
+
+		assert.deepStrictEqual(profile.workspaces?.length, 1);
+		assert.deepStrictEqual(profile.workspaces[0].toString(), workspace.toString());
+	});
+
+	test('update default profile workspaces - add workspace', async () => {
+		const workspace = URI.file('/workspace1');
+		await testObject.updateProfile(testObject.defaultProfile, { workspaces: [workspace] });
+
+		assert.deepStrictEqual(testObject.profiles.length, 1);
+		assert.deepStrictEqual(testObject.profiles[0], testObject.defaultProfile);
+		assert.deepStrictEqual(testObject.defaultProfile.isDefault, true);
+		assert.deepStrictEqual(testObject.defaultProfile.workspaces?.length, 1);
+		assert.deepStrictEqual(testObject.defaultProfile.workspaces[0].toString(), workspace.toString());
 	});
 
 });

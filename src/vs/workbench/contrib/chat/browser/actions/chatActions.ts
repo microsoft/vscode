@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -29,6 +29,12 @@ import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { assertType } from '../../../../../base/common/types.js';
 
 export interface IChatViewTitleActionContext {
 	chatView: ChatViewPane;
@@ -67,7 +73,7 @@ class OpenChatGlobalAction extends Action2 {
 			id: CHAT_OPEN_ACTION_ID,
 			title: localize2('openChat', "Open Chat"),
 			icon: Codicon.commentDiscussion,
-			f1: false,
+			f1: true,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -75,6 +81,11 @@ class OpenChatGlobalAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
 				}
+			},
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'navigation',
+				order: 1
 			}
 		});
 	}
@@ -346,5 +357,62 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 		return (includeName ? `${item.username}: ` : '') + item.messageText;
 	} else {
 		return (includeName ? `${item.username}: ` : '') + item.response.toString();
+	}
+}
+
+
+// --- command center chat
+
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
+	submenu: MenuId.ChatCommandCenter,
+	title: localize('title4', "Chat"),
+	icon: Codicon.commentDiscussion,
+	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
+	order: 10001,
+});
+
+export class ChatCommandCenterRendering implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.commandCenterRendering';
+
+	private readonly _store = new DisposableStore();
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IChatAgentService agentService: IChatAgentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+
+		// TODO@jrieken this isn't proper
+		const key = `submenuitem.${MenuId.ChatCommandCenter.id}`;
+
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, key, (action, options) => {
+
+			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
+			if (!agent?.metadata.themeIcon) {
+				return undefined;
+			}
+
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+
+			return instantiationService.createInstance(class extends SubmenuEntryActionViewItem {
+
+				override render(container: HTMLElement): void {
+					super.render(container);
+					assertType(this.element);
+
+					const icon = ThemeIcon.asClassNameArray(agent.metadata.themeIcon!);
+					this.element.classList.add(...icon);
+				}
+
+			}, action, options);
+
+		}, agentService.onDidChangeAgents));
+	}
+
+	dispose() {
+		this._store.dispose();
 	}
 }
