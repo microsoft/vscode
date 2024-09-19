@@ -57,6 +57,7 @@ function getImageAttachContext(data: Uint8Array): IChatRequestVariableEntry {
 		name: localize('pastedImage', 'Pasted Image'),
 		isImage: true,
 		icon: Codicon.fileMedia,
+		isDynamic: true,
 	};
 }
 
