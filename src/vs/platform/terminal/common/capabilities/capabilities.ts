@@ -73,7 +73,7 @@ export const enum TerminalCapability {
 	BufferMarkDetection,
 
 	// TODO: Shell Environment --> listen to from
-	ShellEnvironmentDetection,
+	ShellEnvDetection,
 
 }
 
@@ -137,7 +137,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
 	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
-	[TerminalCapability.ShellEnvironmentDetection]: IShellEnvDetectionCapability;
+	[TerminalCapability.ShellEnvDetection]: IShellEnvDetectionCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -149,7 +149,7 @@ export interface ICwdDetectionCapability {
 }
 
 export interface IShellEnvDetectionCapability {
-	readonly type: TerminalCapability.ShellEnvironmentDetection;
+	readonly type: TerminalCapability.ShellEnvDetection;
 	readonly onDidChangeEnv: Event<unknown>;
 	get envs(): Map<string, string>;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined): void;
