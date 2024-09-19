@@ -28,6 +28,7 @@ import { CommentCommandId } from '../common/commentCommandIds.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
@@ -243,6 +244,51 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		category: 'Comments'
 	},
 	when: CommentContextKeys.activeCursorHasCommentingRange
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.FocusCommentOnCurrentLine,
+			title: {
+				value: nls.localize('comments.focusCommentOnCurrentLine', "Focus Comment on Current Line"),
+				original: 'Focus Comment on Current Line'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			precondition: CommentContextKeys.activeCursorHasComment,
+		});
+	}
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return;
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return;
+		}
+		const position = activeEditor.getSelection();
+		const notificationService = accessor.get(INotificationService);
+		let error = false;
+		try {
+			const commentAtLine = controller.getCommentsAtLine(position);
+			if (commentAtLine.length === 0) {
+				error = true;
+			} else {
+				await controller.revealCommentThread(commentAtLine[0].commentThread.threadId, undefined, false, CommentWidgetFocus.Widget);
+			}
+		} catch (e) {
+			error = true;
+		}
+		if (error) {
+			notificationService.error(nls.localize('comments.focusCommand.error', "The cursor must be on a line with a comment to focus the comment"));
+		}
+	}
 });
 
 CommandsRegistry.registerCommand({
