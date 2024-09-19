@@ -331,7 +331,7 @@ class AttachContextAction extends Action2 {
 			quickPickItems.push({
 				id: imageData.slice(0, 50).toString(),
 				kind: 'image',
-				label: 'Image from Clipboard',
+				label: localize('imageFromClipboard', 'Image from Clipboard'),
 				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
 			});
 		}

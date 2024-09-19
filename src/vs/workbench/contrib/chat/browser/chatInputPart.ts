@@ -603,53 +603,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
+				this.attachButtonAndDisposables(widget, index, attachment);
 			} else if (attachment.isImage) {
 				let buffer = new Uint8Array(0);
-				if (attachment.value instanceof URI) {
-					const readFile = await this.fileService.readFile(attachment.value);
-					buffer = readFile.value.buffer;
-				} else {
-					buffer = attachment.value as Uint8Array;
-				}
+				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 
-				const blob = new Blob([buffer], { type: 'image/png' });
-				const url = URL.createObjectURL(blob);
-
-				const img = document.createElement('img');
-				img.classList.add('chat-attached-context-image');
-				img.src = url;
-				img.alt = '';
-
-				// Pill with tiny image
-				const pill = document.createElement('div');
-				pill.classList.add('chat-attached-context-pill');
-
-				const pillImg = document.createElement('img');
-				pillImg.src = url;
-				pillImg.alt = '';
-				pillImg.classList.add('chat-attached-context-pill-image');
-
-				pill.appendChild(pillImg);
+				const hoverElement = dom.$('div.chat-attached-context-hover');
+				hoverElement.setAttribute('aria-label', ariaLabel);
 
 				// Custom label
-				const textLabel = document.createElement('span');
-				textLabel.textContent = attachment.name;
-				textLabel.classList.add('chat-attached-context-custom-text');
-
-				widget.style.position = 'relative';
-				widget.appendChild(pill);
+				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
+				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
 
-				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+				try {
+					if (attachment.value instanceof URI) {
+						this.attachButtonAndDisposables(widget, index, attachment);
+						const readFile = await this.fileService.readFile(attachment.value);
+						buffer = readFile.value.buffer;
+						await this.createImageElements(buffer, widget, hoverElement);
+					} else {
+						buffer = attachment.value as Uint8Array;
+						await this.createImageElements(buffer, widget, hoverElement);
+						this.attachButtonAndDisposables(widget, index, attachment);
+					}
+				} catch (error) {
+					console.error('Error processing attachment:', error);
+				}
 
+				widget.style.position = 'relative';
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
-
-				// Hover
-				const hoverElement = document.createElement('div');
-				hoverElement.appendChild(img);
-				hoverElement.classList.add('chat-attached-context-hover');
-				hoverElement.setAttribute('aria-label', ariaLabel);
 
 				this._register(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
 
@@ -668,37 +653,60 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 				widget.tabIndex = 0;
+				this.attachButtonAndDisposables(widget, index, attachment);
 			}
-
-			const clearButton = new Button(widget, { supportIcons: true });
-
-			// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
-			if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachedContext.size - 1)) {
-				clearButton.focus();
-			}
-
-			this.attachedContextDisposables.add(clearButton);
-			clearButton.icon = Codicon.close;
-			const disp = clearButton.onDidClick((e) => {
-				this._attachedContext.delete(attachment);
-				disp.dispose();
-
-				// Set focus to the next attached context item if deletion was triggered by a keystroke (vs a mouse click)
-				if (dom.isKeyboardEvent(e)) {
-					const event = new StandardKeyboardEvent(e);
-					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-						this._indexOfLastAttachedContextDeletedWithKeyboard = index;
-					}
-				}
-
-				this._onDidChangeHeight.fire();
-				this._onDidChangeContext.fire({ removed: [attachment] });
-			});
-			this.attachedContextDisposables.add(disp);
 		});
 
 		if (oldHeight !== container.offsetHeight && !isLayout) {
 			this._onDidChangeHeight.fire();
+		}
+	}
+
+	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry) {
+
+		const clearButton = new Button(widget, { supportIcons: true });
+
+		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
+		if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachedContext.size - 1)) {
+			clearButton.focus();
+		}
+
+		this.attachedContextDisposables.add(clearButton);
+		clearButton.icon = Codicon.close;
+		const disp = clearButton.onDidClick((e) => {
+			this._attachedContext.delete(attachment);
+			disp.dispose();
+
+			// Set focus to the next attached context item if deletion was triggered by a keystroke (vs a mouse click)
+			if (dom.isKeyboardEvent(e)) {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					this._indexOfLastAttachedContextDeletedWithKeyboard = index;
+				}
+			}
+
+			this._onDidChangeHeight.fire();
+			this._onDidChangeContext.fire({ removed: [attachment] });
+		});
+		this.attachedContextDisposables.add(disp);
+	}
+
+	// Helper function to create and replace image
+	private async createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
+		const blob = new Blob([buffer], { type: 'image/png' });
+		const url = URL.createObjectURL(blob);
+		const img = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
+		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
+
+		const existingPill = widget.querySelector('.chat-attached-context-pill');
+		if (existingPill) {
+			existingPill.replaceWith(pill);
+		}
+
+		// Update hover image
+		if (img) {
+			hoverElement.appendChild(img);
 		}
 	}
 
