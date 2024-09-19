@@ -23,30 +23,35 @@ async function findFiles(dir: string, ext: string): Promise<string[]> {
 }
 
 
-async function getCompletionSpecs(): Promise<Fig.Spec[]> {
-	const completionSpecs = [] as Fig.Spec[];
-
+async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
+	const completionSpecs: Fig.Spec[] = [];
+	// TODO: try to use typescript instead?
 	try {
 		// Use a relative path to the autocomplete/src folder
 		const dirPath = path.resolve(__dirname, 'autocomplete/src');
 		const files = await findFiles(dirPath, '.js');
-		if (files.length === 0) {
+
+		const filtered = files.filter(file => commands.has(path.basename(file).replace('.js', '')));
+		if (filtered.length === 0) {
 			return completionSpecs;
 		}
 
-		for (const file of files) {
+		for (const file of filtered) {
 			try {
 				const module = await import(file);
-				if (module.default) {
-					completionSpecs.push(module.default as Fig.Spec);
+				if (module.default && 'name' in module.default) {
+					completionSpecs.push(module.default);
+				} else {
+					console.warn(`No default export found in ${file} ${JSON.stringify(module)}`);
 				}
-			} catch {
+			} catch (e) {
+				console.warn('Error importing completion spec:', file, e);
 				continue;
 			}
 		}
 
 	} catch (error) {
-		console.log(`Error importing completion specs: ${error.message}`);
+		console.warn(`Error importing completion specs: ${error.message}`);
 	}
 	return completionSpecs;
 }
@@ -58,26 +63,34 @@ async function getCompletionSpecs(): Promise<Fig.Spec[]> {
 			return;
 		}
 
-		// Skip PowerShell terminals
+		// Skip PowerShell / python terminals
 		if (terminalContext.shellType === 'pwsh' || terminalContext.shellType === 'python') {
 			return;
 		}
 
 		const commandsInPath = await getCommandsInPath();
-		const specs = await getCompletionSpecs();
+		const specs = await getCompletionSpecs(commandsInPath);
 		builtinCommands.forEach(command => commandsInPath.add(command));
 		const result: vscode.TerminalCompletionItem[] = [];
 		for (const spec of specs) {
-			if (!spec.name) {
-				continue;
+			let name: string | undefined;
+			if ('displayName' in spec) {
+				name = spec.displayName;
 			}
-			const name = 'displayName' in spec ? spec.displayName : typeof spec.name === 'string' ? spec.name : spec.name[0];
-			if (name && commandsInPath.has(name)) {
+			if (!name && typeof spec.name === 'string') {
+				name = spec.name;
+			} else {
+				name = spec.name[0];
+			}
+			if (name) {
 				result.push({
 					label: name,
 					kind: (vscode as any).TerminalCompletionItemKind.Method,
 					detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
+					// TODO: pass in suggestions and if generators, file type so VS Code handles it
 				});
+			} else {
+				console.warn('No name found in completion spec:', spec);
 			}
 		}
 		// Return the completion results or undefined if no results
