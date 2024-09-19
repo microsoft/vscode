@@ -66,7 +66,6 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
-import { IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 
 suite('InteractiveChatController', function () {
 
@@ -132,7 +131,6 @@ suite('InteractiveChatController', function () {
 		const serviceCollection = new ServiceCollection(
 			[IConfigurationService, new TestConfigurationService()],
 			[IChatVariablesService, new SyncDescriptor(ChatVariablesService)],
-			[IActionViewItemService, new SyncDescriptor(NullActionViewItemService)],
 			[ILogService, new NullLogService()],
 			[ITelemetryService, NullTelemetryService],
 			[IHoverService, NullHoverService],
