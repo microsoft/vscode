@@ -24,6 +24,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry } from '../common/chatEditingService.js';
@@ -79,9 +80,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
-		await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE });
+		const editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE });
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, { killCurrentEditingSession: () => this.killCurrentEditingSession() });
+		const session = this._instantiationService.createInstance(ChatEditingSession, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane as MultiDiffEditor | undefined);
 		this._currentSessionObs.set(session, undefined);
 
 		const stream: IChatEditingSessionStream = {
@@ -296,6 +297,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	constructor(
 		parent: { killCurrentEditingSession(): void },
+		private readonly editorPane: MultiDiffEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
@@ -361,10 +363,17 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			ref = await this._textModelService.createModelReference(resource);
 		} catch (err) {
 			// this file does not exist yet
-			return this._instantiationService.createInstance(ModifiedFileEntry, resource, null);
+			return this._instantiationService.createInstance(ModifiedFileEntry, resource, null, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) });
 		}
 
-		return this._instantiationService.createInstance(ModifiedFileEntry, resource, ref);
+		return this._instantiationService.createInstance(ModifiedFileEntry, resource, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) });
+	}
+
+	private _collapse(resource: URI, transaction: ITransaction | undefined) {
+		const multiDiffItem = this.editorPane?.findDocumentDiffItem(resource);
+		if (multiDiffItem) {
+			this.editorPane?.viewModel?.items.get().find((documentDiffItem) => String(documentDiffItem.originalUri) === String(multiDiffItem.originalUri) && String(documentDiffItem.modifiedUri) === String(multiDiffItem.modifiedUri))?.collapsed.set(true, transaction);
+		}
 	}
 }
 
@@ -387,9 +396,10 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	constructor(
 		public readonly resource: URI,
 		resourceRef: IReference<IResolvedTextEditorModel> | null,
+		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 		this.originalDocument = resourceRef ? resourceRef.object.textEditorModel : null;
@@ -414,6 +424,11 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			text: this.modifiedDocument.getValue()
 		};
 		this._acceptedObs.set(true, transaction);
+		await this.collapse(transaction);
 		await this._bulkEditService.apply([new ResourceTextEdit(this.originalURI, textEdit, undefined)]);
+	}
+
+	async collapse(transaction: ITransaction | undefined): Promise<void> {
+		this._multiDiffEntryDelegate.collapse(transaction);
 	}
 }
