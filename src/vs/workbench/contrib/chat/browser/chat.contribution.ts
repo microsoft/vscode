@@ -125,6 +125,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: null
 		},
+		'chat.experimental.imageAttachments': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.imageAttachments', "Enables pasted or dragged-in images as attachments in chat."),
+			default: false,
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

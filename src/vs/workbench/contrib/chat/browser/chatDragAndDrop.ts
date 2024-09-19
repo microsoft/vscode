@@ -11,6 +11,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -33,7 +34,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly contianer: HTMLElement,
 		private readonly inputPart: ChatInputPart,
 		private readonly styles: IChatWidgetStyles,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -110,7 +112,7 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private getActiveDropType(e: DragEvent): ChatDragAndDropType | undefined {
-		if (containsDragType(e, DataTransfers.FILES, 'image')) {
+		if (containsDragType(e, DataTransfers.FILES, 'image') && this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
 			return ChatDragAndDropType.IMAGE;
 		} else if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE;

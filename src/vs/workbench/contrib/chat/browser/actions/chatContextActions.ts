@@ -37,6 +37,8 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { isImage } from '../chatImagePaste.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -269,9 +271,8 @@ class AttachContextAction extends Action2 {
 				});
 			} else if ('kind' in pick && pick.kind === 'image') {
 				const fileBuffer = await clipboardService.readImage();
-				const uniqueId = fileBuffer.slice(0, 50).toString();
 				toAttach.push({
-					id: uniqueId,
+					id: hash(fileBuffer).toString(),
 					name: localize('pastedImage', 'Pasted Image'),
 					fullName: 'Pasted Image',
 					value: fileBuffer,
@@ -304,6 +305,7 @@ class AttachContextAction extends Action2 {
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const clipboardService = accessor.get(IClipboardService);
+		const configurationService = accessor.get(IConfigurationService);
 		const context: { widget?: IChatWidget } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
@@ -327,9 +329,9 @@ class AttachContextAction extends Action2 {
 			}
 		}
 
-		if (isImage(imageData)) {
+		if (isImage(imageData) && configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
 			quickPickItems.push({
-				id: imageData.slice(0, 50).toString(),
+				id: hash(imageData).toString(),
 				kind: 'image',
 				label: localize('imageFromClipboard', 'Image from Clipboard'),
 				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
