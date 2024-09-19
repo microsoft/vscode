@@ -20,7 +20,6 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -238,7 +237,6 @@ export function registerChatCodeBlockActions() {
 		override async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const codemapperService = accessor.get(ICodeMapperService);
-			const progressService = accessor.get(IProgressService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const notificationService = accessor.get(INotificationService);
 
@@ -279,15 +277,7 @@ export function registerChatCodeBlockActions() {
 
 				// Invoke the code mapper for all the code blocks in this response
 				const tokenSource = new CancellationTokenSource();
-				await progressService.withProgress({
-					location: ProgressLocation.Notification,
-					title: localize2('chatCodeBlock.generatingEdits', 'Applying all edits').value,
-					cancellable: true
-				}, async (task) => {
-					task.report({ message: localize2('chatCodeBlock.generating', 'Generating edits...').value });
-					await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
-					task.report({ message: localize2('chatCodeBlock.applyAllEdits', 'Applying edits to workspace...').value });
-				}, () => tokenSource.cancel());
+				await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
 			});
 		}
 	});

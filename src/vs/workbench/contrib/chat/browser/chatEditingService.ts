@@ -80,9 +80,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
-		const editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE });
+		const editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane as MultiDiffEditor | undefined);
+		const session = this._instantiationService.createInstance(ChatEditingSession, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane);
 		this._currentSessionObs.set(session, undefined);
 
 		const stream: IChatEditingSessionStream = {
@@ -92,7 +92,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		};
 
 		try {
-			await builder(stream);
+			await editorPane?.showWhile(builder(stream));
 		} finally {
 			session.resolve();
 		}
