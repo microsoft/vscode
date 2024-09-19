@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -67,7 +67,7 @@ class OpenChatGlobalAction extends Action2 {
 			id: CHAT_OPEN_ACTION_ID,
 			title: localize2('openChat', "Open Chat"),
 			icon: Codicon.commentDiscussion,
-			f1: false,
+			f1: true,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -75,6 +75,11 @@ class OpenChatGlobalAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
 				}
+			},
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'navigation',
+				order: 1
 			}
 		});
 	}
@@ -348,3 +353,14 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 		return (includeName ? `${item.username}: ` : '') + item.response.toString();
 	}
 }
+
+
+// --- command center chat
+
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
+	submenu: MenuId.ChatCommandCenter,
+	title: localize('title4', "Chat"),
+	icon: Codicon.commentDiscussion,
+	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
+	order: 10001,
+});
