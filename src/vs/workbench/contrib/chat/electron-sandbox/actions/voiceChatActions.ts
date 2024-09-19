@@ -890,7 +890,7 @@ export class ReadChatResponseAloud extends Action2 {
 		let response: IChatResponseViewModel | undefined = undefined;
 		if (args.length > 0) {
 			const responseArg = args[0];
-			if (isResponseVM(response)) {
+			if (isResponseVM(responseArg)) {
 				response = responseArg;
 			}
 		} else {
