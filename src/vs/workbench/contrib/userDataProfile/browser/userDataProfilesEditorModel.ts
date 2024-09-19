@@ -40,7 +40,7 @@ import { getErrorMessage } from '../../../../base/common/errors.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export type ChangeEvent = {
@@ -303,7 +303,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	openWorkspace(workspace: URI): void {
-		if (this.uriIdentityService.extUri.extname(workspace) === '.code-workspace') {
+		if (this.uriIdentityService.extUri.extname(workspace) === WORKSPACE_SUFFIX) {
 			this.hostService.openWindow([{ workspaceUri: workspace }], { forceNewWindow: true });
 		} else {
 			this.hostService.openWindow([{ folderUri: workspace }], { forceNewWindow: true });
