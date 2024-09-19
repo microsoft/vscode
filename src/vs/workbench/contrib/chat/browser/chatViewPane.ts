@@ -28,6 +28,7 @@ import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatViewTitleActionContext } from './actions/chatActions.js';
+import { CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -120,7 +121,8 @@ export class ChatViewPane extends ViewPane {
 		}
 
 		const noPersistedSessions = !this.chatService.hasSessions();
-		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
+		const chatParticipantRegistered = this.contextKeyService.contextMatchesRules(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED);
+		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail) || chatParticipantRegistered;
 	}
 
 	private getSessionId() {
