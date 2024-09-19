@@ -104,6 +104,10 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 				return profileForWorkspace;
 			}
 		}
+		return this.getDefaultProfileToUse();
+	}
+
+	public getDefaultProfileToUse(): IUserDataProfile {
 		const newWindowProfileConfigValue = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE);
 		if (newWindowProfileConfigValue) {
 			const newWindowProfile = this.userDataProfilesService.profiles.find(profile => profile.name === newWindowProfileConfigValue);
