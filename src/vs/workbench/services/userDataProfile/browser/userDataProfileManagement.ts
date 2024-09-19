@@ -18,7 +18,7 @@ import { IRequestService, asJson } from '../../../../platform/request/common/req
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { isEmptyWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -173,6 +173,9 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace());
 		await this.userDataProfilesService.setProfileForWorkspace(workspaceIdentifier, profile);
 		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'switchProfile' });
+		if (isEmptyWorkspaceIdentifier(workspaceIdentifier)) {
+			await this.changeCurrentProfile(profile);
+		}
 	}
 
 	async getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]> {

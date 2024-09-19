@@ -5,7 +5,7 @@
 
 import './media/userDataProfilesEditor.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType, IDomPosition, trackFocus } from '../../../../base/browser/dom.js';
-import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { Action, IAction, IActionChangeEvent, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -432,7 +432,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		const label = append(container, $('.profile-list-item-label'));
 		const dirty = append(container, $(`span${ThemeIcon.asCSSSelector(Codicon.circleFilled)}`));
 		const description = append(container, $('.profile-list-item-description'));
-		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`), $('span', undefined, localize('activeProfile', "In use")));
+		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`), $('span', undefined, localize('activeProfile', "Active")));
 
 		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
 		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
@@ -453,24 +453,35 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		templateData.icon.className = ThemeIcon.asClassName(element.icon ? ThemeIcon.fromId(element.icon) : DEFAULT_ICON);
 		templateData.dirty.classList.toggle('hide', !(element instanceof NewProfileElement));
 		templateData.description.classList.toggle('hide', !element.active);
-		if (element.onDidChange) {
-			templateData.elementDisposables.add(element.onDidChange(e => {
-				if (e.name) {
-					templateData.label.textContent = element.name;
+		templateData.elementDisposables.add(element.onDidChange(e => {
+			if (e.name) {
+				templateData.label.textContent = element.name;
+			}
+			if (e.icon) {
+				if (element.icon) {
+					templateData.icon.className = ThemeIcon.asClassName(ThemeIcon.fromId(element.icon));
+				} else {
+					templateData.icon.className = 'hide';
 				}
-				if (e.icon) {
-					if (element.icon) {
-						templateData.icon.className = ThemeIcon.asClassName(ThemeIcon.fromId(element.icon));
-					} else {
-						templateData.icon.className = 'hide';
-					}
-				}
-				if (e.active) {
-					templateData.description.classList.toggle('hide', !element.active);
-				}
-			}));
+			}
+			if (e.active) {
+				templateData.description.classList.toggle('hide', !element.active);
+			}
+		}));
+		const setActions = () => templateData.actionBar.setActions(element.actions[0].filter(a => a.enabled), element.actions[1].filter(a => a.enabled));
+		setActions();
+		const events: Event<IActionChangeEvent>[] = [];
+		for (const action of element.actions.flat()) {
+			if (action instanceof Action) {
+				events.push(action.onDidChange);
+			}
 		}
-		templateData.actionBar.setActions([...element.actions[0]], [...element.actions[1]]);
+		templateData.elementDisposables.add(Event.any(...events)(e => {
+			if (e.enabled !== undefined) {
+				setActions();
+			}
+		}));
+
 	}
 
 	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined): void {
