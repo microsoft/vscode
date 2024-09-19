@@ -1320,6 +1320,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -1406,12 +1407,20 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 			if (!e.browserEvent) {
 				return;
 			}
-			if (e.browserEvent.target && (e.browserEvent.target as HTMLElement).classList.contains(Checkbox.CLASS_NAME)) {
+			if (e.element?.element.openAction) {
+				await e.element.element.openAction.run();
+			}
+		}));
+
+		disposables.add(this.profilesContentTree.onContextMenu(async (e) => {
+			if (!e.element?.element.actions?.contextMenu?.length) {
 				return;
 			}
-			if (e.element?.element.action) {
-				await e.element.element.action.run();
-			}
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => e.element?.element?.actions?.contextMenu ?? [],
+				getActionsContext: () => e.element
+			});
 		}));
 
 		const updateDescription = (element: ProfileTreeElement) => {
@@ -1454,7 +1463,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}
 				profilesContentTree.setInput(profileElement.root);
 				elementDisposables.add(profileElement.root.onDidChange(e => {
-					if (e.copyFrom || e.copyFlags || e.flags) {
+					if (e.copyFrom || e.copyFlags || e.flags || e.extensions || e.snippets) {
 						profilesContentTree.updateChildren(element.root);
 					}
 					if (e.copyFromInfo) {
@@ -1768,7 +1777,14 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 			templateData.elementDisposables.add(templateData.radio.onDidSelect((index) => root.setFlag(element.resourceType, index === 0)));
 		}
 
-		templateData.actionBar.setActions(element.action ? [element.action] : []);
+		const actions: IAction[] = [];
+		if (element.openAction) {
+			actions.push(element.openAction);
+		}
+		if (element.actions?.primary) {
+			actions.push(...element.actions.primary);
+		}
+		templateData.actionBar.setActions(actions);
 	}
 
 }
@@ -1869,7 +1885,14 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 				renderRadioItems();
 			}
 		}));
-		templateData.actionBar.setActions(element.action ? [element.action] : []);
+		const actions: IAction[] = [];
+		if (element.openAction) {
+			actions.push(element.openAction);
+		}
+		if (element.actions?.primary) {
+			actions.push(...element.actions.primary);
+		}
+		templateData.actionBar.setActions(actions);
 	}
 }
 
@@ -1932,6 +1955,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		templateData.resourceLabel.setResource(
 			{
 				name: element.resource ? basename(element.resource) : element.label,
+				description: element.description,
 				resource: element.resource
 			},
 			{
@@ -1939,7 +1963,14 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 				icon: element.icon,
 				hideIcon: !element.resource && !element.icon,
 			});
-		templateData.actionBar.setActions(element.action ? [element.action] : []);
+		const actions: IAction[] = [];
+		if (element.openAction) {
+			actions.push(element.openAction);
+		}
+		if (element.actions?.primary) {
+			actions.push(...element.actions.primary);
+		}
+		templateData.actionBar.setActions(actions);
 	}
 
 }
