@@ -223,7 +223,7 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 
 export interface IAsyncFindProvider<T> {
 	getFindResults(pattern: string, token: CancellationToken): AsyncIterable<T>;
-	revealResultInTree(findElement: T): void;
+	revealResultInTree?(findElement: T): void;
 }
 
 class AsyncFindTreeNode<T> {
@@ -378,6 +378,7 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 	declare protected readonly filter: AsyncFindFilter<TInput, T>;
 	private readonly model: ITreeModel<IAsyncDataTreeNode<TInput, T> | null, TFilterData, IAsyncDataTreeNode<TInput, T> | null>;
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
+	private previousTreeScrollTop: number = 0;
 
 	protected toggles = [];
 
@@ -411,21 +412,33 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 		}
 
 		if (active) {
-			const findModel = this.tree.createNewModel({ filter: this.filter as ITreeFilter<IAsyncDataTreeNode<TInput, T> | null, TFilterData> });
-			this.tree.setModel(findModel);
+			this.activateFindMode();
 		} else {
-			const focus = this.tree.getFocus();
-			this.tree.setModel(this.model);
-			if (focus.length) {
-				this.findProvider.revealResultInTree(focus[0]!.element as T);
-			}
-			this.tree.rerender();
-			this.activeTokenSource = undefined;
-			this.active = false;
-			this.nodes.clear();
+			this.deactivateFindMode();
 		}
 
 		this.active = active;
+	}
+
+	private activateFindMode(): void {
+		this.previousTreeScrollTop = this.tree.scrollTop;
+		this.tree.scrollTop = 0;
+		const findModel = this.tree.createNewModel({ filter: this.filter as ITreeFilter<IAsyncDataTreeNode<TInput, T> | null, TFilterData> });
+		this.tree.setModel(findModel);
+	}
+
+	private deactivateFindMode(): void {
+		const focus = this.tree.getFocus()[0];
+		this.tree.setModel(this.model);
+
+		if (focus && focus.element && this.findProvider.revealResultInTree) {
+			this.findProvider.revealResultInTree(focus.element as T);
+		} else {
+			this.tree.scrollTop = this.previousTreeScrollTop;
+		}
+
+		this.activeTokenSource = undefined;
+		this.nodes.clear();
 	}
 
 	protected applyPattern(pattern: string): void {
