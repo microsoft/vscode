@@ -52,6 +52,7 @@ export type IChatInputState = Record<string, any>;
 export interface IChatViewState {
 	inputValue?: string;
 	inputState?: IChatInputState;
+	selectedLanguageModelId?: string;
 }
 
 export interface IChatWidgetStyles {
@@ -709,7 +710,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.initForNewChatModel(viewState.inputValue, viewState.inputState ?? this.collectInputState());
+		this.inputPart.initForNewChatModel(viewState);
 		this.contribs.forEach(c => {
 			if (c.setInputState && viewState.inputState?.[c.id]) {
 				c.setInputState(viewState.inputState?.[c.id]);
@@ -990,7 +991,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getViewState(): IChatViewState {
-		return { inputValue: this.getInput(), inputState: this.collectInputState() };
+		return {
+			inputValue: this.getInput(),
+			inputState: this.collectInputState(),
+			selectedLanguageModelId: this.inputPart.currentLanguageModel
+		};
 	}
 
 	private updateChatInputContext() {

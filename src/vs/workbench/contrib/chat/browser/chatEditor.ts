@@ -122,9 +122,16 @@ export class ChatEditor extends EditorPane {
 
 		if (this._memento && this._viewState) {
 			const widgetViewState = this.widget.getViewState();
+
+			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
+			this._viewState.selectedLanguageModelId = widgetViewState.selectedLanguageModelId;
 			this._memento.saveMemento();
 		}
+	}
+
+	override getViewState(): object | undefined {
+		return { ...this._viewState };
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {

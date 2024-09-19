@@ -10,7 +10,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { CHAT_CATEGORY, isChatViewTitleActionContext } from './chatActions.js';
 import { CHAT_VIEW_ID, IChatWidgetService } from '../chat.js';
-import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys.js';
@@ -118,12 +118,13 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
-	const chatEditorInput = editorService.activeEditor;
+	const chatEditor = editorService.activeEditorPane;
+	const chatEditorInput = chatEditor?.input;
 	let view: ChatViewPane;
-	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
-		await editorService.closeEditor({ editor: chatEditorInput, groupId: editorGroupService.activeGroup.id });
+	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
+		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
-		view.loadSession(chatEditorInput.sessionId);
+		view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
 	} else {
 		view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
 	}
