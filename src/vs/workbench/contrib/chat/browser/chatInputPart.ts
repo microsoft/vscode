@@ -622,7 +622,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
-		const hoverDelegate = this._register(createInstantHoverDelegate());
+		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
 		if (!this.attachedContext.size) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
