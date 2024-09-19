@@ -1047,6 +1047,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
+		console.log('trigger, source : ', source);
+		console.log('handlerId : ', handlerId);
+		console.log('payload : ', payload);
+
 		payload = payload || {};
 
 		try {
@@ -1126,6 +1130,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _type(source: string | null | undefined, text: string): void {
+		console.log('_type source : ', source);
+		console.log('text : ', text);
 		if (!this._modelData || text.length === 0) {
 			return;
 		}
@@ -1797,6 +1803,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
 				},
 				type: (text: string) => {
+					console.log('before this._type text : ', text);
 					this._type('keyboard', text);
 				},
 				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
@@ -1820,6 +1827,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				},
 				type: (text: string) => {
 					const payload: editorCommon.TypePayload = { text };
+					console.log('before executeCommand Type with payload : ', payload);
 					this._commandService.executeCommand(editorCommon.Handler.Type, payload);
 				},
 				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {

@@ -385,6 +385,8 @@ export class StandaloneCommandService implements ICommandService {
 	}
 
 	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+		console.log('executeCommand of StandaloneCommandService');
+
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));

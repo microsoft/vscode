@@ -69,6 +69,7 @@ export class ViewController {
 	}
 
 	public type(text: string): void {
+		console.log('type of ViewController');
 		this.commandDelegate.type(text);
 	}
 

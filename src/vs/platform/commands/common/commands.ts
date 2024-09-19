@@ -129,9 +129,20 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	getCommand(id: string): ICommand | undefined {
+		console.log('getCommand of commands with id : ', id);
 		const list = this._commands.get(id);
+		console.log('list : ', list);
 		if (!list || list.isEmpty()) {
 			return undefined;
+		}
+		const firstNode = list.firstNode();
+		let node = firstNode.next;
+		console.log('node : ', node.element?.id);
+		console.log('metadata : ', node.element?.metadata);
+		while (node !== firstNode && node) {
+			console.log('node : ', node.element?.id);
+			console.log('metadata : ', node.element?.metadata);
+			node = node.next;
 		}
 		return Iterable.first(list);
 	}

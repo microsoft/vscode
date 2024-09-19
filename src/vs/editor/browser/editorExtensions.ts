@@ -152,7 +152,10 @@ export abstract class Command {
 
 		CommandsRegistry.registerCommand({
 			id: this.id,
-			handler: (accessor, args) => this.runCommand(accessor, args),
+			handler: (accessor, args) => {
+				console.log('handler of Command');
+				this.runCommand(accessor, args);
+			},
 			metadata: this.metadata
 		});
 	}
@@ -255,6 +258,7 @@ export class ProxyCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+		console.log('runCommand of ProxyCommand');
 		return this.command.runCommand(accessor, args);
 	}
 }
@@ -318,6 +322,7 @@ export abstract class EditorCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+		console.log('runCommand of EditorCommand');
 		return EditorCommand.runEditorCommand(accessor, args, this.precondition, (accessor, editor, args) => this.runEditorCommand(accessor, editor, args));
 	}
 
