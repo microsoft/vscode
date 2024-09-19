@@ -860,12 +860,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.isDOMFocused();
 	}
 
-	navigate(start?: T | TInput) {
+	navigate(start?: T) {
 		let startNode;
 		if (start) {
 			startNode = this.getDataNode(start);
 		}
-		return new AsyncDataTreeNavigator(this.tree.navigate(startNode), this.root.element);
+		return new AsyncDataTreeNavigator(this.tree.navigate(startNode));
 	}
 
 	layout(height?: number, width?: number): void {
@@ -1773,6 +1773,19 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 
 		return super.processChildren(children);
 	}
+
+	override navigate(start?: T): AsyncDataTreeNavigator<TInput, T> {
+		// Assumptions are made about how tree navigation works in compressed trees
+		// These assumptions may be wrong and we should revisit this when needed
+
+		// Example:	[a, b/ba, ba.txt]
+		// - previous(ba) => a
+		// - previous(b) => a
+		// - next(a) => ba
+		// - next(b) => ba
+		// - next(ba) => ba.txt
+		return super.navigate(start);
+	}
 }
 
 function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>): TreeVisibility {
@@ -1787,43 +1800,34 @@ function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>)
 
 class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
 
-	constructor(private navigator: ITreeNavigator<IAsyncDataTreeNode<TInput, T> | null>, private root: TInput) { }
+	constructor(private navigator: ITreeNavigator<IAsyncDataTreeNode<TInput, T> | null>) { }
 
 	current(): T | null {
 		const current = this.navigator.current();
-		if (current?.element === this.root) {
+		if (current === null) {
 			return null;
 		}
-		// if it is not the root, it should not be of `TInput` type
-		return (current?.element ?? null) as T | null;
-	}
-	previous(): T | null {
-		const current = this.navigator.previous();
-		if (current?.element === this.root) {
-			return this.previous();
-		}
-		return (current?.element ?? null) as T | null;
-	}
-	first(): T | null {
-		const current = this.navigator.first();
-		if (current?.element === this.root) {
-			return this.next();
-		}
-		return (current?.element ?? null) as T | null;
-	}
-	last(): T | null {
-		const current = this.navigator.last();
-		if (current?.element === this.root) {
-			return this.previous();
-		}
-		return (current?.element ?? null) as T | null;
-	}
-	next(): T | null {
-		const current = this.navigator.next();
-		if (current?.element === this.root) {
-			return this.next();
-		}
-		return (current?.element ?? null) as T | null;
+
+		return current.element as T;
 	}
 
+	previous(): T | null {
+		this.navigator.previous();
+		return this.current();
+	}
+
+	first(): T | null {
+		this.navigator.first();
+		return this.current();
+	}
+
+	last(): T | null {
+		this.navigator.last();
+		return this.current();
+	}
+
+	next(): T | null {
+		this.navigator.next();
+		return this.current();
+	}
 }
