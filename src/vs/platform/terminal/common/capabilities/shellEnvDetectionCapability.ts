@@ -14,17 +14,16 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 
 	readonly type = TerminalCapability.ShellEnvironmentDetection;
 
-	// TODO: Type of envs should be { [key: string]: string | undefined } ??
 	private readonly _env: Map<string, string> = new Map();
 
-	get envs(): { [key: string]: string | undefined } {
-		return this._envs;
+	get envs(): Map<string, string> {
+		return this._env;
 	}
 
 	private readonly _onDidChangeEnv = this._register(new Emitter<string>());
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
-	// TODO: update envs
+
 	setEnvironment(envs: { [key: string]: string | undefined }): void {
 		// Should probably go through received envs, see if they exist in _envs,
 		// If doesn't already exit in _envs, then add to map

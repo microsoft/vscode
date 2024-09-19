@@ -151,8 +151,9 @@ export interface ICwdDetectionCapability {
 export interface IShellEnvDetectionCapability {
 	readonly type: TerminalCapability.ShellEnvironmentDetection;
 	readonly onDidChangeEnv: Event<unknown>;
-	get envs(): { [key: string]: string | undefined } | undefined;
-	updateEnvs(envs: { [key: string]: string | undefined } | undefined): void;
+	get envs(): Map<string, string>;
+	setEnvironment(envs: { [key: string]: string | undefined } | undefined): void;
+	applyEnvironmentDiff(envs: { [key: string]: string | undefined } | undefined): void;
 }
 
 export const enum CommandInvalidationReason {
