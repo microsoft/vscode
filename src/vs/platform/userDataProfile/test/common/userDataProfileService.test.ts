@@ -259,6 +259,16 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(actual.updated[0].workspaces[0].toString(), workspace.toString());
 	});
 
+	test('associate same workspace to a profile should not duplicate', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', { workspaces: [workspace] });
+
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile);
+
+		assert.deepStrictEqual(testObject.profiles[1].workspaces?.length, 1);
+		assert.deepStrictEqual(testObject.profiles[1].workspaces[0].toString(), workspace.toString());
+	});
+
 	test('associate workspace to another profile should update workspaces', async () => {
 		const workspace = URI.file('/workspace1');
 		const profile1 = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
