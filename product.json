@@ -11,9 +11,9 @@
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
-	"serverApplicationName": "code-server-oss",
-	"serverDataFolderName": ".vscode-server-oss",
-	"tunnelApplicationName": "code-tunnel-oss",
+	"serverApplicationName": "code-server",
+	"serverDataFolderName": ".pearai-server",
+	"tunnelApplicationName": "code-tunnel",
 	"downloadUrl": "https://trypear.ai/",
 	"updateUrl": "https://stingray-app-gb2an.ondigitalocean.app/pearai-server-api2",
 	"win32DirName": "PearAI",
@@ -2371,6 +2371,7 @@
 			}
 		}
 	],
+	"VSCodeCommit": "f1e16e1e6214d7c44d078b1f0607b2388f29d729",
 	"commit": "f1e16e1e6214d7c44d078b1f0607b2388f29d729",
 	"date": "2024-07-09T22:07:54.982Z",
 	"checksums": {
