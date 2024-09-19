@@ -636,10 +636,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
 
-				this._register(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
+				this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
 
 				// No delay for keyboard
-				this._register(dom.addDisposableListener(widget, 'keydown', (event) => {
+				this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'keydown', (event) => {
 					const keyboardEvent = new StandardKeyboardEvent(event);
 					if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
 						this.hoverService.showManagedHover(widget);
