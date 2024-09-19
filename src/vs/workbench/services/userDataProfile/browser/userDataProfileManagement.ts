@@ -17,8 +17,8 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { isEmptyWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -54,10 +54,15 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
-		this._register(userDataProfilesService.onDidResetWorkspaces(() => this.onDidResetWorkspaces()));
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => this.onDidChangeCurrentProfile(e)));
 		this._register(userDataProfilesService.onDidChangeProfiles(e => {
+			if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
+				const profileToUse = this.getProfileToUseForCurrentWorkspace();
+				this.switchProfile(profileToUse);
+				this.changeCurrentProfile(this.getProfileToUseForCurrentWorkspace(), localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
+				return;
+			}
+
 			const updatedCurrentProfile = e.updated.find(p => this.userDataProfileService.currentProfile.id === p.id);
 			if (updatedCurrentProfile) {
 				const profileToUse = this.getProfileToUseForCurrentWorkspace();
@@ -69,20 +74,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 				}
 			}
 		}));
-	}
-
-	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
-		if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
-			this.changeCurrentProfile(this.getProfileToUseForCurrentWorkspace(), localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
-			return;
-		}
-	}
-
-	private onDidResetWorkspaces(): void {
-		if (!this.userDataProfileService.currentProfile.isDefault) {
-			this.changeCurrentProfile(this.getProfileToUseForCurrentWorkspace(), localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
-			return;
-		}
 	}
 
 	private async onDidChangeCurrentProfile(e: DidChangeUserDataProfileEvent): Promise<void> {
@@ -173,6 +164,9 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace());
 		await this.userDataProfilesService.setProfileForWorkspace(workspaceIdentifier, profile);
 		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'switchProfile' });
+		if (isEmptyWorkspaceIdentifier(workspaceIdentifier)) {
+			await this.changeCurrentProfile(profile);
+		}
 	}
 
 	async getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]> {
