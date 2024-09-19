@@ -17,7 +17,6 @@
 	padding: 12px 16px;
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
 	color: var(--vscode-interactive-session-foreground);
 
 	cursor: default;
@@ -25,11 +24,16 @@
 	-webkit-user-select: text;
 }
 
+.interactive-item-container.interactive-response {
+	padding-bottom: 6px;
+}
+
 .interactive-item-container .header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	position: relative;
+	margin-bottom: 8px;
 }
 
 .interactive-item-container .header.hidden {
@@ -164,6 +168,16 @@
 .interactive-item-container.interactive-request .header .monaco-toolbar {
 	/* Take the partially-transparent background color override for request rows */
 	background-color: inherit;
+}
+
+.chat-footer-toolbar {
+	display: none;
+}
+
+.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
+	/* Complete response only */
+	display: initial;
+	height: 22px;
 }
 
 .interactive-item-container .header .monaco-toolbar .checked.action-label,

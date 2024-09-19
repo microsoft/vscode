@@ -32,7 +32,7 @@ import { ChatInputPart } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
+import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -437,6 +437,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const lastItem = treeItems[treeItems.length - 1]?.element;
+			if (lastItem) {
+				CONTEXT_LAST_ITEM_ID.bindTo(this.contextKeyService).set([lastItem.id]);
+			}
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups, lastItem);
 			} else if (lastItem && isWelcomeVM(lastItem)) {
