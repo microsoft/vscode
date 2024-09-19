@@ -103,6 +103,13 @@
 	width: 0;
 }
 
+/* Allow completely hiding parts of the titlebar if they are empty, to avoid unwanted "gaps" in small windows. */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left.hide,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center.hide,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right.hide {
+	display: none;
+}
+
 
 
 /* Window title text */

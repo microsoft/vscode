@@ -157,7 +157,9 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		}
 
 		// Window Controls (Native Linux when WCO is disabled)
+		let usingPrimaryWindowControls = false;
 		if (isLinux && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.windowControlsContainer) {
+			usingPrimaryWindowControls = true;
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -190,6 +192,8 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 				}
 			}, { windowId: targetWindowId, maximized: this.layoutService.isWindowMaximized(targetWindow) }));
 		}
+		this.usingPrimaryWindowControls = usingPrimaryWindowControls;
+		this.updateHideContent();
 
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893
