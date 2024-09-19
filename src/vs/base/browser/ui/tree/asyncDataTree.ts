@@ -222,7 +222,7 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 }
 
 export interface IAsyncFindProvider<T> {
-	getFindResults(pattern: string, token: CancellationToken): AsyncIterable<T>;
+	getFindResults(pattern: string, sessionId: number, token: CancellationToken): AsyncIterable<T>;
 	revealResultInTree?(findElement: T): void;
 }
 
@@ -382,6 +382,7 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 
 	protected toggles = [];
 
+	private sessionId: number = 0;
 	private active: boolean = false;
 
 	private activeTokenSource: CancellationTokenSource | undefined;
@@ -421,6 +422,7 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 	}
 
 	private activateFindMode(): void {
+		this.sessionId++;
 		this.previousTreeScrollTop = this.tree.scrollTop;
 		this.tree.scrollTop = 0;
 		const findModel = this.tree.createNewModel({ filter: this.filter as ITreeFilter<IAsyncDataTreeNode<TInput, T> | null, TFilterData> });
@@ -454,7 +456,7 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 
 		this.activeTokenSource = new CancellationTokenSource();
 
-		const results = this.findProvider.getFindResults(pattern, this.activeTokenSource.token);
+		const results = this.findProvider.getFindResults(pattern, this.sessionId, this.activeTokenSource.token);
 		this.pocessFindResults(results, this.activeTokenSource.token).then(() => {
 			if (this.activeTokenSource && !this.activeTokenSource.token.isCancellationRequested) {
 				this.render();
