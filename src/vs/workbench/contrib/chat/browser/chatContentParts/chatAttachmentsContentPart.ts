@@ -108,7 +108,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 				try {
 					if (attachment.value instanceof URI) {
-						// this.attachButtonAndDisposables(widget, index, attachment);
 						const readFile = await this.fileService.readFile(attachment.value);
 						buffer = readFile.value.buffer;
 						await this.createImageElements(buffer, widget, hoverElement);
