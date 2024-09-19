@@ -114,6 +114,11 @@ class QuickChatGlobalAction extends Action2 {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
 				}
 			},
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'navigation',
+				order: 5
+			},
 			metadata: {
 				description: localize('toggle.desc', 'Toggle the quick chat'),
 				args: [{
