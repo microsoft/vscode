@@ -23,8 +23,8 @@ async function findFiles(dir: string, ext: string): Promise<string[]> {
 }
 
 
-async function getCompletionSpecs(): Promise<Map<string, Fig.Spec>> {
-	const completionSpecs = new Map<string, Fig.Spec>();
+async function getCompletionSpecs(): Promise<Fig.Spec[]> {
+	const completionSpecs = [] as Fig.Spec[];
 
 	try {
 		// Use a relative path to the autocomplete/src folder
@@ -38,8 +38,7 @@ async function getCompletionSpecs(): Promise<Map<string, Fig.Spec>> {
 			try {
 				const module = await import(file);
 				if (module.default) {
-					const specName = path.basename(file, '.js');
-					completionSpecs.set(specName, module.default as Fig.Spec);
+					completionSpecs.push(module.default as Fig.Spec);
 				}
 			} catch {
 				continue;
@@ -49,7 +48,6 @@ async function getCompletionSpecs(): Promise<Map<string, Fig.Spec>> {
 	} catch (error) {
 		console.log(`Error importing completion specs: ${error.message}`);
 	}
-
 	return completionSpecs;
 }
 
@@ -68,9 +66,8 @@ async function getCompletionSpecs(): Promise<Map<string, Fig.Spec>> {
 		const commandsInPath = await getCommandsInPath();
 		const specs = await getCompletionSpecs();
 		builtinCommands.forEach(command => commandsInPath.add(command));
-		console.log(commandsInPath);
 		const result: vscode.TerminalCompletionItem[] = [];
-		for (const spec of specs.values()) {
+		for (const spec of specs) {
 			if (!spec.name) {
 				continue;
 			}
@@ -79,11 +76,8 @@ async function getCompletionSpecs(): Promise<Map<string, Fig.Spec>> {
 				result.push({
 					label: name,
 					kind: (vscode as any).TerminalCompletionItemKind.Method,
-					detail: 'description' in spec ? spec.description + ' has ' + (spec.subcommands?.length ?? 0) + ' subcommands' : 'no desscription',
-					documentation: 'description' in spec ? spec.description + ' has ' + (spec.subcommands?.length ?? 0) + ' subcommands' : 'no desscription',
+					detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
 				});
-			} else {
-				console.error('no name', JSON.stringify(spec));
 			}
 		}
 		// Return the completion results or undefined if no results
@@ -99,7 +93,10 @@ async function getCommandsInPath(): Promise<Set<string>> {
 
 	for (const path of paths) {
 		try {
-			// todo: check if directory is readable
+			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
+			if (!dirExists) {
+				continue;
+			}
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 			for (const [file, fileType] of files) {
 				if (fileType === vscode.FileType.File) {
