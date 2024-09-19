@@ -7,7 +7,7 @@ import { IPointerHandlerHelper } from './mouseHandler.js';
 import { IMouseTargetContentEmptyData, IMouseTargetMarginData, IMouseTarget, IMouseTargetContentEmpty, IMouseTargetContentText, IMouseTargetContentWidget, IMouseTargetMargin, IMouseTargetOutsideEditor, IMouseTargetOverlayWidget, IMouseTargetScrollbar, IMouseTargetTextarea, IMouseTargetUnknown, IMouseTargetViewZone, IMouseTargetContentTextData, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser.js';
 import { ClientCoordinates, EditorMouseEvent, EditorPagePosition, PageCoordinates, CoordinatesRelativeToEditor } from '../editorDom.js';
 import { PartFingerprint, PartFingerprints } from '../view/viewPart.js';
-import { ViewLine } from '../viewParts/lines/viewLine.js';
+import { ViewLine } from '../viewParts/viewLines/viewLine.js';
 import { IViewCursorRenderData } from '../viewParts/viewCursors/viewCursor.js';
 import { EditorLayoutInfo, EditorOption } from '../../common/config/editorOptions.js';
 import { Position } from '../../common/core/position.js';

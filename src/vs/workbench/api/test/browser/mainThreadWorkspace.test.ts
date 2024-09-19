@@ -13,6 +13,7 @@ import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { IFileQuery, ISearchService } from '../../../services/search/common/search.js';
 import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 
 suite('MainThreadWorkspace', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -122,5 +123,24 @@ suite('MainThreadWorkspace', () => {
 
 		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
 		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: [{ pattern: 'exclude/**' }], disregardSearchExcludeSettings: true }, CancellationToken.None);
+	});
+	test('Valid revived URI after moving to EH', () => {
+		const uriComponents: UriComponents = {
+			scheme: 'test',
+			path: '/Users/username/Downloads',
+		};
+		instantiationService.stub(ISearchService, {
+			fileSearch(query: IFileQuery) {
+				assert.strictEqual(query.folderQueries?.length, 1);
+				assert.ok(URI.isUri(query.folderQueries[0].folder));
+				assert.strictEqual(query.folderQueries[0].folder.path, '/Users/username/Downloads');
+				assert.strictEqual(query.folderQueries[0].folder.scheme, 'test');
+
+				return Promise.resolve({ results: [], messages: [] });
+			}
+		});
+
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		return mtw.$startFileSearch(uriComponents, { filePattern: '*.md' }, CancellationToken.None);
 	});
 });

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from '@xterm/headless';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';

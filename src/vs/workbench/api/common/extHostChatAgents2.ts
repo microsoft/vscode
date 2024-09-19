@@ -28,6 +28,7 @@ import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResp
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import type * as vscode from 'vscode';
+import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 
 class ChatAgentResponseStream {
 
@@ -118,6 +119,14 @@ class ChatAgentResponseStream {
 
 					const part = new extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart(value, vulnerabilities);
 					const dto = typeConvert.ChatResponseMarkdownWithVulnerabilitiesPart.from(part);
+					_report(dto);
+					return this;
+				},
+				codeblockUri(value) {
+					throwIfDone(this.codeblockUri);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+					const part = new extHostTypes.ChatResponseCodeblockUriPart(value);
+					const dto = typeConvert.ChatResponseCodeblockUriPart.from(part);
 					_report(dto);
 					return this;
 				},
@@ -281,7 +290,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly _commands: ExtHostCommands,
-		private readonly _documents: ExtHostDocuments
+		private readonly _documents: ExtHostDocuments,
+		private readonly _languageModels: ExtHostLanguageModels
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -378,8 +388,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
+			const extRequest = typeConvert.ChatAgentRequest.to(request, location);
+			if (request.userSelectedModelId && isProposedApiEnabled(agent.extension, 'chatParticipantAdditions')) {
+				extRequest.userSelectedModel = await this._languageModels.getLanguageModelByIdentifier(agent.extension, request.userSelectedModelId);
+			}
+
 			const task = agent.invoke(
-				typeConvert.ChatAgentRequest.to(request, location),
+				extRequest,
 				{ history },
 				stream.apiObject,
 				token

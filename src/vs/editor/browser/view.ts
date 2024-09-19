@@ -13,9 +13,8 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { IPointerHandlerHelper } from './controller/mouseHandler.js';
 import { PointerHandlerLastRenderData } from './controller/mouseTarget.js';
 import { PointerHandler } from './controller/pointerHandler.js';
-import { IVisibleRangeProvider, TextAreaHandler } from './controller/textAreaHandler.js';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from './editorBrowser.js';
-import { RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
+import { LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
 import { ICommandDelegate, ViewController } from './view/viewController.js';
 import { ContentViewOverlays, MarginViewOverlays } from './view/viewOverlays.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from './view/viewPart.js';
@@ -28,7 +27,7 @@ import { EditorScrollbar } from './viewParts/editorScrollbar/editorScrollbar.js'
 import { GlyphMarginWidgets } from './viewParts/glyphMargin/glyphMargin.js';
 import { IndentGuidesOverlay } from './viewParts/indentGuides/indentGuides.js';
 import { LineNumbersOverlay } from './viewParts/lineNumbers/lineNumbers.js';
-import { ViewLines } from './viewParts/lines/viewLines.js';
+import { ViewLines } from './viewParts/viewLines/viewLines.js';
 import { LinesDecorationsOverlay } from './viewParts/linesDecorations/linesDecorations.js';
 import { Margin } from './viewParts/margin/margin.js';
 import { MarginViewLineDecorationsOverlay } from './viewParts/marginDecorations/marginDecorations.js';
@@ -56,6 +55,12 @@ import { IViewModel } from '../common/viewModel.js';
 import { ViewContext } from '../common/viewModel/viewContext.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
+import { ViewGpuContext } from './gpu/viewGpuContext.js';
+import { ViewLinesGpu } from './viewParts/viewLinesGpu/viewLinesGpu.js';
+import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
+import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
+import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
+import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
 
 
 export interface IContentWidgetData {
@@ -77,10 +82,12 @@ export class View extends ViewEventHandler {
 
 	private readonly _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
+	private readonly _viewGpuContext?: ViewGpuContext;
 	private _selections: Selection[];
 
 	// The view lines
 	private readonly _viewLines: ViewLines;
+	private readonly _viewLinesGpu?: ViewLinesGpu;
 
 	// These are parts, but we must do some API related calls on them, so we keep a reference
 	private readonly _viewZones: ViewZones;
@@ -89,8 +96,10 @@ export class View extends ViewEventHandler {
 	private readonly _glyphMarginWidgets: GlyphMarginWidgets;
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
+	private readonly _viewController: ViewController;
 
-	private readonly _textAreaHandler: TextAreaHandler;
+	private _experimentalEditContextEnabled: boolean;
+	private _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
 
 	// Dom nodes
@@ -115,7 +124,7 @@ export class View extends ViewEventHandler {
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 
-		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
+		this._viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, colorTheme, model);
@@ -126,8 +135,10 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
-		this._viewParts.push(this._textAreaHandler);
+		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		this._editContext = this._instantiateEditContext(this._experimentalEditContextEnabled);
+
+		this._viewParts.push(this._editContext);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this._linesContent = createFastDomNode(document.createElement('div'));
@@ -139,6 +150,10 @@ export class View extends ViewEventHandler {
 		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
 		this.domNode.setAttribute('role', 'code');
 
+		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
+			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
+		}
+
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
 		this._overflowGuardContainer.setClassName('overflow-guard');
@@ -148,6 +163,9 @@ export class View extends ViewEventHandler {
 
 		// View Lines
 		this._viewLines = new ViewLines(this._context, this._linesContent);
+		if (this._viewGpuContext) {
+			this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
+		}
 
 		// View Zones
 		this._viewZones = new ViewZones(this._context);
@@ -197,7 +215,9 @@ export class View extends ViewEventHandler {
 		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
 		this._viewParts.push(this._overlayWidgets);
 
-		const rulers = new Rulers(this._context);
+		const rulers = this._viewGpuContext
+			? new RulersGpu(this._context, this._viewGpuContext)
+			: new Rulers(this._context);
 		this._viewParts.push(rulers);
 
 		const blockOutline = new BlockDecorations(this._context);
@@ -214,16 +234,20 @@ export class View extends ViewEventHandler {
 		}
 
 		this._linesContent.appendChild(contentViewOverlays.getDomNode());
-		this._linesContent.appendChild(rulers.domNode);
+		if ('domNode' in rulers) {
+			this._linesContent.appendChild(rulers.domNode);
+		}
 		this._linesContent.appendChild(this._viewZones.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
 		this._linesContent.appendChild(this._viewCursors.getDomNode());
 		this._overflowGuardContainer.appendChild(margin.getDomNode());
 		this._overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
+		if (this._viewGpuContext) {
+			this._overflowGuardContainer.appendChild(this._viewGpuContext.canvas);
+		}
 		this._overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
-		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
+		this._editContext.appendTo(this._overflowGuardContainer);
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this._overflowGuardContainer.appendChild(blockOutline.domNode);
@@ -240,7 +264,27 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 
 		// Pointer handler
-		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
+		this._pointerHandler = this._register(new PointerHandler(this._context, this._viewController, this._createPointerHandlerHelper()));
+	}
+
+	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
+		return this._instantiationService.createInstance(experimentalEditContextEnabled ? NativeEditContext : TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
+	}
+
+	private _updateEditContext(): void {
+		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
+		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled) {
+			return;
+		}
+		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		this._editContext.dispose();
+		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
+		this._editContext.appendTo(this._overflowGuardContainer);
+		// Replace the view parts with the new edit context
+		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
+		if (indexOfEditContextHandler !== -1) {
+			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
+		}
 	}
 
 	private _computeGlyphMarginLanes(): IGlyphMarginLanesModel {
@@ -286,12 +330,12 @@ export class View extends ViewEventHandler {
 			},
 
 			dispatchTextAreaEvent: (event: CustomEvent) => {
-				this._textAreaHandler.textArea.domNode.dispatchEvent(event);
+				this._editContext.domNode.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {
 				const lastViewCursorsRenderData = this._viewCursors.getLastRenderData() || [];
-				const lastTextareaPosition = this._textAreaHandler.getLastRenderData();
+				const lastTextareaPosition = this._editContext.getLastRenderData();
 				return new PointerHandlerLastRenderData(lastViewCursorsRenderData, lastTextareaPosition);
 			},
 			renderNow: (): void => {
@@ -325,6 +369,10 @@ export class View extends ViewEventHandler {
 			visibleRangeForPosition: (position: Position) => {
 				this._flushAccumulatedAndRenderNow();
 				return this._viewLines.visibleRangeForPosition(position);
+			},
+			linesVisibleRangesForRange: (range: Range, includeNewLines: boolean): LineVisibleRanges[] | null => {
+				this._flushAccumulatedAndRenderNow();
+				return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 			}
 		};
 	}
@@ -345,7 +393,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _getEditorClassName() {
-		const focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+		const focused = this._editContext.isFocused() ? ' focused' : '';
 		return this._context.configuration.options.get(EditorOption.editorClassName) + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
@@ -356,6 +404,7 @@ export class View extends ViewEventHandler {
 	}
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this.domNode.setClassName(this._getEditorClassName());
+		this._updateEditContext();
 		this._applyLayout();
 		return false;
 	}
@@ -390,8 +439,10 @@ export class View extends ViewEventHandler {
 		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
 
 		this._context.removeEventHandler(this);
+		this._viewGpuContext?.dispose();
 
 		this._viewLines.dispose();
+		this._viewLinesGpu?.dispose();
 
 		// Destroy view parts
 		for (const viewPart of this._viewParts) {
@@ -505,7 +556,12 @@ export class View extends ViewEventHandler {
 					viewPartsToRender = this._getViewPartsToRender();
 				}
 
-				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines)];
+				if (this._viewLinesGpu?.shouldRender()) {
+					this._viewLinesGpu.renderText(viewportData);
+					this._viewLinesGpu.onDidRender();
+				}
+
+				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines, this._viewLinesGpu)];
 			},
 			prepareRender: (viewPartsToRender: ViewPart[], ctx: RenderingContext) => {
 				for (const viewPart of viewPartsToRender) {
@@ -586,23 +642,23 @@ export class View extends ViewEventHandler {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		this._textAreaHandler.writeScreenReaderContent(reason);
+		this._editContext.writeScreenReaderContent(reason);
 	}
 
 	public focus(): void {
-		this._textAreaHandler.focusTextArea();
+		this._editContext.focus();
 	}
 
 	public isFocused(): boolean {
-		return this._textAreaHandler.isFocused();
+		return this._editContext.isFocused();
 	}
 
 	public refreshFocusState() {
-		this._textAreaHandler.refreshFocusState();
+		this._editContext.refreshFocusState();
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
-		this._textAreaHandler.setAriaOptions(options);
+		this._editContext.setAriaOptions(options);
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {

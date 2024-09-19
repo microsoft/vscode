@@ -18,7 +18,7 @@ jobs:
         name: Cache VS Code dependencies
         with:
           path: node_modules
-          key: ${{ runner.os }}-dependencies-${{ hashfiles('yarn.lock') }}
+          key: ${{ runner.os }}-dependencies-${{ hashfiles('package-lock.json') }}
           restore-keys: ${{ runner.os }}-dependencies-
 
       - uses: actions/setup-node@v3
@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
-        run: yarn --frozen-lockfile
+        run: npm ci
         env:
           CHILD_CONCURRENCY: 1
 

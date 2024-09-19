@@ -3,29 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createStyleSheet2 } from '../../../../base/browser/dom.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ISettableObservable, autorun, constObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ISettableObservable, autorun, constObservable, derivedDisposable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { GhostTextWidget } from './ghostTextWidget.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IInlineEdit, InlineEditTriggerKind } from '../../../common/languages.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { GhostText, GhostTextPart } from '../../inlineCompletions/browser/model/ghostText.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { InlineEditHintsWidget } from './inlineEditHintsWidget.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
-import { createStyleSheet2 } from '../../../../base/browser/dom.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
-import { derivedDisposable } from '../../../../base/common/observableInternal/derived.js';
-import { InlineEditSideBySideWidget } from './inlineEditSideBySideWidget.js';
-import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { IModelService } from '../../../common/services/model.js';
+import { GhostText, GhostTextPart } from '../../inlineCompletions/browser/model/ghostText.js';
+import { GhostTextWidget } from './ghostTextWidget.js';
+import { InlineEditHintsWidget } from './inlineEditHintsWidget.js';
+import { InlineEditSideBySideWidget } from './inlineEditSideBySideWidget.js';
 
 export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';

@@ -1298,9 +1298,9 @@ export class DirtyDiffModel extends Disposable {
 		this.triggerDiff();
 	}
 
-	private triggerDiff(): Promise<any> {
+	private triggerDiff(): Promise<void> {
 		if (!this.diffDelayer) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		return this.diffDelayer

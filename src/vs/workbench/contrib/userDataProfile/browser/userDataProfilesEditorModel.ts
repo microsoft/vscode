@@ -13,6 +13,7 @@ import { DidChangeProfilesEvent, isUserDataProfile, IUserDataProfile, IUserDataP
 import { IProfileResourceChildTreeItem, IProfileTemplateInfo, isProfileURL, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, IUserDataProfileTemplate } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import * as arrays from '../../../../base/common/arrays.js';
 import { equals } from '../../../../base/common/objects.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
 import { ExtensionsResourceExportTreeItem, ExtensionsResourceImportTreeItem } from '../../../services/userDataProfile/browser/extensionsResource.js';
@@ -34,16 +35,18 @@ import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
 	readonly icon?: boolean;
 	readonly flags?: boolean;
+	readonly workspaces?: boolean;
 	readonly active?: boolean;
 	readonly message?: boolean;
 	readonly copyFrom?: boolean;
@@ -90,16 +93,19 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		name: string,
 		icon: string | undefined,
 		flags: UseDefaultProfileFlags | undefined,
+		workspaces: readonly URI[] | undefined,
 		isActive: boolean,
 		@IUserDataProfileManagementService protected readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService protected readonly commandService: ICommandService,
+		@IWorkspaceContextService protected readonly workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this._name = name;
 		this._icon = icon;
 		this._flags = flags;
+		this._workspaces = workspaces;
 		this._active = isActive;
 		this._register(this.onDidChange(e => {
 			if (!e.message) {
@@ -125,6 +131,15 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		if (this._icon !== icon) {
 			this._icon = icon;
 			this._onDidChange.fire({ icon: true });
+		}
+	}
+
+	private _workspaces: readonly URI[] | undefined;
+	get workspaces(): readonly URI[] | undefined { return this._workspaces; }
+	set workspaces(workspaces: readonly URI[] | undefined) {
+		if (!arrays.equals(this._workspaces, workspaces, (a, b) => a.toString() === b.toString())) {
+			this._workspaces = workspaces;
+			this._onDidChange.fire({ workspaces: true });
 		}
 	}
 
@@ -279,6 +294,11 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return true;
 	}
 
+	getCurrentWorkspace(): URI | undefined {
+		const workspace = this.workspaceContextService.getWorkspace();
+		return workspace.configuration ?? workspace.folders[0]?.uri;
+	}
+
 	save(): void {
 		this.saveScheduler.schedule();
 	}
@@ -291,6 +311,9 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			return true;
 		}
 		if (!equals(this.flags ?? {}, profile.useDefaultFlags ?? {})) {
+			return true;
+		}
+		if (!arrays.equals(this.workspaces ?? [], profile.workspaces ?? [], (a, b) => a.toString() === b.toString())) {
 			return true;
 		}
 		return false;
@@ -308,10 +331,13 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			? this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.globalState && this.flags.extensions ? undefined : this.flags
 			: undefined;
 
+
+
 		return await this.userDataProfileManagementService.updateProfile(profile, {
 			name: this.name,
 			icon: this.icon,
-			useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags
+			useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags,
+			workspaces: this.workspaces
 		});
 	}
 
@@ -334,16 +360,19 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			_profile.name,
 			_profile.icon,
 			_profile.useDefaultFlags,
+			_profile.workspaces,
 			userDataProfileService.currentProfile.id === _profile.id,
 			userDataProfileManagementService,
 			userDataProfilesService,
 			commandService,
+			workspaceContextService,
 			instantiationService,
 		);
 		this._isNewWindowProfile = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE) === this.profile.name;
@@ -368,6 +397,18 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		this.name = this._profile.name;
 		this.icon = this._profile.icon;
 		this.flags = this._profile.useDefaultFlags;
+		this.workspaces = this._profile.workspaces;
+	}
+
+	public updateWorkspaces(toAdd: URI[], toRemove: URI[]): void {
+		const workspaces = new ResourceSet(this.workspaces ?? []);
+		for (const workspace of toAdd) {
+			workspaces.add(workspace);
+		}
+		for (const workspace of toRemove) {
+			workspaces.delete(workspace);
+		}
+		this.workspaces = [...workspaces.values()];
 	}
 
 	public async toggleNewWindowProfile(): Promise<void> {
@@ -432,16 +473,19 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			name,
 			undefined,
 			undefined,
+			undefined,
 			false,
 			userDataProfileManagementService,
 			userDataProfilesService,
 			commandService,
+			workspaceContextService,
 			instantiationService,
 		);
 		this.defaultName = name;

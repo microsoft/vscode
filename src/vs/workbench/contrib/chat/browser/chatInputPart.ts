@@ -26,12 +26,12 @@ import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -48,16 +48,17 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ResourceLabels } from '../../../browser/labels.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { CancelAction, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
-import { IChatWidget } from './chat.js';
-import { ChatFollowups } from './chatFollowups.js';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
+import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
+import { IChatWidget } from './chat.js';
+import { ChatFollowups } from './chatFollowups.js';
 
 const $ = dom.$;
 
@@ -126,7 +127,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
 
-	private toolbar!: MenuWorkbenchToolBar;
+	private executeToolbar!: MenuWorkbenchToolBar;
+	private inputActionsToolbar!: MenuWorkbenchToolBar;
 
 	get inputEditor() {
 		return this._inputEditor;
@@ -141,8 +143,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 
+	private _currentLanguageModel: string | undefined;
+	get currentLanguageModel() {
+		return this._currentLanguageModel;
+	}
+
 	private cachedDimensions: dom.Dimension | undefined;
-	private cachedToolbarWidth: number | undefined;
+	private cachedExecuteToolbarWidth: number | undefined;
+	private cachedInputToolbarWidth: number | undefined;
 
 	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
@@ -158,6 +166,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -176,6 +185,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
 		}));
+	}
+
+	private resetCurrentLanguageModel() {
+		const defaultLanguageModel = this.languageModelsService.getLanguageModelIds().find(id => this.languageModelsService.lookupLanguageModel(id)?.isDefault);
+		const hasUserSelectableLanguageModels = this.languageModelsService.getLanguageModelIds().find(id => {
+			const model = this.languageModelsService.lookupLanguageModel(id);
+			return model?.isUserSelectable && !model.isDefault;
+		});
+		this._currentLanguageModel = hasUserSelectableLanguageModels ? defaultLanguageModel : undefined;
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -368,22 +386,39 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
-		this.container = dom.append(container, $('.interactive-input-part'));
-		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
-
-		let inputContainer: HTMLElement;
-		let inputAndSideToolbar: HTMLElement;
+		let elements;
 		if (this.options.renderStyle === 'compact') {
-			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
-			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
-			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
+			elements = dom.h('.interactive-input-part', [
+				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+					dom.h('.chat-input-container@inputContainer', [
+						dom.h('.chat-editor-container@editorContainer'),
+						dom.h('.chat-input-toolbars@inputToolbars'),
+					]),
+				]),
+				dom.h('.chat-attached-context@attachedContextContainer'),
+				dom.h('.interactive-input-followups@followupsContainer'),
+			]);
 		} else {
-			this.followupsContainer = dom.append(this.container, $('.interactive-input-followups'));
-			this.attachedContextContainer = dom.append(this.container, $('.chat-attached-context'));
-			inputAndSideToolbar = dom.append(this.container, $('.interactive-input-and-side-toolbar'));
-			inputContainer = dom.append(inputAndSideToolbar, $('.interactive-input-and-execute-toolbar'));
+			elements = dom.h('.interactive-input-part', [
+				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+					dom.h('.chat-input-container@inputContainer', [
+						dom.h('.chat-editor-container@editorContainer'),
+						dom.h('.chat-attached-context@attachedContextContainer'),
+						dom.h('.chat-input-toolbars@inputToolbars'),
+					]),
+				]),
+			]);
 		}
+		this.container = elements.root;
+		container.append(this.container);
+		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
+		this.followupsContainer = elements.followupsContainer;
+		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
+		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
+		const editorContainer = elements.editorContainer;
+		this.attachedContextContainer = elements.attachedContextContainer;
+		const toolbarsContainer = elements.inputToolbars;
 		this.initAttachedContext(this.attachedContextContainer);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -415,9 +450,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 		options.stickyScroll = { enabled: false };
 
-		this._inputEditorElement = dom.append(inputContainer, $(chatInputEditorContainerSelector));
+		this._inputEditorElement = dom.append(editorContainer!, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, MarginHoverController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
@@ -443,7 +478,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidBlur.fire();
 		}));
 
-		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, this.options.menus.executeToolbar, {
+		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
+		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, MenuId.ChatInput, {
+			telemetrySource: this.options.menus.telemetrySource,
+			menuOptions: { shouldForwardArgs: true },
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+		}));
+		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
+				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+			}
+		}));
+		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
 				shouldForwardArgs: true
@@ -457,17 +504,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 
+				if (!this._currentLanguageModel) {
+					this.resetCurrentLanguageModel();
+				}
+
+				if (action.id === ChatModelPickerActionId && action instanceof MenuItemAction && this._currentLanguageModel) {
+					return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, modelId => this._currentLanguageModel = modelId);
+				}
+
 				return undefined;
 			}
 		}));
-		this.toolbar.getElement().classList.add('interactive-execute-toolbar');
-		this.toolbar.context = { widget } satisfies IChatExecuteActionContext;
-		this._register(this.toolbar.onDidChangeMenuItems(() => {
-			if (this.cachedDimensions && typeof this.cachedToolbarWidth === 'number' && this.cachedToolbarWidth !== this.toolbar.getItemsWidth()) {
+		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions && typeof this.cachedExecuteToolbarWidth === 'number' && this.cachedExecuteToolbarWidth !== this.executeToolbar.getItemsWidth()) {
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 			}
 		}));
-
 		if (this.options.menus.inputSideToolbar) {
 			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, this.options.menus.inputSideToolbar, {
 				telemetrySource: this.options.menus.telemetrySource,
@@ -598,7 +651,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -612,16 +665,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initAttachedContext(this.attachedContextContainer, true);
 
 		const data = this.getLayoutData();
-
-		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.inputPartVerticalPadding);
+		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight);
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.followupsHeight + inputEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.implicitContextHeight;
+		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
-		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.editorPadding - data.executeToolbarWidth - data.sideToolbarWidth - data.toolbarPadding;
+		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
@@ -637,17 +689,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getLayoutData() {
+		const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
+		const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
+		const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
+		const inputToolbarPadding = (this.inputActionsToolbar.getItemsLength() - 1) * 4;
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 40,
-			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
-			implicitContextHeight: this.attachedContextContainer.offsetHeight,
+			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 32,
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 30,
+			attachmentsHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
-			editorPadding: 12,
-			toolbarPadding: (this.toolbar.getItemsLength() - 1) * 4,
-			executeToolbarWidth: this.cachedToolbarWidth = this.toolbar.getItemsWidth(),
+			inputPartHorizontalPaddingInside: 12,
+			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,
+			toolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
 		};
 	}
@@ -713,6 +769,67 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 		};
 		setActions();
 		this._register(menu.onDidChange(() => setActions()));
+	}
+}
+
+class ModelPickerActionViewItem extends MenuEntryActionViewItem {
+	constructor(
+		action: MenuItemAction,
+		private currentLanguageModel: string,
+		private readonly setModelDelegate: (selectedModelId: string) => void,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
+	) {
+		super(action, undefined, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		this._openContextMenu();
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-modelPicker-item');
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			const model = this._languageModelsService.lookupLanguageModel(this.currentLanguageModel);
+			if (model) {
+				this.label.textContent = model.name;
+			}
+		}
+	}
+
+	private _openContextMenu() {
+		const setLanguageModelAction = (id: string, modelMetadata: ILanguageModelChatMetadata): IAction => {
+			return {
+				id,
+				label: modelMetadata.name,
+				tooltip: '',
+				class: undefined,
+				enabled: true,
+				checked: id === this.currentLanguageModel,
+				run: () => {
+					this.currentLanguageModel = id;
+					this.setModelDelegate(id);
+					this.updateLabel();
+				}
+			};
+		};
+
+		const models = this._languageModelsService.getLanguageModelIds()
+			.map(modelId => ({ id: modelId, model: this._languageModelsService.lookupLanguageModel(modelId)! }))
+			.filter(entry => entry.model?.isUserSelectable);
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => this.element!,
+			getActions: () => models.map(entry => setLanguageModelAction(entry.id, entry.model)),
+		});
 	}
 }
 

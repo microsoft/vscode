@@ -31,7 +31,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		private readonly _targetOptions: ILinkHoverTargetOptions,
 		private readonly _text: IMarkdownString,
 		private readonly _actions: IHoverAction[] | undefined,
-		private readonly _linkHandler: (url: string) => any,
+		private readonly _linkHandler: (url: string) => unknown,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {

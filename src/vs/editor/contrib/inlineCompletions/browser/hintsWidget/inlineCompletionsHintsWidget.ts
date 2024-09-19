@@ -11,18 +11,9 @@ import { equals } from '../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from '../../../../../base/common/observable.js';
-import { derivedWithStore } from '../../../../../base/common/observableInternal/derived.js';
+import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import './inlineCompletionsHintsWidget.css';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
-import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { Position } from '../../../../common/core/position.js';
-import { Command, InlineCompletionTriggerKind } from '../../../../common/languages.js';
-import { PositionAffinity } from '../../../../common/model.js';
-import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from '../controller/commandIds.js';
-import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { localize } from '../../../../../nls.js';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -34,6 +25,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { Position } from '../../../../common/core/position.js';
+import { Command, InlineCompletionTriggerKind } from '../../../../common/languages.js';
+import { PositionAffinity } from '../../../../common/model.js';
+import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from '../controller/commandIds.js';
+import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
+import './inlineCompletionsHintsWidget.css';
 
 export class InlineCompletionsHintsWidget extends Disposable {
 	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');

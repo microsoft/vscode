@@ -58,8 +58,8 @@ import { REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
 import './interactiveEditor.css';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { ReplEditorInput } from './replEditorInput.js';
 import { ReplInputHintContentWidget } from '../../interactive/browser/replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -362,7 +362,6 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, input, {
 			isEmbedded: true,
 			isReadOnly: true,
-			forRepl: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
 				TimerCellStatusBarContrib.id,
@@ -381,7 +380,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
@@ -400,7 +399,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 					SnippetController2.ID,
 					TabCompletionController.ID,
 					ContentHoverController.ID,
-					MarginHoverController.ID,
+					GlyphHoverController.ID,
 					MarkerController.ID
 				])
 			}
@@ -431,7 +430,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		await this._notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
+		await this._notebookWidget.value!.setModel(model.notebook, viewState?.notebook, undefined, 'repl');
 		model.notebook.setCellCollapseDefault(this._notebookOptions.getCellCollapseDefault());
 		this._notebookWidget.value!.setOptions({
 			isReadOnly: true
