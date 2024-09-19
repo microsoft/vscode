@@ -75,11 +75,7 @@ async function getCompletionSpecs(): Promise<Map<string, Fig.Spec>> {
 				continue;
 			}
 			const name = 'displayName' in spec ? spec.displayName : typeof spec.name === 'string' ? spec.name : spec.name[0];
-			// TODO: re-add commandsInPath.has(name) check
-			if (name) {
-				console.log(name, commandsInPath.has(name));
-			}
-			if (name) {
+			if (name && commandsInPath.has(name)) {
 				result.push({
 					label: name,
 					kind: (vscode as any).TerminalCompletionItemKind.Method,
