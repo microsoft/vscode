@@ -250,6 +250,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	protected rootContainer!: HTMLElement;
 	protected windowControlsContainer: HTMLElement | undefined;
+	private usingCenterContent: boolean = false;
 	protected dragRegion: HTMLElement | undefined;
 	private title!: HTMLElement;
 
@@ -377,7 +378,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Command Center
 		if (event.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 			this.createTitle();
-
+			this.updateHideContent();
 			this._onDidChange.fire(undefined);
 		}
 	}
@@ -465,7 +466,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.installMenubar();
 		}
 
-		// Title
+		// Create center content: Command Center or Title
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
 
@@ -509,6 +510,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 		}
 
+		this.updateHideContent();
+
 		// Context menu over title bar: depending on the OS and the location of the click this will either be
 		// the overall context menu for the entire title bar or a specific title context menu.
 		// Windows / Linux: we only support the overall context menu on the title bar
@@ -544,7 +547,21 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return this.element;
 	}
 
+	protected updateHideContent(): void {
+		// Allow the menu to span the entire width of the custom title bar
+		// when using "Force Custom Menu Style" with the command center hidden.
+		const hideCenterContent = !this.usingCenterContent;
+
+		if (hideCenterContent) {
+			this.rightContent.classList.add('disable-grow');
+		} else {
+			this.rightContent.classList.remove('disable-grow');
+		}
+	}
+
 	private createTitle(): void {
+		let usingCenterContent = true;
+
 		this.titleDisposables.clear();
 
 		if (this.isCommandCenterVisible) {
@@ -558,7 +575,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
 				this.title.innerText = this.windowTitle.value;
 			}));
+		} else {
+			usingCenterContent = false;
 		}
+
+		this.usingCenterContent = usingCenterContent;
 	}
 
 	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {

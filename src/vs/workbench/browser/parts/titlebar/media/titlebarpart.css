@@ -96,6 +96,13 @@
 	justify-content: flex-end;
 }
 
+/* Allow to disable grow for the "right" part of the titlebar. This is used when the "center" part of
+   the titlebar is hidden, since otherwise the "left" part would be limited to half of the window width. */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right.disable-grow {
+	flex-grow: 0;
+	width: 0;
+}
+
 
 
 /* Window title text */
