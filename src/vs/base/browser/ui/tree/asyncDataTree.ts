@@ -422,7 +422,7 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 	}
 
 	private activateFindMode(): void {
-    this.sessionId++;
+		this.sessionId++;
 		this.previousTreeScrollTop = this.tree.scrollTop;
 		this.tree.scrollTop = 0;
 		const findModel = this.tree.createNewModel({ filter: this.filter as ITreeFilter<IAsyncDataTreeNode<TInput, T> | null, TFilterData> });
