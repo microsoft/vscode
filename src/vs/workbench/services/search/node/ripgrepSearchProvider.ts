@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { TextSearchProviderNew, TextSearchCompleteNew, TextSearchResultNew, TextSearchQueryNew, TextSearchProviderOptions, } from 'vs/workbench/services/search/common/searchExtTypes';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { Schemas } from 'vs/base/common/network';
-import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
+import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation.js';
+import { OutputChannel } from './ripgrepSearchUtils.js';
+import { RipgrepTextSearchEngine } from './ripgrepTextSearchEngine.js';
+import { TextSearchProviderNew, TextSearchCompleteNew, TextSearchResultNew, TextSearchQueryNew, TextSearchProviderOptions, } from '../common/searchExtTypes.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
+import { Schemas } from '../../../../base/common/network.js';
+import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 
 export class RipgrepSearchProvider implements TextSearchProviderNew {
 	private inProgress: Set<CancellationTokenSource> = new Set();

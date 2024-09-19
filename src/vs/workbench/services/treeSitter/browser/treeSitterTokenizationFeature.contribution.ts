@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { TreeSitterTextModelService } from 'vs/editor/browser/services/treeSitter/treeSitterParserService';
-import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
-import { ITreeSitterTokenizationFeature } from 'vs/workbench/services/treeSitter/browser/treeSitterTokenizationFeature';
+import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { TreeSitterTextModelService } from '../../../../editor/browser/services/treeSitter/treeSitterParserService.js';
+import { ITreeSitterParserService } from '../../../../editor/common/services/treeSitterParserService.js';
+import { ITreeSitterTokenizationFeature } from './treeSitterTokenizationFeature.js';
 
 /**
  * Makes sure the ITreeSitterTokenizationService is instantiated

@@ -3,43 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/userDataProfileView';
-import { localize } from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter } from 'vs/base/common/event';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IUserDataProfileService, IProfileResourceTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri, IUserDataProfileCreateOptions, isProfileURL, PROFILE_URL_AUTHORITY_PREFIX } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { ITreeItem, ITreeViewDataProvider } from 'vs/workbench/common/views';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SettingsResource, SettingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/settingsResource';
-import { KeybindingsResource, KeybindingsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/keybindingsResource';
-import { SnippetsResource, SnippetsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/snippetsResource';
-import { TasksResource, TasksResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/tasksResource';
-import { ExtensionsResource, ExtensionsResourceExportTreeItem, ExtensionsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
-import { GlobalStateResource, GlobalStateResourceExportTreeItem, GlobalStateResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/globalStateResource';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { joinPath } from 'vs/base/common/resources';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import Severity from 'vs/base/common/severity';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { asText, IRequestService } from 'vs/platform/request/common/request';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Mutable, isUndefined } from 'vs/base/common/types';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import './media/userDataProfileView.css';
+import { localize } from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IUserDataProfileService, IProfileResourceTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri, IUserDataProfileCreateOptions, isProfileURL, PROFILE_URL_AUTHORITY_PREFIX } from '../common/userDataProfile.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITreeItem, ITreeViewDataProvider } from '../../../common/views.js';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { SettingsResource, SettingsResourceTreeItem } from './settingsResource.js';
+import { KeybindingsResource, KeybindingsResourceTreeItem } from './keybindingsResource.js';
+import { SnippetsResource, SnippetsResourceTreeItem } from './snippetsResource.js';
+import { TasksResource, TasksResourceTreeItem } from './tasksResource.js';
+import { ExtensionsResource, ExtensionsResourceExportTreeItem, ExtensionsResourceTreeItem } from './extensionsResource.js';
+import { GlobalStateResource, GlobalStateResourceExportTreeItem, GlobalStateResourceTreeItem } from './globalStateResource.js';
+import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IQuickInputService, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import Severity from '../../../../base/common/severity.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { asText, IRequestService } from '../../../../platform/request/common/request.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Mutable, isUndefined } from '../../../../base/common/types.js';
+import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async.js';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -74,7 +73,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -220,10 +218,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	async exportProfile(profile: IUserDataProfile): Promise<void> {
+	async exportProfile(profile: IUserDataProfile, exportFlags?: ProfileResourceTypeFlags): Promise<void> {
 		const disposables = new DisposableStore();
 		try {
-			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, profile, undefined));
+			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, profile, exportFlags));
 			await this.doExportProfile(userDataProfilesExportState, ProgressLocation.Notification);
 		} finally {
 			disposables.dispose();

@@ -3,63 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { SymbolNavigationAction } from 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
-import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/browser/referencesModel';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { TestResultsView } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
-import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, IMainThreadTestController, ITestService, expandAndGetTestById, testsInFile, testsUnderUri } from 'vs/workbench/contrib/testing/common/testService';
-import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { distinct } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorOption, GoToLocationValues } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { SymbolNavigationAction } from '../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
+import { ReferencesModel } from '../../../../editor/contrib/gotoSymbol/browser/referencesModel.js';
+import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
+import { PeekContext } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { TestExplorerTreeElement, TestItemTreeElement } from './explorerProjections/index.js';
+import * as icons from './icons.js';
+import { TestingExplorerView } from './testingExplorerView.js';
+import { TestResultsView } from './testingOutputPeek.js';
+import { TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
+import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from '../common/constants.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
+import { TestId } from '../common/testId.js';
+import { ITestProfileService, canUseProfileWithTest } from '../common/testProfileService.js';
+import { ITestResult } from '../common/testResult.js';
+import { ITestResultService } from '../common/testResultService.js';
+import { IMainThreadTestCollection, IMainThreadTestController, ITestService, expandAndGetTestById, testsInFile, testsUnderUri } from '../common/testService.js';
+import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestItemExpandState, TestRunProfileBitset } from '../common/testTypes.js';
+import { TestingContextKeys } from '../common/testingContextKeys.js';
+import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
+import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
+import { isFailedState } from '../common/testingStates.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 const category = Categories.Test;
 
@@ -1556,10 +1554,7 @@ export class SearchForTestExtension extends Action2 {
 	}
 
 	public async run(accessor: ServicesAccessor) {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = (await paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewlet.search('@category:"testing"');
-		viewlet.focus();
+		accessor.get(IExtensionsWorkbenchService).openSearch('@category:"testing"');
 	}
 }
 

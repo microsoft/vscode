@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HoverWidget } from 'vs/editor/browser/services/hoverService/hoverWidget';
-import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement } from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { mainWindow } from 'vs/base/browser/window';
-import { ContextViewHandler } from 'vs/platform/contextview/browser/contextViewService';
-import type { IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from 'vs/base/browser/ui/hover/hover';
-import type { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ManagedHoverWidget } from 'vs/editor/browser/services/hoverService/updatableHoverWidget';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { editorHoverBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { HoverWidget } from './hoverWidget.js';
+import { IContextViewProvider, IDelegate } from '../../../../base/browser/ui/contextview/contextview.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement, isEditableElement } from '../../../../base/browser/dom.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
+import type { IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { ManagedHoverWidget } from './updatableHoverWidget.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -293,8 +293,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		// Do not show hover when focusing an input or textarea
 		let focusDomEmitter: undefined | IDisposable;
-		const tagName = targetElement.tagName.toLowerCase();
-		if (tagName !== 'input' && tagName !== 'textarea') {
+		if (!isEditableElement(targetElement)) {
 			focusDomEmitter = addDisposableListener(targetElement, EventType.FOCUS, onFocus, true);
 		}
 

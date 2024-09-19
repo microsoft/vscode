@@ -3,66 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/voiceChatActions';
-import { RunOnceScheduler, disposableTimeout, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { spinningLoading, syncing } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
-import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from 'vs/workbench/contrib/chat/common/voiceChatService';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalChatContextKeys, TerminalChatController } from 'vs/workbench/contrib/terminal/browser/terminalContribExports';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import './media/voiceChatActions.css';
+import { RunOnceScheduler, disposableTimeout, raceCancellation } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Color } from '../../../../../base/common/color.js';
+import { Event } from '../../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isNumber } from '../../../../../base/common/types.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, IAction2Options, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { contrastBorder, focusBorder } from '../../../../../platform/theme/common/colorRegistry.js';
+import { spinningLoading, syncing } from '../../../../../platform/theme/common/iconRegistry.js';
+import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
+import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from '../../../../common/theme.js';
+import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
+import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from '../../common/chatContextKeys.js';
+import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
+import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
+import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
+import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from '../../../speech/common/speechService.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { TerminalChatContextKeys, TerminalChatController } from '../../../terminal/terminalContribExports.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 
 //#region Speech to Text
 
 type VoiceChatSessionContext = 'view' | 'inline' | 'terminal' | 'quick' | 'editor';
 const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'terminal', 'quick', 'editor'];
-
-const TerminalChatExecute = MenuId.for('terminalChatInput'); // unfortunately, terminal decided to go with their own menu (https://github.com/microsoft/vscode/issues/208789)
 
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
@@ -209,7 +207,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
 			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
-			acceptInput: () => chatWidget.acceptInput(),
+			acceptInput: () => chatWidget.acceptInput(undefined, true),
 			updateInput: text => chatWidget.setInput(text),
 			getInput: () => chatWidget.getInput(),
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
@@ -226,7 +224,7 @@ class VoiceChatSessionControllerFactory {
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
 			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
-			acceptInput: () => terminalChat.acceptInput(),
+			acceptInput: () => terminalChat.acceptInput(true),
 			updateInput: text => terminalChat.updateInput(text, false),
 			getInput: () => terminalChat.getInput(),
 			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
@@ -579,16 +577,7 @@ export class StartVoiceChatAction extends Action2 {
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
 			menu: [{
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(
-					HasSpeechProvider,
-					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
-					AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
-				),
-				group: 'navigation',
-				order: -1
-			}, {
-				id: TerminalChatExecute,
+				id: MenuId.ChatInput,
 				when: ContextKeyExpr.and(
 					HasSpeechProvider,
 					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
@@ -632,12 +621,7 @@ export class StopListeningAction extends Action2 {
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
 			menu: [{
-				id: MenuId.ChatExecute,
-				when: AnyScopedVoiceChatInProgress,
-				group: 'navigation',
-				order: -1
-			}, {
-				id: TerminalChatExecute,
+				id: MenuId.ChatInput,
 				when: AnyScopedVoiceChatInProgress,
 				group: 'navigation',
 				order: -1
@@ -877,7 +861,7 @@ export class ReadChatResponseAloud extends Action2 {
 			title: localize2('workbench.action.chat.readChatResponseAloud', "Read Aloud"),
 			icon: Codicon.unmute,
 			precondition: CanVoiceChat,
-			menu: {
+			menu: [{
 				id: MenuId.ChatMessageTitle,
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
@@ -886,15 +870,57 @@ export class ReadChatResponseAloud extends Action2 {
 					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
 				),
 				group: 'navigation'
-			}
+			}, {
+				id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+				when: ContextKeyExpr.and(
+					CanVoiceChat,
+					CONTEXT_RESPONSE,						// only for responses
+					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
+					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
+				),
+				group: 'navigation'
+			}]
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
 		const instantiationService = accessor.get(IInstantiationService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const response = args[0];
-		if (!isResponseVM(response)) {
+		let response: IChatResponseViewModel | undefined = undefined;
+		if (args.length > 0) {
+			const responseArg = args[0];
+			if (isResponseVM(response)) {
+				response = responseArg;
+			}
+		} else {
+			const chatWidget = chatWidgetService.lastFocusedWidget;
+			if (chatWidget) {
+
+				// pick focused response
+				const focus = chatWidget.getFocus();
+				if (focus instanceof ChatResponseViewModel) {
+					response = focus;
+				}
+
+				// pick the last response
+				else {
+					const chatViewModel = chatWidget.viewModel;
+					if (chatViewModel) {
+						const items = chatViewModel.getItems();
+						for (let i = items.length - 1; i >= 0; i--) {
+							const item = items[i];
+							if (isResponseVM(item)) {
+								response = item;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (!response) {
 			return;
 		}
 
@@ -922,17 +948,11 @@ export class StopReadAloud extends Action2 {
 			},
 			menu: [
 				{
-					id: MenuId.ChatExecute,
+					id: MenuId.ChatInput,
 					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
 				},
-				{
-					id: TerminalChatExecute,
-					when: ScopedChatSynthesisInProgress,
-					group: 'navigation',
-					order: -1
-				}
 			]
 		});
 	}
@@ -959,6 +979,15 @@ export class StopReadChatItemAloud extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatMessageTitle,
+					when: ContextKeyExpr.and(
+						ScopedChatSynthesisInProgress,		// only when in progress
+						CONTEXT_RESPONSE,					// only for responses
+						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
+					),
+					group: 'navigation'
+				},
+				{
+					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					when: ContextKeyExpr.and(
 						ScopedChatSynthesisInProgress,		// only when in progress
 						CONTEXT_RESPONSE,					// only for responses
@@ -1257,12 +1286,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
 			menu: [{
-				id: MenuId.ChatExecute,
-				when: HasSpeechProvider.negate(),
-				group: 'navigation',
-				order: -1
-			}, {
-				id: TerminalChatExecute,
+				id: MenuId.ChatInput,
 				when: HasSpeechProvider.negate(),
 				group: 'navigation',
 				order: -1

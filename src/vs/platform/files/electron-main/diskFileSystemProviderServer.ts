@@ -4,26 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { shell } from 'electron';
-import { localize } from 'vs/nls';
-import { isWindows } from 'vs/base/common/platform';
-import { Emitter } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { basename, normalize } from 'vs/base/common/path';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
-import { DefaultURITransformer, IURITransformer } from 'vs/base/common/uriIpc';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { localize } from '../../../nls.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { Emitter } from '../../../base/common/event.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IFileDeleteOptions, IFileChange, IWatchOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../common/files.js';
+import { DiskFileSystemProvider } from '../node/diskFileSystemProvider.js';
+import { basename, normalize } from '../../../base/common/path.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISessionFileWatcher } from '../node/diskFileSystemProviderServer.js';
+import { DefaultURITransformer, IURITransformer } from '../../../base/common/uriIpc.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<unknown> {
 
 	constructor(
 		provider: DiskFileSystemProvider,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super(provider, logService);
 	}
@@ -57,7 +59,7 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 	//#region File Watching
 
 	protected createSessionFileWatcher(uriTransformer: IURITransformer, emitter: Emitter<IFileChange[] | string>): ISessionFileWatcher {
-		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService);
+		return new SessionFileWatcher(uriTransformer, emitter, this.logService, this.environmentService, this.configurationService);
 	}
 
 	//#endregion

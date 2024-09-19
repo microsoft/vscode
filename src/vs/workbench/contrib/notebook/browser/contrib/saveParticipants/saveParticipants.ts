@@ -3,42 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProvider, CodeActionTriggerType, IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { FormattingMode, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { HierarchicalKind } from '../../../../../../base/common/hierarchicalKind.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../../../../../editor/browser/services/bulkEditService.js';
+import { trimTrailingWhitespace } from '../../../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
+import { Position } from '../../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../../editor/common/core/selection.js';
+import { CodeActionProvider, CodeActionTriggerType, IWorkspaceTextEdit } from '../../../../../../editor/common/languages.js';
+import { IReadonlyTextBuffer, ITextModel } from '../../../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from '../../../../../../editor/contrib/codeAction/browser/codeAction.js';
+import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from '../../../../../../editor/contrib/codeAction/common/types.js';
+import { FormattingMode, getDocumentFormattingEditsWithSelectedProvider } from '../../../../../../editor/contrib/format/browser/format.js';
+import { SnippetController2 } from '../../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IProgress, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from '../../../../../common/contributions.js';
+import { SaveReason } from '../../../../../common/editor.js';
+import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
+import { NotebookFileWorkingCopyModel } from '../../../common/notebookEditorModel.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../../../../services/workingCopy/common/storedFileWorkingCopy.js';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from '../../../../../services/workingCopy/common/workingCopyFileService.js';
+import { NotebookMultiCursorController, NotebookMultiCursorState } from '../multicursor/notebookMulticursor.js';
+
+abstract class NotebookSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
+	constructor(
+		private readonly _editorService: IEditorService,
+	) { }
+	abstract participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void>;
+
+	protected canParticipate(): boolean {
+		const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+		const controller = editor?.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+		if (!controller) {
+			return true;
+		}
+
+		return controller.getState() !== NotebookMultiCursorState.Editing;
+	}
+}
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -104,19 +122,21 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	}
 }
 
-class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant {
+class TrimWhitespaceParticipant extends NotebookSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-	) { }
+	) {
+		super(editorService);
+	}
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		const trimTrailingWhitespaceOption = this.configurationService.getValue<boolean>('files.trimTrailingWhitespace');
 		const trimInRegexAndStrings = this.configurationService.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings');
-		if (trimTrailingWhitespaceOption) {
+		if (trimTrailingWhitespaceOption && this.canParticipate()) {
 			await this.doTrimTrailingWhitespace(workingCopy, context.reason === SaveReason.AUTO, trimInRegexAndStrings, progress);
 		}
 	}
@@ -174,16 +194,19 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 	}
 }
 
-class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticipant {
+class TrimFinalNewLinesParticipant extends NotebookSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-	) { }
+	) {
+		super(editorService);
+	}
+
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
-		if (this.configurationService.getValue<boolean>('files.trimFinalNewlines')) {
+		if (this.configurationService.getValue<boolean>('files.trimFinalNewlines') && this.canParticipate()) {
 			await this.doTrimFinalNewLines(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
@@ -254,19 +277,21 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	}
 }
 
-class InsertFinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
+class InsertFinalNewLineParticipant extends NotebookSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IEditorService private readonly editorService: IEditorService,
-	) { }
+	) {
+		super(editorService);
+	}
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		// waiting on notebook-specific override before this feature can sync with 'files.insertFinalNewline'
 		// if (this.configurationService.getValue('files.insertFinalNewline')) {
 
-		if (this.configurationService.getValue<boolean>(NotebookSetting.insertFinalNewline)) {
+		if (this.configurationService.getValue<boolean>(NotebookSetting.insertFinalNewline) && this.canParticipate()) {
 			await this.doInsertFinalNewLine(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}

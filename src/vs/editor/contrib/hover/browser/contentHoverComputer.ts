@@ -3,31 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { AsyncIterableObject } from 'vs/base/common/async';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IModelDecoration } from '../../../common/model.js';
+import { HoverStartSource, IHoverComputer } from './hoverOperation.js';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IHoverPart } from './hoverTypes.js';
+import { AsyncIterableObject } from '../../../../base/common/async.js';
 
-export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
+export interface ContentHoverComputerOptions {
+	shouldFocus: boolean;
+	anchor: HoverAnchor;
+	source: HoverStartSource;
+	insistOnKeepingHoverVisible: boolean;
+}
 
-	private _anchor: HoverAnchor | null = null;
-	public get anchor(): HoverAnchor | null { return this._anchor; }
-	public set anchor(value: HoverAnchor | null) { this._anchor = value; }
-
-	private _shouldFocus: boolean = false;
-	public get shouldFocus(): boolean { return this._shouldFocus; }
-	public set shouldFocus(value: boolean) { this._shouldFocus = value; }
-
-	private _source: HoverStartSource = HoverStartSource.Mouse;
-	public get source(): HoverStartSource { return this._source; }
-	public set source(value: HoverStartSource) { this._source = value; }
-
-	private _insistOnKeepingHoverVisible: boolean = false;
-	public get insistOnKeepingHoverVisible(): boolean { return this._insistOnKeepingHoverVisible; }
-	public set insistOnKeepingHoverVisible(value: boolean) { this._insistOnKeepingHoverVisible = value; }
+export class ContentHoverComputer implements IHoverComputer<ContentHoverComputerOptions, IHoverPart> {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -73,8 +64,8 @@ export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		});
 	}
 
-	public computeAsync(token: CancellationToken): AsyncIterableObject<IHoverPart> {
-		const anchor = this._anchor;
+	public computeAsync(options: ContentHoverComputerOptions, token: CancellationToken): AsyncIterableObject<IHoverPart> {
+		const anchor = options.anchor;
 
 		if (!this._editor.hasModel() || !anchor) {
 			return AsyncIterableObject.EMPTY;
@@ -92,16 +83,17 @@ export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		);
 	}
 
-	public computeSync(): IHoverPart[] {
-		if (!this._editor.hasModel() || !this._anchor) {
+	public computeSync(options: ContentHoverComputerOptions): IHoverPart[] {
+		if (!this._editor.hasModel()) {
 			return [];
 		}
 
-		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, this._anchor);
+		const anchor = options.anchor;
+		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, anchor);
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(this._anchor, lineDecorations));
+			result = result.concat(participant.computeSync(anchor, lineDecorations));
 		}
 
 		return coalesce(result);

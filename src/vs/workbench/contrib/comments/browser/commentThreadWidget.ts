@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/review';
-import * as dom from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as languages from 'vs/editor/common/languages';
-import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { CommentReply } from 'vs/workbench/contrib/comments/browser/commentReply';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
-import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
-import { CommentThreadAdditionalActions } from 'vs/workbench/contrib/comments/browser/commentThreadAdditionalActions';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
-import { localize } from 'vs/nls';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
-import { DomEmitter } from 'vs/base/browser/event';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import './media/review.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { IMarkdownRendererOptions } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { CommentMenus } from './commentMenus.js';
+import { CommentReply } from './commentReply.js';
+import { ICommentService } from './commentService.js';
+import { CommentThreadBody } from './commentThreadBody.js';
+import { CommentThreadHeader } from './commentThreadHeader.js';
+import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
+import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
+import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { PANEL_BORDER } from '../../../common/theme.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { LayoutableEditor } from './simpleCommentEditor.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -176,7 +176,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 		if (keybinding) {
 			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
-		} else {
+		} else if (verbose) {
 			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
 		}
 		this._body.container.ariaLabel = ariaLabel;
@@ -370,8 +370,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
-	focus() {
-		this._body.focus();
+	focus(commentUniqueId: number | undefined) {
+		this._body.focus(commentUniqueId);
 	}
 
 	async submitComment() {

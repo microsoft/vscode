@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { AppResourcePath, COI, FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { coalesce } from 'vs/base/common/arrays';
-import { getNLSLanguage, getNLSMessages } from 'vs/nls';
+import { createTrustedTypesPolicy } from './trustedTypes.js';
+import { onUnexpectedError } from '../common/errors.js';
+import { AppResourcePath, COI, FileAccess } from '../common/network.js';
+import { URI } from '../common/uri.js';
+import { IWorker, IWorkerCallback, IWorkerClient, IWorkerDescriptor, IWorkerFactory, logOnceWebWorkerWarning, SimpleWorkerClient } from '../common/worker/simpleWorker.js';
+import { Disposable, toDisposable } from '../common/lifecycle.js';
+import { coalesce } from '../common/arrays.js';
+import { getNLSLanguage, getNLSMessages } from '../../nls.js';
 
 // ESM-comment-begin
-const isESM = false;
+// const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
-// const isESM = true;
+const isESM = true;
 // ESM-uncomment-end
 
 // Reuse the trusted types policy defined from worker bootstrap
@@ -53,13 +53,13 @@ function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | 
 		}
 	}
 	// ESM-comment-begin
-	if (typeof require === 'function') {
-		const workerMainLocation = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
-		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
-		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
-	}
+	// if (typeof require === 'function') {
+	// const workerMainLocation = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+	// const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
+	// const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+	// const workerUrl = getWorkerBootstrapUrl(label, workerMainLocation, workerBaseUrl);
+	// return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: isESM ? 'module' : undefined });
+	// }
 	// ESM-comment-end
 	if (esmWorkerLocation) {
 		const workerUrl = getWorkerBootstrapUrl(label, esmWorkerLocation.toString(true));
@@ -93,15 +93,18 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 		}
 	}
 
+	// In below blob code, we are using JSON.stringify to ensure the passed
+	// in values are not breaking our script. The values may contain string
+	// terminating characters (such as ' or ").
 	const blob = new Blob([coalesce([
 		`/*${label}*/`,
-		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };` : undefined,
+		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: ${JSON.stringify(workerBaseUrl)} };` : undefined,
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(getNLSMessages())};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(getNLSLanguage())};`,
-		`globalThis._VSCODE_FILE_ROOT = '${globalThis._VSCODE_FILE_ROOT}';`,
+		`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(globalThis._VSCODE_FILE_ROOT)};`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`globalThis.workerttPolicy = ttPolicy;`,
-		isESM ? `await import(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');` : `importScripts(ttPolicy?.createScriptURL('${workerScriptUrl}') ?? '${workerScriptUrl}');`, //
+		isESM ? `await import(ttPolicy?.createScriptURL(${JSON.stringify(workerScriptUrl)}) ?? ${JSON.stringify(workerScriptUrl)});` : `importScripts(ttPolicy?.createScriptURL(${JSON.stringify(workerScriptUrl)}) ?? ${JSON.stringify(workerScriptUrl)});`,
 		isESM ? `globalThis.postMessage({ type: 'vscode-worker-ready' });` : undefined, // in ESM signal we are ready after the async import
 		`/*${label}*/`
 	]).join('')], { type: 'application/javascript' });

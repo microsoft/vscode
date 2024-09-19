@@ -16,8 +16,6 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribDiffEditorGutterToolBarMenus",
-    "contribSourceControlHistoryItemChangesMenu",
-    "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
     "contribSourceControlHistoryTitleMenu",
     "contribSourceControlInputBoxMenu",
@@ -455,6 +453,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRefDetached",
+        "title": "%command.checkoutRefDetached%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.branch",
         "title": "%command.branch%",
         "category": "Git",
@@ -529,6 +533,7 @@
       {
         "command": "git.fetchAll",
         "title": "%command.fetchAll%",
+        "icon": "$(git-fetch)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -616,6 +621,12 @@
       {
         "command": "git.cherryPick",
         "title": "%command.cherryPick%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.cherryPickRef",
+        "title": "%command.cherryPickRef%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1447,6 +1458,14 @@
         {
           "command": "git.copyCommitMessage",
           "when": "false"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "false"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1938,154 +1957,41 @@
       ],
       "scm/history/title": [
         {
-          "command": "git.fetchRef",
-          "group": "navigation@1",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.pullRef",
-          "group": "navigation@2",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.pushRef",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote",
-          "group": "navigation@3"
-        },
-        {
-          "command": "git.publish",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
-          "group": "navigation@3"
-        }
-      ],
-      "scm/historyItemChanges/title": [
-        {
-          "command": "git.fetchRef",
-          "group": "navigation@1",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.pullRef",
-          "group": "navigation@2",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.pushRef",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote",
-          "group": "navigation@3"
-        },
-        {
-          "command": "git.publish",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
-          "group": "navigation@3"
+          "command": "git.fetchAll",
+          "group": "navigation@999",
+          "when": "scmProvider == git"
         }
       ],
       "scm/historyItem/context": [
         {
+          "command": "git.createTag",
+          "when": "scmProvider == git",
+          "group": "1_create@1"
+        },
+        {
+          "command": "git.branch",
+          "when": "scmProvider == git",
+          "group": "1_create@2"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "scmProvider == git",
+          "group": "2_modify@1"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "scmProvider == git",
+          "group": "2_modify@2"
+        },
+        {
           "command": "git.copyCommitId",
           "when": "scmProvider == git && !listMultiSelection",
-          "group": "1_copy@1"
+          "group": "9_copy@1"
         },
         {
           "command": "git.copyCommitMessage",
           "when": "scmProvider == git && !listMultiSelection",
-          "group": "1_copy@2"
-        }
-      ],
-      "scm/incomingChanges": [
-        {
-          "command": "git.fetchRef",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pullRef",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        }
-      ],
-      "scm/incomingChanges/context": [
-        {
-          "command": "git.fetchRef",
-          "group": "1_modification@1",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pullRef",
-          "group": "1_modification@2",
-          "when": "scmProvider == git"
-        }
-      ],
-      "scm/incomingChanges/allChanges/context": [
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/incomingChanges/historyItem/context": [
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/outgoingChanges": [
-        {
-          "command": "git.pushRef",
-          "group": "navigation",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
-        },
-        {
-          "command": "git.publish",
-          "group": "navigation",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote"
-        }
-      ],
-      "scm/outgoingChanges/context": [
-        {
-          "command": "git.pushRef",
-          "when": "scmProvider == git && scmHistoryItemGroupHasRemote",
-          "group": "1_modification@1"
-        },
-        {
-          "command": "git.publish",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
-          "group": "1_modification@1"
-        }
-      ],
-      "scm/outgoingChanges/allChanges/context": [
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/outgoingChanges/historyItem/context": [
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
+          "group": "9_copy@2"
         }
       ],
       "editor/title": [

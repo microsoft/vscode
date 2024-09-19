@@ -5,11 +5,11 @@
 
 import type { IExtendedConfiguration, IExtendedTelemetryItem, ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
 import type { IChannelConfiguration, IXHROverride, PostChannel } from '@microsoft/1ds-post-js';
-import { importAMDNodeModule } from 'vs/amdX';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { mixin } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
-import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { importAMDNodeModule } from '../../../amdX.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { mixin } from '../../../base/common/objects.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { ITelemetryAppender, validateTelemetryData } from './telemetryUtils.js';
 
 // Interface type which is a subset of @microsoft/1ds-core-js AppInsightsCore.
 // Allows us to more easily build mock objects for testing as the interface is quite large and we only need a few properties.
@@ -24,15 +24,15 @@ const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
 	// ESM-comment-begin
-	if (isWeb) { /* fix the import warning */ }
-	const oneDs = await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'dist/ms.core.js');
-	const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
+	// if (isWeb) { /* fix the import warning */ }
+	// const oneDs = await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'dist/ms.core.js');
+	// const postPlugin = await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'dist/ms.post.js');
 	// ESM-comment-end
 	// ESM-uncomment-begin
-	// // eslint-disable-next-line local/code-amd-node-module
-	// const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');
-	// // eslint-disable-next-line local/code-amd-node-module
-	// const postPlugin = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'bundle/ms.post.min.js'): await import('@microsoft/1ds-post-js');
+	// eslint-disable-next-line local/code-amd-node-module
+	const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');
+	// eslint-disable-next-line local/code-amd-node-module
+	const postPlugin = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-post-js')>('@microsoft/1ds-post-js', 'bundle/ms.post.min.js') : await import('@microsoft/1ds-post-js');
 	// ESM-uncomment-end
 
 	const appInsightsCore = new oneDs.AppInsightsCore();
@@ -151,7 +151,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		} catch { }
 	}
 
-	flush(): Promise<any> {
+	flush(): Promise<void> {
 		if (this._aiCoreOrKey) {
 			return new Promise(resolve => {
 				this._withAIClient((aiClient) => {

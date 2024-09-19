@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { distinct, equals } from 'vs/base/common/arrays';
-import { Delayer, disposableTimeout } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event, IValueWithChangeEvent } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/base/common/range';
-import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { IRangeMap, RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
-import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { clamp } from 'vs/base/common/numbers';
+import { DataTransfers, IDragAndDropData } from '../../dnd.js';
+import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
+import { DomEmitter } from '../../event.js';
+import { IMouseWheelEvent } from '../../mouseEvent.js';
+import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
+import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
+import { distinct, equals } from '../../../common/arrays.js';
+import { Delayer, disposableTimeout } from '../../../common/async.js';
+import { memoize } from '../../../common/decorators.js';
+import { Emitter, Event, IValueWithChangeEvent } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { IRange, Range } from '../../../common/range.js';
+import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import { ISpliceable } from '../../../common/sequence.js';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from './list.js';
+import { IRangeMap, RangeMap, shift } from './rangeMap.js';
+import { IRow, RowCache } from './rowCache.js';
+import { BugIndicatingError } from '../../../common/errors.js';
+import { AriaRole } from '../aria/aria.js';
+import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
+import { clamp } from '../../../common/numbers.js';
 
 interface IItem<T> {
 	readonly id: string;
@@ -173,7 +173,7 @@ export class NativeDragAndDropData implements IDragAndDropData {
 		}
 	}
 
-	getData(): any {
+	getData() {
 		return {
 			types: this.types,
 			files: this.files

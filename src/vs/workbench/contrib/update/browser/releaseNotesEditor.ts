@@ -3,38 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/releasenoteseditor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import * as nls from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { marked } from 'vs/base/common/marked/marked';
+import './media/releasenoteseditor.css';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
+import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
+import { escape } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { TokenizationRegistry } from '../../../../editor/common/languages.js';
+import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import * as nls from '../../../../nls.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
+import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { getTelemetryLevel, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -250,10 +249,16 @@ export class ReleaseNotesManager {
 
 	private async renderBody(text: string) {
 		const nonce = generateUuid();
-		const renderer = new marked.Renderer();
-		renderer.html = this._simpleSettingRenderer.getHtmlRenderer();
 
-		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, { shouldSanitize: false, renderer });
+		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, {
+			shouldSanitize: false,
+			markedExtensions: [{
+				renderer: {
+					html: this._simpleSettingRenderer.getHtmlRenderer(),
+					codespan: this._simpleSettingRenderer.getCodeSpanRenderer(),
+				}
+			}]
+		});
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));

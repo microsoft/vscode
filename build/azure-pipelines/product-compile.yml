@@ -1,7 +1,7 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
-  - name: VSCODE_BUILD_ESM
+  - name: VSCODE_BUILD_AMD
     type: boolean
     default: false
 
@@ -15,7 +15,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ./distro/download-distro.yml@self
 
-    - task: AzureKeyVault@1
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
         azureSubscription: "vscode-builds-subscription"
@@ -26,12 +26,12 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/yarnlockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/yarnlockhash'
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -42,18 +42,17 @@ steps:
 
   - script: |
       set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      echo "always-auth=true" >> .npmrc
-      yarn config set registry "$NPM_REGISTRY"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
@@ -63,15 +62,14 @@ steps:
 
   - script: |
       set -e
-      npm i -g node-gyp@9.4.0
 
       for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -94,38 +92,47 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: yarn --cwd build compile && ./.github/workflows/check-clean-git-state.sh
+    - script: npm run compile
+      workingDirectory: build
+      displayName: Compile /build/ folder
+
+    - script: .github/workflows/check-clean-git-state.sh
       displayName: Check /build/ folder
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
-  - ${{ if eq(parameters.VSCODE_BUILD_ESM, true) }}:
-    - script: node migrate.mjs --disable-watch
-      displayName: Migrate to ESM
+  - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
+    - script: node migrate.mjs --disable-watch --enable-esm-to-amd
+      displayName: Migrate ESM -> AMD
 
   - template: common/install-builtin-extensions.yml@self
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    - script: npm exec -- npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
-    - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
+    - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (non-OSS)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        yarn --cwd test/smoke compile
-        yarn --cwd test/integration/browser compile
-      displayName: Compile test suites (non-OSS)
+        npm run compile
+      displayName: Compile smoke test suites (non-OSS)
+      workingDirectory: test/smoke
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+    - script: |
+        set -e
+        npm run compile
+      displayName: Compile integration test suites (non-OSS)
+      workingDirectory: test/integration/browser
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
     - task: AzureCLI@2
@@ -171,7 +178,7 @@ steps:
         sbomEnabled: false
       displayName: Publish compilation artifact
 
-    - script: yarn download-builtin-extensions-cg
+    - script: npm run download-builtin-extensions-cg
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Download component details of built-in extensions

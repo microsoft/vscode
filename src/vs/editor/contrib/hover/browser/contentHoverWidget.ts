@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { getHoverAccessibleViewHint, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { Emitter } from 'vs/base/common/event';
-import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
+import * as dom from '../../../../base/browser/dom.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
+import { HoverStartSource } from './hoverOperation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResizableContentWidget } from './resizableContentWidget.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { getHoverAccessibleViewHint, HoverWidget } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { PositionAffinity } from '../../../common/model.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RenderedContentHover } from './contentHoverRendered.js';
 
 const HORIZONTAL_SCROLLING_BY = 30;
 const CONTAINER_HEIGHT_PADDING = 6;
@@ -291,7 +291,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _updateMaxDimensions() {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 750, ContentHoverWidget._lastDimensions.width);
 		this._setHoverWidgetMaxDimensions(width, height);
 	}
 

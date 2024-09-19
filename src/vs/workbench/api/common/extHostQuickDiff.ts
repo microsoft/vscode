@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostQuickDiffShape, IMainContext, MainContext, MainThreadQuickDiffShape } from 'vs/workbench/api/common/extHost.protocol';
-import { asPromise } from 'vs/base/common/async';
-import { DocumentSelector } from 'vs/workbench/api/common/extHostTypeConverters';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ExtHostQuickDiffShape, IMainContext, MainContext, MainThreadQuickDiffShape } from './extHost.protocol.js';
+import { asPromise } from '../../../base/common/async.js';
+import { DocumentSelector } from './extHostTypeConverters.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
 
 export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 	private static handlePool: number = 0;

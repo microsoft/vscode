@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow } from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isChrome } from 'vs/base/common/platform';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isChrome } from '../../../../../base/common/platform.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { INotebookEditorDelegate } from '../notebookBrowser.js';
 
 export class NotebookHorizontalTracker extends Disposable {
 	constructor(

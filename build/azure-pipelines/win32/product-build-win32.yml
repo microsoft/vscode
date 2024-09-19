@@ -11,7 +11,7 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_BUILD_ESM
+  - name: VSCODE_BUILD_AMD
     type: boolean
     default: false
 
@@ -35,7 +35,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml@self
 
-    - task: AzureKeyVault@1
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
         azureSubscription: "vscode-builds-subscription"
@@ -60,12 +60,12 @@ steps:
 
   - pwsh: |
       mkdir .build -ea 0
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/yarnlockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/yarnlockhash'
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -77,18 +77,18 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
-      exec { yarn config set registry "$env:NPM_REGISTRY" }
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
-      workingFile: .npmrc
+      workingFile: $(NPMRC_PATH)
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
@@ -96,7 +96,7 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      retry { exec { yarn --frozen-lockfile --check-files } }
+      retry { exec { npm ci } }
     env:
       npm_config_arch: $(VSCODE_ARCH)
       CHILD_CONCURRENCY: 1
@@ -132,7 +132,7 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
+    - powershell: npm run gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
@@ -145,8 +145,8 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
-        exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
+        exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
+        exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
         echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
       env:
@@ -156,7 +156,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
+        exec { npm run gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
         mv ..\vscode-reh-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH) # TODO@joaomoreno
         echo "##vso[task.setvariable variable=BUILT_SERVER]true"
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)"
@@ -167,7 +167,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
+        exec { npm run gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
         mv ..\vscode-reh-web-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH)-web # TODO@joaomoreno
         echo "##vso[task.setvariable variable=BUILT_WEB]true"
       env:
@@ -182,7 +182,7 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        VSCODE_BUILD_ESM: ${{ parameters.VSCODE_BUILD_ESM }}
+        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
@@ -275,7 +275,7 @@ steps:
           $env:ESRPPKI = "$(ESRP-PKI)"
           $env:ESRPAADUsername = "$(esrp-aad-username)"
           $env:ESRPAADPassword = "$(esrp-aad-password)"
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
+          exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
@@ -287,7 +287,7 @@ steps:
           $env:ESRPPKI = "$(ESRP-PKI)"
           $env:ESRPAADUsername = "$(esrp-aad-username)"
           $env:ESRPAADPassword = "$(esrp-aad-password)"
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
+          exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"

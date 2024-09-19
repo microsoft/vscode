@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
-import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
-import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { createFileUriFromPathFromRoot, getRootName, stubModelService, stubNotebookEditorService } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { TestLanguageConfigurationService } from '../../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult, TextSearchResult } from '../../browser/searchModel.js';
+import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
+import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from '../../../../services/search/common/search.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { createFileUriFromPathFromRoot, getRootName, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -123,8 +123,8 @@ suite('Search - Viewlet', () => {
 	test('Cross-type Comparer', () => {
 
 		const searchResult = aSearchResult();
-		const folderMatch1 = aFolderMatch('/voo', 0, searchResult);
-		const folderMatch2 = aFolderMatch('/with', 1, searchResult);
+		const folderMatch1 = aFolderMatch('/voo', 0, searchResult.plainTextSearchResult);
+		const folderMatch2 = aFolderMatch('/with', 1, searchResult.plainTextSearchResult);
 
 		const fileMatch1 = aFileMatch('/voo/foo.a', folderMatch1);
 		const fileMatch2 = aFileMatch('/with/path.c', folderMatch2);
@@ -188,7 +188,7 @@ suite('Search - Viewlet', () => {
 		return fileMatch;
 	}
 
-	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
+	function aFolderMatch(path: string, index: number, parent?: TextSearchResult): FolderMatch {
 		const searchModel = instantiation.createInstance(SearchModel);
 		store.add(searchModel);
 		const folderMatch = instantiation.createInstance(FolderMatch, createFileUriFromPathFromRoot(path), path, index, {

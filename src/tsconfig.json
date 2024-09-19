@@ -7,14 +7,15 @@
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
-		"isolatedModules": true,
+		"isolatedModules": false,
 		"outDir": "../out/vs",
 		"types": [
+			"@webgpu/types",
 			"mocha",
 			"semver",
 			"sinon",
-			"winreg",
 			"trusted-types",
+			"winreg",
 			"wicg-file-system-access"
 		],
 		"plugins": [

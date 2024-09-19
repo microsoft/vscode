@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { findFirstMax } from 'vs/base/common/arraysFind';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/model/singleTextEdit';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
-import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { compareBy, numberComparator } from '../../../../../base/common/arrays.js';
+import { findFirstMax } from '../../../../../base/common/arraysFind.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from '../../../../common/languages.js';
+import { ITextModel } from '../../../../common/model.js';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
+import { SnippetParser } from '../../../snippet/browser/snippetParser.js';
+import { SnippetSession } from '../../../snippet/browser/snippetSession.js';
+import { CompletionItem } from '../../../suggest/browser/suggest.js';
+import { SuggestController } from '../../../suggest/browser/suggestController.js';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;

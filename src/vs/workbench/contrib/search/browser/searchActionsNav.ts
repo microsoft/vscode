@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh } from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
-import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
-import { category, getSearchView, openSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { getActiveElement } from 'vs/base/browser/dom';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import * as nls from '../../../../nls.js';
+import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import * as Constants from '../common/constants.js';
+import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
+import { FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from './searchModel.js';
+import { SearchEditor } from '../../searchEditor/browser/searchEditor.js';
+import { SearchEditorInput } from '../../searchEditor/browser/searchEditorInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from '../../../../editor/contrib/find/browser/findModel.js';
+import { category, getSearchView, openSearchView } from './searchActionsBase.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
 
 //#region Actions: Changing Search Input Options
 registerAction2(class ToggleQueryDetailsAction extends Action2 {
@@ -174,7 +174,7 @@ registerAction2(class OpenMatchAction extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
 			const viewer = searchView.getControl();
 			const focus = tree.getFocus()[0];
 
@@ -206,7 +206,7 @@ registerAction2(class OpenMatchToSideAction extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
 			searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, true, true);
 		}
 	}
@@ -229,7 +229,7 @@ registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<any> {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
 			searchView.openEditorWithMultiCursor(<FileMatchOrMatch>tree.getFocus()[0]);
 		}
 	}

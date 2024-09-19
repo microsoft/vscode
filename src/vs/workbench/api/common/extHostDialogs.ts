@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { URI } from '../../../base/common/uri.js';
+import { MainContext, MainThreadDiaglogsShape, IMainContext } from './extHost.protocol.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 export class ExtHostDialogs {
 

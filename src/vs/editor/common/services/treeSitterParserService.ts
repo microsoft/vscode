@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
-import { Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { ITextModel } from '../model.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { Range } from '../core/range.js';
 
 export const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
 
@@ -17,6 +18,7 @@ export interface ITreeSitterParserService {
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
 	getOrInitLanguage(languageId: string): Parser.Language | undefined;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
+	onDidUpdateTree: Event<{ textModel: ITextModel; ranges: Range[] }>;
 }
 
 export interface ITreeSitterParseResult {

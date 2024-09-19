@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Selection } from 'vs/editor/common/core/selection';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IQuickChatOpenOptions, IQuickChatService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import * as dom from '../../../../base/browser/dom.js';
+import { Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IQuickInputService, IQuickWidget } from '../../../../platform/quickinput/common/quickInput.js';
+import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
+import { ChatWidget } from './chatWidget.js';
+import { ChatAgentLocation } from '../common/chatAgents.js';
+import { ChatModel } from '../common/chatModel.js';
+import { IParsedChatRequest } from '../common/chatParserTypes.js';
+import { IChatProgress, IChatService } from '../common/chatService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -224,6 +225,7 @@ class QuickChat extends Disposable {
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
+					overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));

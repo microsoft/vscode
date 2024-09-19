@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { IFileMatch, ISearchRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
-import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { CellMatch, FileMatch, FolderMatch, SearchModel, textSearchMatchesToNotebookMatches } from 'vs/workbench/contrib/search/browser/searchModel';
-import { URI } from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { IModelService } from 'vs/editor/common/services/model';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { FindMatch, IReadonlyTextBuffer } from '../../../../../editor/common/model.js';
+import { IFileMatch, ISearchRange, ITextSearchMatch, QueryType } from '../../../../services/search/common/search.js';
+import { ICellViewModel } from '../../../notebook/browser/notebookBrowser.js';
+import { CellKind } from '../../../notebook/common/notebookCommon.js';
+import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from '../../browser/notebookSearch/searchNotebookHelpers.js';
+import { CellFindMatchModel } from '../../../notebook/browser/contrib/find/findModel.js';
+import { CellMatch, FileMatch, FolderMatch, SearchModel, textSearchMatchesToNotebookMatches } from '../../browser/searchModel.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('searchNotebookHelpers', () => {
 	let instantiationService: TestInstantiationService;
@@ -213,7 +213,7 @@ suite('searchNotebookHelpers', () => {
 				type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 					pattern: ''
 				}
-			}, searchModel.searchResult, searchModel.searchResult, null);
+			}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
 			const fileMatch = instantiationService.createInstance(FileMatch, {
 				pattern: ''
 			}, undefined, undefined, folderMatch, rawMatch, null, '');

@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
-import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
-import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { equals } from 'vs/base/common/objects';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { hash } from 'vs/base/common/hash';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { isEmptyObject, isObject } from 'vs/base/common/types';
-import { DefaultConfiguration as BaseDefaultConfiguration } from 'vs/platform/configuration/common/configurations';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { URI } from '../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import * as errors from '../../../../base/common/errors.js';
+import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from '../../../../platform/files/common/files.js';
+import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
+import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from '../common/configurationModels.js';
+import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING } from '../common/configuration.js';
+import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { equals } from '../../../../base/common/objects.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
+import { hash } from '../../../../base/common/hash.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { isEmptyObject, isObject } from '../../../../base/common/types.js';
+import { DefaultConfiguration as BaseDefaultConfiguration } from '../../../../platform/configuration/common/configurations.js';
+import { IJSONEditingService } from '../common/jsonEditing.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
 
@@ -527,13 +527,15 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	private handleFileChangesEvent(event: FileChangesEvent): void {
 
 		// Find changes that affect the resource
-		let affectedByChanges = event.contains(this.configurationResource, FileChangeType.UPDATED);
+		let affectedByChanges = false;
 		if (event.contains(this.configurationResource, FileChangeType.ADDED)) {
 			affectedByChanges = true;
 			this.onResourceExists(true);
 		} else if (event.contains(this.configurationResource, FileChangeType.DELETED)) {
 			affectedByChanges = true;
 			this.onResourceExists(false);
+		} else if (event.contains(this.configurationResource, FileChangeType.UPDATED)) {
+			affectedByChanges = true;
 		}
 
 		if (affectedByChanges) {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkerServer, SimpleWorkerServer } from 'vs/base/common/worker/simpleWorker';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { IWorkerServer, SimpleWorkerServer } from '../../../base/common/worker/simpleWorker.js';
+import { EditorSimpleWorker } from './editorSimpleWorker.js';
+import { EditorWorkerHost } from './editorWorkerHost.js';
 
 type MessageEvent = {
 	data: any;

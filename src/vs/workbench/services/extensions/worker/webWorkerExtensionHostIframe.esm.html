@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-DvAmW5Fes5iD5QQV6OcvitPCC3AegfXRIazQ4VJlSVA=' https: http://localhost:* blob:;
+			script-src 'self' 'unsafe-eval' 'sha256-YVBiNCLDtlDv8TpTuATV/fJ9rcBWIq9O9zBL2ndqAgw=' https: http://localhost:* blob:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -94,19 +94,23 @@
 			}
 
 			// ESM-comment-begin
-			const isESM = false;
+			// const isESM = false;
 			// ESM-comment-end
 			// ESM-uncomment-begin
-			// const isESM = true;
+			const isESM = true;
 			// ESM-uncomment-end
+
+			// In below blob code, we are using JSON.stringify to ensure the passed
+			// in values are not breaking our script. The values may contain string
+			// terminating characters (such as ' or ").
 
 			const blob = new Blob([[
 				`/*extensionHostWorker*/`,
-				`globalThis.MonacoEnvironment = { baseUrl: '${baseUrl}' };`,
+				`globalThis.MonacoEnvironment = { baseUrl: ${JSON.stringify(baseUrl)} };`,
 				`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(nlsMessages)};`,
 				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(nlsLanguage)};`,
-				`globalThis._VSCODE_FILE_ROOT = '${fileRoot}';`,
-				isESM ? `await import('${workerUrl}');` : `importScripts('${workerUrl}');`,
+				`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(fileRoot)};`,
+				isESM ? `await import(${JSON.stringify(workerUrl)});` : `importScripts(${JSON.stringify(workerUrl)});`,
 				`/*extensionHostWorker*/`
 			].join('')], { type: 'application/javascript' });
 

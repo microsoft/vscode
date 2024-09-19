@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import * as osPath from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { getWindow } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import * as osPath from '../../../../base/common/path.js';
+import * as platform from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IDebugSession } from '../common/debug.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -60,7 +60,12 @@ export const enum DebugLinkHoverBehavior {
 export type DebugLinkHoverBehaviorTypeData = { type: DebugLinkHoverBehavior.None | DebugLinkHoverBehavior.Basic }
 	| { type: DebugLinkHoverBehavior.Rich; store: DisposableStore };
 
-export class LinkDetector {
+export interface ILinkDetector {
+	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData): HTMLElement;
+	linkifyLocation(text: string, locationReference: number, session: IDebugSession, hoverBehavior?: DebugLinkHoverBehaviorTypeData): HTMLElement;
+}
+
+export class LinkDetector implements ILinkDetector {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
@@ -84,6 +89,10 @@ export class LinkDetector {
 	 * This should be preferred for new code where hovers are desirable.
 	 */
 	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData): HTMLElement {
+		return this._linkify(text, splitLines, workspaceFolder, includeFulltext, hoverBehavior);
+	}
+
+	private _linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData, defaultRef?: { locationReference: number; session: IDebugSession }): HTMLElement {
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -93,7 +102,7 @@ export class LinkDetector {
 				// Remove the last element ('') that split added.
 				lines.pop();
 			}
-			const elements = lines.map(line => this.linkify(line, false, workspaceFolder, includeFulltext));
+			const elements = lines.map(line => this._linkify(line, false, workspaceFolder, includeFulltext, hoverBehavior, defaultRef));
 			if (elements.length === 1) {
 				// Do not wrap single line with extra span.
 				return elements[0];
@@ -108,7 +117,7 @@ export class LinkDetector {
 			try {
 				switch (part.kind) {
 					case 'text':
-						container.appendChild(document.createTextNode(part.value));
+						container.appendChild(defaultRef ? this.linkifyLocation(part.value, defaultRef.locationReference, defaultRef.session, hoverBehavior) : document.createTextNode(part.value));
 						break;
 					case 'web':
 						container.appendChild(this.createWebLink(includeFulltext ? text : undefined, part.value, hoverBehavior));
@@ -144,6 +153,18 @@ export class LinkDetector {
 		});
 
 		return link;
+	}
+
+	/**
+	 * Makes an {@link ILinkDetector} that links everything in the output to the
+	 * reference if they don't have other explicit links.
+	 */
+	makeReferencedLinkDetector(locationReference: number, session: IDebugSession): ILinkDetector {
+		return {
+			linkify: (text, splitLines, workspaceFolder, includeFulltext, hoverBehavior) =>
+				this._linkify(text, splitLines, workspaceFolder, includeFulltext, hoverBehavior, { locationReference, session }),
+			linkifyLocation: this.linkifyLocation.bind(this),
+		};
 	}
 
 	private createWebLink(fulltext: string | undefined, url: string, hoverBehavior?: DebugLinkHoverBehaviorTypeData): Node {

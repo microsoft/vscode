@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import themePickerContent from 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker';
-import notebookProfileContent from 'vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { URI } from 'vs/base/common/uri';
+import themePickerContent from './media/theme_picker.js';
+import notebookProfileContent from './media/notebookProfile.js';
+import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { URI } from '../../../../base/common/uri.js';
 
 interface IGettingStartedContentProvider {
 	(): string;
@@ -51,6 +51,8 @@ export async function moduleToContent(resource: URI): Promise<string> {
 
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker', themePickerContent);
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile', notebookProfileContent);
+// Register empty media for accessibility walkthrough
+gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/empty', () => '');
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of welcome page"));
@@ -393,13 +395,13 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		}
 	},
 	{
-		id: 'SetupScreenReader',
-		title: localize('gettingStarted.setupScreenReader.title', "Get Started with VS Code using a Screen Reader"),
-		description: localize('gettingStarted.setupScreenReader.description', "Learn the tools and shortcuts that make VS Code accessible. Note that some actions are not actionable from within the context of the walkthrough."),
+		id: 'SetupAccessibility',
+		title: localize('gettingStarted.setupAccessibility.title', "Get Started with Accessibility Features"),
+		description: localize('gettingStarted.setupAccessibility.description', "Learn the tools and shortcuts that make VS Code accessible. Note that some actions are not actionable from within the context of the walkthrough."),
 		isFeatured: true,
 		icon: setupIcon,
 		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
-		next: 'SetupScreenReaderExtended',
+		next: 'Setup',
 		content: {
 			type: 'steps',
 			steps: [
@@ -413,7 +415,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'accessibleView',
-					title: localize('gettingStarted.accessibleView.title', "Use the accessible view to inspect content line by line, character by character"),
+					title: localize('gettingStarted.accessibleView.title', "Screen reader users can inspect content line by line, character by character in the accessible view."),
 					description: localize('gettingStarted.accessibleView.description.interpolated', "The accessible view is available for the terminal, hovers, notifications, comments, notebook output, chat responses, inline completions, and debug console output.\n With focus in any of those features, it can be opened with the Open Accessible View command.\n{0}", Button(localize('openAccessibleView', "Open Accessible View"), 'command:editor.action.accessibleView')),
 					media: {
 						type: 'markdown', path: 'empty'
@@ -422,7 +424,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'verbositySettings',
 					title: localize('gettingStarted.verbositySettings.title', "Control the verbosity of aria labels"),
-					description: localize('gettingStarted.verbositySettings.description.interpolated', "Verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can avoid hearing hints about how to operate it. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
+					description: localize('gettingStarted.verbositySettings.description.interpolated', "Screen reader verbosity settings exist for features around the workbench so that once a user is familiar with a feature, they can avoid hearing hints about how to operate it. For example, features for which an accessibility help dialog exists will indicate how to open the dialog until the verbosity setting for that feature has been disabled.\n These and other accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openVerbositySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}
@@ -466,91 +468,13 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: {
 						type: 'markdown', path: 'empty'
 					}
+				},
+				{
+					id: 'accessibilitySettings',
+					title: localize('gettingStarted.accessibilitySettings.title', "Configure accessibility settings"),
+					description: localize('gettingStarted.accessibilitySettings.description.interpolated', "Accessibility settings can be configured by running the Open Accessibility Settings command.\n{0}", Button(localize('openAccessibilitySettings', "Open Accessibility Settings"), 'command:workbench.action.openAccessibilitySettings')),
+					media: { type: 'markdown', path: 'empty' }
 				}
-			]
-		}
-	},
-	{
-		id: 'SetupScreenReaderExtended',
-		title: localize('gettingStarted.setupScreenReaderExtended.title', "Learn more about using VS Code with a Screen Reader"),
-		description: localize('gettingStarted.setupScreenReaderExtended.description', "Customize your editor, learn the basics, and start coding"),
-		isFeatured: true,
-		icon: setupIcon,
-		when: `!isWeb && ${CONTEXT_ACCESSIBILITY_MODE_ENABLED.key}`,
-		content: {
-			type: 'steps',
-			steps: [
-				{
-					id: 'extensionsWeb',
-					title: localize('gettingStarted.extensions.title', "Code with extensions"),
-					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopularWeb', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
-					when: 'workspacePlatform == \'webworker\'',
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
-				{
-					id: 'findLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
-				{
-					id: 'settings',
-					title: localize('gettingStarted.settings.title', "Tune your settings"),
-					description: localize('gettingStarted.settings.description.interpolated', "Customize every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Open Settings"), 'command:toSide:workbench.action.openSettings')),
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
-				{
-					id: 'settingsSync',
-					title: localize('gettingStarted.settingsSync.title', "Sync settings across devices"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
-				{
-					id: 'commandPaletteTask',
-					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
-				{
-					id: 'pickAFolderTask-Mac',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
-					when: 'isMac && workspaceFolderCount == 0',
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
-				{
-					id: 'pickAFolderTask-Other',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
-					when: '!isMac && workspaceFolderCount == 0',
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
-				{
-					id: 'quickOpen',
-					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
-					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
-					when: 'workspaceFolderCount != 0',
-					media: {
-						type: 'markdown', path: 'empty'
-					}
-				},
 			]
 		}
 	},

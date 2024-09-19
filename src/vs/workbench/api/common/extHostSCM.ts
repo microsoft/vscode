@@ -5,28 +5,28 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { debounce } from 'vs/base/common/decorators';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { asPromise } from 'vs/base/common/async';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto } from './extHost.protocol';
-import { sortedDiff, equals } from 'vs/base/common/arrays';
-import { comparePaths } from 'vs/base/common/comparers';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Event, Emitter } from '../../../base/common/event.js';
+import { debounce } from '../../../base/common/decorators.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { asPromise } from '../../../base/common/async.js';
+import { ExtHostCommands } from './extHostCommands.js';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto } from './extHost.protocol.js';
+import { sortedDiff, equals } from '../../../base/common/arrays.js';
+import { comparePaths } from '../../../base/common/comparers.js';
 import type * as vscode from 'vscode';
-import { ISplice } from 'vs/base/common/sequence';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
-import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
+import { ISplice } from '../../../base/common/sequence.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { ExtensionIdentifierMap, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { MarkdownString } from './extHostTypeConverters.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { ExtHostDocuments } from './extHostDocuments.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isLinux } from '../../../base/common/platform.js';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -72,10 +72,15 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 }
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
-	const icon = getHistoryItemIconDto(historyItem.icon);
-	const labels = historyItem.labels?.map(l => ({ title: l.title, icon: getHistoryItemIconDto(l.icon) }));
+	const references = historyItem.references?.map(r => ({
+		...r, icon: getHistoryItemIconDto(r.icon)
+	}));
 
-	return { ...historyItem, icon, labels };
+	return { ...historyItem, references };
+}
+
+function toSCMHistoryItemRefDto(historyItemRef?: vscode.SourceControlHistoryItemRef): SCMHistoryItemRefDto | undefined {
+	return historyItemRef ? { ...historyItemRef, icon: getHistoryItemIconDto(historyItemRef.icon) } : undefined;
 }
 
 function compareResourceThemableDecorations(a: vscode.SourceControlResourceThemableDecorations, b: vscode.SourceControlResourceThemableDecorations): number {
@@ -210,6 +215,10 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 		return -1;
 	}
 
+	if (result !== 0) {
+		return result;
+	}
+
 	if (a.multiFileDiffEditorModifiedUri && b.multiFileDiffEditorModifiedUri) {
 		result = comparePaths(a.multiFileDiffEditorModifiedUri.fsPath, b.multiFileDiffEditorModifiedUri.fsPath, true);
 	} else if (a.multiFileDiffEditorModifiedUri) {
@@ -217,6 +226,11 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	} else if (b.multiFileDiffEditorModifiedUri) {
 		return -1;
 	}
+
+	if (result !== 0) {
+		return result;
+	}
+
 	if (a.multiDiffEditorOriginalUri && b.multiDiffEditorOriginalUri) {
 		result = comparePaths(a.multiDiffEditorOriginalUri.fsPath, b.multiDiffEditorOriginalUri.fsPath, true);
 	} else if (a.multiDiffEditorOriginalUri) {
@@ -567,7 +581,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private readonly _historyProviderDisposable = new MutableDisposable<DisposableStore>();
-	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
@@ -583,9 +596,23 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasHistoryProvider: !!historyProvider });
 
 		if (historyProvider) {
-			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
-				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
-				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
+			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemRefs(() => {
+				const historyItemRef = toSCMHistoryItemRefDto(historyProvider?.currentHistoryItemRef);
+				const historyItemRemoteRef = toSCMHistoryItemRefDto(historyProvider?.currentHistoryItemRemoteRef);
+				const historyItemBaseRef = toSCMHistoryItemRefDto(historyProvider?.currentHistoryItemBaseRef);
+
+				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemRefs(this.handle, historyItemRef, historyItemRemoteRef, historyItemBaseRef);
+			}));
+			this._historyProviderDisposable.value.add(historyProvider.onDidChangeHistoryItemRefs((e) => {
+				if (e.added.length === 0 && e.modified.length === 0 && e.removed.length === 0) {
+					return;
+				}
+
+				const added = e.added.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
+				const modified = e.modified.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
+				const removed = e.removed.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) }));
+
+				this.#proxy.$onDidChangeHistoryProviderHistoryItemRefs(this.handle, { added, modified, removed, silent: e.silent });
 			}));
 		}
 	}
@@ -967,38 +994,23 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
-	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+	async $resolveHistoryItemRefsCommonAncestor(sourceControlHandle: number, historyItemRefs: string[], token: CancellationToken): Promise<string | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		return await historyProvider?.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2, token) ?? undefined;
+		return await historyProvider?.resolveHistoryItemRefsCommonAncestor(historyItemRefs, token) ?? undefined;
 	}
 
-	async $resolveHistoryItemGroupCommonAncestor2(sourceControlHandle: number, historyItemGroupIds: string[], token: CancellationToken): Promise<string | undefined> {
+	async $provideHistoryItemRefs(sourceControlHandle: number, historyItemRefs: string[] | undefined, token: CancellationToken): Promise<SCMHistoryItemRefDto[] | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		return await historyProvider?.resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds, token) ?? undefined;
+		const refs = await historyProvider?.provideHistoryItemRefs(historyItemRefs, token);
+
+		return refs?.map(ref => ({ ...ref, icon: getHistoryItemIconDto(ref.icon) })) ?? undefined;
 	}
 
-	async $provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
+	async $provideHistoryItems(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		const historyItems = await historyProvider?.provideHistoryItems(historyItemGroupId, options, token);
+		const historyItems = await historyProvider?.provideHistoryItems(options, token);
 
 		return historyItems?.map(item => toSCMHistoryItemDto(item)) ?? undefined;
-	}
-
-	async $provideHistoryItems2(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
-		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		const historyItems = await historyProvider?.provideHistoryItems2(options, token);
-
-		return historyItems?.map(item => toSCMHistoryItemDto(item)) ?? undefined;
-	}
-
-	async $provideHistoryItemSummary(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemDto | undefined> {
-		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-		if (typeof historyProvider?.provideHistoryItemSummary !== 'function') {
-			return undefined;
-		}
-
-		const historyItem = await historyProvider.provideHistoryItemSummary(historyItemId, historyItemParentId, token);
-		return historyItem ? toSCMHistoryItemDto(historyItem) : undefined;
 	}
 
 	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {

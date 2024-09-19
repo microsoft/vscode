@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
-import { VSDataTransfer, matchesMimeType } from 'vs/base/common/dataTransfer';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentDropEdit, DocumentDropEditProvider } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
-import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { sortEditsByYieldTo } from './edit';
-import { PostEditWidgetManager } from './postEditWidget';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { CancelablePromise, createCancelablePromise, raceCancellation } from '../../../../base/common/async.js';
+import { VSDataTransfer, matchesMimeType } from '../../../../base/common/dataTransfer.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { toExternalVSDataTransfer } from '../../../browser/dnd.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IPosition } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { DocumentDropEdit, DocumentDropEditProvider } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { DraggedTreeItemsIdentifier } from '../../../common/services/treeViewsDnd.js';
+import { ITreeViewsDnDService } from '../../../common/services/treeViewsDndService.js';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
+import { InlineProgressManager } from '../../inlineProgress/browser/inlineProgress.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { sortEditsByYieldTo } from './edit.js';
+import { PostEditWidgetManager } from './postEditWidget.js';
 
 export const defaultProviderConfig = 'editor.experimental.dropIntoEditor.defaultProvider';
 
