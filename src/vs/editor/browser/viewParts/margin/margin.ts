@@ -11,7 +11,11 @@ import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 
-
+/**
+ * Margin is a vertical strip located on the left of the editor's content area.
+ * It is used for various features such as line numbers, folding markers, and
+ * decorations that provide additional information about the lines of code.
+ */
 export class Margin extends ViewPart {
 
 	public static readonly CLASS_NAME = 'glyph-margin';

@@ -1,28 +1,220 @@
-; Order matters! Place higher precedence first.
+; Order matters! Place lower precedence first.
 ; Adapted from https://github.com/zed-industries/zed/blob/main/crates/languages/src/typescript/highlights.scm
 
-; Language constants
+; Variables
+
+(identifier) @variable
+
+; Literals
+
+(this) @variable.language
+(super) @variable.language
+
+(comment) @comment
+
+; TODO: This doesn't seem to be working
+(escape_sequence) @constant.character.escape
 
 [
-  (true)
-  (false)
-  (null)
-  (undefined)
-] @constant.language
+  (string)
+  (template_string)
+  (template_literal_type)
+] @string
 
-(namespace_import
-  "*" @constant.language)
+; NOTE: the typescript grammar doesn't break regex into nice parts so as to capture parts of it separately
+(regex) @string.regexp
+(number) @constant.numeric
+
+; Template TODO: These don't seem to be working
+
+(template_substitution
+  "${" @punctuation.definition.template-expression.begin
+  "}" @punctuation.definition.template-expression.end)
+
+(template_type
+  "${" @punctuation.definition.template-expression.begin
+  "}" @punctuation.definition.template-expression.end)
+
+(type_arguments
+  "<" @punctuation.bracket
+  ">" @punctuation.bracket)
+
+; Properties
+
+(member_expression
+  object: (this)
+  property: (property_identifier) @variable)
+
+(member_expression
+  property: (property_identifier) @variable.other.constant
+  (#match? @variable.other.constant "^[A-Z][A-Z_]+$"))
+
+[
+  (property_identifier)
+  (shorthand_property_identifier)
+  (shorthand_property_identifier_pattern)] @variable
+
+; Function and method definitions
+
+(function_expression
+  name: (identifier) @entity.name.function)
+(function_declaration
+  name: (identifier) @entity.name.function)
+(method_definition
+  name: (property_identifier) @storage.type
+  (#eq? @storage.type "constructor"))
+(method_definition
+  name: (property_identifier) @entity.name.function)
+(method_signature
+  name: (property_identifier) @entity.name.function)
+
+(pair
+  key: (property_identifier) @entity.name.function
+  value: [(function_expression) (arrow_function)])
+
+(assignment_expression
+  left: (member_expression
+    property: (property_identifier) @entity.name.function)
+  right: [(function_expression) (arrow_function)])
+
+(variable_declarator
+  name: (identifier) @entity.name.function
+  value: [(function_expression) (arrow_function)])
+
+(assignment_expression
+  left: (identifier) @entity.name.function
+  right: [(function_expression) (arrow_function)])
+
+; Function and method calls
+
+(call_expression
+  function: (identifier) @entity.name.function)
+
+(call_expression
+  function: (member_expression
+  	object: (identifier) @support.class.promise)
+    (#eq? @support.class.promise "Promise"))
+
+(call_expression
+  function: (member_expression
+    property: (property_identifier) @entity.name.function))
+
+(new_expression
+  constructor: (identifier) @entity.name.function)
+
+
+; Special identifiers
+
+(type_identifier) @entity.name.type
+(predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
+(predefined_type) @support.type
+
+(("const")
+  (variable_declarator
+  	name: (identifier) @variable.other.constant))
+
+([
+  (identifier)
+  (shorthand_property_identifier)
+  (shorthand_property_identifier_pattern)] @variable.other.constant
+  (#match? @variable.other.constant "^[A-Z][A-Z_]+$"))
+
+(extends_clause
+  value: (identifier) @entity.other.inherited-class)
+
+; Tokens
+
+[
+  ";"
+  "?."
+  "."
+  ","
+  ":"
+  "?"
+] @punctuation.delimiter
+
+[
+  "!"
+  "~"
+  "==="
+  "!=="
+  "&&"
+  "||"
+  "??"
+] @keyword.operator.logical
+
+(binary_expression ([
+  "-"
+  "+"
+  "*"
+  "/"
+  "%"
+  "^"
+]) @keyword.operator.arithmetic)
+
+(binary_expression ([
+  "<"
+  "<="
+  ">"
+  ">="
+]) @keyword.operator.relational)
+
+[
+  "="
+] @keyword.operator.assignment
+
+(augmented_assignment_expression ([
+  "-="
+  "+="
+  "*="
+  "/="
+  "%="
+  "^="
+  "&="
+  "|="
+  "&&="
+  "||="
+  "??="
+]) @keyword.operator.assignment.compound)
+
+[
+  "++"
+] @keyword.operator.increment
+
+[
+  "--"
+] @keyword.operator.decrement
+
+[
+  "**"
+  "**="
+  "<<"
+  "<<="
+  "=="
+  "!="
+  "=>"
+  ">>"
+  ">>="
+  ">>>"
+  ">>>="
+  "~"
+  "&"
+  "|"
+] @keyword.operator
 
 ; Keywords
+
+("typeof") @keyword.operator.expression.typeof
+
+(binary_expression "instanceof" @keyword.operator.expression.instanceof)
+
+("of") @keyword.operator.expression.of
 
 [
   "delete"
   "in"
   "infer"
-  "instanceof"
   "keyof"
-  "of"
-  "typeof"
 ] @keyword.operator.expression
 
 [
@@ -86,186 +278,25 @@
   "with"
 ] @keyword
 
-; TODO: works in the playground but not here
 (regex_flags) @keyword
 
 [
   "void"
-] @support.type
+] @support.type.primitive
 
 [
   "new"
 ] @keyword.operator.new
 
-; Tokens
+
+; Language constants
 
 [
-  ";"
-  "?."
-  "."
-  ","
-  ":"
-  "?"
-] @punctuation.delimiter
+  (true)
+  (false)
+  (null)
+  (undefined)
+] @constant.language
 
-[
-  "-"
-  "--"
-  "-="
-  "+"
-  "++"
-  "+="
-  "*"
-  "*="
-  "**"
-  "**="
-  "/"
-  "/="
-  "%"
-  "%="
-  "<"
-  "<="
-  "<<"
-  "<<="
-  "="
-  "=="
-  "==="
-  "!"
-  "!="
-  "!=="
-  "=>"
-  ">"
-  ">="
-  ">>"
-  ">>="
-  ">>>"
-  ">>>="
-  "~"
-  "^"
-  "&"
-  "|"
-  "^="
-  "&="
-  "|="
-  "&&"
-  "||"
-  "??"
-  "&&="
-  "||="
-  "??="
-] @keyword.operator
-
-; Special identifiers
-
-(type_identifier) @entity.name.type
-(predefined_type) @support.type
-
-(("const")
-  (variable_declarator
-  	name: (identifier) @variable.other.constant))
-
-([
-  (identifier)
-  (shorthand_property_identifier)
-  (shorthand_property_identifier_pattern)] @variable.other.constant
-  (#match? @variable.other.constant "^[A-Z][A-Z_]+$"))
-
-(extends_clause
-  value: (identifier) @entity.other.inherited-class)
-
-; Function and method calls
-
-(call_expression
-  function: (identifier) @entity.name.function)
-
-(call_expression
-  function: (member_expression
-    property: (property_identifier) @entity.name.function))
-
-(new_expression
-  constructor: (identifier) @entity.name.function)
-
-; Function and method definitions
-
-(function_expression
-  name: (identifier) @entity.name.function)
-(function_declaration
-  name: (identifier) @entity.name.function)
-(method_definition
-  name: (property_identifier) @storage.type
-  (#eq? @storage.type "constructor"))
-(method_definition
-  name: (property_identifier) @entity.name.function)
-(method_signature
-  name: (property_identifier) @entity.name.function)
-
-(pair
-  key: (property_identifier) @entity.name.function
-  value: [(function_expression) (arrow_function)])
-
-(assignment_expression
-  left: (member_expression
-    property: (property_identifier) @entity.name.function)
-  right: [(function_expression) (arrow_function)])
-
-(variable_declarator
-  name: (identifier) @entity.name.function
-  value: [(function_expression) (arrow_function)])
-
-(assignment_expression
-  left: (identifier) @entity.name.function
-  right: [(function_expression) (arrow_function)])
-
-; Properties
-
-(member_expression
-  object: (this)
-  property: (property_identifier) @variable)
-
-(member_expression
-  property: (property_identifier) @variable.other.constant
-  (#match? @variable.other.constant "^[A-Z][A-Z_]+$"))
-
-[
-  (property_identifier)
-  (shorthand_property_identifier)
-  (shorthand_property_identifier_pattern)] @variable
-
-; Variables
-
-(identifier) @variable
-
-; Template TODO: These don't seem to be working
-
-(template_substitution
-  "${" @punctuation.definition.template-expression.begin
-  "}" @punctuation.definition.template-expression.end)
-
-(template_type
-  "${" @punctuation.definition.template-expression.begin
-  "}" @punctuation.definition.template-expression.end)
-
-(type_arguments
-  "<" @punctuation.bracket
-  ">" @punctuation.bracket)
-
-; Literals
-
-(this) @variable.language
-(super) @variable.language
-
-(comment) @comment
-
-; TODO: This doesn't seem to be working
-(escape_sequence) @constant.character.escape
-
-[
-  (string)
-  (template_string)
-  (template_literal_type)
-] @string
-
-; NOTE: the typescript grammar doesn't break regex into nice parts so as to capture parts of it separately
-(regex) @string.regexp
-(number) @constant.numeric
-
+(namespace_import
+  "*" @constant.language)

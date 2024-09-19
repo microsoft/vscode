@@ -38,6 +38,8 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { isSCMRepository } from './util.js';
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { RemoteNameContext } from '../../../common/contextkeys.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -80,13 +82,27 @@ viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 });
 
 viewsRegistry.registerViews([{
+	id: REPOSITORIES_VIEW_PANE_ID,
+	name: localize2('source control repositories', "Source Control Repositories"),
+	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
+	canToggleVisibility: true,
+	hideByDefault: true,
+	canMoveView: true,
+	weight: 20,
+	order: 0,
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
+	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
+	containerIcon: sourceControlViewIcon
+}], viewContainer);
+
+viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
 	name: localize2('source control', 'Source Control'),
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
 	weight: 40,
-	order: -999,
+	order: 1,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
 		id: viewContainer.id,
@@ -102,28 +118,23 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 viewsRegistry.registerViews([{
-	id: REPOSITORIES_VIEW_PANE_ID,
-	name: localize2('source control repositories', "Source Control Repositories"),
-	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
-	canToggleVisibility: true,
-	hideByDefault: true,
-	canMoveView: true,
-	weight: 20,
-	order: -1000,
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
-	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
-	containerIcon: sourceControlViewIcon
-}], viewContainer);
-
-viewsRegistry.registerViews([{
 	id: HISTORY_VIEW_PANE_ID,
 	name: localize2('source control history', "Source Control Graph"),
 	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
 	weight: 40,
-	order: 2, /* https://github.com/microsoft/vscode/issues/226447 */
-	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
+	order: 2,
+	when: ContextKeyExpr.and(
+		// Repository Count
+		ContextKeyExpr.and(
+			ContextKeyExpr.has('scm.providerCount'),
+			ContextKeyExpr.notEquals('scm.providerCount', 0)),
+		// Not Serverless
+		ContextKeyExpr.and(
+			IsWebContext,
+			RemoteNameContext.isEqualTo(''))?.negate()
+	),
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
@@ -355,6 +366,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			maximum: 1000,
 			default: 50
 		},
+		'scm.graph.badges': {
+			type: 'string',
+			enum: ['all', 'filter'],
+			enumDescriptions: [
+				localize('scm.graph.badges.all', "Show badges of all history item groups in the Source Control Graph view."),
+				localize('scm.graph.badges.filter', "Show only the badges of history item groups used as a filter in the Source Control Graph view.")
+			],
+			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
+			default: 'filter'
+		}
 	}
 });
 

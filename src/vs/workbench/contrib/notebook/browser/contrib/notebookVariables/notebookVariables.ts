@@ -87,7 +87,7 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 			const viewDescriptor = {
 				id: 'NOTEBOOK_VARIABLES', name: nls.localize2('notebookVariables', "Notebook Variables"),
 				containerIcon: variablesViewIcon, ctorDescriptor: new SyncDescriptor(NotebookVariablesView),
-				order: 50, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: NOTEBOOK_VARIABLE_VIEW_ENABLED,
+				order: 50, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: false, when: NOTEBOOK_VARIABLE_VIEW_ENABLED,
 			};
 
 			viewsRegistry.registerViews([viewDescriptor], debugViewContainer);

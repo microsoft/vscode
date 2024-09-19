@@ -17,7 +17,7 @@ parameters:
     default: false
 
 steps:
-  - powershell: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - powershell: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
@@ -29,7 +29,7 @@ steps:
         - powershell: .\scripts\test-amd.bat --tfs "Unit Tests"
           displayName: Run unit tests (Electron) [AMD]
           timeoutInMinutes: 15
-        - powershell: yarn test-node-amd
+        - powershell: npm run test-node-amd
           displayName: Run unit tests (node.js) [AMD]
           timeoutInMinutes: 15
         - powershell: node test/unit/browser/index.amd.js --sequential --browser chromium --tfs "Browser Unit Tests"
@@ -39,7 +39,7 @@ steps:
         - powershell: .\scripts\test.bat --tfs "Unit Tests"
           displayName: Run unit tests (Electron)
           timeoutInMinutes: 15
-        - powershell: yarn test-node
+        - powershell: npm run test-node
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
         - powershell: node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests"
@@ -51,20 +51,20 @@ steps:
         - powershell: .\scripts\test-amd.bat --build --tfs "Unit Tests"
           displayName: Run unit tests (Electron) [AMD]
           timeoutInMinutes: 15
-        - script: yarn test-node-amd --build
+        - script: npm run test-node-amd -- --build
           displayName: Run unit tests (node.js) [AMD]
           timeoutInMinutes: 15
-        - powershell: yarn test-browser-amd-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
+        - powershell: npm run test-browser-amd-no-install -- --sequential --build --browser chromium --tfs "Browser Unit Tests"
           displayName: Run unit tests (Browser, Chromium) [AMD]
           timeoutInMinutes: 20
       - ${{ if eq(parameters.VSCODE_BUILD_AMD, false) }}:
         - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
           displayName: Run unit tests (Electron)
           timeoutInMinutes: 15
-        - powershell: yarn test-node --build
+        - powershell: npm run test-node -- --build
           displayName: Run unit tests (node.js)
           timeoutInMinutes: 15
-        - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
+        - powershell: npm run test-browser-no-install -- --sequential --build --browser chromium --tfs "Browser Unit Tests"
           displayName: Run unit tests (Browser, Chromium)
           timeoutInMinutes: 20
 
@@ -72,7 +72,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp `
+        exec { npm run gulp `
           compile-extension:configuration-editing `
           compile-extension:css-language-features-server `
           compile-extension:emmet `
@@ -179,32 +179,33 @@ steps:
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: yarn --cwd test/smoke compile
+      - powershell: npm run compile
+        workingDirectory: test/smoke
         displayName: Compile smoke tests
 
-      - powershell: yarn gulp compile-extension-media
+      - powershell: npm run gulp compile-extension-media
         displayName: Build extensions for smoke tests
 
-      - powershell: yarn smoketest-no-compile --tracing
+      - powershell: npm run smoketest-no-compile -- --tracing
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+      - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: yarn smoketest-no-compile --web --tracing --headless
+      - powershell: npm run smoketest-no-compile -- --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web
         displayName: Run smoke tests (Browser, Chromium)
         timeoutInMinutes: 20
 
-      - powershell: yarn gulp compile-extension:vscode-test-resolver
+      - powershell: npm run gulp compile-extension:vscode-test-resolver
         displayName: Compile test resolver extension
         timeoutInMinutes: 20
 
-      - powershell: yarn smoketest-no-compile --tracing --remote --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+      - powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)
         displayName: Run smoke tests (Remote)

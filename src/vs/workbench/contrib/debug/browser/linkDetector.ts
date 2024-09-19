@@ -60,7 +60,12 @@ export const enum DebugLinkHoverBehavior {
 export type DebugLinkHoverBehaviorTypeData = { type: DebugLinkHoverBehavior.None | DebugLinkHoverBehavior.Basic }
 	| { type: DebugLinkHoverBehavior.Rich; store: DisposableStore };
 
-export class LinkDetector {
+export interface ILinkDetector {
+	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData): HTMLElement;
+	linkifyLocation(text: string, locationReference: number, session: IDebugSession, hoverBehavior?: DebugLinkHoverBehaviorTypeData): HTMLElement;
+}
+
+export class LinkDetector implements ILinkDetector {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
@@ -84,6 +89,10 @@ export class LinkDetector {
 	 * This should be preferred for new code where hovers are desirable.
 	 */
 	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData): HTMLElement {
+		return this._linkify(text, splitLines, workspaceFolder, includeFulltext, hoverBehavior);
+	}
+
+	private _linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder, includeFulltext?: boolean, hoverBehavior?: DebugLinkHoverBehaviorTypeData, defaultRef?: { locationReference: number; session: IDebugSession }): HTMLElement {
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -93,7 +102,7 @@ export class LinkDetector {
 				// Remove the last element ('') that split added.
 				lines.pop();
 			}
-			const elements = lines.map(line => this.linkify(line, false, workspaceFolder, includeFulltext));
+			const elements = lines.map(line => this._linkify(line, false, workspaceFolder, includeFulltext, hoverBehavior, defaultRef));
 			if (elements.length === 1) {
 				// Do not wrap single line with extra span.
 				return elements[0];
@@ -108,7 +117,7 @@ export class LinkDetector {
 			try {
 				switch (part.kind) {
 					case 'text':
-						container.appendChild(document.createTextNode(part.value));
+						container.appendChild(defaultRef ? this.linkifyLocation(part.value, defaultRef.locationReference, defaultRef.session, hoverBehavior) : document.createTextNode(part.value));
 						break;
 					case 'web':
 						container.appendChild(this.createWebLink(includeFulltext ? text : undefined, part.value, hoverBehavior));
@@ -144,6 +153,18 @@ export class LinkDetector {
 		});
 
 		return link;
+	}
+
+	/**
+	 * Makes an {@link ILinkDetector} that links everything in the output to the
+	 * reference if they don't have other explicit links.
+	 */
+	makeReferencedLinkDetector(locationReference: number, session: IDebugSession): ILinkDetector {
+		return {
+			linkify: (text, splitLines, workspaceFolder, includeFulltext, hoverBehavior) =>
+				this._linkify(text, splitLines, workspaceFolder, includeFulltext, hoverBehavior, { locationReference, session }),
+			linkifyLocation: this.linkifyLocation.bind(this),
+		};
 	}
 
 	private createWebLink(fulltext: string | undefined, url: string, hoverBehavior?: DebugLinkHoverBehaviorTypeData): Node {

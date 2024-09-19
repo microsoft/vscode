@@ -29,6 +29,7 @@ import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -102,6 +103,7 @@ export class PaneCompositeBar extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IViewsService private readonly viewService: IViewsService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
@@ -383,7 +385,7 @@ export class PaneCompositeBar extends Disposable {
 
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {
-				if (this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0) {
+				if (this.viewService.isViewContainerActive(viewContainerId)) {
 					return false;
 				}
 			} else {

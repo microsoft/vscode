@@ -89,6 +89,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label);
 		}));
+		this._register(this.authenticationExtensionsService.onDidChangeAccountPreference(e => {
+			const providerInfo = this.authenticationService.getProvider(e.providerId);
+			this._proxy.$onDidChangeAuthenticationSessions(providerInfo.id, providerInfo.label, e.extensionIds);
+		}));
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
@@ -203,21 +207,19 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (options.clearSessionPreference) {
 			// Clearing the session preference is usually paired with createIfNone, so just remove the preference and
 			// defer to the rest of the logic in this function to choose the session.
-			this.authenticationExtensionsService.removeSessionPreference(providerId, extensionId, scopes);
+			this._removeAccountPreference(extensionId, providerId, scopes);
 		}
+
+		const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, sessions);
 
 		// Check if the sessions we have are valid
 		if (!options.forceNewSession && sessions.length) {
-			if (provider.supportsMultipleAccounts) {
-				// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
-				const existingSessionPreference = this.authenticationExtensionsService.getSessionPreference(providerId, extensionId, scopes);
-				if (existingSessionPreference) {
-					const matchingSession = sessions.find(session => session.id === existingSessionPreference);
-					if (matchingSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingSession.account.label, extensionId)) {
-						return matchingSession;
-					}
-				}
-			} else if (this.authenticationAccessService.isAccessAllowed(providerId, sessions[0].account.label, extensionId)) {
+			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
+			if (matchingAccountPreferenceSession && this.authenticationAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, extensionId)) {
+				return matchingAccountPreferenceSession;
+			}
+			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
+			if (!provider.supportsMultipleAccounts && this.authenticationAccessService.isAccessAllowed(providerId, sessions[0].account.label, extensionId)) {
 				return sessions[0];
 			}
 		}
@@ -244,12 +246,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					? await this.authenticationExtensionsService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
 					: sessions[0];
 			} else {
-				let accountToCreate: AuthenticationSessionAccount | undefined = options.account;
-				if (!accountToCreate) {
-					const sessionIdToRecreate = this.authenticationExtensionsService.getSessionPreference(providerId, extensionId, scopes);
-					accountToCreate = sessionIdToRecreate ? sessions.find(session => session.id === sessionIdToRecreate)?.account : undefined;
-				}
-
+				const accountToCreate: AuthenticationSessionAccount | undefined = options.account ?? matchingAccountPreferenceSession?.account;
 				do {
 					session = await this.authenticationService.createSession(providerId, scopes, { activateImmediate: true, account: accountToCreate });
 				} while (
@@ -260,15 +257,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 
 			this.authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [{ id: extensionId, name: extensionName, allowed: true }]);
-			this.authenticationExtensionsService.updateSessionPreference(providerId, extensionId, session);
+			this._updateAccountPreference(extensionId, providerId, session);
 			return session;
 		}
 
-		// For the silent flows, if we have a session, even though it may not be the user's preference, we'll return it anyway because it might be for a specific
-		// set of scopes.
-		const validSession = sessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
-		if (validSession) {
-			return validSession;
+		// For the silent flows, if we have a session but we don't have a session preference, we'll return the first one that is valid.
+		if (!matchingAccountPreferenceSession) {
+			const validSession = sessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
+			if (validSession) {
+				return validSession;
+			}
 		}
 
 		// passive flows (silent or default)
@@ -307,4 +305,41 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		};
 		this.telemetryService.publicLog2<{ extensionId: string; providerId: string }, AuthProviderUsageClassification>('authentication.providerUsage', { providerId, extensionId });
 	}
+
+	//#region Account Preferences
+	// TODO@TylerLeonhardt: Update this after a few iterations to no longer fallback to the session preference
+
+	private _getAccountPreference(extensionId: string, providerId: string, scopes: string[], sessions: ReadonlyArray<AuthenticationSession>): AuthenticationSession | undefined {
+		if (sessions.length === 0) {
+			return undefined;
+		}
+		const accountNamePreference = this.authenticationExtensionsService.getAccountPreference(extensionId, providerId);
+		if (accountNamePreference) {
+			const session = sessions.find(session => session.account.label === accountNamePreference);
+			return session;
+		}
+
+		const sessionIdPreference = this.authenticationExtensionsService.getSessionPreference(providerId, extensionId, scopes);
+		if (sessionIdPreference) {
+			const session = sessions.find(session => session.id === sessionIdPreference);
+			if (session) {
+				// Migrate the session preference to the account preference
+				this.authenticationExtensionsService.updateAccountPreference(extensionId, providerId, session.account);
+				return session;
+			}
+		}
+		return undefined;
+	}
+
+	private _updateAccountPreference(extensionId: string, providerId: string, session: AuthenticationSession): void {
+		this.authenticationExtensionsService.updateAccountPreference(extensionId, providerId, session.account);
+		this.authenticationExtensionsService.updateSessionPreference(providerId, extensionId, session);
+	}
+
+	private _removeAccountPreference(extensionId: string, providerId: string, scopes: string[]): void {
+		this.authenticationExtensionsService.removeAccountPreference(extensionId, providerId);
+		this.authenticationExtensionsService.removeSessionPreference(providerId, extensionId, scopes);
+	}
+
+	//#endregion
 }

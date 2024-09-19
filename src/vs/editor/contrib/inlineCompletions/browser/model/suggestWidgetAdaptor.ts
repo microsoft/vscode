@@ -13,7 +13,7 @@ import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
-import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEdit.js';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SnippetParser } from '../../../snippet/browser/snippetParser.js';
 import { SnippetSession } from '../../../snippet/browser/snippetSession.js';
 import { CompletionItem } from '../../../suggest/browser/suggest.js';

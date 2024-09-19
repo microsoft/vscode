@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-inline-anchor-widget {
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	margin: 0 1px;
+	padding: 1px 3px;
+	text-wrap: nowrap;
+}
+
+.interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {
+	color: inherit;
+}
+
+.chat-inline-anchor-widget:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-inline-anchor-widget .icon {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.chat-inline-anchor-widget .icon::before {
+	display: inline-block;
+	background-size: 100%;
+	background-position: left center;
+	background-repeat: no-repeat;
+	width: 0.8em !important;
+	height: 0.8em;
+	margin-right: 4px;
+}
+
+.chat-inline-anchor-widget .file-icon::before {
+	font-size: 120%;
+}
+
+.chat-inline-anchor-widget .icon-label {
+	text-wrap: wrap;
+}

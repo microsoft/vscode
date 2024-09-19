@@ -22,14 +22,13 @@ import * as perf from '../common/performance.js';
 const module = { exports: {} };
 // ESM-uncomment-end
 
-// ESM-comment-begin
-// const isESM = false;
-// ESM-comment-end
-// ESM-uncomment-begin
-const isESM = true;
-// ESM-uncomment-end
-
 (function () {
+	// ESM-comment-begin
+	// const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	const isESM = true;
+	// ESM-uncomment-end
 
 	/**
 	 * @param {typeof import('path')} path

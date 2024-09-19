@@ -1177,6 +1177,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	//#region Find
+	// TODO: enable wrapping through cell indices -- could do this with a wrapped flag
 	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; match: FindMatch } | null {
 		// check if search cell index is valid
 		this._assertIndex(searchStart.cellIndex);

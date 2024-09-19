@@ -7,6 +7,8 @@ export const enum CommentCommandId {
 	Add = 'workbench.action.addComment',
 	NextThread = 'editor.action.nextCommentThreadAction',
 	PreviousThread = 'editor.action.previousCommentThreadAction',
+	NextCommentedRange = 'editor.action.nextCommentedRangeAction',
+	PreviousCommentedRange = 'editor.action.previousCommentedRangeAction',
 	NextRange = 'editor.action.nextCommentingRange',
 	PreviousRange = 'editor.action.previousCommentingRange',
 	ToggleCommenting = 'workbench.action.toggleCommenting',

@@ -96,3 +96,12 @@ appendToCommandPalette({
 	title: REVEAL_IN_OS_LABEL,
 	category: category
 }, REVEAL_IN_OS_WHEN_CONTEXT);
+
+// Menu registration - chat inline anchor
+
+MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+	group: 'navigation',
+	order: 20,
+	command: revealInOsCommand,
+	when: REVEAL_IN_OS_WHEN_CONTEXT
+});
