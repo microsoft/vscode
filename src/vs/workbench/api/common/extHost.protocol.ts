@@ -2385,13 +2385,13 @@ export interface ExtHostTerminalServiceShape {
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
 }
 
-export interface ExtHostTerminalShellIntegrationShape { // what is this shape for?
+export interface ExtHostTerminalShellIntegrationShape {
 	$shellIntegrationChange(instanceId: number): void;
 	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void;
 	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
-	$shellEnvChange(); // what should be the parameters/arguments?
-	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void; // Question: What are the three references that shows up, and should we have it for shellEnvChange as well.
+	$shellEnvChange(shellEnvKeys: string[], shellEnvValues: string[]): void;
+	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void; // Question: MainThread vs. extHost
 	$closeTerminal(instanceId: number): void;
 }
 

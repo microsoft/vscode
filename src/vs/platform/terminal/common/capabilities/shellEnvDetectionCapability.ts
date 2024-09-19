@@ -8,13 +8,16 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IShellEnvDetectionCapability, TerminalCapability } from './capabilities.js';
 import { Emitter } from '../../../../base/common/event.js';
 
-export class ShellEnvironmentDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
+export class ShellEnvDetectionCapability extends Disposable implements IShellEnvDetectionCapability {
+	// Ideal: when we create ShellEnvDetectionCapability, include set in constructor,
+	// provide way to do diff for shell that cannot.
+
 	readonly type = TerminalCapability.ShellEnvironmentDetection;
 
-	// TODO: Type of envs should be { [key: string]: string | undefined } | undefined ??
-	private _envs: { [key: string]: string | undefined } | undefined = new Map<string, string>();
+	// TODO: Type of envs should be { [key: string]: string | undefined } ??
+	private readonly _env: Map<string, string> = new Map();
 
-	get envs(): { [key: string]: string | undefined } | undefined {
+	get envs(): { [key: string]: string | undefined } {
 		return this._envs;
 	}
 
@@ -22,25 +25,21 @@ export class ShellEnvironmentDetectionCapability extends Disposable implements I
 	readonly onDidChangeEnv = this._onDidChangeEnv.event;
 
 	// TODO: update envs
-	updateEnvs(envs: { [key: string]: string | undefined } | undefined): void {
+	setEnvironment(envs: { [key: string]: string | undefined }): void {
 		// Should probably go through received envs, see if they exist in _envs,
 		// If doesn't already exit in _envs, then add to map
 
-		if (this._envs && envs) {
-			for (const key in envs) {
-				// check if contained in _envs
-				if (!this._envs.has(key)) {
-					this._envs.set(key, envs[key]);
-				} else {
-					// key already exist, so check if value is different and update.
-					if (this._envs.get(key) !== envs[key]) {
-						this._envs.set(key, envs[key]);
-					}
-				}
-			}
-			this._onDidChangeEnv.fire('Would we send the whole envs here?');
-		}
+		// TODO: Convert to map
 
+		// convert to event and fire event
+
+
+	}
+
+	applyEnvironmentDiff(envs: { [key: string]: string | undefined }): void {
+		// TODO: Implement
+
+		//look at every key, fire event after applying everything.
 	}
 
 
