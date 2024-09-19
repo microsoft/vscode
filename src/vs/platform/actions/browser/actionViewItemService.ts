@@ -24,6 +24,19 @@ export interface IActionViewItemService {
 	lookUp(menu: MenuId, commandId: string): IActionViewItemProvider | undefined;
 }
 
+export class NullActionViewItemService implements IActionViewItemService {
+	_serviceBrand: undefined;
+
+	onDidChange: Event<MenuId> = Event.None;
+
+	register(menu: MenuId, commandId: string, provider: IActionViewItemProvider, event?: Event<unknown>): IDisposable {
+		return toDisposable(() => { });
+	}
+
+	lookUp(menu: MenuId, commandId: string): IActionViewItemProvider | undefined {
+		return undefined;
+	}
+}
 
 class ActionViewItemService implements IActionViewItemService {
 
