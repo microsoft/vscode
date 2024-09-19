@@ -28,6 +28,7 @@ export interface IModifiedFileEntry {
 	readonly originalURI: URI;
 	readonly modifiedURI: URI;
 	accept(transaction: ITransaction | undefined): Promise<void>;
+	reject(transaction: ITransaction | undefined): Promise<void>;
 }
 
 export interface IChatEditingSessionStream {
