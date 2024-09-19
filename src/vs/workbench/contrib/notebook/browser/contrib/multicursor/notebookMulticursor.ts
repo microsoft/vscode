@@ -117,10 +117,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	) {
 		super();
 
-		if (!this.configurationService.getValue<boolean>('notebook.multiCursor.enabled')) {
-			return;
-		}
-
 		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 
 		// anchor cell will catch and relay all type, cut, paste events to the cursors controllers
