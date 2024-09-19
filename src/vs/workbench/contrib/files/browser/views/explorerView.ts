@@ -166,7 +166,7 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		@IExplorerService private readonly explorerService: IExplorerService,
 	) { }
 
-	async *getFindResults(pattern: string, token: CancellationToken): AsyncIterable<ExplorerItem> {
+	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken): AsyncIterable<ExplorerItem> {
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
 		const folderPromises = Promise.all(workspaceFolders.map(async folder => {
 			// Get exclude settings used for search
@@ -178,6 +178,7 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 				filePattern: pattern,
 				maxResults: 100,
 				sortByScore: true,
+				cacheKey: `explorerfindprovider:${sessionId}`,
 				excludePattern: excludePatterns,
 			}, token);
 
@@ -186,7 +187,7 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 		const folderResults = await this.progressService.withProgress({
 			location: ProgressLocation.Explorer,
-			delay: 100,
+			delay: 1000,
 		}, _progress => folderPromises);
 
 		if (token.isCancellationRequested) {
