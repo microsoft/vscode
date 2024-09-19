@@ -222,8 +222,8 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 }
 
 export interface IAsyncFindProvider<T> {
-	getFindResults(pattern: string, token: CancellationToken): AsyncIterable<T>;
-	revealResultInTree(findElement: T): void;
+	getFindResults(pattern: string, sessionId: number, token: CancellationToken): AsyncIterable<T>;
+	revealResultInTree?(findElement: T): void;
 }
 
 class AsyncFindTreeNode<T> {
@@ -378,9 +378,11 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 	declare protected readonly filter: AsyncFindFilter<TInput, T>;
 	private readonly model: ITreeModel<IAsyncDataTreeNode<TInput, T> | null, TFilterData, IAsyncDataTreeNode<TInput, T> | null>;
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
+	private previousTreeScrollTop: number = 0;
 
 	protected toggles = [];
 
+	private sessionId: number = 0;
 	private active: boolean = false;
 
 	private activeTokenSource: CancellationTokenSource | undefined;
@@ -411,21 +413,34 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 		}
 
 		if (active) {
-			const findModel = this.tree.createNewModel({ filter: this.filter as ITreeFilter<IAsyncDataTreeNode<TInput, T> | null, TFilterData> });
-			this.tree.setModel(findModel);
+			this.activateFindMode();
 		} else {
-			const focus = this.tree.getFocus();
-			this.tree.setModel(this.model);
-			if (focus.length) {
-				this.findProvider.revealResultInTree(focus[0]!.element as T);
-			}
-			this.tree.rerender();
-			this.activeTokenSource = undefined;
-			this.active = false;
-			this.nodes.clear();
+			this.deactivateFindMode();
 		}
 
 		this.active = active;
+	}
+
+	private activateFindMode(): void {
+		this.sessionId++;
+		this.previousTreeScrollTop = this.tree.scrollTop;
+		this.tree.scrollTop = 0;
+		const findModel = this.tree.createNewModel({ filter: this.filter as ITreeFilter<IAsyncDataTreeNode<TInput, T> | null, TFilterData> });
+		this.tree.setModel(findModel);
+	}
+
+	private deactivateFindMode(): void {
+		const focus = this.tree.getFocus()[0];
+		this.tree.setModel(this.model);
+
+		if (focus && focus.element && this.findProvider.revealResultInTree) {
+			this.findProvider.revealResultInTree(focus.element as T);
+		} else {
+			this.tree.scrollTop = this.previousTreeScrollTop;
+		}
+
+		this.activeTokenSource = undefined;
+		this.nodes.clear();
 	}
 
 	protected applyPattern(pattern: string): void {
@@ -441,7 +456,7 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 
 		this.activeTokenSource = new CancellationTokenSource();
 
-		const results = this.findProvider.getFindResults(pattern, this.activeTokenSource.token);
+		const results = this.findProvider.getFindResults(pattern, this.sessionId, this.activeTokenSource.token);
 		this.pocessFindResults(results, this.activeTokenSource.token).then(() => {
 			if (this.activeTokenSource && !this.activeTokenSource.token.isCancellationRequested) {
 				this.render();
@@ -860,12 +875,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.isDOMFocused();
 	}
 
-	navigate(start?: T | TInput) {
+	navigate(start?: T) {
 		let startNode;
 		if (start) {
 			startNode = this.getDataNode(start);
 		}
-		return new AsyncDataTreeNavigator(this.tree.navigate(startNode), this.root.element);
+		return new AsyncDataTreeNavigator(this.tree.navigate(startNode));
 	}
 
 	layout(height?: number, width?: number): void {
@@ -1773,6 +1788,19 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 
 		return super.processChildren(children);
 	}
+
+	override navigate(start?: T): AsyncDataTreeNavigator<TInput, T> {
+		// Assumptions are made about how tree navigation works in compressed trees
+		// These assumptions may be wrong and we should revisit this when needed
+
+		// Example:	[a, b/ba, ba.txt]
+		// - previous(ba) => a
+		// - previous(b) => a
+		// - next(a) => ba
+		// - next(b) => ba
+		// - next(ba) => ba.txt
+		return super.navigate(start);
+	}
 }
 
 function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>): TreeVisibility {
@@ -1787,43 +1815,34 @@ function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>)
 
 class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
 
-	constructor(private navigator: ITreeNavigator<IAsyncDataTreeNode<TInput, T> | null>, private root: TInput) { }
+	constructor(private navigator: ITreeNavigator<IAsyncDataTreeNode<TInput, T> | null>) { }
 
 	current(): T | null {
 		const current = this.navigator.current();
-		if (current?.element === this.root) {
+		if (current === null) {
 			return null;
 		}
-		// if it is not the root, it should not be of `TInput` type
-		return (current?.element ?? null) as T | null;
-	}
-	previous(): T | null {
-		const current = this.navigator.previous();
-		if (current?.element === this.root) {
-			return this.previous();
-		}
-		return (current?.element ?? null) as T | null;
-	}
-	first(): T | null {
-		const current = this.navigator.first();
-		if (current?.element === this.root) {
-			return this.next();
-		}
-		return (current?.element ?? null) as T | null;
-	}
-	last(): T | null {
-		const current = this.navigator.last();
-		if (current?.element === this.root) {
-			return this.previous();
-		}
-		return (current?.element ?? null) as T | null;
-	}
-	next(): T | null {
-		const current = this.navigator.next();
-		if (current?.element === this.root) {
-			return this.next();
-		}
-		return (current?.element ?? null) as T | null;
+
+		return current.element as T;
 	}
 
+	previous(): T | null {
+		this.navigator.previous();
+		return this.current();
+	}
+
+	first(): T | null {
+		this.navigator.first();
+		return this.current();
+	}
+
+	last(): T | null {
+		this.navigator.last();
+		return this.current();
+	}
+
+	next(): T | null {
+		this.navigator.next();
+		return this.current();
+	}
 }

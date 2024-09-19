@@ -967,7 +967,7 @@ export class ExtensionEditor extends EditorPane {
 			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
 		}
 		if (extension.contentsUrl) {
-			resources.push([localize('contents', "Contents"), extension.contentsUrl]);
+			resources.push([localize('sources', "Sources"), extension.contentsUrl]);
 		}
 		if (resources.length || extension.publisherSponsorLink) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));

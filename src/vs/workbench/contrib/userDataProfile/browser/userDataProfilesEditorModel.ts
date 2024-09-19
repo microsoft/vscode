@@ -42,6 +42,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isString } from '../../../../base/common/types.js';
+import { IExtensionManagementServer, IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -55,13 +59,19 @@ export type ChangeEvent = {
 	readonly copyFlags?: boolean;
 	readonly preview?: boolean;
 	readonly profile?: boolean;
+	readonly extensions?: boolean;
+	readonly snippets?: boolean;
 	readonly disabled?: boolean;
 	readonly newWindowProfile?: boolean;
 };
 
 export interface IProfileChildElement {
 	readonly handle: string;
-	readonly action?: IAction;
+	readonly openAction?: IAction;
+	readonly actions?: {
+		readonly primary?: IAction[];
+		readonly contextMenu?: IAction[];
+	};
 	readonly checkbox?: ITreeItemCheckboxState;
 }
 
@@ -71,6 +81,7 @@ export interface IProfileResourceTypeElement extends IProfileChildElement {
 
 export interface IProfileResourceTypeChildElement extends IProfileChildElement {
 	readonly label: string;
+	readonly description?: string;
 	readonly resource?: URI;
 	readonly icon?: ThemeIcon;
 }
@@ -231,12 +242,12 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 					handle: r,
 					checkbox: undefined,
 					resourceType: r,
-					action: children.length
+					openAction: children.length
 						? new Action('_open',
 							localize('open', "Open to the Side"),
 							ThemeIcon.asClassName(Codicon.goToFile),
 							true,
-							() => children[0]?.action?.run())
+							() => children[0]?.openAction?.run())
 						: undefined
 				};
 			}));
@@ -271,20 +282,25 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return children.map<IProfileResourceTypeChildElement>(child => this.toUserDataProfileResourceChildElement(child));
 	}
 
-	protected toUserDataProfileResourceChildElement(child: IProfileResourceChildTreeItem): IProfileResourceTypeChildElement {
+	protected toUserDataProfileResourceChildElement(child: IProfileResourceChildTreeItem, primaryActions?: IAction[], contextMenuActions?: IAction[]): IProfileResourceTypeChildElement {
 		return {
 			handle: child.handle,
 			checkbox: child.checkbox,
 			label: child.label?.label ?? '',
+			description: isString(child.description) ? child.description : undefined,
 			resource: URI.revive(child.resourceUri),
 			icon: child.themeIcon,
-			action: new Action('_openChild', localize('open', "Open to the Side"), ThemeIcon.asClassName(Codicon.goToFile), true, async () => {
+			openAction: new Action('_openChild', localize('open', "Open to the Side"), ThemeIcon.asClassName(Codicon.goToFile), true, async () => {
 				if (child.parent.type === ProfileResourceType.Extensions) {
 					await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
 				} else if (child.resourceUri) {
 					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
 				}
-			})
+			}),
+			actions: {
+				primary: primaryActions,
+				contextMenu: contextMenuActions,
+			}
 		};
 
 	}
@@ -368,6 +384,9 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
@@ -404,6 +423,39 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 				this._profile = profile;
 				this.reset();
 				this._onDidChange.fire({ profile: true });
+			}
+		}));
+		if (extensionManagementServerService.localExtensionManagementServer) {
+			this.registerExtensionListeners(extensionManagementServerService.localExtensionManagementServer);
+		}
+		if (extensionManagementServerService.remoteExtensionManagementServer) {
+			this.registerExtensionListeners(extensionManagementServerService.remoteExtensionManagementServer);
+		}
+		if (extensionManagementServerService.webExtensionManagementServer) {
+			this.registerExtensionListeners(extensionManagementServerService.webExtensionManagementServer);
+		}
+		this._register(fileService.watch(this.profile.snippetsHome));
+		this._register(fileService.onDidFilesChange(e => {
+			if (e.affects(this.profile.snippetsHome)) {
+				this._onDidChange.fire({ snippets: true });
+			}
+		}));
+	}
+
+	private registerExtensionListeners(server: IExtensionManagementServer): void {
+		this._register(server.extensionManagementService.onDidInstallExtensions(results => {
+			if (results.some(r => !r.error && (r.applicationScoped || this.uriIdentityService.extUri.isEqual(r.profileLocation, this.profile.extensionsResource)))) {
+				this._onDidChange.fire({ extensions: true });
+			}
+		}));
+		this._register(server.extensionManagementService.onDidUninstallExtension(e => {
+			if (!e.error && (e.applicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, this.profile.extensionsResource))) {
+				this._onDidChange.fire({ extensions: true });
+			}
+		}));
+		this._register(server.extensionManagementService.onDidUpdateExtensionMetadata(e => {
+			if (e.local.isApplicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, this.profile.extensionsResource)) {
+				this._onDidChange.fire({ extensions: true });
 			}
 		}));
 	}
@@ -456,6 +508,29 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	}
 
 	protected override async getChildrenForResourceType(resourceType: ProfileResourceType): Promise<IProfileChildElement[]> {
+		if (resourceType === ProfileResourceType.Extensions) {
+			const children = await this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, this.profile).getChildren();
+			return children.map<IProfileResourceTypeChildElement>(child =>
+				this.toUserDataProfileResourceChildElement(
+					child,
+					undefined,
+					[{
+						id: 'applyToAllProfiles',
+						label: localize('applyToAllProfiles', "Apply Extension to all Profiles"),
+						checked: child.applicationScoped,
+						enabled: true,
+						class: '',
+						tooltip: '',
+						run: async () => {
+							const extensions = await this.extensionManagementService.getInstalled(undefined, this.profile.extensionsResource);
+							const extension = extensions.find(e => areSameExtensions(e.identifier, child.identifier));
+							if (extension) {
+								await this.extensionManagementService.toggleAppliationScope(extension, this.profile.extensionsResource);
+							}
+						}
+					}]
+				));
+		}
 		return this.getChildrenFromProfile(this.profile, resourceType);
 	}
 

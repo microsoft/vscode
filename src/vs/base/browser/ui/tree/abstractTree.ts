@@ -3225,7 +3225,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.anchor.set([]);
 
 		this.view.splice(0, oldModel.getListRenderCount(oldModel.rootRef));
-		this.model.refilter();
+		newModel.refilter();
 
 		this.onDidSwapModel.fire();
 	}
