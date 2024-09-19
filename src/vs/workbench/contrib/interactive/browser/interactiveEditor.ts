@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -64,6 +64,8 @@ import { ContentHoverController } from '../../../../editor/contrib/hover/browser
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { ReplInputHintContentWidget } from './replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INLINE_CHAT_ID } from '../../inlineChat/common/inlineChat.js';
+import { ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -408,7 +410,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					TabCompletionController.ID,
 					ContentHoverController.ID,
 					GlyphHoverController.ID,
-					MarkerController.ID
+					MarkerController.ID,
+					INLINE_CHAT_ID
 				])
 			}
 		});
@@ -502,6 +505,12 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 				this._updateInputHint();
 			}
 		}));
+
+		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+			if (this.isVisible()) {
+				this._updateInputHint();
+			}
+		});
 
 		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModel(() => {
 			this._updateInputHint();
@@ -653,6 +662,15 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
+	private _hasConflictingDecoration() {
+		return Boolean(this._codeEditorWidget.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		));
+	}
+
 	private _updateInputHint(): void {
 		if (!this._codeEditorWidget) {
 			return;
@@ -661,7 +679,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
 			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
-			this._codeEditorWidget.getModel()!.getValueLength() !== 0;
+			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
+			this._hasConflictingDecoration();
 
 		if (!this._hintElement && !shouldHide) {
 			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
@@ -721,10 +740,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
+	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			codeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget,
+			onDidChangeActiveEditor: Event.None
 		};
 	}
 }
