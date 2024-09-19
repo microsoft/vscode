@@ -2,80 +2,55 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import * as vscode from 'vscode';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 const builtinCommands: string[] = ['cd', 'ls', 'which', 'echo'];
-const execPromise = promisify(exec);
 
-// Initialize a map to store command flags and their <label,description> pairs
-const commandToFlags = new Map<string, Map<string, string>>();
-
-// Function to get command flags by spawning a process
-async function getCommandFlags(command: string): Promise<Map<string, string> | undefined> {
-	// Check if the flags are already cached in the commandToFlags map
-	if (commandToFlags.has(command)) {
-		return commandToFlags.get(command);
-	}
-
-	try {
-		// Try to get flags using `command --help`
-		const { stdout: helpOutput } = await execPromise(`${command} --help`);
-		const flags = parseFlagsFromHelpOutput(helpOutput);
-
-		// Cache the flags in the commandToFlags map
-		commandToFlags.set(command, flags);
-
-		return flags;
-	} catch (error) {
-		try {
-			// If `--help` fails, fallback to man pages
-			const { stdout: manOutput } = await execPromise(`man ${command}`);
-			const flags = parseFlagsFromManOutput(manOutput);
-			if (flags) {
-				// Cache the flags in the commandToFlags map
-				commandToFlags.set(command, flags);
-			}
-			return flags;
-		} catch (err) {
-			console.error(`Failed to get flags for ${command}:`, err);
-			return;
+async function findFiles(dir: string, ext: string): Promise<string[]> {
+	let results: string[] = [];
+	const list = await fs.readdir(dir, { withFileTypes: true });
+	for (const file of list) {
+		const filePath = path.resolve(dir, file.name);
+		if (file.isDirectory()) {
+			results = results.concat(await findFiles(filePath, ext));
+		} else if (file.isFile() && file.name.endsWith(ext)) {
+			results.push(filePath);
 		}
 	}
+	return results;
 }
 
-// Helper function to parse flags from the `--help` output
-function parseFlagsFromHelpOutput(helpOutput: string): Map<string, string> {
-	const flags = new Map<string, string>();
 
-	// Example of how you can extract flags (this can be modified based on different outputs)
-	const flagRegex = /(--?\w[\w-]*)\s+([^-]*)/g;
-	let match;
-	while ((match = flagRegex.exec(helpOutput)) !== null) {
-		const flag = match[1];
-		const description = match[2].trim();
-		flags.set(flag, description);
+async function getCompletionSpecs(): Promise<Map<string, Fig.Spec>> {
+	const completionSpecs = new Map<string, Fig.Spec>();
+
+	try {
+		// Use a relative path to the autocomplete/src folder
+		const dirPath = path.resolve(__dirname, 'autocomplete/src');
+		const files = await findFiles(dirPath, '.js');
+		if (files.length === 0) {
+			return completionSpecs;
+		}
+
+		for (const file of files) {
+			try {
+				const module = await import(file);
+				if (module.default) {
+					const specName = path.basename(file, '.js');
+					completionSpecs.set(specName, module.default as Fig.Spec);
+				}
+			} catch {
+				continue;
+			}
+		}
+
+	} catch (error) {
+		console.log(`Error importing completion specs: ${error.message}`);
 	}
 
-	return flags;
-}
-
-// Helper function to parse flags from man page output
-function parseFlagsFromManOutput(manOutput: string): Map<string, string> | undefined {
-	const flags: Map<string, string> = new Map();
-
-	// Similar to help parsing, but for man pages
-	const flagRegex = /(--?\w[\w-]*)\s+([^-]*)/g;
-	let match;
-	while ((match = flagRegex.exec(manOutput)) !== null) {
-		const flag = match[1];
-		const description = match[2].trim();
-		flags.set(flag, description);
-	}
-
-	return flags?.size ? flags : undefined;
+	return completionSpecs;
 }
 
 (vscode as any).window.registerTerminalCompletionProvider({
@@ -91,63 +66,44 @@ function parseFlagsFromManOutput(manOutput: string): Map<string, string> | undef
 		}
 
 		const commandsInPath = await getCommandsInPath();
+		const specs = await getCompletionSpecs();
 		builtinCommands.forEach(command => commandsInPath.add(command));
-		const commandLine = terminalContext.commandLine;
-		const results: vscode.TerminalCompletionItem[] = [];
-
-		for (const command of commandsInPath) {
-			const matchFound = fuzzyMatch(commandLine, command);
-			const commandMatch = commandsInPath.has(commandLine.trim()) && commandLine.length > commandLine.trim().length;
-			if (!matchFound && !commandMatch) {
+		console.log(commandsInPath);
+		const result: vscode.TerminalCompletionItem[] = [];
+		for (const spec of specs.values()) {
+			if (!spec.name) {
 				continue;
 			}
-
-			if (matchFound && !commandMatch) {
-				results.push({
-					label: command,
+			const name = 'displayName' in spec ? spec.displayName : typeof spec.name === 'string' ? spec.name : spec.name[0];
+			// TODO: re-add commandsInPath.has(name) check
+			if (name) {
+				console.log(name, commandsInPath.has(name));
+			}
+			if (name) {
+				result.push({
+					label: name,
 					kind: (vscode as any).TerminalCompletionItemKind.Method,
-					detail: 'Fuzzy match',
-					documentation: 'This is a test',
+					detail: 'description' in spec ? spec.description + ' has ' + (spec.subcommands?.length ?? 0) + ' subcommands' : 'no desscription',
+					documentation: 'description' in spec ? spec.description + ' has ' + (spec.subcommands?.length ?? 0) + ' subcommands' : 'no desscription',
 				});
-			} else if (commandMatch) {
-				// Retrieve flags from help or man page if not already cached
-				const flags = await getCommandFlags(commandLine.trim());
-				// If no flags found, show files or directories
-				if (!flags?.size) {
-					console.log('no flags for command match');
-					return;
-					// Logic to display files or directories (this part is a placeholder)
-				} else {
-					console.log('flags ', flags.size);
-					// Add flags to the terminal completion results
-					for (const [label, description] of flags.entries()) {
-						if (results.length > 100) {
-							break;
-						}
-						results.push({
-							// todo: this is a hack so it doesn't get filtered out by simpleCompletionModel
-							label: commandLine + label,
-							kind: (vscode as any).TerminalCompletionItemKind.Flag,
-							detail: description,
-							documentation: description,
-						});
-					}
-				}
+			} else {
+				console.error('no name', JSON.stringify(spec));
 			}
 		}
-
 		// Return the completion results or undefined if no results
-		return results.length ? results : undefined;
+		return result.length ? result : undefined;
 	}
 });
 
 
 async function getCommandsInPath(): Promise<Set<string>> {
+	// todo: use semicolon for windows
 	const paths = process.env.PATH?.split(':') || [];
 	const executables = new Set<string>();
 
 	for (const path of paths) {
 		try {
+			// todo: check if directory is readable
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 			for (const [file, fileType] of files) {
 				if (fileType === vscode.FileType.File) {
@@ -159,30 +115,5 @@ async function getCommandsInPath(): Promise<Set<string>> {
 			continue;
 		}
 	}
-
 	return executables;
 }
-
-function fuzzyMatch(input: string, completion: string): boolean {
-	// Normalize both input and completion to lower case for case-insensitive matching
-	const normalizedInput = input.toLowerCase();
-	const normalizedCompletion = completion.toLowerCase();
-
-	let inputIndex = 0;
-	let completionIndex = 0;
-
-	// Iterate over the completion string
-	while (inputIndex < normalizedInput.length && completionIndex < normalizedCompletion.length) {
-		// If the characters match, move to the next character in the input
-		if (normalizedInput[inputIndex] === normalizedCompletion[completionIndex]) {
-			inputIndex++;
-		}
-		// Always move to the next character in the completion string
-		completionIndex++;
-	}
-
-	// If we've matched all characters in the input, return true (fuzzy match found)
-	return inputIndex === normalizedInput.length;
-}
-
-

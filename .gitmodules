@@ -1,0 +1,3 @@
+[submodule "autocomplete"]
+	path = autocomplete
+	url = https://github.com/meganrogge/autocomplete

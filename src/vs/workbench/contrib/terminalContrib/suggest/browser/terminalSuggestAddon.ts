@@ -192,21 +192,21 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private async _handleData(): Promise<void> {
+	private async _handleExtensionProviders(terminal?: Terminal): Promise<void> {
 		this._onDidReceiveCompletions.fire();
 
 		// Nothing to handle if the terminal is not attached
-		if (!this._terminal?.element || !this._enableWidget || !this._promptInputModel) {
+		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
 		}
 
 		// Only show the suggest widget if the terminal is focused
-		if (!dom.isAncestorOfActiveElement(this._terminal.element)) {
+		if (!dom.isAncestorOfActiveElement(terminal.element)) {
 			return;
 		}
 
-		const replacementIndex = 0;
-		const replacementLength = this._promptInputModel.cursorIndex;
+		let replacementIndex = 0;
+		let replacementLength = this._promptInputModel.cursorIndex;
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
@@ -217,26 +217,42 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 
 		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
-		// TODO: only do this for specific prompt value?
+
 		if (!this._shellType) {
 			return;
 		}
-		const completions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._shellType);
-		if (!completions?.length) {
+
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._shellType);
+		if (!providedCompletions?.length) {
 			return;
 		}
 
-		const items: SimpleCompletionItem[] = [];
-		for (const c of completions) {
-			items.push(new SimpleCompletionItem({
+		const completions: SimpleCompletionItem[] = [];
+		for (const c of providedCompletions) {
+			completions.push(new SimpleCompletionItem({
 				label: typeof c.label === 'string' ? c.label : c.label.label,
 				icon: getIconForKind(c.kind),
 				detail: c.detail,
 				isDirectory: c.kind === TerminalCompletionItemKind.Folder,
 			}));
 		}
-		if (!items?.length) {
+		if (!completions?.length) {
 			return;
+		}
+
+		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
+		// This is a TabExpansion2 result
+		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
+			replacementIndex = 0;
+			replacementLength = this._promptInputModel.value.trim().length;
+			this._leadingLineContent = this._promptInputModel.prefix;
+		}
+
+		this._replacementIndex = replacementIndex;
+		this._replacementLength = replacementLength;
+
+		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.completion.isDirectory)) {
+			completions.push(new SimpleCompletionItem(this._mostRecentCompletion));
 		}
 		this._mostRecentCompletion = undefined;
 
@@ -249,18 +265,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// - Using `\` or `/` will request new completions. It's important that this only occurs
 		//   when a directory is present, if not completions like git branches could be requested
 		//   which leads to flickering
-		this._isFilteringDirectories = items.some(e => e.completion.isDirectory);
+		this._isFilteringDirectories = completions.some(e => e.completion.isDirectory);
 		if (this._isFilteringDirectories) {
-			const firstDir = items.find(e => e.completion.isDirectory);
+			const firstDir = completions.find(e => e.completion.isDirectory);
 			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
-		// args are filtered out here https://github.com/microsoft/vscode/blob/c358e0a0feb0d28528f36065b971dd9ec3b7a570/src/vs/workbench/services/suggest/browser/simpleCompletionModel.ts#L171
-		// because they don't match the prefix for ex node --blah --blah doesn't match the node prefix
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(items, lineContext, replacementIndex, replacementLength);
+		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		this._handleCompletionModel(model);
-
 	}
 
 	setContainerWithOverflow(container: HTMLElement): void {
@@ -281,7 +294,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		if (this._shellType === 'zsh' || this._shellType === 'bash') {
-			this._handleData();
+			this._handleExtensionProviders(this._terminal);
 			return;
 		}
 
@@ -316,7 +329,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private async _sync(promptInputState: IPromptInputModelState): Promise<void> {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		if (this._shellType === 'zsh' || this._shellType === 'bash') {
-			await this._handleData();
+			await this._handleExtensionProviders(this._terminal);
 		}
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 			// If input has been added
