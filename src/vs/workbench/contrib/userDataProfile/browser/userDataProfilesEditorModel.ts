@@ -41,6 +41,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -99,6 +100,8 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IWorkspaceContextService protected readonly workspaceContextService: IWorkspaceContextService,
+		@IHostService protected readonly hostService: IHostService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -299,6 +302,14 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return workspace.configuration ?? workspace.folders[0]?.uri;
 	}
 
+	openWorkspace(workspace: URI): void {
+		if (this.uriIdentityService.extUri.extname(workspace) === '.code-workspace') {
+			this.hostService.openWindow([{ workspaceUri: workspace }], { forceNewWindow: true });
+		} else {
+			this.hostService.openWindow([{ folderUri: workspace }], { forceNewWindow: true });
+		}
+	}
+
 	save(): void {
 		this.saveScheduler.schedule();
 	}
@@ -361,6 +372,8 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IHostService hostService: IHostService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -373,6 +386,8 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			userDataProfilesService,
 			commandService,
 			workspaceContextService,
+			hostService,
+			uriIdentityService,
 			instantiationService,
 		);
 		this._isNewWindowProfile = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE) === this.profile.name;
@@ -474,6 +489,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IHostService hostService: IHostService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -486,6 +503,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			userDataProfilesService,
 			commandService,
 			workspaceContextService,
+			hostService,
+			uriIdentityService,
 			instantiationService,
 		);
 		this.defaultName = name;
