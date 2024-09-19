@@ -27,7 +27,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 
 	protected _installInterceptor(): void {
 		const that = this;
-		const node_module = <any>globalThis._VSCODE_NODE_MODULES.module;
+		const node_module = require('module');
 		const originalLoad = node_module._load;
 		node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 			request = applyAlternatives(request);
@@ -45,6 +45,20 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		node_module._resolveLookupPaths = (request: string, parent: unknown) => {
 			return originalLookup.call(this, applyAlternatives(request), parent);
 		};
+
+		// ESM-uncomment-begin
+		const originalResolveFilename = node_module._resolveFilename;
+		node_module._resolveFilename = function resolveFilename(request: string, parent: unknown, isMain: boolean, options?: { paths?: string[] }) {
+			if (request === 'vsda' && Array.isArray(options?.paths) && options.paths.length === 0) {
+				// ESM: ever since we moved to ESM, `require.main` will be `undefined` for extensions
+				// Some extensions have been using `require.resolve('vsda', { paths: require.main.paths })`
+				// to find the `vsda` module in our app root. To be backwards compatible with this pattern,
+				// we help by filling in the `paths` array with the node modules paths of the current module.
+				options.paths = node_module._nodeModulePaths(import.meta.dirname);
+			}
+			return originalResolveFilename.call(this, request, parent, isMain, options);
+		};
+		// ESM-uncomment-end
 
 		const applyAlternatives = (request: string) => {
 			for (const alternativeModuleName of that._alternatives) {

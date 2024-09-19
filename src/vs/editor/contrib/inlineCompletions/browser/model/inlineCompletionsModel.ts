@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, Permutation } from '../../../../../base/common/arrays.js';
 import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
-import { commonPrefixLength, splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
+import { commonPrefixLength } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { SingleTextEdit, TextEdit } from '../../../../common/core/textEdit.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { Command, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
@@ -24,14 +25,13 @@ import { ILanguageConfigurationService } from '../../../../common/languages/lang
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
+import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { addPositions, getEndPositionsAfterApplying, substringPos, subtractPositions } from '../utils.js';
+import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inlineCompletionsSource.js';
-import { computeGhostText, singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEdit.js';
+import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdaptor.js';
-import { addPositions, subtractPositions } from '../utils.js';
-import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
@@ -514,21 +514,4 @@ export function getSecondaryEdits(textModel: ITextModel, positions: readonly Pos
 		const range = Range.fromPositions(pos, pos.delta(0, l));
 		return new SingleTextEdit(range, secondaryEditText);
 	});
-}
-
-function substringPos(text: string, pos: Position): string {
-	let subtext = '';
-	const lines = splitLinesIncludeSeparators(text);
-	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
-		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0);
-	}
-	return subtext;
-}
-
-function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
-	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
-	const edit = new TextEdit(sortPerm.apply(edits));
-	const sortedNewRanges = edit.getNewRanges();
-	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
-	return newRanges.map(range => range.getEndPosition());
 }

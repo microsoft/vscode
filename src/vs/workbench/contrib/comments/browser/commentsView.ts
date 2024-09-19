@@ -37,6 +37,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import type { ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -149,7 +150,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService storageService: IStorageService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -343,32 +344,43 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 		const replyCount = this.getReplyCountAsString(element, forAriaLabel);
 		const replies = this.getRepliesAsString(element, forAriaLabel);
+		const editor = this.editorService.findEditors(element.resource);
+		const codeEditor = this.editorService.activeEditorPane?.getControl();
+		let content;
+		if (element.range && editor?.length && isCodeEditor(codeEditor)) {
+			content = codeEditor.getModel()?.getValueInRange(element.range);
+			if (content) {
+				content = '\nCorresponding code: \n' + content;
+			}
+		}
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
-					"Outdated from {0} at line {1} column {2} in {3},{4} comment: {5}",
-					element.comment.userName,
-					element.range.startLineNumber,
-					element.range.startColumn,
-					basename(element.resource),
-					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				) + replies;
-			} else {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-					"{0} at line {1} column {2} in {3},{4} comment: {5}",
+					"Outdated from {0} at line {1} column {2} in {3}{4}\nComment: {5}{6}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
 					basename(element.resource),
 					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					content,
+				) + replies;
+			} else {
+				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
+					"{0} at line {1} column {2} in {3} {4}\nComment: {5}{6}",
+					element.comment.userName,
+					element.range.startLineNumber,
+					element.range.startColumn,
+					basename(element.resource),
+					replyCount,
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					content,
 				) + replies;
 			}
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFileOutdated',
-					"Outdated from {0} in {1},{2} comment: {3}",
+					"Outdated from {0} in {1} {2}\nComment: {3}{4}{5}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
@@ -376,11 +388,12 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
-					"{0} in {1},{2} comment: {3}",
+					"{0} in {1} {2}\nComment: {3}{4}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					content
 				) + replies;
 			}
 		}

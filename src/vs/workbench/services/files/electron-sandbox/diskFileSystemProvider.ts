@@ -45,6 +45,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		this.registerListeners();
 	}
 
+	setUseNextWatcher(): void {
+		this.options = { watcher: { forceUniversal: true, recursive: { useNext: true, usePolling: false } } };
+	}
+
 	private registerListeners(): void {
 
 		// Forward events from the embedded provider

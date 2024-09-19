@@ -64,7 +64,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 		this._findFilter.container.classList.add('monaco-custom-toggle');
 		this.filterVisible = filterStartVisiblitity;
 		// ensure that ai button is visible if it should be
-		this.sparkleVisible = shouldShowAIButton;
+		this.sparkleVisible = false;
 
 		this._register(this._aiButton.onChange(() => {
 			if (this.regex) {
@@ -96,7 +96,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 	}
 
 	set sparkleVisible(visible: boolean) {
-		this._aiButton.visible = visible;
+		this._aiButton.visible = false;
 		this._updatePadding();
 	}
 

@@ -94,6 +94,16 @@ export function isSigPipeError(e: unknown): e is Error {
 	return cast.code === 'EPIPE' && cast.syscall?.toUpperCase() === 'WRITE';
 }
 
+/**
+ * This function should only be called with errors that indicate a bug in the product.
+ * E.g. buggy extensions/invalid user-input/network issues should not be able to trigger this code path.
+ * If they are, this indicates there is also a bug in the product.
+*/
+export function onBugIndicatingError(e: any): undefined {
+	errorHandler.onUnexpectedError(e);
+	return undefined;
+}
+
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isCancellationError(e)) {

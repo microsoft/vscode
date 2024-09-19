@@ -172,10 +172,10 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setTreeView(true);
+			await searchView.setTreeView(true);
 		}
 	}
 });
@@ -197,10 +197,10 @@ registerAction2(class ViewAsListAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setTreeView(false);
+			await searchView.setTreeView(false);
 		}
 	}
 });
@@ -219,7 +219,16 @@ function expandAll(accessor: ServicesAccessor) {
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const viewer = searchView.getControl();
-		viewer.expandAll();
+
+		if (searchView.shouldShowAIResults()) {
+			if (searchView.model.hasAIResults) {
+				viewer.expandAll();
+			} else {
+				viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
+			}
+		} else {
+			viewer.expandAll();
+		}
 	}
 }
 
@@ -267,9 +276,9 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					let nodeToTest = node;
 
 					if (node instanceof FolderMatch) {
-						const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
+						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
 					}
 
 					const immediateParent = nodeToTest.parent();
@@ -296,14 +305,14 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					let nodeToTest = node;
 
 					if (node instanceof FolderMatch) {
-						const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
+						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
 					}
 					const immediateParent = nodeToTest.parent();
 
 					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
-						if (viewer.hasElement(node)) {
+						if (viewer.hasNode(node)) {
 							viewer.collapse(node, true);
 						} else {
 							viewer.collapseAll();
@@ -318,7 +327,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		const firstFocusParent = viewer.getFocus()[0]?.parent();
 
 		if (firstFocusParent && (firstFocusParent instanceof FolderMatch || firstFocusParent instanceof FileMatch) &&
-			viewer.hasElement(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
+			viewer.hasNode(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
 			viewer.domFocus();
 			viewer.focusFirst();
 			viewer.setSelection(viewer.getFocus());

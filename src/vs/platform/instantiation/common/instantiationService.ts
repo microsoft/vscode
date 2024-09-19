@@ -114,8 +114,8 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	createInstance<T>(descriptor: SyncDescriptor0<T>): T;
-	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
-	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any {
+	createInstance<Ctor extends new (...args: any[]) => unknown, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
+	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): unknown {
 		this._throwIfDisposed();
 
 		let _trace: Trace;
@@ -330,7 +330,7 @@ export class InstantiationService implements IInstantiationService {
 				return result;
 			});
 			return <T>new Proxy(Object.create(null), {
-				get(target: any, key: PropertyKey): any {
+				get(target: any, key: PropertyKey): unknown {
 
 					if (!idle.isInitialized) {
 						// looks like an event

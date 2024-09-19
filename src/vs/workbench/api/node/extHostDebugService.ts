@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import { createCancelablePromise, firstParallel, timeout } from '../../../base/common/async.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
@@ -11,23 +12,21 @@ import { IExternalTerminalService } from '../../../platform/externalTerminal/com
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../../platform/externalTerminal/node/externalTerminalService.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
 import { SignService } from '../../../platform/sign/node/signService.js';
+import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
+import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from '../../contrib/debug/node/debugAdapter.js';
+import { hasChildProcesses, prepareCommand } from '../../contrib/debug/node/terminals.js';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import { IExtHostCommands } from '../common/extHostCommands.js';
+import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration.js';
 import { ExtHostDebugServiceBase, ExtHostDebugSession } from '../common/extHostDebugService.js';
 import { IExtHostEditorTabs } from '../common/extHostEditorTabs.js';
 import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
 import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { IExtHostTerminalService } from '../common/extHostTerminalService.js';
-import { DebugAdapterExecutable, ThemeIcon } from '../common/extHostTypes.js';
+import { IExtHostTesting } from '../common/extHostTesting.js';
+import { DebugAdapterExecutable, DebugAdapterNamedPipeServer, DebugAdapterServer, ThemeIcon } from '../common/extHostTypes.js';
 import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
 import { IExtHostWorkspace } from '../common/extHostWorkspace.js';
-import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
-import { IAdapterDescriptor } from '../../contrib/debug/common/debug.js';
-import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from '../../contrib/debug/node/debugAdapter.js';
-import { hasChildProcesses, prepareCommand } from '../../contrib/debug/node/terminals.js';
-import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
-import type * as vscode from 'vscode';
-import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration.js';
-import { IExtHostCommands } from '../common/extHostCommands.js';
-import { IExtHostTesting } from '../common/extHostTesting.js';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -50,16 +49,16 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 
-	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
-		switch (adapter.type) {
-			case 'server':
-				return new SocketDebugAdapter(adapter);
-			case 'pipeServer':
-				return new NamedPipeDebugAdapter(adapter);
-			case 'executable':
-				return new ExecutableDebugAdapter(adapter, session.type);
+	protected override createDebugAdapter(adapter: vscode.DebugAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
+		if (adapter instanceof DebugAdapterExecutable) {
+			return new ExecutableDebugAdapter(this.convertExecutableToDto(adapter), session.type);
+		} else if (adapter instanceof DebugAdapterServer) {
+			return new SocketDebugAdapter(this.convertServerToDto(adapter));
+		} else if (adapter instanceof DebugAdapterNamedPipeServer) {
+			return new NamedPipeDebugAdapter(this.convertPipeServerToDto(adapter));
+		} else {
+			return super.createDebugAdapter(adapter, session);
 		}
-		return super.createDebugAdapter(adapter, session);
 	}
 
 	protected override daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {

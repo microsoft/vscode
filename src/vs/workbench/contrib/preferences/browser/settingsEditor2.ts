@@ -877,8 +877,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (
 				e.keyCode === KeyCode.KeyA &&
 				(platform.isMacintosh ? e.metaKey : e.ctrlKey) &&
-				e.target.tagName !== 'TEXTAREA' &&
-				e.target.tagName !== 'INPUT'
+				!DOM.isEditableElement(e.target)
 			) {
 				// Avoid browser ctrl+a
 				e.browserEvent.stopPropagation();

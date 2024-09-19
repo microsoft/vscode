@@ -43,23 +43,23 @@ jobs:
       - name: Extract node_modules archive
         if: ${{ steps.cacheNodeModules.outputs.cache-hit == 'true' }}
         run: 7z.exe x .build/node_modules_cache/cache.7z -aos
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
+      - name: Get npm cache directory path
+        id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-      - name: Cache yarn directory
+        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+      - name: Cache npm directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
-      - name: Execute yarn
+          path: ${{ steps.npmCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-npmCacheDir-
+      - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: npm ci
       - name: Create node_modules archive
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
@@ -69,19 +69,20 @@ jobs:
           7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt
 
       - name: Compile and Download
-        run: yarn npm-run-all --max-old-space-size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+        run: npm exec -- npm-run-all -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
+        run: npm run compile
+        working-directory: test/integration/browser
 
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
 
       - name: Run Unit Tests (node.js)
-        run: yarn test-node
+        run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: yarn test-browser-no-install --browser chromium
+        run: npm run test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
@@ -126,29 +127,30 @@ jobs:
         with:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
+      - name: Get npm cache directory path
+        id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-      - name: Cache yarn directory
+        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+      - name: Cache npm directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
-      - name: Execute yarn
+          path: ${{ steps.npmCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-npmCacheDir-
+      - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: npm ci
 
       - name: Compile and Download
-        run: yarn npm-run-all --max-old-space-size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+        run: npm exec -- npm-run-all -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
+        run: npm run compile
+        working-directory: test/integration/browser
 
       - name: Run Unit Tests (Electron)
         id: electron-unit-tests
@@ -156,11 +158,11 @@ jobs:
 
       - name: Run Unit Tests (node.js)
         id: nodejs-unit-tests
-        run: yarn test-node
+        run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
-        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
@@ -197,29 +199,30 @@ jobs:
         with:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModulesMacOS-${{ steps.nodeModulesCacheKey.outputs.value }}
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
+      - name: Get npm cache directory path
+        id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-      - name: Cache yarn directory
+        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+      - name: Cache npm directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
-      - name: Execute yarn
+          path: ${{ steps.npmCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-npmCacheDir-
+      - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: npm ci
 
       - name: Compile and Download
-        run: yarn npm-run-all --max-old-space-size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
+        run: npm exec -- npm-run-all -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
-        run: yarn --cwd test/integration/browser compile
+        run: npm run compile
+        working-directory: test/integration/browser
 
       # This is required for SecretStorage unittests
       - name: Create temporary keychain
@@ -232,10 +235,10 @@ jobs:
         run: DISPLAY=:10 ./scripts/test.sh
 
       - name: Run Unit Tests (node.js)
-        run: yarn test-node
+        run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
@@ -269,44 +272,45 @@ jobs:
         with:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
+      - name: Get npm cache directory path
+        id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-      - name: Cache yarn directory
+        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+      - name: Cache npm directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
-      - name: Execute yarn
+          path: ${{ steps.npmCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-npmCacheDir-
+      - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: npm ci
 
       - name: Download Playwright
-        run: yarn playwright-install
+        run: npm run playwright-install
 
       - name: Run Hygiene Checks
-        run: yarn gulp hygiene
+        run: npm run gulp hygiene
 
       - name: Run Valid Layers Checks
-        run: yarn valid-layers-check
+        run: npm run valid-layers-check
 
       - name: Compile /build/
-        run: yarn --cwd build compile
+        run: npm run compile
+        working-directory: build
 
       - name: Check clean git state
         run: ./.github/workflows/check-clean-git-state.sh
 
       - name: Run eslint
-        run: yarn eslint
+        run: npm run eslint
 
       - name: Run vscode-dts Compile Checks
-        run: yarn vscode-dts-compile-check
+        run: npm run vscode-dts-compile-check
 
       - name: Run Trusted Types Checks
-        run: yarn tsec-compile-check
+        run: npm run tsec-compile-check

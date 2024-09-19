@@ -8,11 +8,11 @@ import * as nls from '../../../../nls.js';
 import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
 import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
-import { FileMatchOrMatch, FolderMatch, RenderableMatch } from './searchModel.js';
+import { FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from './searchModel.js';
 import { SearchEditor } from '../../searchEditor/browser/searchEditor.js';
 import { SearchEditorInput } from '../../searchEditor/browser/searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -174,7 +174,7 @@ registerAction2(class OpenMatchAction extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
 			const viewer = searchView.getControl();
 			const focus = tree.getFocus()[0];
 
@@ -206,7 +206,7 @@ registerAction2(class OpenMatchToSideAction extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
 			searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, true, true);
 		}
 	}
@@ -229,7 +229,7 @@ registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<any> {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleObjectTree<RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
 			searchView.openEditorWithMultiCursor(<FileMatchOrMatch>tree.getFocus()[0]);
 		}
 	}

@@ -14,14 +14,14 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from '../../../../../platform/list/browser/listService.js';
+import { WorkbenchCompressibleAsyncDataTree, getSelectionKeyboardEvent } from '../../../../../platform/list/browser/listService.js';
 import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons.js';
-import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from '../searchModel.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, SearchResult, searchComparer } from '../searchModel.js';
 import { SearchView, getEditorSelectionFromMatch } from '../searchView.js';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -218,7 +218,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
-		const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = viewlet?.getControl();
+		const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = viewlet?.getControl();
 		if (currentElem) {
 			viewer.setFocus([currentElem], getSelectionKeyboardEvent());
 			viewer.setSelection([currentElem], getSelectionKeyboardEvent());

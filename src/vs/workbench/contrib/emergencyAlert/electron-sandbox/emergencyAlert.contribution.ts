@@ -75,7 +75,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 				(emergencyAlert.platform && emergencyAlert.platform !== platform) ||	// platform mismatch
 				(emergencyAlert.arch && emergencyAlert.arch !== arch)					// arch mismatch
 			) {
-				return; // skip versions we are not on
+				return;
 			}
 
 			this.bannerService.show({

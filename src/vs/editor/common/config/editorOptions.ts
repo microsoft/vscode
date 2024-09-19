@@ -635,6 +635,11 @@ export interface IEditorOptions {
 	 */
 	matchBrackets?: 'never' | 'near' | 'always';
 	/**
+	 * Enable experimental rendering using WebGPU.
+	 * Defaults to 'off'.
+	 */
+	experimentalGpuAcceleration?: 'on' | 'off';
+	/**
 	 * Enable experimental whitespace rendering.
 	 * Defaults to 'svg'.
 	 */
@@ -742,6 +747,11 @@ export interface IEditorOptions {
 	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
 	dropIntoEditor?: IDropIntoEditorOptions;
+
+	/**
+	 * Sets whether the new experimental edit context should be used instead of the text area.
+	 */
+	experimentalEditContextEnabled?: boolean;
 
 	/**
 	 * Controls support for changing how content is pasted into the editor.
@@ -1477,7 +1487,10 @@ export const enum TextEditorCursorBlinkingStyle {
 	Solid = 5
 }
 
-function _cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid'): TextEditorCursorBlinkingStyle {
+/**
+ * @internal
+ */
+export function cursorBlinkingStyleFromString(cursorBlinkingStyle: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid'): TextEditorCursorBlinkingStyle {
 	switch (cursorBlinkingStyle) {
 		case 'blink': return TextEditorCursorBlinkingStyle.Blink;
 		case 'smooth': return TextEditorCursorBlinkingStyle.Smooth;
@@ -1535,7 +1548,10 @@ export function cursorStyleToString(cursorStyle: TextEditorCursorStyle): 'line' 
 	}
 }
 
-function _cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin'): TextEditorCursorStyle {
+/**
+ * @internal
+ */
+export function cursorStyleFromString(cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin'): TextEditorCursorStyle {
 	switch (cursorStyle) {
 		case 'line': return TextEditorCursorStyle.Line;
 		case 'block': return TextEditorCursorStyle.Block;
@@ -4115,6 +4131,8 @@ export interface IInlineSuggestOptions {
 
 	showToolbar?: 'always' | 'onHover' | 'never';
 
+	syntaxHighlightingEnabled?: boolean;
+
 	suppressSuggestions?: boolean;
 
 	/**
@@ -4144,7 +4162,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: 'onHover',
 			suppressSuggestions: false,
 			keepOnBlur: false,
-			fontFamily: 'default'
+			fontFamily: 'default',
+			syntaxHighlightingEnabled: false,
 		};
 
 		super(
@@ -4165,6 +4184,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 						nls.localize('inlineSuggest.showToolbar.never', "Never show the inline suggestion toolbar."),
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
+				},
+				'editor.inlineSuggest.syntaxHighlightingEnabled': {
+					type: 'boolean',
+					default: defaults.syntaxHighlightingEnabled,
+					description: nls.localize('inlineSuggest.syntaxHighlightingEnabled', "Controls whether to show syntax highlighting for inline suggestions in the editor."),
 				},
 				'editor.inlineSuggest.suppressSuggestions': {
 					type: 'boolean',
@@ -4191,7 +4215,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 		};
 	}
 }
@@ -5364,7 +5389,9 @@ export const enum EditorOption {
 	domReadOnly,
 	dragAndDrop,
 	dropIntoEditor,
+	experimentalEditContextEnabled,
 	emptySelectionClipboard,
+	experimentalGpuAcceleration,
 	experimentalWhitespaceRendering,
 	extraEditorClassName,
 	fastScrollSensitivity,
@@ -5674,7 +5701,7 @@ export const EditorOptions = {
 		EditorOption.cursorBlinking, 'cursorBlinking',
 		TextEditorCursorBlinkingStyle.Blink, 'blink',
 		['blink', 'smooth', 'phase', 'expand', 'solid'],
-		_cursorBlinkingStyleFromString,
+		cursorBlinkingStyleFromString,
 		{ description: nls.localize('cursorBlinking', "Control the cursor animation style.") }
 	)),
 	cursorSmoothCaretAnimation: register(new EditorStringEnumOption(
@@ -5694,7 +5721,7 @@ export const EditorOptions = {
 		EditorOption.cursorStyle, 'cursorStyle',
 		TextEditorCursorStyle.Line, 'line',
 		['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'],
-		_cursorStyleFromString,
+		cursorStyleFromString,
 		{ description: nls.localize('cursorStyle', "Controls the cursor style.") }
 	)),
 	cursorSurroundingLines: register(new EditorIntOption(
@@ -5734,7 +5761,27 @@ export const EditorOptions = {
 	)),
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
+	experimentalEditContextEnabled: register(new EditorBooleanOption(
+		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', false,
+		{
+			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area.")
+		}
+	)),
 	stickyScroll: register(new EditorStickyScroll()),
+	experimentalGpuAcceleration: register(new EditorStringEnumOption(
+		EditorOption.experimentalGpuAcceleration, 'experimentalGpuAcceleration',
+		'off' as 'off' | 'on',
+		['off', 'on'] as const,
+		undefined
+		// TODO: Uncomment when we want to expose the setting to VS Code users
+		// {
+		// 	enumDescriptions: [
+		// 		nls.localize('experimentalGpuAcceleration.off', "Use regular DOM-based rendering."),
+		// 		nls.localize('experimentalGpuAcceleration.on', "Use GPU acceleration."),
+		// 	],
+		// 	description: nls.localize('experimentalGpuAcceleration', "Controls whether to use the (very) experimental GPU acceleration to render the editor.")
+		// }
+	)),
 	experimentalWhitespaceRendering: register(new EditorStringEnumOption(
 		EditorOption.experimentalWhitespaceRendering, 'experimentalWhitespaceRendering',
 		'svg' as 'svg' | 'font' | 'off',

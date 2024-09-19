@@ -42,7 +42,7 @@ suite('VoiceChat', () => {
 		publisherDisplayName?: string | undefined;
 		isDefault?: boolean | undefined;
 		isDynamic?: boolean | undefined;
-		disambiguation: { categoryName: string; description: string; examples: string[] }[] = [];
+		disambiguation: { category: string; description: string; examples: string[] }[] = [];
 		provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> {
 			throw new Error('Method not implemented.');
 		}

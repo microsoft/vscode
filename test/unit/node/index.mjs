@@ -58,7 +58,7 @@ Options:
 const TEST_GLOB = '**/test/**/*.test.js';
 
 const excludeGlobs = [
-	'**/{browser,electron-sandbox,electron-main}/**/*.test.js',
+	'**/{browser,electron-sandbox,electron-main,electron-utility}/**/*.test.js',
 	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
 	'**/vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
 	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
@@ -70,7 +70,7 @@ const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
 
 //@ts-ignore
-const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
+const majorRequiredNodeVersion = `v${/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]}`.substring(0, 3);
 const currentMajorNodeVersion = process.version.substring(0, 3);
 if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 	console.error(`node.js unit tests require a major node.js version of ${majorRequiredNodeVersion} (your version is: ${currentMajorNodeVersion})`);
@@ -79,11 +79,8 @@ if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 
 function main() {
 
-	// VSCODE_GLOBALS: node_modules
-	const _require = module.createRequire(import.meta.url);
-	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => _require(String(mod)) });
-
 	// VSCODE_GLOBALS: package/product.json
+	const _require = module.createRequire(import.meta.url);
 	globalThis._VSCODE_PRODUCT_JSON = _require(`${REPO_ROOT}/product.json`);
 	globalThis._VSCODE_PACKAGE_JSON = _require(`${REPO_ROOT}/package.json`);
 
