@@ -57,6 +57,11 @@
         "category": "Create"
       },
       {
+        "command": "ipynb.newRepl",
+        "title": "create new repl",
+        "category": "Create"
+      },
+      {
         "command": "ipynb.openIpynbInNotebookEditor",
         "title": "%openIpynbInNotebookEditor.title%"
       },

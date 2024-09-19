@@ -282,6 +282,7 @@ async function executeReplInput(
 				return;
 			}
 
+			// Just accept any existing inline chat hunk
 			const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
 			if (ctrl) {
 				ctrl.acceptHunk();

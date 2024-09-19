@@ -506,6 +506,12 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			}
 		}));
 
+		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+			if (this.isVisible()) {
+				this._updateInputHint();
+			}
+		});
+
 		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModel(() => {
 			this._updateInputHint();
 		}));
@@ -656,6 +662,15 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
+	private _hasConflictingDecoration() {
+		return Boolean(this._codeEditorWidget.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		));
+	}
+
 	private _updateInputHint(): void {
 		if (!this._codeEditorWidget) {
 			return;
@@ -664,7 +679,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
 			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
-			this._codeEditorWidget.getModel()!.getValueLength() !== 0;
+			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
+			this._hasConflictingDecoration();
 
 		if (!this._hintElement && !shouldHide) {
 			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
