@@ -603,6 +603,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._parent;
 	}
 
+	get hasChildren(): boolean {
+		return this._textMatches.size > 0 || this._cellMatches.size > 0;
+	}
+
 	matches(): Match[] {
 		const cellMatches: MatchInNotebook[] = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
 		return [...this._textMatches.values(), ...cellMatches];
@@ -1001,6 +1005,10 @@ export class FolderMatch extends Disposable {
 
 	parent(): TextSearchResult | FolderMatch {
 		return this._parent;
+	}
+
+	get hasChildren(): boolean {
+		return this._fileMatches.size > 0 || this._folderMatches.size > 0;
 	}
 
 	bindModel(model: ITextModel): void {
@@ -1499,6 +1507,14 @@ export class TextSearchResult extends Disposable {
 		return this._parent;
 	}
 
+	get hasChildren(): boolean {
+		return this._folderMatches.length > 0;
+	}
+
+	name(): string {
+		return this._id === AI_TEXT_SEARCH_RESULT_ID ? 'AI' : 'Text';
+	}
+
 	get isDirty(): boolean {
 		return this._isDirty;
 	}
@@ -1905,8 +1921,6 @@ export class SearchResult extends Disposable {
 	private _plainTextSearchResult: ReplaceableTextSearchResult;
 	private _aiTextSearchResult: TextSearchResult;
 
-	public hasAISearched = false;
-
 	constructor(
 		public readonly searchModel: SearchModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1933,6 +1947,18 @@ export class SearchResult extends Disposable {
 
 	get plainTextSearchResult(): ReplaceableTextSearchResult {
 		return this._plainTextSearchResult;
+	}
+
+	get aiTextSearchResult(): TextSearchResult {
+		return this._aiTextSearchResult;
+	}
+
+	get children() {
+		return this.textSearchResults;
+	}
+
+	get hasChildren(): boolean {
+		return true; // should always have a Text Search Result for plain results.
 	}
 	get textSearchResults(): TextSearchResult[] {
 		return [this._plainTextSearchResult, this._aiTextSearchResult];
@@ -1991,7 +2017,6 @@ export class SearchResult extends Disposable {
 	set query(query: ITextQuery | null) {
 		this._plainTextSearchResult.query = query;
 		this._aiTextSearchResult.query = query;
-		this.hasAISearched = false;
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
@@ -2080,18 +2105,12 @@ export class SearchResult extends Disposable {
 		return this._plainTextSearchResult.isEmpty();
 	}
 
-	fileCount(ai = false): number {
-		if (ai) {
-			return this._aiTextSearchResult.fileCount();
-		}
-		return this._plainTextSearchResult.fileCount();
+	fileCount(): number {
+		return this._plainTextSearchResult.fileCount() + this._aiTextSearchResult.fileCount();
 	}
 
-	count(ai = false): number {
-		if (ai) {
-			return this._aiTextSearchResult.count();
-		}
-		return this._plainTextSearchResult.count();
+	count(): number {
+		return this._plainTextSearchResult.count() + this._aiTextSearchResult.count();
 	}
 
 	setCachedSearchComplete(cachedSearchComplete: ISearchComplete | undefined, ai: boolean) {
@@ -2219,12 +2238,11 @@ export class SearchModel extends Disposable {
 	}
 
 	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
-		if (this.searchResult.hasAISearched) {
-			// already has matches
+		if (this.hasAIResults || this.currentAICancelTokenSource !== null) {
+			// already has matches or pending matches
 			return;
 		} else {
 			if (this._searchQuery) {
-				this.searchResult.hasAISearched = true;
 				await this.aiSearch(
 					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
 					onProgress,
@@ -2267,7 +2285,10 @@ export class SearchModel extends Disposable {
 				e => {
 					this.onSearchError(e, Date.now() - start, true);
 					throw e;
-				}).finally(() => tokenSource.dispose());
+				}).finally(() => {
+					tokenSource.dispose();
+					this.currentAICancelTokenSource = null;
+				});
 		return asyncAIResults;
 	}
 
@@ -2321,6 +2342,10 @@ export class SearchModel extends Disposable {
 			asyncResults: getAsyncResults(),
 			syncResults
 		};
+	}
+
+	get hasAIResults(): boolean {
+		return this.searchResult.getCachedSearchComplete(true) !== undefined;
 	}
 
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -2515,7 +2540,7 @@ export class SearchModel extends Disposable {
 
 export type FileMatchOrMatch = FileMatch | Match;
 
-export type RenderableMatch = TextSearchResult | FolderMatch | FolderMatchWithResource | FileMatch | Match;
+export type RenderableMatch = TextSearchResult | FolderMatch | FileMatch | Match;
 
 export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenchService {
 

@@ -11,7 +11,7 @@ import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOption
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
-import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
+import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
 import { CancelablePromise, createCancelablePromise, Promises, timeout, TimeoutTimer } from '../../../common/async.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
@@ -856,6 +856,18 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.domFocus();
 	}
 
+	isDOMFocused(): boolean {
+		return this.tree.isDOMFocused();
+	}
+
+	navigate(start?: T | TInput) {
+		let startNode;
+		if (start) {
+			startNode = this.getDataNode(start);
+		}
+		return new AsyncDataTreeNavigator(this.tree.navigate(startNode), this.root.element);
+	}
+
 	layout(height?: number, width?: number): void {
 		this.tree.layout(height, width);
 
@@ -1150,7 +1162,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	// Implementation
 
-	private getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
+	protected getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
 		const asyncFindNode: IAsyncDataTreeNode<TInput, T> | undefined = this.findController?.getDataNode(element);
 
 		if (asyncFindNode) {
@@ -1611,6 +1623,11 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		this.filter = options.filter;
 	}
 
+	getCompressedTreeNode(e: T | TInput) {
+		const node = this.getDataNode(e);
+		return this.tree.getCompressedTreeNode(node).element;
+	}
+
 	protected override createTree(
 		user: string,
 		container: HTMLElement,
@@ -1766,4 +1783,47 @@ function getVisibility<TFilterData>(filterResult: TreeFilterResult<TFilterData>)
 	} else {
 		return getVisibleState(filterResult);
 	}
+}
+
+class AsyncDataTreeNavigator<TInput, T> implements ITreeNavigator<T> {
+
+	constructor(private navigator: ITreeNavigator<IAsyncDataTreeNode<TInput, T> | null>, private root: TInput) { }
+
+	current(): T | null {
+		const current = this.navigator.current();
+		if (current?.element === this.root) {
+			return null;
+		}
+		// if it is not the root, it should not be of `TInput` type
+		return (current?.element ?? null) as T | null;
+	}
+	previous(): T | null {
+		const current = this.navigator.previous();
+		if (current?.element === this.root) {
+			return this.previous();
+		}
+		return (current?.element ?? null) as T | null;
+	}
+	first(): T | null {
+		const current = this.navigator.first();
+		if (current?.element === this.root) {
+			return this.next();
+		}
+		return (current?.element ?? null) as T | null;
+	}
+	last(): T | null {
+		const current = this.navigator.last();
+		if (current?.element === this.root) {
+			return this.previous();
+		}
+		return (current?.element ?? null) as T | null;
+	}
+	next(): T | null {
+		const current = this.navigator.next();
+		if (current?.element === this.root) {
+			return this.next();
+		}
+		return (current?.element ?? null) as T | null;
+	}
+
 }
