@@ -352,11 +352,6 @@
 	text-overflow: ellipsis;
 }
 
-.profiles-editor .profile-associations-table .monaco-table-tr .monaco-table-td .path:not(.input-mode) .monaco-inputbox,
-.profiles-editor .profile-associations-table .monaco-table-tr .monaco-table-td .path.input-mode .path-label {
-	display: none;
-}
-
 .profiles-editor .profile-associations-table .monaco-table-tr .monaco-table-td .current-workspace .path-label,
 .profiles-editor .profile-associations-table .monaco-table-tr .monaco-table-td .current-workspace .host-label {
 	font-weight: bold;
