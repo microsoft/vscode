@@ -77,6 +77,7 @@ export interface IExtension {
 	readonly iconUrl: string;
 	readonly iconUrlFallback: string;
 	readonly licenseUrl?: string;
+	readonly contentsUrl?: URI;
 	readonly installCount?: number;
 	readonly rating?: number;
 	readonly ratingCount?: number;
