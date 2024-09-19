@@ -2140,8 +2140,8 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 			templateData.actionBar.push(actions, { icon: true });
 		};
 		renderActions();
-		templateData.renderDisposables.add(item.profileElement.onDidChange(e => {
-			if (e.newWindowProfile) {
+		templateData.renderDisposables.add(this.userDataProfilesService.onDidChangeProfiles(e => {
+			if (e.added.length || e.removed.length) {
 				renderActions();
 			}
 		}));
@@ -2159,6 +2159,16 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 	}
 
 	private createChangeProfileAction(item: WorkspaceTableElement): IAction {
+		if (this.userDataProfilesService.profiles.length === 1) {
+			return {
+				label: '',
+				class: ThemeIcon.asClassName(editIcon),
+				enabled: false,
+				id: 'changeProfile',
+				tooltip: localize('change profile', "Change Profile"),
+				run: () => { }
+			};
+		}
 		return new SubmenuAction(
 			'changeProfile',
 			localize('change profile', "Change Profile"),

@@ -505,7 +505,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		for (const profile of this.profiles) {
 			(<Mutable<IUserDataProfile>>profile).workspaces = undefined;
 		}
-		this.updateStoredProfiles(this.profiles);
+		this.updateProfiles([], [], this.profiles);
 		this._onDidResetWorkspaces.fire();
 	}
 
