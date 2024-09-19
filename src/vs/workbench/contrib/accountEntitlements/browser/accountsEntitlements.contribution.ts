@@ -152,6 +152,13 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 			return;
 		}
 
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
+		if (installed) {
+			this.disableEntitlements();
+			return;
+		}
+
 		const showAccountsBadge = this.configurationService.inspect<boolean>(accountsBadgeConfigKey).value ?? false;
 
 		const [enabled, org] = await this.getEntitlementsInfo(session);
