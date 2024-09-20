@@ -258,7 +258,7 @@ export function registerChatCodeBlockActions() {
 				}
 			}
 
-			await chatEditingService.startOrContinueEditingSession(async (stream) => {
+			await chatEditingService.startOrContinueEditingSession(item.sessionId, async (stream) => {
 
 				const response = {
 					textEdit: (resource: URI, textEdits: TextEdit[]) => {

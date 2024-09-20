@@ -26,7 +26,7 @@ import { IFileService, IFileStatWithPartialMetadata } from '../../../../platform
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
@@ -1489,7 +1489,6 @@ export class TextSearchResult extends Disposable {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
-
 		this._register(this.onChange(e => {
 			if (e.removed) {
 				this._isDirty = !this.isEmpty();
@@ -1727,6 +1726,7 @@ export class TextSearchResult extends Disposable {
 		this.disposeMatches();
 		this._folderMatches = [];
 		this._otherFilesMatch = null;
+		this.cachedSearchComplete = undefined;
 	}
 
 	override async dispose(): Promise<void> {
@@ -2186,6 +2186,7 @@ export class SearchModel extends Disposable {
 	private searchCancelledForNewSearch: boolean = false;
 	private aiSearchCancelledForNewSearch: boolean = false;
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
+	private readonly _aiTextResultProviderName: Lazy<Promise<string | undefined>>;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -2194,11 +2195,20 @@ export class SearchModel extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookSearchService private readonly notebookSearchService: INotebookSearchService,
-		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 		this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
+
+		this._aiTextResultProviderName = new Lazy(async () => this.searchService.getAIName());
+	}
+
+	async getAITextResultProviderName(): Promise<string> {
+		const result = await this._aiTextResultProviderName.value;
+		if (!result) {
+			throw Error('Fetching AI name when no provider present.');
+		}
+		return result;
 	}
 
 	isReplaceActive(): boolean {
@@ -2237,47 +2247,38 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	async addAIResults(onProgress?: (result: ISearchProgressItem) => void) {
-		if (this.hasAIResults || this.currentAICancelTokenSource !== null) {
+	async addAIResults(onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		if (this.hasAIResults) {
 			// already has matches or pending matches
-			return;
+			throw Error('AI results already exist');
 		} else {
 			if (this._searchQuery) {
-				await this.aiSearch(
+				return this.aiSearch(
 					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
 					onProgress,
-					this.currentCancelTokenSource?.token,
 				);
+			} else {
+				throw Error('No search query');
 			}
 		}
 	}
 
-	private async doAISearchWithModal(searchQuery: IAITextQuery, searchInstanceID: string, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		const promise = this.searchService.aiTextSearch(
-			searchQuery,
-			token, async (p: ISearchProgressItem) => {
-				this.onSearchProgress(p, searchInstanceID, false, true);
-				onProgress?.(p);
-			});
-		return this.progressService.withProgress<ISearchComplete>({
-			location: ProgressLocation.Notification,
-			type: 'syncing',
-			title: 'Searching for AI results...',
-		}, async (_) => promise);
-	}
-
-	aiSearch(query: IAITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): Promise<ISearchComplete> {
+	aiSearch(query: IAITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 
 		const searchInstanceID = Date.now().toString();
-		const tokenSource = this.currentAICancelTokenSource = new CancellationTokenSource(callerToken);
+		const tokenSource = new CancellationTokenSource();
+		this.currentAICancelTokenSource = tokenSource;
 		const start = Date.now();
-		const asyncAIResults = this.doAISearchWithModal(query,
-			searchInstanceID,
-			this.currentAICancelTokenSource.token, async (p: ISearchProgressItem) => {
+		const asyncAIResults = this.searchService.aiTextSearch(
+			query,
+			tokenSource.token,
+			async (p: ISearchProgressItem) => {
 				this.onSearchProgress(p, searchInstanceID, false, true);
 				onProgress?.(p);
-			})
-			.then(
+			}).finally(() => {
+				this.currentAICancelTokenSource?.dispose();
+				this.currentAICancelTokenSource = null;
+			}).then(
 				value => {
 					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
 					return value;
@@ -2285,9 +2286,6 @@ export class SearchModel extends Disposable {
 				e => {
 					this.onSearchError(e, Date.now() - start, true);
 					throw e;
-				}).finally(() => {
-					tokenSource.dispose();
-					this.currentAICancelTokenSource = null;
 				});
 		return asyncAIResults;
 	}
@@ -2345,7 +2343,11 @@ export class SearchModel extends Disposable {
 	}
 
 	get hasAIResults(): boolean {
-		return this.searchResult.getCachedSearchComplete(true) !== undefined;
+		return !!(this.searchResult.getCachedSearchComplete(true)) || !!(this.currentAICancelTokenSource);
+	}
+
+	get hasPlainResults(): boolean {
+		return !!(this.searchResult.getCachedSearchComplete(false)) || !!(this.currentCancelTokenSource);
 	}
 
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -2409,6 +2411,9 @@ export class SearchModel extends Disposable {
 					e => {
 						this.onSearchError(e, Date.now() - start, false);
 						throw e;
+					}).finally(() => {
+						this.currentCancelTokenSource?.dispose();
+						this.currentCancelTokenSource = null;
 					}),
 				syncResults
 			};

@@ -43,8 +43,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isString } from '../../../../base/common/types.js';
-import { IExtensionManagementServer, IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 
 export type ChangeEvent = {
@@ -114,8 +113,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		@IHostService protected readonly hostService: IHostService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
-		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionManagementService protected readonly extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -130,31 +128,19 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			}
 			this.save();
 		}));
-		if (extensionManagementServerService.localExtensionManagementServer) {
-			this.registerExtensionListeners(extensionManagementServerService.localExtensionManagementServer);
-		}
-		if (extensionManagementServerService.remoteExtensionManagementServer) {
-			this.registerExtensionListeners(extensionManagementServerService.remoteExtensionManagementServer);
-		}
-		if (extensionManagementServerService.webExtensionManagementServer) {
-			this.registerExtensionListeners(extensionManagementServerService.webExtensionManagementServer);
-		}
-	}
-
-	private registerExtensionListeners(server: IExtensionManagementServer): void {
-		this._register(server.extensionManagementService.onDidInstallExtensions(results => {
+		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(results => {
 			const profile = this.getProfileToWatch();
 			if (profile && results.some(r => !r.error && (r.applicationScoped || this.uriIdentityService.extUri.isEqual(r.profileLocation, profile.extensionsResource)))) {
 				this._onDidChange.fire({ extensions: true });
 			}
 		}));
-		this._register(server.extensionManagementService.onDidUninstallExtension(e => {
+		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(e => {
 			const profile = this.getProfileToWatch();
 			if (profile && !e.error && (e.applicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, profile.extensionsResource))) {
 				this._onDidChange.fire({ extensions: true });
 			}
 		}));
-		this._register(server.extensionManagementService.onDidUpdateExtensionMetadata(e => {
+		this._register(this.extensionManagementService.onProfileAwareDidUpdateExtensionMetadata(e => {
 			const profile = this.getProfileToWatch();
 			if (profile && e.local.isApplicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, profile?.extensionsResource)) {
 				this._onDidChange.fire({ extensions: true });
@@ -423,8 +409,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -440,7 +425,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			hostService,
 			uriIdentityService,
 			fileService,
-			extensionManagementServerService,
 			extensionManagementService,
 			instantiationService,
 		);
@@ -460,15 +444,10 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 				this._onDidChange.fire({ profile: true });
 			}
 		}));
-		// Current window does not emit extensions change events, so we need to watch the extensios resource explicitly
-		this._register(fileService.watch(this.profile.extensionsResource));
 		this._register(fileService.watch(this.profile.snippetsHome));
 		this._register(fileService.onDidFilesChange(e => {
 			if (e.affects(this.profile.snippetsHome)) {
 				this._onDidChange.fire({ snippets: true });
-			}
-			if (e.affects(this.profile.extensionsResource)) {
-				this._onDidChange.fire({ extensions: true });
 			}
 		}));
 	}
@@ -584,8 +563,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -601,7 +579,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			hostService,
 			uriIdentityService,
 			fileService,
-			extensionManagementServerService,
 			extensionManagementService,
 			instantiationService,
 		);
@@ -651,8 +628,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			this._onDidChange.fire({ preview: true });
 			this.previewProfileWatchDisposables.clear();
 			if (this._previewProfile) {
-				// Current window does not emit extensions change events, so we need to watch the extensios resource explicitly
-				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.extensionsResource));
 				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.snippetsHome));
 				this.previewProfileWatchDisposables.add(this.fileService.onDidFilesChange(e => {
 					if (!this._previewProfile) {
@@ -660,9 +635,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 					}
 					if (e.affects(this._previewProfile.snippetsHome)) {
 						this._onDidChange.fire({ snippets: true });
-					}
-					if (e.affects(this._previewProfile.extensionsResource)) {
-						this._onDidChange.fire({ extensions: true });
 					}
 				}));
 			}
