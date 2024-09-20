@@ -605,6 +605,11 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
 		this._register(this.fileService.registerProvider(USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME, this._register(new InMemoryFileSystemProvider())));
+		this._register(toDisposable(() => {
+			if (this.previewProfile) {
+				this.userDataProfilesService.removeProfile(this.previewProfile);
+			}
+		}));
 	}
 
 	private _copyFrom: IUserDataProfile | URI | undefined;
@@ -1067,9 +1072,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				true,
 				() => this.previewNewProfile(cancellationTokenSource.token)
 			));
-			if (!isWeb) {
-				secondaryActions.push(previewProfileAction);
-			}
+			secondaryActions.push(previewProfileAction);
 			const exportAction = disposables.add(new Action(
 				'userDataProfile.export',
 				localize('export', "Export..."),
@@ -1138,7 +1141,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const profile = await this.saveNewProfile(true, token);
 		if (profile) {
 			this.newProfileElement.previewProfile = profile;
-			await this.openWindow(profile);
+			if (isWeb) {
+				await this.userDataProfileManagementService.switchProfile(profile);
+			} else {
+				await this.openWindow(profile);
+			}
 		}
 	}
 
@@ -1268,6 +1275,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 		if (this.newProfileElement.previewProfile) {
 			await this.userDataProfileManagementService.removeProfile(this.newProfileElement.previewProfile);
+			return;
 		}
 		this.removeNewProfile();
 		this._onDidChange.fire(undefined);

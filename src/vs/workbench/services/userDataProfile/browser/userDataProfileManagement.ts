@@ -59,7 +59,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			if (e.removed.some(profile => profile.id === this.userDataProfileService.currentProfile.id)) {
 				const profileToUse = this.getProfileToUseForCurrentWorkspace();
 				this.switchProfile(profileToUse);
-				this.changeCurrentProfile(this.getProfileToUseForCurrentWorkspace(), localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
+				this.changeCurrentProfile(profileToUse, localize('reload message when removed', "The current profile has been removed. Please reload to switch back to default profile"));
 				return;
 			}
 
