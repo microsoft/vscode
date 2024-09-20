@@ -599,8 +599,7 @@ export class SearchView extends ViewPane {
 				isInNotebookMarkdownPreview,
 				isInNotebookCellInput,
 				isInNotebookCellOutput,
-			},
-			initialAIButtonVisibility: this.shouldShowAIResults()
+			}
 		}));
 
 		if (!this.searchWidget.searchInput || !this.searchWidget.replaceInput) {
@@ -1493,6 +1492,14 @@ export class SearchView extends ViewPane {
 		}
 	}
 
+	private _getExcludePattern(): string {
+		return this.inputPatternExcludes.getValue().trim();
+	}
+
+	private _getIncludePattern(): string {
+		return this.inputPatternIncludes.getValue().trim();
+	}
+
 	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false): void {
 		if (!(this.searchWidget.searchInput?.inputBox.isInputValid())) {
 			return;
@@ -1511,8 +1518,8 @@ export class SearchView extends ViewPane {
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
-		const excludePatternText = this.inputPatternExcludes.getValue().trim();
-		const includePatternText = this.inputPatternIncludes.getValue().trim();
+		const excludePatternText = this._getExcludePattern();
+		const includePatternText = this._getIncludePattern();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const onlySearchInOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 
@@ -1754,18 +1761,41 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-
-	private async callWithSearchProgress(promise: Promise<void>): Promise<void> {
+	public async addAIResults() {
+		const excludePatternText = this._getExcludePattern();
+		const includePatternText = this._getIncludePattern();
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
 		});
 
-		return promise.then(() => progressComplete());
-	}
+		this.searchWidget.searchInput?.clearMessage();
+		this.state = SearchUIState.Searching;
+		this.showEmptyStage();
 
-	public async addAIResults() {
-		this.callWithSearchProgress(this.model.addAIResults().then(async () => this.refreshTree())).then(() => this.onSearchResultsChanged());
+		const slowTimer = setTimeout(() => {
+			this.state = SearchUIState.SlowSearch;
+		}, 2000);
+
+		this._visibleMatches = 0;
+
+		this._refreshResultsScheduler.schedule();
+
+		this.searchWidget.setReplaceAllActionState(false);
+
+		this.tree.setSelection([]);
+		this.tree.setFocus([]);
+
+		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
+		const result = this.viewModel.addAIResults();
+		return result.then((complete) => {
+			clearTimeout(slowTimer);
+			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+		}, (e) => {
+			clearTimeout(slowTimer);
+			this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+		});
+
 	}
 
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
@@ -2371,9 +2401,8 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 		if (element instanceof SearchResult) {
 			return this.createSearchResultIterator(element);
 		} else if (element instanceof TextSearchResult) {
-			if (element.id() === AI_TEXT_SEARCH_RESULT_ID && element.cachedSearchComplete === undefined) {
+			if (element.id() === AI_TEXT_SEARCH_RESULT_ID && !this.searchView.model.hasAIResults) {
 				return this.searchView.addAIResults().then(() => this.createTextSearchResultIterator(element));
-
 			}
 			return this.createTextSearchResultIterator(element);
 		} else if (element instanceof FolderMatch) {
