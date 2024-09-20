@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
-import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
-import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, IActionOptions } from '../../../../editor/browser/editorExtensions.js';
+import { grammarsExtPoint, ITMSyntaxExtensionPoint } from '../../../services/textMate/common/TMGrammars.js';
+import { IExtensionService, ExtensionPointContribution } from '../../../services/extensions/common/extensions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 interface ModeScopeMap {
 	[key: string]: string;

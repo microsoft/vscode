@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITokenizationRegistry, ITokenizationSupportChangedEvent, ILazyTokenizationSupport } from 'vs/editor/common/languages';
-import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
+import { Color } from '../../base/common/color.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ITokenizationRegistry, ITokenizationSupportChangedEvent, ILazyTokenizationSupport } from './languages.js';
+import { ColorId } from './encodedTokenAttributes.js';
 
 export class TokenizationRegistry<TSupport> implements ITokenizationRegistry<TSupport> {
 

@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
-import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import * as languages from 'vs/editor/common/languages';
-import { Emitter } from 'vs/base/common/event';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { IRange } from 'vs/editor/common/core/range';
-import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import * as dom from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ICommentService } from './commentService.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { CommentNode } from './commentNode.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
+import { IMarkdownRendererOptions, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { LayoutableEditor } from './simpleCommentEditor.js';
 
 export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
 	private _commentsElement!: HTMLElement;
@@ -66,7 +66,14 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
 	}
 
-	focus() {
+	focus(commentUniqueId?: number) {
+		if (commentUniqueId !== undefined) {
+			const comment = this._commentElements.find(commentNode => commentNode.comment.uniqueIdInThread === commentUniqueId);
+			if (comment) {
+				comment.focus();
+				return;
+			}
+		}
 		this._commentsElement.focus();
 	}
 

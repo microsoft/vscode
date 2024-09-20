@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// AMD2ESM mirgation relevant
+// AMD2ESM migration relevant
 
 /**
  * NLS Globals: these need to be defined in all contexts that make
@@ -24,10 +24,14 @@ declare global {
 	 * All NLS messages produced by `localize` and `localize2` calls
 	 * under `src/vs` translated to the language as indicated by
 	 * `_VSCODE_NLS_LANGUAGE`.
+	 *
+	 * Instead of accessing this global variable directly, use function getNLSMessages.
 	 */
 	var _VSCODE_NLS_MESSAGES: string[];
 	/**
 	 * The actual language of the NLS messages (e.g. 'en', de' or 'pt-br').
+	 *
+	 * Instead of accessing this global variable directly, use function getNLSLanguage.
 	 */
 	var _VSCODE_NLS_LANGUAGE: string | undefined;
 }

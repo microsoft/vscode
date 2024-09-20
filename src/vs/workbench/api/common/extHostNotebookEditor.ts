@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { illegalArgument } from '../../../base/common/errors.js';
+import { MainThreadNotebookEditorsShape } from './extHost.protocol.js';
+import * as extHostConverter from './extHostTypeConverters.js';
+import * as extHostTypes from './extHostTypes.js';
 import * as vscode from 'vscode';
-import { ExtHostNotebookDocument } from './extHostNotebookDocument';
+import { ExtHostNotebookDocument } from './extHostNotebookDocument.js';
 
 export class ExtHostNotebookEditor {
 
 	public static readonly apiEditorsToExtHost = new WeakMap<vscode.NotebookEditor, ExtHostNotebookEditor>();
-
-	private _selections: vscode.NotebookRange[] = [];
-	private _visibleRanges: vscode.NotebookRange[] = [];
-	private _viewColumn?: vscode.ViewColumn;
 
 	private _visible: boolean = false;
 
@@ -26,14 +22,11 @@ export class ExtHostNotebookEditor {
 		readonly id: string,
 		private readonly _proxy: MainThreadNotebookEditorsShape,
 		readonly notebookData: ExtHostNotebookDocument,
-		visibleRanges: vscode.NotebookRange[],
-		selections: vscode.NotebookRange[],
-		viewColumn: vscode.ViewColumn | undefined
-	) {
-		this._selections = selections;
-		this._visibleRanges = visibleRanges;
-		this._viewColumn = viewColumn;
-	}
+		private _visibleRanges: vscode.NotebookRange[],
+		private _selections: vscode.NotebookRange[],
+		private _viewColumn: vscode.ViewColumn | undefined,
+		private readonly viewType: string
+	) { }
 
 	get apiEditor(): vscode.NotebookEditor {
 		if (!this._editor) {
@@ -70,6 +63,12 @@ export class ExtHostNotebookEditor {
 				},
 				get viewColumn() {
 					return that._viewColumn;
+				},
+				get replOptions() {
+					if (that.viewType === 'repl') {
+						return { appendIndex: this.notebook.cellCount - 1 };
+					}
+					return undefined;
 				},
 				[Symbol.for('debug.description')]() {
 					return `NotebookEditor(${this.notebook.uri.toString()})`;

@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Keybinding } from 'vs/base/common/keybindings';
-import { OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/model';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { IFileMatch, QueryType } from 'vs/workbench/services/search/common/search';
-import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
-import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModel } from 'vs/workbench/contrib/search/browser/searchModel';
-import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Keybinding } from '../../../../../base/common/keybindings.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { IFileMatch, QueryType } from '../../../../services/search/common/search.js';
+import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from '../../browser/searchActionsRemoveReplace.js';
+import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModel } from '../../browser/searchModel.js';
+import { MockObjectTree } from './mockSearchTree.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Search Actions', () => {
 
@@ -120,7 +120,7 @@ suite('Search Actions', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, searchModel.searchResult, searchModel.searchResult, null);
+		}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
 		store.add(folderMatch);
 		const fileMatch = instantiationService.createInstance(FileMatch, {
 			pattern: ''

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { platform } from 'vs/base/common/process';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProcessMainService, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { activeContrastBorder, editorBackground, editorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkbenchProcessService } from 'vs/workbench/contrib/issue/common/issue';
-import { mainWindow } from 'vs/base/browser/window';
+import { getZoomLevel } from '../../../../base/browser/browser.js';
+import { platform } from '../../../../base/common/process.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IProcessMainService, ProcessExplorerData } from '../../../../platform/issue/common/issue.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { activeContrastBorder, editorBackground, editorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { IWorkbenchProcessService } from '../common/issue.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export class ProcessService implements IWorkbenchProcessService {
 	declare readonly _serviceBrand: undefined;

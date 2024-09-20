@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isAbsolute } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { FileChangeFilter, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+import { Event } from '../../../base/common/event.js';
+import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/common/glob.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { isAbsolute } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { FileChangeFilter, FileChangeType, IFileChange, isParent } from './files.js';
 
 interface IWatchRequest {
 
@@ -80,6 +80,11 @@ export interface IRecursiveWatchRequest extends IWatchRequest {
 	 * be used in any other case.
 	 */
 	pollingInterval?: number;
+
+	/**
+	 * TODO@bpasero Temporary flag to test the new watcher implementation
+	 */
+	useNext?: boolean;
 }
 
 export function isRecursiveWatchRequest(request: IWatchRequest): request is IRecursiveWatchRequest {
@@ -169,6 +174,11 @@ export interface IRecursiveWatcherOptions {
 	 * be used in any other case.
 	 */
 	readonly pollingInterval?: number;
+
+	/**
+	 * TODO@bpasero Temporary flag to test the new watcher implementation
+	 */
+	readonly useNext?: boolean;
 }
 
 export interface INonRecursiveWatcher extends IWatcher {

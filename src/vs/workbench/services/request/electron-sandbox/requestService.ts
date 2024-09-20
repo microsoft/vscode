@@ -3,36 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { RequestService } from 'vs/platform/request/browser/requestService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
-import { INativeHostService } from 'vs/platform/native/common/native';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { request } from '../../../../base/parts/request/browser/request.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
-export class NativeRequestService extends RequestService {
+export class NativeRequestService extends AbstractRequestService implements IRequestService {
+
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILoggerService loggerService: ILoggerService,
-		@INativeHostService private nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
-		super(configurationService, loggerService);
+		super(logService);
 	}
 
-	override async resolveProxy(url: string): Promise<string | undefined> {
+	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (!options.proxyAuthorization) {
+			options.proxyAuthorization = this.configurationService.getValue<string>('http.proxyAuthorization');
+		}
+		return this.logAndRequest(options, () => request(options, token));
+	}
+
+	async resolveProxy(url: string): Promise<string | undefined> {
 		return this.nativeHostService.resolveProxy(url);
 	}
 
-	override async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
 		return this.nativeHostService.lookupAuthorization(authInfo);
 	}
 
-	override async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
 		return this.nativeHostService.lookupKerberosAuthorization(url);
 	}
 
-	override async loadCertificates(): Promise<string[]> {
+	async loadCertificates(): Promise<string[]> {
 		return this.nativeHostService.loadCertificates();
 	}
 }

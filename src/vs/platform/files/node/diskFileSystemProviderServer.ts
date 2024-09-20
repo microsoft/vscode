@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ReadableStreamEventPayload, listenStream } from 'vs/base/common/stream';
-import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from 'vs/platform/files/common/files';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IRecursiveWatcherOptions } from 'vs/platform/files/common/watcher';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { DiskFileSystemProvider } from './diskFileSystemProvider.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { ReadableStreamEventPayload, listenStream } from '../../../base/common/stream.js';
+import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { IRecursiveWatcherOptions } from '../common/watcher.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -278,7 +279,8 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 		private readonly uriTransformer: IURITransformer,
 		sessionEmitter: Emitter<IFileChange[] | string>,
 		private readonly logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -303,7 +305,11 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	}
 
 	protected getRecursiveWatcherOptions(environmentService: IEnvironmentService): IRecursiveWatcherOptions | undefined {
-		return undefined; // subclasses can override
+		if (this.configurationService.getValue<boolean>('files.experimentalWatcherNext') === true) {
+			return { useNext: true, usePolling: false };
+		}
+
+		return undefined;
 	}
 
 	protected getExtraExcludes(environmentService: IEnvironmentService): string[] | undefined {

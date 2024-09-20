@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FuzzyScore } from 'vs/base/common/filters';
-import { isWindows } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export interface ISimpleCompletion {
 	/**

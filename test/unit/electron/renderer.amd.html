@@ -1,0 +1,35 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>VSCode Tests</title>
+	<link href="../../../node_modules/mocha/mocha.css" rel="stylesheet" />
+</head>
+
+<body>
+	<div id="mocha"></div>
+	<script src="../../../node_modules/mocha/mocha.js"></script>
+
+	<script>
+
+		// !!! DO NOT CHANGE !!!
+		// Our unit tests may run in environments without
+		// display (e.g. from builds) and tests may by
+		// accident bring up native dialogs or even open
+		// windows. This we cannot allow as it may crash
+		// the test run.
+		// !!! DO NOT CHANGE !!!
+		window.open = function () { throw new Error('window.open() is not supported in tests!'); };
+		window.alert = function () { throw new Error('window.alert() is not supported in tests!'); }
+		window.confirm = function () { throw new Error('window.confirm() is not supported in tests!'); }
+
+		mocha.setup({
+			ui: 'tdd',
+			timeout: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' ? 30000 : 5000,
+			forbidOnly: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' // disallow .only() when running on build machine
+		});
+		require('./renderer.amd');
+	</script>
+</body>
+
+</html>

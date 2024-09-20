@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
-import product from 'vs/platform/product/common/product';
-import { InMemoryUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { FileService } from '../../../files/common/fileService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { AbstractNativeEnvironmentService } from '../../../environment/common/environmentService.js';
+import product from '../../../product/common/product.js';
+import { InMemoryUserDataProfilesService, UserDataProfilesService } from '../../common/userDataProfile.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Event } from '../../../../base/common/event.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -232,6 +233,134 @@ suite('UserDataProfileService (Common)', () => {
 		assert.strictEqual(profile.isDefault, false);
 		assert.deepStrictEqual(profile.useDefaultFlags, { keybindings: true });
 		assert.strictEqual(profile.keybindingsResource.toString(), testObject.defaultProfile.keybindingsResource.toString());
+	});
+
+	test('create profile with a workspace associates it to the profile', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
+		assert.deepStrictEqual(profile.workspaces?.length, 1);
+		assert.deepStrictEqual(profile.workspaces?.[0].toString(), workspace.toString());
+	});
+
+	test('associate workspace to a profile should update workspaces', async () => {
+		const profile = await testObject.createProfile('id', 'name', {});
+		const workspace = URI.file('/workspace1');
+
+		const promise = Event.toPromise(testObject.onDidChangeProfiles);
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile);
+
+		const actual = await promise;
+		assert.deepStrictEqual(actual.added.length, 0);
+		assert.deepStrictEqual(actual.removed.length, 0);
+		assert.deepStrictEqual(actual.updated.length, 1);
+
+		assert.deepStrictEqual(actual.updated[0].id, profile.id);
+		assert.deepStrictEqual(actual.updated[0].workspaces?.length, 1);
+		assert.deepStrictEqual(actual.updated[0].workspaces[0].toString(), workspace.toString());
+	});
+
+	test('associate same workspace to a profile should not duplicate', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', { workspaces: [workspace] });
+
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile);
+
+		assert.deepStrictEqual(testObject.profiles[1].workspaces?.length, 1);
+		assert.deepStrictEqual(testObject.profiles[1].workspaces[0].toString(), workspace.toString());
+	});
+
+	test('associate workspace to another profile should update workspaces', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile1 = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
+		const profile2 = await testObject.createProfile('id1', 'name1');
+
+		const promise = Event.toPromise(testObject.onDidChangeProfiles);
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile2);
+
+		const actual = await promise;
+		assert.deepStrictEqual(actual.added.length, 0);
+		assert.deepStrictEqual(actual.removed.length, 0);
+		assert.deepStrictEqual(actual.updated.length, 2);
+
+		assert.deepStrictEqual(actual.updated[0].id, profile1.id);
+		assert.deepStrictEqual(actual.updated[0].workspaces, undefined);
+
+		assert.deepStrictEqual(actual.updated[1].id, profile2.id);
+		assert.deepStrictEqual(actual.updated[1].workspaces?.length, 1);
+		assert.deepStrictEqual(actual.updated[1].workspaces[0].toString(), workspace.toString());
+	});
+
+	test('unassociate workspace to a profile should update workspaces', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
+
+		const promise = Event.toPromise(testObject.onDidChangeProfiles);
+		testObject.unsetWorkspace({ id: workspace.path, uri: workspace });
+
+		const actual = await promise;
+		assert.deepStrictEqual(actual.added.length, 0);
+		assert.deepStrictEqual(actual.removed.length, 0);
+		assert.deepStrictEqual(actual.updated.length, 1);
+
+		assert.deepStrictEqual(actual.updated[0].id, profile.id);
+		assert.deepStrictEqual(actual.updated[0].workspaces, undefined);
+	});
+
+	test('update profile workspaces - add workspace', async () => {
+		let profile = await testObject.createNamedProfile('name');
+		const workspace = URI.file('/workspace1');
+		profile = await testObject.updateProfile(profile, { workspaces: [workspace] });
+
+		assert.deepStrictEqual(profile.workspaces?.length, 1);
+		assert.deepStrictEqual(profile.workspaces[0].toString(), workspace.toString());
+	});
+
+	test('update profile workspaces - remove workspace', async () => {
+		let profile = await testObject.createNamedProfile('name');
+		const workspace = URI.file('/workspace1');
+		profile = await testObject.updateProfile(profile, { workspaces: [workspace] });
+		profile = await testObject.updateProfile(profile, { workspaces: [] });
+
+		assert.deepStrictEqual(profile.workspaces, undefined);
+	});
+
+	test('update profile workspaces - replace workspace', async () => {
+		let profile = await testObject.createNamedProfile('name');
+		profile = await testObject.updateProfile(profile, { workspaces: [URI.file('/workspace1')] });
+
+		const workspace = URI.file('/workspace2');
+		profile = await testObject.updateProfile(profile, { workspaces: [workspace] });
+
+		assert.deepStrictEqual(profile.workspaces?.length, 1);
+		assert.deepStrictEqual(profile.workspaces[0].toString(), workspace.toString());
+	});
+
+	test('update default profile workspaces - add workspace', async () => {
+		const workspace = URI.file('/workspace1');
+		await testObject.updateProfile(testObject.defaultProfile, { workspaces: [workspace] });
+
+		assert.deepStrictEqual(testObject.profiles.length, 1);
+		assert.deepStrictEqual(testObject.profiles[0], testObject.defaultProfile);
+		assert.deepStrictEqual(testObject.defaultProfile.isDefault, true);
+		assert.deepStrictEqual(testObject.defaultProfile.workspaces?.length, 1);
+		assert.deepStrictEqual(testObject.defaultProfile.workspaces[0].toString(), workspace.toString());
+	});
+
+	test('can create transient and persistent profiles with same name', async () => {
+		const profile1 = await testObject.createNamedProfile('name', { transient: true });
+		const profile2 = await testObject.createNamedProfile('name', { transient: true });
+		const profile3 = await testObject.createNamedProfile('name');
+
+		assert.deepStrictEqual(profile1.name, 'name');
+		assert.deepStrictEqual(!!profile1.isTransient, true);
+		assert.deepStrictEqual(profile2.name, 'name');
+		assert.deepStrictEqual(!!profile2.isTransient, true);
+		assert.deepStrictEqual(profile3.name, 'name');
+		assert.deepStrictEqual(!!profile3.isTransient, false);
+		assert.deepStrictEqual(testObject.profiles.length, 4);
+		assert.deepStrictEqual(testObject.profiles[1].id, profile3.id);
+		assert.deepStrictEqual(testObject.profiles[2].id, profile1.id);
+		assert.deepStrictEqual(testObject.profiles[3].id, profile2.id);
 	});
 
 });

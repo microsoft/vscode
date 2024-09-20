@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { StringText } from 'vs/editor/common/core/textEdit';
-import { Random } from 'vs/editor/test/common/core/random';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { StringText } from '../../../common/core/textEdit.js';
+import { Random } from './random.js';
 
 suite('TextEdit', () => {
 	suite('inverse', () => {
