@@ -460,6 +460,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 				this._onDidChange.fire({ profile: true });
 			}
 		}));
+		// Current window does not emit extensions change events, so we need to watch the extensios resource explicitly
 		this._register(fileService.watch(this.profile.extensionsResource));
 		this._register(fileService.watch(this.profile.snippetsHome));
 		this._register(fileService.onDidFilesChange(e => {
@@ -650,6 +651,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			this._onDidChange.fire({ preview: true });
 			this.previewProfileWatchDisposables.clear();
 			if (this._previewProfile) {
+				// Current window does not emit extensions change events, so we need to watch the extensios resource explicitly
 				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.extensionsResource));
 				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.snippetsHome));
 				this.previewProfileWatchDisposables.add(this.fileService.onDidFilesChange(e => {
