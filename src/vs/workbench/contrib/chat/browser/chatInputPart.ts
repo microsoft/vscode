@@ -438,21 +438,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
-				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+				dom.h('.interactive-input-and-edit-session', [
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
-					dom.h('.chat-input-container@inputContainer', [
-						dom.h('.chat-editor-container@editorContainer'),
-						dom.h('.chat-input-toolbars@inputToolbars'),
+					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+						dom.h('.chat-input-container@inputContainer', [
+							dom.h('.chat-editor-container@editorContainer'),
+							dom.h('.chat-input-toolbars@inputToolbars'),
+						]),
 					]),
-				]),
-				dom.h('.chat-attached-context@attachedContextContainer'),
-				dom.h('.interactive-input-followups@followupsContainer'),
+					dom.h('.chat-attached-context@attachedContextContainer'),
+					dom.h('.interactive-input-followups@followupsContainer'),
+				])
 			]);
 		} else {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
-					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.chat-input-container@inputContainer', [
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-attached-context@attachedContextContainer'),
@@ -472,6 +474,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.initAttachedContext(this.attachedContextContainer);
+		this.renderChatEditingSessionState(null);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
