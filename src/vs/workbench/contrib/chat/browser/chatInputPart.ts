@@ -664,12 +664,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						this.attachButtonAndDisposables(widget, index, attachment);
 						const readFile = await this.fileService.readFile(attachment.value);
 						buffer = readFile.value.buffer;
-						await this.createImageElements(buffer, widget, hoverElement);
+
 					} else {
 						buffer = attachment.value as Uint8Array;
-						await this.createImageElements(buffer, widget, hoverElement);
 						this.attachButtonAndDisposables(widget, index, attachment);
 					}
+					await this.createImageElements(buffer, widget, hoverElement);
 				} catch (error) {
 					console.error('Error processing attachment:', error);
 				}
@@ -749,9 +749,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Update hover image
-		if (img) {
-			hoverElement.appendChild(img);
-		}
+		hoverElement.appendChild(img);
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {

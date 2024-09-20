@@ -110,11 +110,11 @@ export class ChatAttachmentsContentPart extends Disposable {
 					if (attachment.value instanceof URI) {
 						const readFile = await this.fileService.readFile(attachment.value);
 						buffer = readFile.value.buffer;
-						await this.createImageElements(buffer, widget, hoverElement);
+
 					} else {
 						buffer = attachment.value as Uint8Array;
-						await this.createImageElements(buffer, widget, hoverElement);
 					}
+					await this.createImageElements(buffer, widget, hoverElement);
 				} catch (error) {
 					console.error('Error processing attachment:', error);
 				}
@@ -174,9 +174,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 
 		// Update hover image
-		if (img) {
-			hoverElement.appendChild(img);
-		}
+		hoverElement.appendChild(img);
 	}
 }
 
