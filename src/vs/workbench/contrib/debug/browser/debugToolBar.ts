@@ -21,7 +21,6 @@ import { createActionViewItem, createAndFillInActionBarActions } from '../../../
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -349,7 +348,6 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 	const menuService = accessor.get(IMenuService);
 	const contextKeyService = accessor.get(IContextKeyService);
 	const instantiationService = accessor.get(IInstantiationService);
-	const contextMenuService = accessor.get(IContextMenuService);
 
 	const menu = menuService.getMenuActions(MenuId.DebugToolBarStop, contextKeyService, { shouldForwardArgs: true });
 	const secondary: IAction[] = [];
@@ -365,7 +363,6 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 		dropdownAction,
 		secondary,
 		'debug-stop-actions',
-		contextMenuService,
 		options);
 	return item;
 }

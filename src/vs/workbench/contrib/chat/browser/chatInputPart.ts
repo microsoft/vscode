@@ -783,10 +783,10 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 			dropdownAction,
 			[],
 			'',
-			contextMenuService,
 			{
 				getKeyBinding: (action: IAction) => keybindingService.lookupKeybinding(action.id, contextKeyService)
 			},
+			contextMenuService,
 			keybindingService,
 			notificationService,
 			contextKeyService,
