@@ -182,6 +182,10 @@ export class Match {
 	getMatchString(): string {
 		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
 	}
+
+	public isReadonly() {
+		return this.aiContributed;
+	}
 }
 
 export class CellMatch {
@@ -312,8 +316,8 @@ export class MatchInNotebook extends Match {
 		return this._webviewIndex !== undefined;
 	}
 
-	public isReadonly() {
-		return (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
+	public override isReadonly() {
+		return super.isReadonly() || (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
 	}
 
 	get cellIndex() {
@@ -460,7 +464,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasReadonlyMatches(): boolean {
-		return this.matches().some(m => m instanceof MatchInNotebook && m.isReadonly());
+		return this.matches().some(m => m.isReadonly());
 	}
 
 	createMatches(isAiContributed: boolean): void {
@@ -740,7 +744,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
-		return this.matches().every(match => (match instanceof MatchInNotebook && match.isReadonly()));
+		return this.matches().every(match => match.isReadonly());
 	}
 
 	// #region strictly notebook methods
@@ -1630,12 +1634,12 @@ export class TextSearchResult extends Disposable {
 
 		this._folderMatches = (query && query.folderQueries || [])
 			.map(fq => fq.folder)
-			.map((resource, index) => <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query, false));
+			.map((resource, index) => <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query, this.isAIContributed));
 
 		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
 
 		if (this._allowOtherResults) {
-			this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query, false);
+			this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query, this.isAIContributed);
 		}
 
 		this._query = query;
@@ -2091,18 +2095,17 @@ export class SearchResult extends Disposable {
 		return this._plainTextSearchResult.replace(match);
 	}
 
-	matches(ai = false): FileMatch[] {
-		if (ai) {
+	matches(ai?: boolean): FileMatch[] {
+		if (ai === undefined) {
+			return this._plainTextSearchResult.matches().concat(this._aiTextSearchResult.matches());
+		} else if (ai === true) {
 			return this._aiTextSearchResult.matches();
 		}
 		return this._plainTextSearchResult.matches();
 	}
 
-	isEmpty(ai = false): boolean {
-		if (ai) {
-			return this._aiTextSearchResult.isEmpty();
-		}
-		return this._plainTextSearchResult.isEmpty();
+	isEmpty(): boolean {
+		return this._plainTextSearchResult.isEmpty() && this._aiTextSearchResult.isEmpty();
 	}
 
 	fileCount(): number {

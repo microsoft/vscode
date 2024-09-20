@@ -200,10 +200,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			this.currentAsyncSearch = result.asyncResults;
 			await result.asyncResults;
 			const syncResultURIs = new ResourceSet(result.syncResults.map(e => e.resource));
-			return this.searchModel.searchResult.matches().filter(e => !syncResultURIs.has(e.resource));
+			return this.searchModel.searchResult.matches(false).filter(e => !syncResultURIs.has(e.resource));
 		};
 		return {
-			syncResults: this.searchModel.searchResult.matches(),
+			syncResults: this.searchModel.searchResult.matches(false),
 			asyncResults: getAsyncResults()
 		};
 	}
