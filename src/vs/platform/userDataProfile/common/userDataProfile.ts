@@ -333,7 +333,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!profileCreationPromise) {
 			profileCreationPromise = (async () => {
 				try {
-					const existing = this.profiles.find(p => p.name === name || p.id === id);
+					const existing = this.profiles.find(p => p.id === id || (!p.isTransient && !options?.transient && p.name === name));
 					if (existing) {
 						throw new Error(`Profile with ${name} name already exists`);
 					}
