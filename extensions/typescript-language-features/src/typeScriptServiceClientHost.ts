@@ -119,7 +119,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			this._register(module.register(this.client, allModeIds)));
 
 		this.client.ensureServiceStarted();
-		this.client.onReady(async () => {
+		this.client.onReady(() => {
 			const languages = new Set<string>();
 			for (const plugin of services.pluginManager.plugins) {
 				if (plugin.configNamespace && plugin.languages.length) {
