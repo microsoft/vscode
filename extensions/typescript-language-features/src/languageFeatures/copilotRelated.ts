@@ -12,7 +12,7 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { conditionalRegistration, requireMinVersion } from './util/dependentRegistration';
 
-const minVersion = API.v560;
+const minVersion = API.v570;
 const dummyDisposable = new vscode.Disposable(() => { });
 
 export function register(
@@ -61,7 +61,7 @@ export function register(
 						if (!file) {
 							return { entries: [] };
 						}
-						// TODO ts-expect-error until ts5.7
+						// @ts-expect-error until ts5.7
 						const response = await client.execute('copilotRelated', { file, }, nulToken) as Proto.CopilotRelatedResponse;
 						if (response.type !== 'response' || !response.body) {
 							return { entries: [] };
