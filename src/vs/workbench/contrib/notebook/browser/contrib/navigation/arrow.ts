@@ -5,7 +5,7 @@
 
 import { timeout } from '../../../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
-import { ICodeEditor, isCompositeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { localize } from '../../../../../../nls.js';
