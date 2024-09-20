@@ -409,8 +409,9 @@ function getArgvConfigPath() {
 
 function configureCrashReporter() {
 
+	const useWatsonUploader = args['use-watson-uploader'];
 	let crashReporterDirectory = args['crash-reporter-directory'];
-	let submitURL = '';
+	let submitURL = 'about:blank';
 	if (crashReporterDirectory) {
 		crashReporterDirectory = path.normalize(crashReporterDirectory);
 
@@ -435,7 +436,7 @@ function configureCrashReporter() {
 	}
 
 	// Otherwise we configure the crash reporter from product.json
-	else {
+	else if (!useWatsonUploader) {
 		const appCenter = product.appCenter;
 		if (appCenter) {
 			const isWindows = (process.platform === 'win32');
@@ -495,7 +496,9 @@ function configureCrashReporter() {
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
 		uploadToServer,
-		compress: true
+		compress: !useWatsonUploader,
+		// @ts-ignore
+		useWatsonUploader
 	});
 }
 

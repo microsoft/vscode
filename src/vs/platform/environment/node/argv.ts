@@ -157,6 +157,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-crash-reporter': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
 	'crash-reporter-id': { type: 'string' },
+	'use-watson-uploader': { type: 'boolean' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'open-url': { type: 'boolean' },
 	'file-write': { type: 'boolean' },

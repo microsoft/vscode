@@ -97,6 +97,7 @@ export interface NativeParsedArgs {
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
+	'use-watson-uploader'?: boolean;
 	'skip-add-to-recently-opened'?: boolean;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
