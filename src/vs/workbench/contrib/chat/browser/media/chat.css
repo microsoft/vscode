@@ -917,9 +917,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	padding: 2px 4px 2px 4px;
+	padding: 2px 6px 2px 6px;
 	text-align: initial;
 	justify-content: initial;
+	margin-left: -6px;
 }
 
 .interactive-session .chat-used-context-label .monaco-button:hover {
