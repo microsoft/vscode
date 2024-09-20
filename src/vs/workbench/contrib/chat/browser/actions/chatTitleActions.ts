@@ -176,7 +176,7 @@ export function registerChatTitleActions() {
 				title: localize2('chat.retry.label', "Retry"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.sync,
+				icon: Codicon.refresh,
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
