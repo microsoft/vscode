@@ -66,7 +66,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
 		const iconElement = $('.chat-used-context-icon');
-		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronUp : Codicon.chevronDown;
+		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
@@ -82,7 +82,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		}));
 		this.domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
-		collapseButton.element.append(iconElement);
+		collapseButton.element.prepend(iconElement);
 		this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		this.domNode.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 		this._register(collapseButton.onDidClick(() => {
