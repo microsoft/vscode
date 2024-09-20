@@ -43,10 +43,12 @@ import { registerAndCreateHistoryNavigationContext } from '../../../../platform/
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../browser/labels.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
@@ -60,6 +62,8 @@ import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidg
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
+import { IDisposableReference } from './chatContentParts/chatCollections.js';
+import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction } from './chatEditingService.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
@@ -162,6 +166,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
+	private _chatEditsListPool: CollapsibleListPool;
+	private _chatEditsListItem: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
+
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
@@ -177,6 +184,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -194,6 +202,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
 		}));
+
+		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event));
 	}
 
 	private setCurrentLanguageModelToDefault() {
@@ -690,16 +700,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.clearNode(this.chatEditingSessionWidgetContainer);
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
+		this._chatEditsListItem?.dispose();
 		if (!chatEditingSession) {
 			return;
 		}
-		const numberOfEditedEntries = chatEditingSession.entries.get().length;
-		const overviewRegion = dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-overview'));
+
+		const innerContainer = dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
+
+		// Summary of number of files changed
+		const editedFiles = chatEditingSession.entries.get();
+		const numberOfEditedEntries = editedFiles.length;
+		const overviewRegion = dom.append(innerContainer, $('.chat-editing-session-overview'));
 		const overviewText = dom.append(overviewRegion, $('span'));
 		overviewText.textContent = numberOfEditedEntries === 1
 			? localize('chatEditingSessionOverview.oneFileChanged', "1 file changed")
 			: localize('chatEditingSessionOverview', "{0} files changed", numberOfEditedEntries);
 
+		// Chat editing session actions
 		const actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
 		const actions = [
 			{
@@ -724,7 +741,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.append(actionsContainer, button.element);
 		}
 
-		// TODO@joyceerhl render a list of resources, maybe reuse the References widget code a bit here
+		// List of edited files
+		const entries: IChatCollapsibleListItem[] = editedFiles.map((entry) => ({
+			reference: entry.modifiedURI,
+			kind: 'reference',
+		}));
+		const editedFilesList = this._chatEditsListPool.get();
+		this._chatEditsListItem = editedFilesList;
+		const list = editedFilesList.object;
+		this._register(editedFilesList);
+		this._register(list.onDidOpen((e) => {
+			if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
+				const modifiedFileUri = e.element.reference;
+				const editedFile = editedFiles.find((e) => e.modifiedURI.toString() === modifiedFileUri.toString());
+				if (editedFile) {
+					void this.editorService.openEditor({
+						original: { resource: URI.from(editedFile.originalURI, true) },
+						modified: { resource: URI.from(editedFile.modifiedURI, true) },
+					});
+				}
+			}
+		}));
+		const maxItemsShown = 6;
+		const itemsShown = Math.min(numberOfEditedEntries, maxItemsShown);
+		const height = itemsShown * 22;
+		list.layout(height);
+		list.getHTMLElement().style.height = `${height}px`;
+		list.splice(0, list.length, entries);
+		dom.append(innerContainer, editedFilesList.object.getHTMLElement());
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
