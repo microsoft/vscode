@@ -73,7 +73,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 function nodeModules(destinationExe, destinationPdb, platform) {
 	const productionDependencies = deps.getProductionDependencies(root);
-	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 	const exe = () => {
 		return gulp.src(dependenciesSrc, { base: '.', dot: true })
@@ -83,7 +83,8 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 				// We don't build the prebuilt node files so we don't scan them
 				'!**/prebuilds/**/*.node',
 				// These are 3rd party modules that we should ignore
-				'!**/@parcel/watcher/**/*']))
+				'!**/@parcel/watcher/**/*',
+				'!**/@bpasero/watcher/**/*']))
 			.pipe(gulp.dest(destinationExe));
 	};
 

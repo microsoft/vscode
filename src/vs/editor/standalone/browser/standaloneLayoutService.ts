@@ -5,7 +5,7 @@
 
 import * as dom from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { coalesce, firstOrDefault } from '../../../base/common/arrays.js';
+import { coalesce } from '../../../base/common/arrays.js';
 import { Event } from '../../../base/common/event.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
@@ -21,7 +21,7 @@ class StandaloneLayoutService implements ILayoutService {
 	readonly onDidAddContainer = Event.None;
 
 	get mainContainer(): HTMLElement {
-		return firstOrDefault(this._codeEditorService.listCodeEditors())?.getContainerDomNode() ?? mainWindow.document.body;
+		return this._codeEditorService.listCodeEditors().at(0)?.getContainerDomNode() ?? mainWindow.document.body;
 	}
 
 	get activeContainer(): HTMLElement {

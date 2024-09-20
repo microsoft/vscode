@@ -389,18 +389,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			this._register(workingCopyService.registerWorkingCopy(this));
 
 			this._register(extensionService.onWillStop(e => {
-				if (!this.isDirty()) {
-					return;
-				}
-
-				e.veto((async () => {
-					const didSave = await this.save();
-					if (!didSave) {
-						// Veto
-						return true;
-					}
-					return false; // Don't veto
-				})(), localize('vetoExtHostRestart', "Custom editor '{0}' could not be saved.", this.name));
+				e.veto(true, localize('vetoExtHostRestart', "A custom editor for '{0}' is open.", this.name));
 			}));
 		}
 

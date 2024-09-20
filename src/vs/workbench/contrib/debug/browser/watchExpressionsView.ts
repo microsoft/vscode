@@ -30,12 +30,12 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderViewTree } from './baseDebugView.js';
-import { watchExpressionsAdd, watchExpressionsRemoveAll } from './debugIcons.js';
-import { LinkDetector } from './linkDetector.js';
-import { VariablesRenderer, VisualizedVariableRenderer } from './variablesView.js';
 import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
 import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
+import { watchExpressionsAdd, watchExpressionsRemoveAll } from './debugIcons.js';
+import { VariablesRenderer, VisualizedVariableRenderer } from './variablesView.js';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
@@ -50,6 +50,7 @@ export class WatchExpressionsView extends ViewPane {
 	private watchItemType: IContextKey<string | undefined>;
 	private variableReadonly: IContextKey<boolean>;
 	private menu: IMenu;
+	private expressionRenderer: DebugExpressionRenderer;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -78,6 +79,7 @@ export class WatchExpressionsView extends ViewPane {
 		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
 		this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
 		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
+		this.expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -87,13 +89,12 @@ export class WatchExpressionsView extends ViewPane {
 		container.classList.add('debug-watch');
 		const treeContainer = renderViewTree(container);
 
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, linkDetector);
+		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, this.expressionRenderer);
 		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
 			[
 				expressionsRenderer,
-				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
-				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
+				this.instantiationService.createInstance(VariablesRenderer, this.expressionRenderer),
+				this.instantiationService.createInstance(VisualizedVariableRenderer, this.expressionRenderer),
 			],
 			this.instantiationService.createInstance(WatchExpressionsDataSource), {
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
@@ -279,7 +280,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	static readonly ID = 'watchexpression';
 
 	constructor(
-		private readonly linkDetector: LinkDetector,
+		private readonly expressionRenderer: DebugExpressionRenderer,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
@@ -330,12 +331,12 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		}
 
 		data.label.set(text, highlights, title);
-		renderExpressionValue(data.elementDisposable, expression, data.value, {
+		data.elementDisposable.add(this.expressionRenderer.renderValue(data.value, expression, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			linkDetector: this.linkDetector,
-			colorize: true
-		}, this.hoverService);
+			colorize: true,
+			session: expression.getSession(),
+		}));
 	}
 
 	protected getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions {

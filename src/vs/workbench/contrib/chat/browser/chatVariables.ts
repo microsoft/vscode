@@ -64,7 +64,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, };
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon };
 				} else if (part instanceof ChatRequestToolPart) {
 					const tool = this.toolsService.getTool(part.toolId);
 					if (tool) {
@@ -172,7 +172,7 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		const widget = await showChatView(this.viewsService);
+		const widget = this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService);
 		if (!widget || !widget.viewModel) {
 			return;
 		}

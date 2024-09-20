@@ -40,6 +40,10 @@ import { determineServerConnectionToken, requestHasValidConnectionToken as httpR
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
+// ESM-uncomment-begin
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+// ESM-uncomment-end
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -768,7 +772,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('').fsPath, '../node_modules/vsda'));
 		if (hasVSDA) {
 			try {
-				return <typeof vsda>globalThis._VSCODE_NODE_MODULES['vsda'];
+				return require('vsda');
 			} catch (err) {
 				logService.error(err);
 			}

@@ -725,6 +725,11 @@ export class Repository implements Disposable {
 		return this._HEAD;
 	}
 
+	private _refs: Ref[] = [];
+	get refs(): Ref[] {
+		return this._refs;
+	}
+
 	get headShortName(): string | undefined {
 		if (!this.HEAD) {
 			return;
@@ -1460,7 +1465,15 @@ export class Repository implements Disposable {
 
 		// Reflog
 		const branchFromReflog = await this.getBranchBaseFromReflog(ref);
-		const branchFromReflogUpstream = branchFromReflog ? await this.getUpstreamBranch(branchFromReflog) : undefined;
+
+		let branchFromReflogUpstream: Branch | undefined = undefined;
+
+		if (branchFromReflog?.type === RefType.RemoteHead) {
+			branchFromReflogUpstream = branchFromReflog;
+		} else if (branchFromReflog?.type === RefType.Head) {
+			branchFromReflogUpstream = await this.getUpstreamBranch(branchFromReflog);
+		}
+
 		if (branchFromReflogUpstream) {
 			await this.setConfig(mergeBaseConfigKey, `${branchFromReflogUpstream.remote}/${branchFromReflogUpstream.name}`);
 			return branchFromReflogUpstream;
@@ -1563,8 +1576,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
 	}
 
-	async tag(name: string, message?: string): Promise<void> {
-		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
+		await this.run(Operation.Tag, () => this.repository.tag(options));
 	}
 
 	async deleteTag(name: string): Promise<void> {
@@ -2176,7 +2189,12 @@ export class Repository implements Disposable {
 			this._sourceControl.commitTemplate = commitTemplate;
 
 			// Execute cancellable long-running operation
-			const resourceGroups = await this.getStatus(cancellationToken);
+			const [resourceGroups, refs] =
+				await Promise.all([
+					this.getStatus(cancellationToken),
+					this.getRefs({}, cancellationToken)]);
+
+			this._refs = refs;
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();

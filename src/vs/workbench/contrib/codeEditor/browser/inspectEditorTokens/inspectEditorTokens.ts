@@ -37,7 +37,7 @@ import type { Parser } from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;
 
-class InspectEditorTokensController extends Disposable implements IEditorContribution {
+export class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inspectEditorTokens';
 
@@ -430,7 +430,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			if (captures && captures.length > 0) {
 				dom.append(tbody, $('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'foreground'),
-					$('td.tiw-metadata-value', undefined, captures[0].name),
+					$('td.tiw-metadata-value', undefined, captures[captures.length - 1].name),
 				));
 			}
 		}

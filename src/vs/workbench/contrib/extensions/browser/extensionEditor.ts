@@ -46,7 +46,6 @@ import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticip
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { ExtensionFeaturesTab } from './extensionFeaturesTab.js';
 import {
 	ButtonWithDropDownExtensionAction,
@@ -76,7 +75,7 @@ import {
 import { Delegate } from './extensionsList.js';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from './extensionsViewer.js';
 import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from './extensionsWidgets.js';
-import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from '../common/extensions.js';
+import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsWorkbenchService } from '../common/extensions.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
@@ -85,11 +84,11 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 class NavBar extends Disposable {
 
@@ -240,7 +239,6 @@ export class ExtensionEditor extends EditorPane {
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IThemeService themeService: IThemeService,
@@ -257,6 +255,7 @@ export class ExtensionEditor extends EditorPane {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
@@ -586,11 +585,7 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.url) {
 			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
 			this.transientDisposables.add(onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}&ssr=false#review-details`))));
-			this.transientDisposables.add(onClick(template.publisher, () => {
-				this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
-			}));
+			this.transientDisposables.add(onClick(template.publisher, () => this.extensionsWorkbenchService.openSearch(`publisher:"${extension.publisherDisplayName}"`)));
 		}
 
 		const manifest = await this.extensionManifest.get().promise;
@@ -944,11 +939,8 @@ export class ExtensionEditor extends EditorPane {
 			append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
 			const categoriesElement = append(categoriesContainer, $('.categories'));
 			for (const category of extension.categories) {
-				this.transientDisposables.add(onClick(append(categoriesElement, $('span.category', { tabindex: '0' }, category)), () => {
-					this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-						.then(viewlet => viewlet.search(`@category:"${category}"`));
-				}));
+				this.transientDisposables.add(onClick(append(categoriesElement, $('span.category', { tabindex: '0' }, category)),
+					() => this.extensionsWorkbenchService.openSearch(`@category:"${category}"`)));
 			}
 		}
 	}
@@ -972,6 +964,9 @@ export class ExtensionEditor extends EditorPane {
 			try {
 				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }
+			if (extension.contentsUrl) {
+				resources.push([localize('contents', "Contents"), extension.contentsUrl]);
+			}
 		}
 		if (extension.publisherUrl) {
 			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
@@ -982,7 +977,30 @@ export class ExtensionEditor extends EditorPane {
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
 				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
-				this.transientDisposables.add(onClick(resource, () => this.openerService.open(uri)));
+				this.transientDisposables.add(onClick(resource, () => {
+					if (this.uriIdentityService.extUri.isEqual(uri, extension.contentsUrl)) {
+						this.dialogService.prompt({
+							type: 'info',
+							title: localize('Browse Extension Contents', "Browse Extension Contents"),
+							message: localize('browseExtensionContents', "Are you sure you want to browse the contents of the extension '{0}'?\nMake sure the extension license allows this.", extension.displayName),
+							buttons: [{
+								label: localize('View license', "View License"),
+								run: () => {
+									if (extension.licenseUrl) {
+										this.openerService.open(extension.licenseUrl);
+									}
+									return false;
+								}
+							}, {
+								label: localize('browse contents', "Browse Contents"),
+								run: () => this.openerService.open(uri)
+							}],
+							cancelButton: true
+						});
+					} else {
+						this.openerService.open(uri);
+					}
+				}));
 				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
 			}
 		}
@@ -1148,7 +1166,7 @@ registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 			}
 		});
 	}
-	run(accessor: ServicesAccessor): any {
+	run(accessor: ServicesAccessor): void {
 		const extensionEditor = getExtensionEditor(accessor);
 		extensionEditor?.showFind();
 	}
@@ -1168,7 +1186,7 @@ registerAction2(class StartExtensionEditorFindNextAction extends Action2 {
 			}
 		});
 	}
-	run(accessor: ServicesAccessor): any {
+	run(accessor: ServicesAccessor): void {
 		const extensionEditor = getExtensionEditor(accessor);
 		extensionEditor?.runFindAction(false);
 	}
@@ -1188,7 +1206,7 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 			}
 		});
 	}
-	run(accessor: ServicesAccessor): any {
+	run(accessor: ServicesAccessor): void {
 		const extensionEditor = getExtensionEditor(accessor);
 		extensionEditor?.runFindAction(true);
 	}

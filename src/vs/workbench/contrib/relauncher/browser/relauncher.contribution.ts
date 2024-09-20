@@ -30,6 +30,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
+	files?: { experimentalWatcherNext?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -46,7 +47,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'workbench.enableExperiments',
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
-		'accessibility.verbosity.debug'
+		'accessibility.verbosity.debug',
+		'files.experimentalWatcherNext'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
@@ -61,6 +63,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
+	private readonly filesExperimentalWatcherNext = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -123,6 +126,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
+
+			// File watcher next
+			processChanged(this.filesExperimentalWatcherNext.handleChange(config?.files?.experimentalWatcherNext));
 		}
 
 		// Experiments

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUniversalWatchRequest, requestFilterToString } from '../../common/watcher.js';
+import { INonRecursiveWatchRequest, IRecursiveWatchRequest, isRecursiveWatchRequest, IUniversalWatchRequest, requestFilterToString } from '../../common/watcher.js';
 import { INodeJSWatcherInstance, NodeJSWatcher } from './nodejs/nodejsWatcher.js';
 import { ParcelWatcher, ParcelWatcherInstance } from './parcel/parcelWatcher.js';
 
 export function computeStats(
 	requests: IUniversalWatchRequest[],
+	failedRecursiveRequests: number,
 	recursiveWatcher: ParcelWatcher,
 	nonRecursiveWatcher: NodeJSWatcher
 ): string {
 	const lines: string[] = [];
 
-	const allRecursiveRequests = sortByPathPrefix(requests.filter(request => request.recursive));
+	const allRecursiveRequests = sortByPathPrefix(requests.filter(request => isRecursiveWatchRequest(request)));
 	const nonSuspendedRecursiveRequests = allRecursiveRequests.filter(request => recursiveWatcher.isSuspended(request) === false);
 	const suspendedPollingRecursiveRequests = allRecursiveRequests.filter(request => recursiveWatcher.isSuspended(request) === 'polling');
 	const suspendedNonPollingRecursiveRequests = allRecursiveRequests.filter(request => recursiveWatcher.isSuspended(request) === true);
@@ -22,7 +23,7 @@ export function computeStats(
 	const recursiveRequestsStatus = computeRequestStatus(allRecursiveRequests, recursiveWatcher);
 	const recursiveWatcherStatus = computeRecursiveWatchStatus(recursiveWatcher);
 
-	const allNonRecursiveRequests = sortByPathPrefix(requests.filter(request => !request.recursive));
+	const allNonRecursiveRequests = sortByPathPrefix(requests.filter(request => !isRecursiveWatchRequest(request)));
 	const nonSuspendedNonRecursiveRequests = allNonRecursiveRequests.filter(request => nonRecursiveWatcher.isSuspended(request) === false);
 	const suspendedPollingNonRecursiveRequests = allNonRecursiveRequests.filter(request => nonRecursiveWatcher.isSuspended(request) === 'polling');
 	const suspendedNonPollingNonRecursiveRequests = allNonRecursiveRequests.filter(request => nonRecursiveWatcher.isSuspended(request) === true);
@@ -31,7 +32,7 @@ export function computeStats(
 	const nonRecursiveWatcherStatus = computeNonRecursiveWatchStatus(nonRecursiveWatcher);
 
 	lines.push('[Summary]');
-	lines.push(`- Recursive Requests:     total: ${allRecursiveRequests.length}, suspended: ${recursiveRequestsStatus.suspended}, polling: ${recursiveRequestsStatus.polling}`);
+	lines.push(`- Recursive Requests:     total: ${allRecursiveRequests.length}, suspended: ${recursiveRequestsStatus.suspended}, polling: ${recursiveRequestsStatus.polling}, failed: ${failedRecursiveRequests}`);
 	lines.push(`- Non-Recursive Requests: total: ${allNonRecursiveRequests.length}, suspended: ${nonRecursiveRequestsStatus.suspended}, polling: ${nonRecursiveRequestsStatus.polling}`);
 	lines.push(`- Recursive Watchers:     total: ${recursiveWatcher.watchers.size}, active: ${recursiveWatcherStatus.active}, failed: ${recursiveWatcherStatus.failed}, stopped: ${recursiveWatcherStatus.stopped}`);
 	lines.push(`- Non-Recursive Watchers: total: ${nonRecursiveWatcher.watchers.size}, active: ${nonRecursiveWatcherStatus.active}, failed: ${nonRecursiveWatcherStatus.failed}, reusing: ${nonRecursiveWatcherStatus.reusing}`);
@@ -59,7 +60,7 @@ export function computeStats(
 	fillNonRecursiveWatcherStats(nonRecursiveWatcheLines, nonRecursiveWatcher);
 	lines.push(...alignTextColumns(nonRecursiveWatcheLines));
 
-	return `\n\n[File Watcher] request stats:\n\n${lines.join('\n')}\n\n`;
+	return allRecursiveRequests.some(r => r.useNext) ? `\n\n[File Watcher NEXT] request stats:\n\n${lines.join('\n')}\n\n` : `\n\n[File Watcher CLASSIC] request stats:\n\n${lines.join('\n')}\n\n`;
 }
 
 function alignTextColumns(lines: string[]) {
@@ -140,6 +141,8 @@ function computeNonRecursiveWatchStatus(nonRecursiveWatcher: NodeJSWatcher): { a
 	return { active, failed, reusing };
 }
 
+function sortByPathPrefix(requests: IRecursiveWatchRequest[]): IRecursiveWatchRequest[];
+function sortByPathPrefix(requests: INonRecursiveWatchRequest[]): INonRecursiveWatchRequest[];
 function sortByPathPrefix(requests: IUniversalWatchRequest[]): IUniversalWatchRequest[];
 function sortByPathPrefix(requests: INodeJSWatcherInstance[]): INodeJSWatcherInstance[];
 function sortByPathPrefix(requests: ParcelWatcherInstance[]): ParcelWatcherInstance[];
@@ -182,7 +185,7 @@ function fillRequestStats(lines: string[], request: IUniversalWatchRequest, watc
 }
 
 function requestDetailsToString(request: IUniversalWatchRequest): string {
-	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
+	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}${isRecursiveWatchRequest(request) ? `, useNext: ${request.useNext}` : ''}`;
 }
 
 function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatcher): void {

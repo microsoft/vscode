@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from '../../../../base/browser/dom.js';
+import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import * as marked from '../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
-import { URI } from '../../../../base/common/uri.js';
-import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
-import { ITextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { marked, Tokens } from '../../../../base/common/marked/marked.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { markedGfmHeadingIdPlugin } from '../../markdown/browser/markedGfmHeadingIdPlugin.js';
 import { moduleToContent } from '../common/walkThroughContentProvider.js';
-import { Dimension } from '../../../../base/browser/dom.js';
-import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Schemas } from '../../../../base/common/network.js';
 
 class WalkThroughModel extends EditorModel {
 
@@ -115,15 +116,16 @@ export class WalkThroughInput extends EditorInput {
 
 					const snippets: Promise<IReference<ITextEditorModel>>[] = [];
 					let i = 0;
-					const renderer = new marked.Renderer();
-					renderer.code = ({ lang }: Tokens.Code) => {
+					const renderer = new marked.marked.Renderer();
+					renderer.code = ({ lang }: marked.Tokens.Code) => {
 						i++;
 						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
 						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
 					};
-					content = marked(content, { async: false, renderer });
 
+					const m = new marked.Marked({ renderer }, markedGfmHeadingIdPlugin());
+					content = m.parse(content, { async: false });
 					return Promise.all(snippets)
 						.then(refs => new WalkThroughModel(content, refs));
 				});
