@@ -34,6 +34,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 		if (isSafari || isWebkitWebView) {
 			this.installWebKitWriteTextWorkaround();
+			this.installWebKitReadWorkaround();
 		}
 
 		// Keep track of copy operations to reset our set of
@@ -45,7 +46,31 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}, { window: mainWindow, disposables: this._store }));
 	}
 
+	async readImage(): Promise<Uint8Array> {
+		try {
+			const clipboardItems = await navigator.clipboard.read();
+			const clipboardItem = clipboardItems[0];
+
+			const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/tiff', 'image/bmp'];
+			const mimeType = supportedImageTypes.find(type => clipboardItem.types.includes(type));
+
+			if (mimeType) {
+				const blob = await clipboardItem.getType(mimeType);
+				const buffer = await blob.arrayBuffer();
+				return new Uint8Array(buffer);
+			} else {
+				console.error('No supported image type found in the clipboard');
+			}
+		} catch (error) {
+			console.error('Error reading image from clipboard:', error);
+		}
+
+		// Return an empty Uint8Array if no image is found or an error occurs
+		return new Uint8Array(0);
+	}
+
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
+	private webKitPendingClipboardReadPromise: DeferredPromise<string> | undefined;
 
 	// In Safari, it has the following note:
 	//
@@ -77,6 +102,30 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 				'text/plain': currentWritePromise.p,
 			})]).catch(async err => {
 				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentWritePromise.isRejected) {
+					this.logService.error(err);
+				}
+			});
+		};
+
+
+		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+			disposables.add(addDisposableListener(container, 'click', handler));
+			disposables.add(addDisposableListener(container, 'keydown', handler));
+		}, { container: this.layoutService.mainContainer, disposables: this._store }));
+	}
+
+	// Experimental
+	private installWebKitReadWorkaround(): void {
+		const handler = () => {
+			const currentReadPromise = new DeferredPromise<string>();
+
+			// Cancel the previous promise since we just created a new one in response to this new event
+			if (this.webKitPendingClipboardReadPromise && !this.webKitPendingClipboardReadPromise.isSettled) {
+				this.webKitPendingClipboardReadPromise.cancel();
+			}
+			this.webKitPendingClipboardReadPromise = currentReadPromise;
+			getActiveWindow().navigator.clipboard.read().catch(async err => {
+				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentReadPromise.isRejected) {
 					this.logService.error(err);
 				}
 			});
