@@ -156,8 +156,21 @@ export abstract class NotebookAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): Promise<void> {
-		const isFromUI = !!context;
-		const from = isFromUI ? (this.isNotebookActionContext(context) ? 'notebookToolbar' : 'editorToolbar') : undefined;
+		let from;
+		if (context.source) {
+			from = context.source;
+		} else if (URI.isUri(context)) {
+			from = 'cellEditorContextMenu';
+		} else {
+			const contextJson = JSON.stringify(context);
+			if (contextJson.includes('"cellContainer"')) {
+				from = 'cellContainer';
+			} else {
+				from = undefined;
+			}
+		}
+
+
 		if (!this.isNotebookActionContext(context)) {
 			context = this.getEditorContextFromArgsOrActive(accessor, context, ...additionalArgs);
 			if (!context) {
@@ -252,7 +265,16 @@ export abstract class NotebookMultiCellAction extends Action2 {
 		if (editor) {
 			const selectedCellRange: ICellRange[] = editor.getSelections().length === 0 ? [editor.getFocus()] : editor.getSelections();
 
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+			const contextJson = JSON.stringify(context);
+			const telemetryService = accessor.get(ITelemetryService);
+			if (contextJson.includes('"cellContainer"')) {
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
+			} else if (URI.isUri(context)) {
+				const telemetryService = accessor.get(ITelemetryService);
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellEditorContextMenu' });
+			} else {
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+			}
 
 			return this.runWithContext(accessor, {
 				ui: false,
@@ -288,6 +310,16 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 
 		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 		if (this.isCellActionContext(activeEditorContext)) {
+			if (URI.isUri(context)) {
+				const telemetryService = accessor.get(ITelemetryService);
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellEditorContextMenu' });
+			} else {
+				const contextJson = JSON.stringify(context);
+				const telemetryService = accessor.get(ITelemetryService);
+				if (contextJson.includes('"cellContainer"')) {
+					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
+				}
+			}
 			return this.runWithContext(accessor, activeEditorContext);
 		}
 	}
