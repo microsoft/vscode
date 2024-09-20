@@ -105,9 +105,6 @@ export class TextAreaState {
 	}
 
 	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
-		console.log('deduceInput');
-		console.log('previousState : ', previousState);
-		console.log('currentState : ', currentState);
 		if (!previousState) {
 			// This is the EMPTY state
 			return {

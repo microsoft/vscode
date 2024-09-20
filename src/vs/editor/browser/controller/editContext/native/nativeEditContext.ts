@@ -195,6 +195,8 @@ export class NativeEditContext extends AbstractEditContext {
 		let previousSelectionEndOffset: number;
 
 		if (this._isComposing) {
+			// Selections need to be empty when typing during composition
+			// See method _compositionType inside of CompositionOperation
 			this._updateCursorStatesBeforeTypeDuringComposition();
 			previousSelectionEndOffset = this._previousEditContextSelection.start;
 		} else {
