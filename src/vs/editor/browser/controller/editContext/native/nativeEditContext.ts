@@ -195,9 +195,8 @@ export class NativeEditContext extends AbstractEditContext {
 		let previousSelectionEndOffset: number;
 
 		if (this._isComposing) {
-			// Selections need to be empty when typing during composition
-			// See method _compositionType inside of CompositionOperation
-			this._updateCursorStatesBeforeTypeDuringComposition();
+			// Selections needs to be empty during composition as per method _compositionType inside of class CompositionOperation
+			this._updateCursorStatesBeforeTypingDuringComposition();
 			previousSelectionEndOffset = this._previousEditContextSelection.start;
 		} else {
 			previousSelectionEndOffset = this._previousEditContextSelection.endExclusive;
@@ -228,7 +227,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._onType(viewController, typeInput);
 
 		// The selection can be non empty so need to update the cursor states after typing (which makes the selection empty)
-		this._updateCursorStatesAfterType(e);
+		this._updateCursorStatesAfterTyping(e);
 		this._previousEditContextSelection = new OffsetRange(e.selectionStart, e.selectionEnd);
 	}
 
@@ -240,7 +239,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _updateCursorStatesBeforeTypeDuringComposition(): void {
+	private _updateCursorStatesBeforeTypingDuringComposition(): void {
 		const cursorSelections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
 		const newSelections = cursorSelections.map(cursorSelection => {
 			const startPosition = cursorSelection.getStartPosition();
@@ -250,7 +249,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._context.viewModel.setCursorStates('editContext', CursorChangeReason.Explicit, newCursorStates);
 	}
 
-	private _updateCursorStatesAfterType(textUpdateEvent: TextUpdateEvent): void {
+	private _updateCursorStatesAfterTyping(textUpdateEvent: TextUpdateEvent): void {
 		const model = this._context.viewModel.model;
 		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
 		const primaryPosition = this._context.viewModel.getPrimaryCursorState().modelState.position;
