@@ -655,7 +655,7 @@ export class SearchView extends ViewPane {
 
 	public shouldShowAIResults(): boolean {
 		const hasProvider = Constants.SearchContext.hasAIResultProvider.getValue(this.contextKeyService);
-		return !!(hasProvider);
+		return !!hasProvider;
 	}
 	private async onConfigurationUpdated(event?: IConfigurationChangeEvent): Promise<void> {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
