@@ -155,7 +155,6 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 	}
 
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
-		console.log('trigger of DelegatingEditor');
 		this._targetEditor.trigger(source, handlerId, payload);
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export class Node<E> {
+class Node<E> {
 
 	static readonly Undefined = new Node<any>(undefined);
 
@@ -52,10 +52,6 @@ export class LinkedList<E> {
 
 	push(element: E): () => void {
 		return this._insert(element, true);
-	}
-
-	firstNode(): Node<E> {
-		return this._first;
 	}
 
 	private _insert(element: E, atTheEnd: boolean): () => void {

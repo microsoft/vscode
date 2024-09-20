@@ -420,7 +420,6 @@ export class LinkedEditingAction extends EditorAction {
 			}, onUnexpectedError);
 		}
 
-		console.log('runCommand of LinkedEditingAction');
 		return super.runCommand(accessor, args);
 	}
 

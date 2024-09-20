@@ -2136,7 +2136,6 @@ class EditorHandlerCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: unknown): void {
-		console.log('runCommand of EditorHandlerCommand');
 		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (!editor) {
 			return;
@@ -2147,8 +2146,6 @@ class EditorHandlerCommand extends Command {
 }
 
 function registerOverwritableCommand(handlerId: string, metadata?: ICommandMetadata): void {
-	console.log('handlerId : ', handlerId);
-	console.log('metadata : ', metadata);
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
 	registerCommand(new EditorHandlerCommand(handlerId, handlerId, metadata));
 }

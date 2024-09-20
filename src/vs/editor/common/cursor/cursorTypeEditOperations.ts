@@ -722,6 +722,9 @@ export class CompositionOperation {
 	}
 
 	private static _compositionType(model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
+		console.log('_compositionType in CompositionOperation');
+		console.log('selection : ', selection);
+
 		if (!selection.isEmpty()) {
 			// looks like https://github.com/microsoft/vscode/issues/2773
 			// where a cursor operation occurred before a canceled composition
@@ -733,6 +736,9 @@ export class CompositionOperation {
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
 		const oldText = model.getValueInRange(range);
+		console.log('oldText : ', oldText);
+		console.log('text : ', text);
+		console.log('positionDelta ', positionDelta);
 		if (oldText === text && positionDelta === 0) {
 			// => ignore composition that doesn't do anything
 			return null;

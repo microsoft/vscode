@@ -47,8 +47,6 @@ export class CommandService extends Disposable implements ICommandService {
 	}
 
 	async executeCommand<T>(id: string, ...args: any[]): Promise<T> {
-		console.log('executeCommand with id : ', id);
-
 		this._logService.trace('CommandService#executeCommand', id);
 
 		const activationEvent = `onCommand:${id}`;
@@ -88,9 +86,7 @@ export class CommandService extends Disposable implements ICommandService {
 	}
 
 	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
-		console.log('_tryExecuteCommand');
 		const command = CommandsRegistry.getCommand(id);
-		console.log('command : ', command);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
 		}
