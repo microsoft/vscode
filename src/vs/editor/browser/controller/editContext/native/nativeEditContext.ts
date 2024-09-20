@@ -12,8 +12,6 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { CursorState } from '../../../../common/cursorCommon.js';
-import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
@@ -42,7 +40,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private _parent: HTMLElement | undefined;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
-	private _isComposing: boolean = false;
 
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
@@ -98,7 +95,6 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
-			this._isComposing = true;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionStart();
@@ -106,7 +102,6 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
-			this._isComposing = false;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionEnd();
@@ -192,15 +187,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 
 		const previousSelectionStartOffset = this._previousEditContextSelection.start;
-		let previousSelectionEndOffset: number;
-
-		if (this._isComposing) {
-			// Selections needs to be empty during composition as per method _compositionType inside of class CompositionOperation
-			this._updateCursorStatesBeforeTypingDuringComposition();
-			previousSelectionEndOffset = this._previousEditContextSelection.start;
-		} else {
-			previousSelectionEndOffset = this._previousEditContextSelection.endExclusive;
-		}
+		const previousSelectionEndOffset = this._previousEditContextSelection.endExclusive;
 
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
@@ -227,7 +214,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._onType(viewController, typeInput);
 
 		// The selection can be non empty so need to update the cursor states after typing (which makes the selection empty)
-		this._updateCursorStatesAfterTyping(e);
 		this._previousEditContextSelection = new OffsetRange(e.selectionStart, e.selectionEnd);
 	}
 
@@ -237,34 +223,6 @@ export class NativeEditContext extends AbstractEditContext {
 		} else {
 			viewController.type(typeInput.text);
 		}
-	}
-
-	private _updateCursorStatesBeforeTypingDuringComposition(): void {
-		const cursorSelections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
-		const newSelections = cursorSelections.map(cursorSelection => {
-			const startPosition = cursorSelection.getStartPosition();
-			return Selection.fromPositions(startPosition);
-		});
-		const newCursorStates = newSelections.map(selection => CursorState.fromModelSelection(selection));
-		this._context.viewModel.setCursorStates('editContext', CursorChangeReason.Explicit, newCursorStates);
-	}
-
-	private _updateCursorStatesAfterTyping(textUpdateEvent: TextUpdateEvent): void {
-		const model = this._context.viewModel.model;
-		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
-		const primaryPosition = this._context.viewModel.getPrimaryCursorState().modelState.position;
-		const offsetOfPrimaryPosition = model.getOffsetAt(primaryPosition);
-		const offsetOfPrimaryPositionWithinEditContext = offsetOfPrimaryPosition - offsetOfStartOfText;
-		const startColumnDelta = textUpdateEvent.selectionStart - offsetOfPrimaryPositionWithinEditContext;
-		const endColumnDelta = textUpdateEvent.selectionEnd - offsetOfPrimaryPositionWithinEditContext;
-		const cursorPrimaryPositions = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.position);
-		const newSelections = cursorPrimaryPositions.map(cursorPosition => {
-			const positionLineNumber = cursorPosition.lineNumber;
-			const positionColumn = cursorPosition.column;
-			return new Selection(positionLineNumber, positionColumn + startColumnDelta, positionLineNumber, positionColumn + endColumnDelta);
-		});
-		const newCursorStates = newSelections.map(selection => CursorState.fromModelSelection(selection));
-		this._context.viewModel.setCursorStates('editContext', CursorChangeReason.Explicit, newCursorStates);
 	}
 
 	private _getNewEditContextState(): { text: string; selectionStartOffset: number; selectionEndOffset: number; textStartPositionWithinEditor: Position } {
