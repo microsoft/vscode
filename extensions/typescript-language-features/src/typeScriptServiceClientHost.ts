@@ -35,7 +35,6 @@ import TypingsStatus, { AtaProgressReporter } from './ui/typingsStatus';
 import { VersionStatus } from './ui/versionStatus';
 import { coalesce } from './utils/arrays';
 import { Disposable } from './utils/dispose';
-import { jsTsLanguageModes, isSupportedLanguageMode } from './configuration/languageIds';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -150,60 +149,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 					isExternal: true,
 					standardFileExtensions: [],
 				}, onCompletionAccepted);
-			}
-			// TODO: Still probably isn't the right place for this
-			const ext = vscode.extensions.getExtension('github.copilot');
-			if (!ext) {
-				vscode.window.showErrorMessage(vscode.l10n.t('Could not find related-files extension'));
-				return;
-			}
-			await ext.activate();
-			const relatedAPI = ext.exports as {
-				registerRelatedFilesProvider(
-					providerId: { extensionId: string; languageId: string },
-					callback: (uri: vscode.Uri) => Promise<{ entries: vscode.Uri[]; traits?: { name: string; value: string }[] }>
-				): void;
-			} | undefined;
-			if (relatedAPI) {
-				for (const languageId of jsTsLanguageModes) {
-					const id = {
-						extensionId: 'vscode.typescript-language-features',
-						languageId
-					};
-					relatedAPI.registerRelatedFilesProvider(id, async uri => {
-						let document;
-						try {
-							document = await vscode.workspace.openTextDocument(uri);
-						} catch {
-							if (!vscode.window.activeTextEditor) {
-								vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. No resource provided."));
-								return [];
-							}
-							// something is REALLY wrong if you can't open the active text editor's document, so don't catch that
-							document = await vscode.workspace.openTextDocument(vscode.window.activeTextEditor.document.uri);
-						}
-
-						if (!isSupportedLanguageMode(document)) {
-							vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. Unsupported file type."));
-							return [];
-						}
-
-						const file = this.client.toOpenTsFilePath(document);
-						if (!file) {
-							return [];
-						}
-						// TODO: This compiles but will never cancel; this needs a token that somebody might actually cancel.
-						const cancel = new vscode.CancellationTokenSource();
-						const response = await this.client.execute('copilotRelated', { file, }, cancel.token);
-						if (response.type !== 'response' || !response.body) {
-							return [];
-						}
-						return response.body.map(vscode.Uri.file);
-					});
-				}
-			}
-			else {
-				vscode.window.showErrorMessage(vscode.l10n.t('Could not find github.copilot extension'));
 			}
 		});
 
