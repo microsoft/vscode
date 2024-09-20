@@ -24,10 +24,6 @@
 	-webkit-user-select: text;
 }
 
-.interactive-item-container.interactive-response {
-	padding-bottom: 6px;
-}
-
 .interactive-item-container .header {
 	display: flex;
 	align-items: center;
@@ -174,6 +170,11 @@
 	display: none;
 }
 
+.chat-footer-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
+	padding-top: 6px;
+}
+
 .interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
 	/* Complete response only */
 	display: initial;
@@ -192,7 +193,7 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 8px;
+	margin-bottom: 4px;
 }
 
 .interactive-item-container .value .rendered-markdown blockquote {
@@ -241,11 +242,6 @@
 
 .interactive-list {
 	overflow: hidden;
-}
-
-.interactive-request {
-	border-bottom: 1px solid var(--vscode-chat-requestBorder);
-	border-top: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .hc-black .interactive-request,
@@ -918,11 +914,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
-	gap: 4px;
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	padding: 3px 8px 3px 0;
+	padding: 2px 4px 2px 4px;
 	text-align: initial;
 	justify-content: initial;
 }
@@ -942,7 +937,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
-	margin: 0 0 0 4px;
+	font-size: 12px;
 }
 
 .interactive-item-container .rendered-markdown.progress-step {
