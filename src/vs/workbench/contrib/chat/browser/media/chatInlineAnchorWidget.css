@@ -20,22 +20,25 @@
 }
 
 .chat-inline-anchor-widget .icon {
-	display: inline-block;
 	vertical-align: middle;
+	line-height: 1em;
+	font-size: 90%;
+	overflow: hidden;
 }
 
-.chat-inline-anchor-widget .icon::before {
+.show-file-icons.chat-inline-anchor-widget .icon::before {
 	display: inline-block;
-	background-size: 100%;
-	background-position: left center;
-	background-repeat: no-repeat;
-	width: 0.8em !important;
-	height: 0.8em;
-	margin-right: 4px;
-}
+	line-height: 100%;
+	overflow: hidden;
 
-.chat-inline-anchor-widget .file-icon::before {
-	font-size: 120%;
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+
+	margin-right: 3px;
+	margin-bottom: 1px;
+
+	flex-shrink: 0;
 }
 
 .chat-inline-anchor-widget .icon-label {
