@@ -41,6 +41,7 @@ import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
+import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 
 const $ = dom.$;
 
@@ -211,6 +212,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ILogService private readonly logService: ILogService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService
 	) {
 		super();
 
@@ -232,6 +234,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register((chatWidgetService as ChatWidgetService).register(this));
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
+
+		let onDidEditNewResourceDisposable: IDisposable | null = null;
+		this._register(this.chatEditingService.onDidCreateEditingSession((session) => {
+			if (session.chatSessionId === this.viewModel?.sessionId) {
+				onDidEditNewResourceDisposable = this._register(session.onDidEditNewResource(() => {
+					this.renderChatEditingSessionState(session);
+				}));
+			}
+		}));
+		this._register(this.chatEditingService.onDidDisposeEditingSession((session) => {
+			if (session.chatSessionId === this.viewModel?.sessionId) {
+				onDidEditNewResourceDisposable?.dispose();
+				this.renderChatEditingSessionState(null);
+			}
+		}));
 
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
 			const resource = input.resource;
@@ -447,6 +464,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.renderFollowups(undefined);
 			}
+		}
+	}
+
+	private async renderChatEditingSessionState(session: IChatEditingSession | null) {
+		this.inputPart.renderChatEditingSessionState(session);
+
+		if (this.bodyDimension) {
+			this.layout(this.bodyDimension.height, this.bodyDimension.width);
 		}
 	}
 
