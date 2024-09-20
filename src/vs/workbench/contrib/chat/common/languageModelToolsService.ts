@@ -188,7 +188,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
-		// TODO move this to the tools service?
 		let toolInvocation: ChatToolInvocation | undefined;
 		if (dto.context) {
 			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;

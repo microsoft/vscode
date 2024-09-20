@@ -42,7 +42,6 @@ interface AgentData {
 export class MainThreadChatTask implements IChatTask {
 	public readonly kind = 'progressTask';
 
-	public readonly buttonDeferred = new DeferredPromise<string | void>();
 	public readonly deferred = new DeferredPromise<string | void>();
 
 	private readonly _onDidAddProgress = new Emitter<IChatWarningMessage | IChatContentReference>();
@@ -50,7 +49,7 @@ export class MainThreadChatTask implements IChatTask {
 
 	public readonly progress: (IChatWarningMessage | IChatContentReference)[] = [];
 
-	constructor(public content: IMarkdownString, public readonly buttons?: string[]) { }
+	constructor(public content: IMarkdownString) { }
 
 	task() {
 		return this.deferred.p;
@@ -58,10 +57,6 @@ export class MainThreadChatTask implements IChatTask {
 
 	isSettled() {
 		return this.deferred.isSettled;
-	}
-
-	buttonClick(button: string) {
-		this.buttonDeferred.complete(button);
 	}
 
 	complete(v: string | void) {
