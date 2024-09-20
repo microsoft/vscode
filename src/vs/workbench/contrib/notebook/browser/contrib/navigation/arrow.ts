@@ -5,7 +5,7 @@
 
 import { timeout } from '../../../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
-import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, isCompositeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 import { localize } from '../../../../../../nls.js';
@@ -13,7 +13,7 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../../platform/a
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { InputFocusedContextKey } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { InputFocusedContextKey, IsWindowsContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
@@ -22,7 +22,7 @@ import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from '../../controller/chat/no
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from '../../controller/coreActions.js';
 import { CellEditState } from '../../notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from '../../../common/notebookCommon.js';
-import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED } from '../../../common/notebookContextKeys.js';
+import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED, IS_COMPOSITE_NOTEBOOK } from '../../../common/notebookContextKeys.js';
 
 const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
 const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
@@ -290,11 +290,16 @@ registerAction2(class extends NotebookCellAction {
 		super({
 			id: FOCUS_IN_OUTPUT_COMMAND_ID,
 			title: localize('focusOutput', 'Focus In Active Cell Output'),
-			keybinding: {
+			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
+			{
+				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK.negate(), IsWindowsContext),
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}],
 			precondition: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS)
 		});
 	}
