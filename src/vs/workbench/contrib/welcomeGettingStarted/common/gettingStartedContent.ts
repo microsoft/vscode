@@ -432,7 +432,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'keybindingsAccessibility',
 					title: localize('gettingStarted.keyboardShortcuts.title', "Customize your keyboard shortcuts"),
-					description: localize('gettingStarted.shortcuts.description.interpolated', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n{0}", Button(localize('keyboardShortcuts', "Keyboard Shortcuts"), 'command:toSide:workbench.action.openGlobalKeybindings')),
+					description: localize('gettingStarted.keyboardShortcuts.description.interpolated', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n{0}", Button(localize('keyboardShortcuts', "Keyboard Shortcuts"), 'command:toSide:workbench.action.openGlobalKeybindings')),
 					media: {
 						type: 'markdown', path: 'empty',
 					}
