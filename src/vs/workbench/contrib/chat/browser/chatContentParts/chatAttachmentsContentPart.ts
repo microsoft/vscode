@@ -94,7 +94,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 					}
 				}));
 			} else if (attachment.isImage) {
-				let buffer = new Uint8Array(0);
+				let buffer: Uint8Array;
 				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 

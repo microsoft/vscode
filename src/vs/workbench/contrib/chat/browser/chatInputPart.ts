@@ -665,7 +665,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.tabIndex = 0;
 				this.attachButtonAndDisposables(widget, index, attachment);
 			} else if (attachment.isImage) {
-				let buffer = new Uint8Array(0);
+				let buffer: Uint8Array;
 				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 

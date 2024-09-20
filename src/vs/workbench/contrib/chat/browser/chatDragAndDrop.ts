@@ -133,10 +133,7 @@ export class ChatDragAndDrop extends Themable {
 
 			case ChatDragAndDropType.IMAGE: {
 				const data = extractEditorsDropData(e);
-				const contexts = await Promise.all(data.map(async editorInput => {
-					return editorInput.resource ? getImageAttachContext(editorInput.resource) : undefined;
-				}
-				));
+				const contexts = data.map(editorInput => getImageAttachContext(editorInput));
 				return coalesce(contexts);
 			}
 
@@ -200,14 +197,18 @@ function getFileAttachContext(resource: URI): IChatRequestVariableEntry | undefi
 	};
 }
 
-function getImageAttachContext(resource: URI): IChatRequestVariableEntry | undefined {
-	if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(resource.path)) {
-		const fileName = basename(resource);
+function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput): IChatRequestVariableEntry | undefined {
+	if (!editor.resource) {
+		return undefined;
+	}
+
+	if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(editor.resource.path)) {
+		const fileName = basename(editor.resource);
 		return {
-			id: resource.toString(),
+			id: editor.resource.toString(),
 			name: fileName,
-			fullName: resource.path,
-			value: resource,
+			fullName: editor.resource.path,
+			value: editor.resource,
 			icon: Codicon.fileMedia,
 			isDynamic: true,
 			isImage: true,
