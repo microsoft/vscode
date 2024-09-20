@@ -39,7 +39,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				ChatConfirmationWidget,
 				title,
 				message,
-				[{ label: localize('continue', "Continue"), data: true }, { label: localize('cancel', "Cancel"), data: false }]));
+				[{ label: localize('continue', "Continue"), data: true }, { label: localize('cancel', "Cancel"), data: false, isSecondary: true }]));
 			this.domNode = confirmWidget.domNode;
 			this._register(confirmWidget.onDidClick(button => {
 				toolInvocation.confirm(button.data);
