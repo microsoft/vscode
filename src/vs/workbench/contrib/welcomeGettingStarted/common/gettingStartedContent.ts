@@ -430,6 +430,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					}
 				},
 				{
+					id: 'keybindingsAccessibility',
+					title: localize('gettingStarted.keyboardShortcuts.title', "Customize your keyboard shortcuts"),
+					description: localize('gettingStarted.shortcuts.description.interpolated', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n{0}", Button(localize('keyboardShortcuts', "Keyboard Shortcuts"), 'command:toSide:workbench.action.openGlobalKeybindings')),
+					media: {
+						type: 'markdown', path: 'empty',
+					}
+				},
+				{
 					id: 'accessibilitySignals',
 					title: localize('gettingStarted.accessibilitySignals.title', "Fine tune which accessibility signals you want to receive via audio or a braille device"),
 					description: localize('gettingStarted.accessibilitySignals.description.interpolated', "Accessibility sounds and announcements are played around the workbench for different events.\n These can be discovered and configured using the List Signal Sounds and List Signal Announcements commands.\n{0}\n{1}", Button(localize('listSignalSounds', "List Signal Sounds"), 'command:signals.sounds.help'), Button(localize('listSignalAnnouncements', "List Signal Announcements"), 'command:signals.announcements.help')),
