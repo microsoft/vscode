@@ -20,6 +20,7 @@ import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
 import { AuthInfo } from '../../../platform/request/common/request.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 // ESM-uncomment-begin
 import { createRequire } from 'node:module';
@@ -31,6 +32,7 @@ const net = require('net');
 // ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
+const useElectronFetchDefault = true;
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -39,7 +41,11 @@ export function connectProxyResolver(
 	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape,
 	initData: IExtensionHostInitData,
+	disposables: DisposableStore,
 ) {
+
+	patchGlobalFetch(configProvider, initData, disposables);
+
 	const useHostProxy = initData.environment.useHostProxy;
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
@@ -92,6 +98,65 @@ export function connectProxyResolver(
 	const resolveProxy = createProxyResolver(params);
 	const lookup = createPatchedModules(params, resolveProxy);
 	return configureModuleLoading(extensionService, lookup);
+}
+
+const unsafeHeaders = [
+	'content-length',
+	'host',
+	'trailer',
+	'te',
+	'upgrade',
+	'cookie2',
+	'keep-alive',
+	'transfer-encoding',
+	'set-cookie',
+];
+
+function patchGlobalFetch(configProvider: ExtHostConfigProvider, initData: IExtensionHostInitData, disposables: DisposableStore) {
+	if (!initData.remote.isRemote && !(globalThis as any).__originalFetch) {
+		const originalFetch = globalThis.fetch;
+		(globalThis as any).__originalFetch = originalFetch;
+		let useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+		disposables.add(configProvider.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('http.electronFetch')) {
+				useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+			}
+		}));
+		const electron = require('electron');
+		// https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
+		globalThis.fetch = function fetch(input: any /* RequestInfo */ | URL, init?: RequestInit) {
+			if (!useElectronFetch) {
+				return originalFetch(input, init);
+			}
+			// Limitations: https://github.com/electron/electron/pull/36733#issuecomment-1405615494
+			const urlStart = typeof input === 'string' ? input : 'cache' in input ? input.url : input.protocol;
+			if (urlStart.startsWith('data:') || urlStart.startsWith('blob:')) {
+				return originalFetch(input, init);
+			}
+			function getRequestProperty(name: keyof any /* Request */ & keyof RequestInit) {
+				return init && name in init ? init[name] : typeof input === 'object' && 'cache' in input ? input[name] : undefined;
+			}
+			// net.fetch fails on manual redirect: https://github.com/electron/electron/issues/43715
+			if (getRequestProperty('redirect') === 'manual') {
+				return originalFetch(input, init);
+			}
+			// Limitations: https://github.com/electron/electron/pull/36733#issuecomment-1405615494
+			if (getRequestProperty('integrity')) {
+				return originalFetch(input, init);
+			}
+			// Unsupported headers: https://source.chromium.org/chromium/chromium/src/+/main:services/network/public/cpp/header_util.cc;l=32;drc=ee7299f8961a1b05a3554efcc496b6daa0d7f6e1
+			if (init?.headers) {
+				const headers = new Headers(init.headers);
+				for (const header of unsafeHeaders) {
+					headers.delete(header);
+				}
+				init = { ...init, headers };
+			}
+			// Support for URL: https://github.com/electron/electron/issues/43712
+			const electronInput = input instanceof URL ? input.toString() : input;
+			return electron.net.fetch(electronInput, init);
+		};
+	}
 }
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
