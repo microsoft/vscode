@@ -246,8 +246,6 @@ export class SearchView extends ViewPane {
 					this.removeFileStats();
 				}
 				await this.refreshTree();
-			} else if (e.affectsConfiguration('search.aiResults')) {
-				await this.refreshHasAISetting();
 			}
 		}));
 
@@ -657,13 +655,11 @@ export class SearchView extends ViewPane {
 
 	public shouldShowAIResults(): boolean {
 		const hasProvider = Constants.SearchContext.hasAIResultProvider.getValue(this.contextKeyService);
-		return !!(this.configurationService.getValue<boolean>('search.aiResults') && hasProvider);
+		return !!(hasProvider);
 	}
 	private async onConfigurationUpdated(event?: IConfigurationChangeEvent): Promise<void> {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
 			return this.refreshTree();
-		} else if (event && event.affectsConfiguration('search.aiResults')) {
-			return this.refreshHasAISetting();
 		}
 	}
 
