@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -13,12 +14,17 @@ export const IChatEditingService = createDecorator<IChatEditingService>('chatEdi
 export interface IChatEditingService {
 	_serviceBrand: undefined;
 
+	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
+	readonly onDidDisposeEditingSession: Event<IChatEditingSession>;
+
 	readonly currentEditingSession: IChatEditingSession | null;
 
-	createEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
+	createEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
 }
 
 export interface IChatEditingSession {
+	readonly chatSessionId: string;
+	readonly onDidEditNewResource: Event<URI>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 

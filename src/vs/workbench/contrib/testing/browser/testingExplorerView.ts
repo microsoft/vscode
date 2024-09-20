@@ -425,7 +425,6 @@ export class TestingExplorerView extends ViewPane {
 			DropdownWithPrimaryActionViewItem,
 			primaryAction, dropdownAction, dropdownActions,
 			'',
-			this.contextMenuService,
 			options
 		);
 	}

@@ -5,7 +5,9 @@
 
 import { Sequencer } from '../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
@@ -42,6 +44,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._currentSessionObs.get();
 	}
 
+	private readonly _onDidCreateEditingSession = new Emitter<IChatEditingSession>();
+	get onDidCreateEditingSession() {
+		return this._onDidCreateEditingSession.event;
+	}
+
+	private readonly _onDidDisposeEditingSession = new Emitter<IChatEditingSession>();
+	get onDidDisposeEditingSession() {
+		return this._onDidDisposeEditingSession.event;
+	}
+
 	constructor(
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -69,7 +81,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 	}
 
-	async createEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
+	async createEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
 		if (this._currentSessionObs.get()) {
 			throw new BugIndicatingError('Cannot have more than one active editing session');
 		}
@@ -81,8 +93,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane);
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane);
 		this._currentSessionObs.set(session, undefined);
+		this._onDidCreateEditingSession.fire(session);
 
 		const stream: IChatEditingSessionStream = {
 			textEdits: (resource: URI, textEdits: TextEdit[]) => {
@@ -108,6 +121,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 		const currentSession = this._currentSessionObs.get();
 		if (currentSession) {
+			this._onDidDisposeEditingSession.fire(currentSession);
 			currentSession.dispose();
 			this._currentSessionObs.set(null, undefined);
 		}
@@ -222,11 +236,14 @@ registerAction2(class DiscardAction extends Action2 {
 	}
 });
 
-registerAction2(class AcceptAllAction extends Action2 {
+export class ChatEditingAcceptAllAction extends Action2 {
+	static readonly ID = 'chatEditing.acceptAllFiles';
+	static readonly LABEL = localize('accept.allFiles', 'Accept All');
+
 	constructor() {
 		super({
-			id: 'chatEditing.acceptAllFiles',
-			title: localize2('accept.allFiles', 'Accept All'),
+			id: ChatEditingAcceptAllAction.ID,
+			title: ChatEditingAcceptAllAction.LABEL,
 			// icon: Codicon.goToFile,
 			menu: {
 				when: ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme),
@@ -260,7 +277,51 @@ registerAction2(class AcceptAllAction extends Action2 {
 			}
 		}
 	}
-});
+}
+registerAction2(ChatEditingAcceptAllAction);
+
+export class ChatEditingDiscardAllAction extends Action2 {
+	static readonly ID = 'chatEditing.discardAllFiles';
+	static readonly LABEL = localize('discard.allFiles', 'Discard All');
+
+	constructor() {
+		super({
+			id: ChatEditingDiscardAllAction.ID,
+			title: ChatEditingDiscardAllAction.LABEL,
+			// icon: Codicon.goToFile,
+			menu: {
+				when: ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme),
+				id: MenuId.EditorTitle,
+				order: 0,
+				group: 'navigation',
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const chatEditingService = accessor.get(IChatEditingService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (!currentEditingSession) {
+			return;
+		}
+		const entries = currentEditingSession.entries.get();
+		await Promise.all(
+			// TODO: figure out how to run this in a transaction
+			entries.map(entry => entry.reject(undefined))
+		);
+
+		const uri = args[0];
+
+		for (const group of editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				if (String(editor.resource) === String(uri)) {
+					group.closeEditor(editor);
+				}
+			}
+		}
+	}
+}
 
 type ChatEditingTextModelContentQueryData = { kind: 'empty' } | { kind: 'doc'; documentId: string };
 
@@ -321,7 +382,14 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		return this._state;
 	}
 
+	private readonly _editedResources = new ResourceSet();
+	private readonly _onDidEditNewResource = new Emitter<URI>();
+	get onDidEditNewResource() {
+		return this._onDidEditNewResource.event;
+	}
+
 	constructor(
+		public readonly chatSessionId: string,
 		parent: { killCurrentEditingSession(): void },
 		private readonly editorPane: MultiDiffEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -380,6 +448,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		this._register(entry);
 		this._entries = [...this._entries, entry];
 		this._entriesObs.set(this._entries, undefined);
+		this._editedResources.add(resource);
+		this._onDidEditNewResource.fire(resource);
 
 		return entry;
 	}

@@ -365,12 +365,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async resolveHEADMergeBase(): Promise<Branch | undefined> {
-		if (this.repository.HEAD?.type !== RefType.Head || !this.repository.HEAD?.name) {
+		try {
+			if (this.repository.HEAD?.type !== RefType.Head || !this.repository.HEAD?.name) {
+				return undefined;
+			}
+
+			const mergeBase = await this.repository.getBranchBase(this.repository.HEAD.name);
+			return mergeBase;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHEADMergeBase] Failed to resolve merge base for ${this.repository.HEAD?.name}: ${err}`);
 			return undefined;
 		}
-
-		const mergeBase = await this.repository.getBranchBase(this.repository.HEAD.name);
-		return mergeBase;
 	}
 
 	dispose(): void {
