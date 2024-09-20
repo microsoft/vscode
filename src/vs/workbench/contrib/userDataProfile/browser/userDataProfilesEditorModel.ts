@@ -460,10 +460,14 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 				this._onDidChange.fire({ profile: true });
 			}
 		}));
+		this._register(fileService.watch(this.profile.extensionsResource));
 		this._register(fileService.watch(this.profile.snippetsHome));
 		this._register(fileService.onDidFilesChange(e => {
 			if (e.affects(this.profile.snippetsHome)) {
 				this._onDidChange.fire({ snippets: true });
+			}
+			if (e.affects(this.profile.extensionsResource)) {
+				this._onDidChange.fire({ extensions: true });
 			}
 		}));
 	}
@@ -646,10 +650,17 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			this._onDidChange.fire({ preview: true });
 			this.previewProfileWatchDisposables.clear();
 			if (this._previewProfile) {
+				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.extensionsResource));
 				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.snippetsHome));
 				this.previewProfileWatchDisposables.add(this.fileService.onDidFilesChange(e => {
-					if (this._previewProfile && e.affects(this._previewProfile.snippetsHome)) {
+					if (!this._previewProfile) {
+						return;
+					}
+					if (e.affects(this._previewProfile.snippetsHome)) {
 						this._onDidChange.fire({ snippets: true });
+					}
+					if (e.affects(this._previewProfile.extensionsResource)) {
+						this._onDidChange.fire({ extensions: true });
 					}
 				}));
 			}
