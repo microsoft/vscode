@@ -573,6 +573,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: auto;
 }
 
+.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
+	padding: 3px 1px 3px 6px;
+	display: flex;
+	align-items: center;
+}
+
+
+.interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label .codicon-chevron-down {
+	font-size: 12px;
+	margin-left: 2px;
+}
+
 .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 4px;
