@@ -28,17 +28,21 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 
 export class NativeEditContext extends AbstractEditContext {
 
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
+	// Store previous edit context selection so can access it when selection changes on typing
+	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
 
 	// Overflow guard container
 	private _parent: HTMLElement | undefined;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
+	private _isComposing: boolean = false;
 
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
@@ -94,6 +98,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			this._isComposing = true;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionStart();
@@ -101,6 +106,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			this._isComposing = false;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionEnd();
@@ -177,34 +183,40 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._textStartPositionWithinEditor = editContextState.textStartPositionWithinEditor;
+		this._previousEditContextSelection = new OffsetRange(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
 		if (!this._editContext) {
 			return;
 		}
-		const model = this._context.viewModel.model;
-		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
-		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
-		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
-		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
-		const selectionStartOffset = offsetOfSelectionStart - offsetOfStartOfText;
+
+		const previousSelectionStartOffset = this._previousEditContextSelection.start;
+		let previousSelectionEndOffset: number;
+
+		if (this._isComposing) {
+			// Selections needs to be empty during composition as per method _compositionType inside of class CompositionOperation
+			this._updateCursorStatesBeforeTypingDuringComposition();
+			previousSelectionEndOffset = this._previousEditContextSelection.start;
+		} else {
+			previousSelectionEndOffset = this._previousEditContextSelection.endExclusive;
+		}
 
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
-		if (e.updateRangeEnd > selectionEndOffset) {
-			replaceNextCharCnt = e.updateRangeEnd - selectionEndOffset;
+		if (e.updateRangeEnd > previousSelectionEndOffset) {
+			replaceNextCharCnt = e.updateRangeEnd - previousSelectionEndOffset;
 		}
-		if (e.updateRangeStart < selectionStartOffset) {
-			replacePrevCharCnt = selectionStartOffset - e.updateRangeStart;
+		if (e.updateRangeStart < previousSelectionStartOffset) {
+			replacePrevCharCnt = previousSelectionStartOffset - e.updateRangeStart;
 		}
 		let text = '';
-		if (selectionStartOffset < e.updateRangeStart) {
-			text += this._editContext.text.substring(selectionStartOffset, e.updateRangeStart);
+		if (previousSelectionStartOffset < e.updateRangeStart) {
+			text += this._editContext.text.substring(previousSelectionStartOffset, e.updateRangeStart);
 		}
 		text += e.text;
-		if (selectionEndOffset > e.updateRangeEnd) {
-			text += this._editContext.text.substring(e.updateRangeEnd, selectionEndOffset);
+		if (previousSelectionEndOffset > e.updateRangeEnd) {
+			text += this._editContext.text.substring(e.updateRangeEnd, previousSelectionEndOffset);
 		}
 		const typeInput: ITypeData = {
 			text,
@@ -215,8 +227,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._onType(viewController, typeInput);
 
 		// The selection can be non empty so need to update the cursor states after typing (which makes the selection empty)
-		const primaryPositionOffset = selectionStartOffset - replacePrevCharCnt + text.length;
-		this._updateCursorStatesAfterType(primaryPositionOffset, e.selectionStart, e.selectionEnd);
+		this._updateCursorStatesAfterTyping(e);
+		this._previousEditContextSelection = new OffsetRange(e.selectionStart, e.selectionEnd);
 	}
 
 	private _onType(viewController: ViewController, typeInput: ITypeData): void {
@@ -227,14 +239,29 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _updateCursorStatesAfterType(primaryPositionOffset: number, desiredSelectionStartOffset: number, desiredSelectionEndOffset: number): void {
-		const leftDeltaOffsetOfPrimaryCursor = desiredSelectionStartOffset - primaryPositionOffset;
-		const rightDeltaOffsetOfPrimaryCursor = desiredSelectionEndOffset - primaryPositionOffset;
-		const cursorPositions = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.position);
-		const newSelections = cursorPositions.map(cursorPosition => {
+	private _updateCursorStatesBeforeTypingDuringComposition(): void {
+		const cursorSelections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
+		const newSelections = cursorSelections.map(cursorSelection => {
+			const startPosition = cursorSelection.getStartPosition();
+			return Selection.fromPositions(startPosition);
+		});
+		const newCursorStates = newSelections.map(selection => CursorState.fromModelSelection(selection));
+		this._context.viewModel.setCursorStates('editContext', CursorChangeReason.Explicit, newCursorStates);
+	}
+
+	private _updateCursorStatesAfterTyping(textUpdateEvent: TextUpdateEvent): void {
+		const model = this._context.viewModel.model;
+		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
+		const primaryPosition = this._context.viewModel.getPrimaryCursorState().modelState.position;
+		const offsetOfPrimaryPosition = model.getOffsetAt(primaryPosition);
+		const offsetOfPrimaryPositionWithinEditContext = offsetOfPrimaryPosition - offsetOfStartOfText;
+		const startColumnDelta = textUpdateEvent.selectionStart - offsetOfPrimaryPositionWithinEditContext;
+		const endColumnDelta = textUpdateEvent.selectionEnd - offsetOfPrimaryPositionWithinEditContext;
+		const cursorPrimaryPositions = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.position);
+		const newSelections = cursorPrimaryPositions.map(cursorPosition => {
 			const positionLineNumber = cursorPosition.lineNumber;
 			const positionColumn = cursorPosition.column;
-			return new Selection(positionLineNumber, positionColumn + leftDeltaOffsetOfPrimaryCursor, positionLineNumber, positionColumn + rightDeltaOffsetOfPrimaryCursor);
+			return new Selection(positionLineNumber, positionColumn + startColumnDelta, positionLineNumber, positionColumn + endColumnDelta);
 		});
 		const newCursorStates = newSelections.map(selection => CursorState.fromModelSelection(selection));
 		this._context.viewModel.setCursorStates('editContext', CursorChangeReason.Explicit, newCursorStates);
