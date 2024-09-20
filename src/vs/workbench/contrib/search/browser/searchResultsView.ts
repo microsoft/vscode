@@ -115,9 +115,13 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 		return { label, disposables };
 	}
 
-	renderElement(element: ITreeNode<TextSearchResult, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
-		if (element.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
-			templateData.label.setLabel(nls.localize('searchFolderMatch.aiText.label', "AI Results"));
+	async renderElement(node: ITreeNode<TextSearchResult, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
+		if (node.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+			const aiName = await node.element.parent().searchModel.getAITextResultProviderName();
+			templateData.label.setLabel(nls.localize({
+				key: 'searchFolderMatch.aiText.label',
+				comment: ['This is displayed before the AI text search results, where {0} will be in the place of the AI name (ie: Copilot)']
+			}, '{0} Results', aiName));
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
 		}

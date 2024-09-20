@@ -1489,7 +1489,6 @@ export class TextSearchResult extends Disposable {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
-
 		this._register(this.onChange(e => {
 			if (e.removed) {
 				this._isDirty = !this.isEmpty();
@@ -2186,6 +2185,7 @@ export class SearchModel extends Disposable {
 	private searchCancelledForNewSearch: boolean = false;
 	private aiSearchCancelledForNewSearch: boolean = false;
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
+	private readonly _aiTextResultProviderName: Lazy<Promise<string | undefined>>;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -2198,6 +2198,16 @@ export class SearchModel extends Disposable {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 		this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
+
+		this._aiTextResultProviderName = new Lazy(async () => this.searchService.getAIName());
+	}
+
+	async getAITextResultProviderName(): Promise<string> {
+		const result = await this._aiTextResultProviderName.value;
+		if (!result) {
+			throw Error('Fetching AI name when no provider present.');
+		}
+		return result;
 	}
 
 	isReplaceActive(): boolean {
