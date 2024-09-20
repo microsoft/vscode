@@ -49,7 +49,7 @@ import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.j
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from '../../notebook/common/notebookCommon.js';
-import { InteractiveWindowOpen } from '../../notebook/common/notebookContextKeys.js';
+import { InteractiveWindowOpen, IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
 import { INotebookKernelService } from '../../notebook/common/notebookKernelService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
@@ -61,6 +61,7 @@ import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/wor
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { isReplEditorControl, ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
 import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
+import { IsLinuxContext, IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 const interactiveWindowCategory: ILocalizedString = localize2('interactiveWindow', "Interactive Window");
 
@@ -610,25 +611,16 @@ registerAction2(class extends Action2 {
 			title: localize2('interactive.history.previous', 'Previous value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
-			keybinding: [{
+			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
 					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			}, {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
-				),
-				primary: KeyCode.UpArrow,
-				weight: KeybindingWeight.WorkbenchContrib
-			}]
+			},
+			precondition: IS_COMPOSITE_NOTEBOOK
 		});
 	}
 
@@ -660,25 +652,16 @@ registerAction2(class extends Action2 {
 			title: localize2('interactive.history.next', 'Next value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
-			keybinding: [{
+			keybinding: {
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
 					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			}, {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
-					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
-					SuggestContext.Visible.toNegated()
-				),
-				primary: KeyCode.DownArrow,
-				weight: KeybindingWeight.WorkbenchContrib
-			}],
+			},
+			precondition: IS_COMPOSITE_NOTEBOOK
 		});
 	}
 
@@ -771,7 +754,12 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: InteractiveWindowOpen,
 			},
-			precondition: InteractiveWindowOpen,
+			keybinding: {
+				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+			},
+			precondition: InteractiveWindowOpen
 		});
 	}
 
@@ -810,7 +798,20 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 			},
-			precondition: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+			keybinding: [{
+				// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
+				when: ContextKeyExpr.and(
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none')),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow
+			},
+			{
+				when: ContextKeyExpr.or(IsWindowsContext, IsLinuxContext),
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+			}],
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
