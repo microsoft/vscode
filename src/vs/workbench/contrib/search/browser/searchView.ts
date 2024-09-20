@@ -966,7 +966,7 @@ export class SearchView extends ViewPane {
 
 			let editable = false;
 			if (focus instanceof Match) {
-				editable = (focus instanceof MatchInNotebook) ? !focus.isReadonly() : true;
+				editable = !focus.isReadonly();
 			} else if (focus instanceof FileMatch) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (focus instanceof FolderMatch) {
