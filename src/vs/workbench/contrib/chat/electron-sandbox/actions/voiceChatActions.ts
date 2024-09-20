@@ -587,15 +587,6 @@ export class StartVoiceChatAction extends Action2 {
 				),
 				group: 'navigation',
 				order: -1
-			}, {
-				id: TerminalChatExecute,
-				when: ContextKeyExpr.and(
-					HasSpeechProvider,
-					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
-					AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
-				),
-				group: 'navigation',
-				order: -1
 			}]
 		});
 	}
